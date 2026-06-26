@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "plan": {
+      "type": "http",
+      "url": "https://plan.agent-native.com/_agent-native/mcp"
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    }
+  }
+}

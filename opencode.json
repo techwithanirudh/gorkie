@@ -1,0 +1,14 @@
+{
+  "mcp": {
+    "plan": {
+      "type": "remote",
+      "url": "https://plan.agent-native.com/_agent-native/mcp",
+      "enabled": true
+    },
+    "context7": {
+      "type": "local",
+      "command": ["npx", "-y", "@upstash/context7-mcp"],
+      "enabled": true
+    }
+  }
+}

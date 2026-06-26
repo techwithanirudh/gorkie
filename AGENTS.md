@@ -13,3 +13,7 @@ Load the `mastra` skill BEFORE any Mastra work. Never rely on cached knowledge â
 
 - [Mastra Documentation](https://mastra.ai/llms.txt)
 - [Skills Discovery](https://mastra.ai/.well-known/skills/index.json)
+
+<!-- BEGIN @agent-native/skills -->
+When long-running or parallel work needs usage-limit checks, use the /stay-within-limits skill always.
+<!-- END @agent-native/skills -->
