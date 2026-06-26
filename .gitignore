@@ -42,3 +42,7 @@ dist
 *.db-*
 .netlify
 .vercel
+
+# Mastra runtime artifacts (regenerated)
+/src/mastra/public
+/workspace
