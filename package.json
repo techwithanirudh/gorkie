@@ -29,6 +29,7 @@
     "@mastra/memory": "^1.21.1",
     "@mastra/observability": "^1.15.1",
     "@mastra/pg": "^1.14.1",
+    "@t3-oss/env-core": "^0.13.11",
     "chat": "^4.31.0",
     "zod": "^4"
   }

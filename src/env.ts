@@ -1,31 +1,27 @@
+import 'dotenv/config';
+import { createEnv } from '@t3-oss/env-core';
 import { z } from 'zod';
 
-const envSchema = z.object({
-  // Slack
-  SLACK_BOT_TOKEN: z.string().min(1, 'SLACK_BOT_TOKEN is required'),
-  SLACK_APP_TOKEN: z.string().min(1, 'SLACK_APP_TOKEN is required'),
+export const env = createEnv({
+  server: {
+    NODE_ENV: z
+      .enum(['development', 'production', 'test'])
+      .default('development'),
 
-  // Model — Mastra built-in `openrouter` provider (Hack Club proxy by default)
-  OPENROUTER_API_KEY: z.string().min(1, 'OPENROUTER_API_KEY is required'),
-  OPENROUTER_BASE_URL: z.url().default('https://ai.hackclub.com/proxy/v1'),
+    SLACK_BOT_TOKEN: z.string().min(1),
+    SLACK_APP_TOKEN: z.string().min(1),
 
-  // Storage — Postgres
-  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+    OPENROUTER_API_KEY: z.string().min(1),
+    OPENROUTER_BASE_URL: z.url().default('https://ai.hackclub.com/proxy/v1'),
 
-  // Sandbox — E2B (isolated cloud compute; the bot never runs code on our host)
-  E2B_API_KEY: z.string().min(1, 'E2B_API_KEY is required for the E2B sandbox'),
+    DATABASE_URL: z.url(),
 
-  // Observability — Langfuse (optional; tracing is wired only when keys are present)
-  LANGFUSE_PUBLIC_KEY: z.string().optional(),
-  LANGFUSE_SECRET_KEY: z.string().optional(),
-  LANGFUSE_BASE_URL: z.url().default('https://cloud.langfuse.com'),
+    E2B_API_KEY: z.string().min(1),
 
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+    LANGFUSE_PUBLIC_KEY: z.string().min(1),
+    LANGFUSE_SECRET_KEY: z.string().min(1),
+    LANGFUSE_BASEURL: z.url().default('https://cloud.langfuse.com'),
+  },
+  runtimeEnv: process.env,
+  emptyStringAsUndefined: true,
 });
-
-export const env = envSchema.parse(process.env);
-
-/** True when both Langfuse keys are configured. */
-export const langfuseEnabled = Boolean(
-  env.LANGFUSE_PUBLIC_KEY && env.LANGFUSE_SECRET_KEY,
-);

@@ -8,21 +8,7 @@ import {
 } from '@mastra/observability';
 import { LangfuseExporter } from '@mastra/langfuse';
 import { gorkieAgent } from './agents/gorkie';
-import { env, langfuseEnabled } from '../env';
-
-const exporters = [
-  new MastraStorageExporter(),
-  ...(langfuseEnabled
-    ? [
-        new LangfuseExporter({
-          publicKey: env.LANGFUSE_PUBLIC_KEY,
-          secretKey: env.LANGFUSE_SECRET_KEY,
-          baseUrl: env.LANGFUSE_BASE_URL,
-          realtime: env.NODE_ENV === 'development',
-        }),
-      ]
-    : []),
-];
+import { env } from '../env';
 
 export const mastra = new Mastra({
   agents: { gorkieAgent },
@@ -34,8 +20,15 @@ export const mastra = new Mastra({
     configs: {
       default: {
         serviceName: 'gorkie',
-        exporters,
-        // Redact secrets (tokens, keys, passwords) before traces leave the process.
+        exporters: [
+          new MastraStorageExporter(),
+          new LangfuseExporter({
+            publicKey: env.LANGFUSE_PUBLIC_KEY,
+            secretKey: env.LANGFUSE_SECRET_KEY,
+            baseUrl: env.LANGFUSE_BASEURL,
+            realtime: env.NODE_ENV === 'development',
+          }),
+        ],
         spanOutputProcessors: [new SensitiveDataFilter()],
       },
     },

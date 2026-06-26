@@ -1,5 +1,6 @@
 import { Workspace } from '@mastra/core/workspace';
 import { E2BSandbox } from '@mastra/e2b';
+import { MASTRA_THREAD_ID_KEY } from '@mastra/core/request-context';
 import { env } from '../../env';
 
 // Security: gorkie is a public bot, so the agent must NEVER execute code on our
@@ -20,6 +21,8 @@ export const workspace = new Workspace({
       // Keep a thread's sandbox warm for a while between messages.
       // timeout: 5 * 60 * 1000,
     }),
+  // Channels stores the Mastra thread id under MASTRA_THREAD_ID_KEY, so we key
+  // the per-thread sandbox cache off that (NOT a custom 'thread-id' key).
   sandboxCacheKey: ({ requestContext }) =>
-    requestContext.get('thread-id') as string | undefined,
+    requestContext.get(MASTRA_THREAD_ID_KEY) as string | undefined,
 });
