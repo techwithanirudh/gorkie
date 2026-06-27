@@ -35,6 +35,7 @@ export const mastra = new Mastra({
   }),
   logger: new PinoLogger({
     name: 'gorkie',
-    level: env.NODE_ENV === 'development' ? 'debug' : 'info',
+    // level: env.NODE_ENV === 'development' ? 'debug' : 'info',
+    level: 'info'
   }),
 });

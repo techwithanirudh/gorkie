@@ -45,10 +45,6 @@ interface ForecastResult {
   };
 }
 
-/**
- * Get the current weather for a location. Uses the free Open-Meteo API
- * (no API key required): geocodes the place name, then fetches current conditions.
- */
 export const weatherTool = createTool({
   id: 'get_weather',
   description:
