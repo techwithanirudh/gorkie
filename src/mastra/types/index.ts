@@ -1,4 +1,5 @@
-/** Channel context channels writes to `requestContext.get('channel')`. */
+import type { RequestContext } from '@mastra/core/request-context';
+
 export interface ChannelContext {
   platform?: string;
   isDM?: boolean;
@@ -8,8 +9,14 @@ export interface ChannelContext {
   userName?: string;
 }
 
-/** Per-thread state persisted via Chat SDK's thread state store. */
 export interface GorkieThreadState {
-  /** Set once gorkie is pinged at a thread's start, meaning it follows the whole thread. */
   respondOnThreadMessages?: boolean;
+}
+
+type GorkieRequestContext = RequestContext<{ channel?: ChannelContext }>;
+
+export function channelContext(requestContext?: RequestContext): ChannelContext {
+  return (
+    (requestContext as GorkieRequestContext | undefined)?.get('channel') ?? {}
+  );
 }

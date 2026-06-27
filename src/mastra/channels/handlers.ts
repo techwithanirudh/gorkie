@@ -1,13 +1,14 @@
 import type { Message, Thread } from 'chat';
 import type { GorkieThreadState } from '../types';
 import { slack } from './slack';
+import { rawText, withoutLeadingMentions } from './message';
+import { captureSearchToken } from './search-token';
 
 type DefaultHandler = (thread: Thread, message: Message) => Promise<void>;
 
-// `##` marks a message as internal: a note in a thread that shouldn't get a reply.
 export function shouldIgnore(message: Message): boolean {
-  for (const line of (message.text ?? '').split('\n')) {
-    if (line.trimStart().startsWith('##')) return true;
+  for (const line of rawText(message).split('\n')) {
+    if (withoutLeadingMentions(line).trimStart().startsWith('##')) return true;
   }
   return false;
 }
@@ -20,16 +21,12 @@ function isThreadRoot(message: Message): boolean {
   }
 }
 
-// Subscription model (ported from v1): pinged at a thread's start → follow the
-// whole thread; pinged mid-thread → answer that ping only and detach, so the next
-// ping re-routes through onNewMention and channels re-fetches recent context.
-// Channels checks subscription before mentions, so once subscribed even @mentions
-// arrive via onSubscribedMessage; both handlers cover that.
 export async function onNewMention(
   thread: Thread,
   message: Message,
   defaultHandler: DefaultHandler,
 ): Promise<void> {
+  captureSearchToken(thread.id, message.raw);
   if (shouldIgnore(message)) return;
 
   if (isThreadRoot(message)) {
@@ -47,6 +44,7 @@ export async function onSubscribedMessage(
   message: Message,
   defaultHandler: DefaultHandler,
 ): Promise<void> {
+  captureSearchToken(thread.id, message.raw);
   if (shouldIgnore(message)) return;
 
   const state = (await thread.state) as GorkieThreadState | null;
@@ -67,6 +65,7 @@ export async function onDirectMessage(
   message: Message,
   defaultHandler: DefaultHandler,
 ): Promise<void> {
+  captureSearchToken(thread.id, message.raw);
   if (shouldIgnore(message)) return;
   await defaultHandler(thread, message);
 }

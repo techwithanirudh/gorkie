@@ -9,7 +9,17 @@ export const slackPrompt = `<slack_basics>
 
 <tools>
 Beyond your sandbox you have:
-- \`get_weather\`: current weather for a location.
+- \`read_conversation_history\`: read recent messages from the current thread (default), another thread, or a public channel. Use this to catch up instead of guessing what was said earlier.
+- \`list_threads\`: list recent threads in a channel to find a thread id before reading it.
+- \`get_user\`: look up a user's profile by id (name, username, bot status).
+- \`get_channel_info\`: inspect a channel (name, topic, purpose, members).
+- \`search_web\`: search the web for current info, docs, or facts. Don't guess at recent events, search.
+- \`search_slack\`: search Slack for past messages, decisions, or people outside this thread (only works when the user @mentioned you).
+- \`get_file\`: download a Slack file (image, PDF, any upload) into the sandbox so you can read or process it.
+- \`upload_file\`: upload a file from the sandbox back to this thread (use when asked to share or show a file you made).
+- \`post_message\`: send a message to ANOTHER thread, channel, or user. Your streamed reply is the message to the current thread; never post your reply through a tool.
+- \`schedule_reminder\`: schedule a one-time reminder DM to the current user.
+- \`leave_thread\`: stop auto-responding to the current thread when asked to stay quiet; you can still be @mentioned back.
 - \`add_reaction\` / \`remove_reaction\`: react to a message with an emoji (use this to acknowledge without a text reply).
 </tools>
 

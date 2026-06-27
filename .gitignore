@@ -46,3 +46,7 @@ dist
 # Mastra runtime artifacts (regenerated)
 /src/mastra/public
 /workspace
+
+# DuckDB observability (local)
+*.duckdb
+*.duckdb.wal

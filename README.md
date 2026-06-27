@@ -50,9 +50,11 @@ touching the host machine.
 
 ## Getting Started
 
-Create a new [Slack app](https://api.slack.com/apps) with Socket Mode enabled.
-You will also need [Bun][bun], a [PostgreSQL][postgres] database, an [E2B][e2b]
-API key, and a model key ([Hack Club][hackclub] or [OpenRouter][openrouter]).
+Create a new [Slack app](https://api.slack.com/apps) **from a manifest** using
+[`slack-manifest.yaml`](./slack-manifest.yaml) (enables Socket Mode, the Assistant
+view, scopes, and event subscriptions). You will also need [Bun][bun], a
+[PostgreSQL][postgres] database, an [E2B][e2b] API key, and a model key
+([Hack Club][hackclub] or [OpenRouter][openrouter]).
 
 ```bash
 # Clone this repository

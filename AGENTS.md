@@ -6,6 +6,14 @@ gorkie is an AI assistant for Slack. Bun + TypeScript, built on **Mastra** (agen
 
 Load the `mastra` skill BEFORE any Mastra work, and read the embedded docs/source in `node_modules/@mastra/*` rather than guessing. Mastra APIs change between versions; cached knowledge is usually wrong.
 
+## TODO discipline (do this every turn)
+
+`TODO.md` is the source of truth for outstanding requests so nothing is forgotten.
+
+- When the user asks for anything — small or large — add it to `TODO.md` immediately, in the right group.
+- Tick an item the moment it's done, then remove ticked items (keep them briefly under "Recently completed" so the user can see, then prune).
+- Before saying you're finished, re-read `TODO.md` and confirm nothing asked is left unlogged.
+
 ## Mental Model
 
 One Mastra `Agent` (`gorkieAgent`) serves Slack through Mastra's built-in `channels`. Channels owns the message flow: Socket Mode, streaming, live tool widgets, typing status, thread-history backfill with multi-user prefixing, and `MastraStateAdapter`. We do not hand-roll any of that — we shape it with channel `handlers` and config.

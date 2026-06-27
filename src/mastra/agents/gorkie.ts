@@ -1,7 +1,7 @@
 import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
-import { workspace } from '../workspace';
-import { weatherTool } from '../tools/weather';
+import { workspace, sandboxLifecycle } from '../workspace';
+import { tools } from '../tools';
 import { slack } from '../channels/slack';
 import {
   onNewMention,
@@ -14,9 +14,12 @@ export const gorkieAgent = new Agent({
   id: 'gorkie',
   name: 'gorkie',
   instructions: ({ requestContext }) => buildInstructions(requestContext),
-  model: [{ model: 'openrouter/minimax/minimax-m3', maxRetries: 3 }],
+  // model: [{ model: 'openrouter/moonshotai/kimi-k2.6', maxRetries: 3 }],
+  model: [{ model: 'openrouter/google/gemini-3-flash-preview', maxRetries: 3 }],
+  defaultOptions: { maxSteps: 150 },
   workspace,
-  tools: { weatherTool },
+  outputProcessors: [sandboxLifecycle],
+  tools,
   memory: new Memory({
     options: {
       lastMessages: 20,

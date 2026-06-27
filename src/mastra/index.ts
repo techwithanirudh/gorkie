@@ -1,6 +1,8 @@
 import { Mastra } from '@mastra/core/mastra';
+import { MastraCompositeStore } from '@mastra/core/storage';
 import { PinoLogger } from '@mastra/loggers';
 import { PostgresStore } from '@mastra/pg';
+import { DuckDBStore } from '@mastra/duckdb';
 import {
   Observability,
   MastraStorageExporter,
@@ -12,9 +14,17 @@ import { env } from '../env';
 
 export const mastra = new Mastra({
   agents: { gorkieAgent },
-  storage: new PostgresStore({
-    id: 'gorkie-storage',
-    connectionString: env.DATABASE_URL,
+  storage: new MastraCompositeStore({
+    id: 'composite-storage',
+    default: new PostgresStore({
+      id: 'gorkie-storage',
+      connectionString: env.DATABASE_URL,
+    }),
+    domains: {
+      observability: await new DuckDBStore({
+        path: './observability.duckdb',
+      }).getStore('observability'),
+    },
   }),
   observability: new Observability({
     configs: {
@@ -35,7 +45,6 @@ export const mastra = new Mastra({
   }),
   logger: new PinoLogger({
     name: 'gorkie',
-    // level: env.NODE_ENV === 'development' ? 'debug' : 'info',
     level: 'info'
   }),
 });
