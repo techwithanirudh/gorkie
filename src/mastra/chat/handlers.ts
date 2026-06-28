@@ -3,10 +3,11 @@ import type { GorkieThreadState } from '../types';
 import { slack } from './slack';
 import { rawText, withoutLeadingMentions } from './message';
 import { captureSearchToken } from './search-token';
+import { copySlackFilesIntoSandbox } from './attachments';
 
 type DefaultHandler = (thread: Thread, message: Message) => Promise<void>;
 
-export function shouldIgnore(message: Message): boolean {
+function shouldIgnore(message: Message): boolean {
   for (const line of rawText(message).split('\n')) {
     if (withoutLeadingMentions(line).trimStart().startsWith('##')) return true;
   }
@@ -21,22 +22,23 @@ function isThreadRoot(message: Message): boolean {
   }
 }
 
-export async function onNewMention(
+async function respond(
+  thread: Thread,
+  message: Message,
+  defaultHandler: DefaultHandler,
+): Promise<void> {
+  await defaultHandler(thread, await copySlackFilesIntoSandbox(thread, message));
+}
+
+export async function onMention(
   thread: Thread,
   message: Message,
   defaultHandler: DefaultHandler,
 ): Promise<void> {
   captureSearchToken(thread.id, message.raw);
   if (shouldIgnore(message)) return;
-
-  if (isThreadRoot(message)) {
-    await thread.setState({ respondOnThreadMessages: true });
-    await defaultHandler(thread, message);
-    return;
-  }
-
-  await defaultHandler(thread, message);
-  await thread.unsubscribe().catch(() => undefined);
+  if (isThreadRoot(message)) await thread.setState({ respondOnThreadMessages: true });
+  await respond(thread, message, defaultHandler);
 }
 
 export async function onSubscribedMessage(
@@ -46,18 +48,9 @@ export async function onSubscribedMessage(
 ): Promise<void> {
   captureSearchToken(thread.id, message.raw);
   if (shouldIgnore(message)) return;
-
   const state = (await thread.state) as GorkieThreadState | null;
-  const following = state?.respondOnThreadMessages === true;
-  if (!(following || message.isMention)) return;
-
-  if (following) {
-    await defaultHandler(thread, message);
-    return;
-  }
-
-  await defaultHandler(thread, message);
-  await thread.unsubscribe().catch(() => undefined);
+  if (!(state?.respondOnThreadMessages === true || message.isMention)) return;
+  await respond(thread, message, defaultHandler);
 }
 
 export async function onDirectMessage(
@@ -67,5 +60,5 @@ export async function onDirectMessage(
 ): Promise<void> {
   captureSearchToken(thread.id, message.raw);
   if (shouldIgnore(message)) return;
-  await defaultHandler(thread, message);
+  await respond(thread, message, defaultHandler);
 }

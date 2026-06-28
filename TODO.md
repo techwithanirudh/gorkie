@@ -5,8 +5,10 @@ See [DESIGN.md](./DESIGN.md) for architecture.
 
 ## Recently completed (prune after review)
 
+- [x] **Exact Mastra channels source review:** copied the upstream Mastra channels implementation into a local review folder with commit provenance, then produced a real size/diff/visual review artifact showing what owning it would add.
+- [x] **FLIPPED BACK to Mastra `AgentChannels`** (least code + stable internals). Researched: Mastra exports nothing reusable except `MastraStateAdapter`/`defaultTypingStatus`, but **handler overrides** (`onMention`/`onSubscribedMessage`/`onDirectMessage` calling `defaultHandler`) let us own subscription policy while reusing all of `processChatMessage`'s stable internals (message build, multi-user attributes, history fetch, `sendMessage`+native steering, subscription mechanics). Config: `channels.adapters.slack { toolDisplay: 'timeline' }` (shows output, zero render code), `threadContext.maxMessages: 10`, `handlers: { onMention, onSubscribedMessage, onDirectMessage }`. **Deleted** the owned pipeline (`run-turn`/`prompt`/`render`), the `getBot`/`setBot` ref, and the `resolveToolDisplay` hijack. Clean `chat()` accessor (`chat/instance.ts`) = `gorkieAgent.getChannels().sdk`. **Stop button** ported 1:1 from reference (`chat/controls.ts` Card/Actions/Button posted per-turn in handler overrides + `chat/stop.ts` `onAction('stop_turn')` → `abortThreadStream` via `listThreads(metadata.channel_externalThreadId)` lookup). Traded away: reasoning-as-task + per-tool inline status (channels can't; revisit if Mastra ships render hook — issue #15856). Native steering + stable subscription/multi-user now come free.
+- [x] **MIGRATED OFF Mastra `AgentChannels` → own the Chat SDK directly** (Level 2). We hit the channels ceiling (grouped+output needed a `resolveToolDisplay` monkey-patch; no access to the Chat instance; couldn't do inline tool status). Now: `channels/client.ts` builds `new Chat({ adapters:{slack}, state: new MastraStateAdapter(memoryStore) })`; `handlers.ts` registers `onNewMention`/`onSubscribedMessage`/`onDirectMessage`/`onAction(stop_turn)` → `run-turn.ts`; `run-turn.ts` sets `requestContext.channel` (keeps sandbox caching), calls `gorkieAgent.stream()`, posts `new StreamingPlan(renderStream(fullStream), { groupTasks:'plan' })`; `render.ts` consumes the agent `fullStream` (text-delta/tool-call/tool-result/tool-error) → task chunks with our per-tool renderers; `prompt.ts` does multi-user labels + thread-history backfill. Deleted `grouped-output.ts` (hijack), `tool-display.ts` (folded into `render.ts`), `examples.ts`. Reuse: `MastraStateAdapter` (subscriptions persist), agent (model/tools/memory/workspace), `events.ts` (App Home). Unlocks: grouped+output natively, inline tool status, Stop/steering hooks (`stopTurn` + per-thread AbortController already wired).
 - [x] `maxSteps` raised 5 → 150 (`defaultOptions.maxSteps`).
-- [x] Tool outputs shown: `toolDisplay` `'grouped'` → `'timeline'`.
 - [x] Tool name fix (`tools: { get_weather }`); verified tool calling + caching works.
 - [x] Removed timestamp + speaker from the system prompt (cache-killers).
 - [x] Sandbox guidance → `E2BSandbox.instructions`; prompts split one-file-each; types in `src/mastra/types/`.
@@ -32,7 +34,9 @@ See [DESIGN.md](./DESIGN.md) for architecture.
 ## Testing (E2E — mostly needs you in Slack/Studio; I'll prep what I can)
 
 - [ ] Tool calling in **Agent UI (Studio)** and **Slack** (programmatic test already passes).
-- [ ] Tool task UI: confirm `timeline` now shows tool outputs nicely; refine if cramped.
+- [x] **Grouped UI matches old gorkie** — grouped plan renders command/tool output (the fence format was the bug; Slack plan-mode `output` wants a plain string, not a ```` ``` ```` block). Per-tool renderers (`channels/tool-display.ts`) now mirror the reference: present→past title flip (`Running command`→`Ran command`), `request→details` input line, `response→output`. Slack merges task fields by `task_id` so details persist beside output.
+- [ ] **Per-tool output summaries** (deferred, user's call) — old gorkie shows concise summaries (`Found 10 Slack results`, `Found twa (he/him/his)`) instead of raw output. Port the reference `stream/tasks/*` response renderers when we want that polish. Raw output is fine for now.
+- [ ] **Reasoning "Thinking" tasks** — old gorkie surfaces model reasoning as a `Thinking` task with the reasoning text. Needs the model to emit reasoning chunks + handling them (they don't come through the `ToolDisplayFn`, which only sees tool events).
 - [ ] **DM** conversation (gorkie replies to every message).
 - [ ] **@mention in a new thread** → follows the whole thread.
 - [ ] **@mention mid-thread** → answers once; pinging again re-fetches the last ~10 messages. Verify it picks up what was said in between.
@@ -58,6 +62,15 @@ See [DESIGN.md](./DESIGN.md) for architecture.
 - [ ] Re-review old codebase prompts to confirm nothing important is missing (presets/personas, hints).
 - [ ] **User custom instructions** — inject the speaker's saved preset as `<user_instructions>` in the user message (not the system prompt, to keep caching). Core prompt already references it.
 
+## Data / persistence
+
+- [ ] **Port the reference codebase's drizzle setup** (`gorkie-slack/apps/*`) — drizzle schema + migrations + client, so we have first-class tables for **user custom instructions / presets**, allowlist/onboarding, and any per-user App Home state. Mastra's `PostgresStore` owns its own memory/observability tables; this drizzle layer is *our* app data alongside it, on the **same** shared Supabase Postgres (`DATABASE_URL`). Decide: reuse the reference's existing tables on this shared DB, or namespace gorkie's own. Blocks: custom instructions, App Home presets, allowlist.
+
+## Integrations (wanted)
+
+- [ ] **agent-browser skill** — add the agent-browser skill so gorkie can drive a browser.
+- [ ] **agentmail** — integrate agentmail (email send/receive for gorkie).
+
 ## Features (phased)
 
 - [ ] **Stop button (queued next, before more tool batches)** — `sdk.onAction('stop_turn')` → `agent.abortThreadStream()`; post a Block Kit card with a Stop button during a run. Verify the abort actually stops the run.
@@ -78,5 +91,5 @@ See [DESIGN.md](./DESIGN.md) for architecture.
 
 ## Ops
 
-- [ ] Local Postgres is a manual dev cluster on :5434. For prod, point `DATABASE_URL` at managed Postgres (Supabase/Neon) that survives restarts.
+- [x] `DATABASE_URL` now points at the **shared Supabase Postgres** (same instance as the reference bot, `gorkie-slack/apps/bot/.env`) instead of the local :5434 cluster — survives restarts, shared with the drizzle app data above. Note: it's the **transaction pooler** (`:6543`), so drizzle migrations/`db:push` may need the session/direct URL (`:5432`) instead.
 - [ ] Note: `bun run dev` (Studio) writes a local LibSQL `mastra.db` — a Studio artifact, not the bot's Postgres. Gitignored.

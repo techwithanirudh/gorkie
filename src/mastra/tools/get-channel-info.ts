@@ -1,31 +1,26 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { slack } from '../channels/slack';
-import { rawId } from './slack-context';
 import { channelContext } from '../types';
+import { assertReadableChannel } from './utils';
 
 export const getChannelInfoTool = createTool({
   id: 'get_channel_info',
   description:
-    'Inspect a Slack channel (name, topic, purpose, privacy, member count). Defaults to the current channel.',
+    'Fetch metadata for a channel: name, member count, DM status, visibility. Defaults to the current channel.',
   inputSchema: z.object({
-    channelId: z
-      .string()
-      .optional()
-      .describe('Channel id; defaults to the current channel.'),
+    channelId: z.string().optional().describe('Channel id; defaults to the current channel.'),
   }),
   execute: async ({ channelId }, context) => {
-    const id = rawId(channelId ?? channelContext(context?.requestContext).channelId ?? '');
+    const ctx = channelContext(context?.requestContext);
+    const id = channelId ?? ctx.channelId;
     if (!id) throw new Error('No channel to inspect.');
-    const res = await slack.webClient.conversations.info({ channel: id });
-    const c = res.channel;
+    const info = await assertReadableChannel(id, ctx.threadId);
     return {
-      id: c?.id,
-      name: c?.name,
-      topic: c?.topic?.value || undefined,
-      purpose: c?.purpose?.value || undefined,
-      isPrivate: c?.is_private,
-      memberCount: c?.num_members,
+      id: info.id,
+      name: info.name,
+      isDM: info.isDM ?? false,
+      memberCount: info.memberCount,
+      channelVisibility: info.channelVisibility,
     };
   },
 });

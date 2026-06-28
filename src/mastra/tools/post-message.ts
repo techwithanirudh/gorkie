@@ -1,6 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { getBot } from '../channels/bot';
+import { chat } from '../chat/instance';
 
 export const postMessageTool = createTool({
   id: 'post_message',
@@ -15,7 +15,7 @@ export const postMessageTool = createTool({
     message: z.string().min(1).describe('Markdown message body.'),
   }),
   execute: async ({ type, id, message }) => {
-    const bot = getBot();
+    const bot = chat();
     if (type === 'channel') {
       const sent = await bot.channel(id).post({ markdown: message });
       return { messageId: sent.id, threadId: sent.threadId };

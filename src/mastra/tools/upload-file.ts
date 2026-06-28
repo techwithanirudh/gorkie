@@ -2,7 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { uploadSlackFiles } from '@chat-adapter/slack/api';
 import type { E2BSandbox } from '@mastra/e2b';
-import { slack } from '../channels/slack';
+import { slack } from '../chat/slack';
 import { env } from '../../env';
 import { rawId } from './slack-context';
 import { channelContext } from '../types';

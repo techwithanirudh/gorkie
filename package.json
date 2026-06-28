@@ -18,7 +18,8 @@
     "dev": "mastra dev",
     "build": "mastra build",
     "start": "mastra start",
-    "bot": "bun run index.ts"
+    "bot": "bun run index.ts",
+    "build:template": "bun run src/mastra/workspace/build-template.ts"
   },
   "dependencies": {
     "@chat-adapter/slack": "^4.31.0",
@@ -32,6 +33,7 @@
     "@mastra/pg": "^1.14.1",
     "@t3-oss/env-core": "^0.13.11",
     "chat": "^4.31.0",
+    "e2b": "^2.31.0",
     "exa-js": "^2.15.0",
     "zod": "^4"
   }

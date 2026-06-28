@@ -1,6 +1,5 @@
 import { Mastra } from '@mastra/core/mastra';
 import { MastraCompositeStore } from '@mastra/core/storage';
-import { PinoLogger } from '@mastra/loggers';
 import { PostgresStore } from '@mastra/pg';
 import { DuckDBStore } from '@mastra/duckdb';
 import {
@@ -9,11 +8,15 @@ import {
   SensitiveDataFilter,
 } from '@mastra/observability';
 import { LangfuseExporter } from '@mastra/langfuse';
-import { gorkieAgent } from './agents/gorkie';
+import { gorkieAgent } from './agent/gorkie';
+import { summarizerAgent } from './agent/summarizer';
+import { setChat } from './chat/instance';
+import { registerEvents } from './chat/events';
+import { logger } from './logger';
 import { env } from '../env';
 
 export const mastra = new Mastra({
-  agents: { gorkieAgent },
+  agents: { gorkieAgent, summarizerAgent },
   storage: new MastraCompositeStore({
     id: 'composite-storage',
     default: new PostgresStore({
@@ -43,8 +46,17 @@ export const mastra = new Mastra({
       },
     },
   }),
-  logger: new PinoLogger({
-    name: 'gorkie',
-    level: 'info'
-  }),
+  logger,
 });
+
+void gorkieAgent
+  .getChannels()
+  ?.initialize(mastra)
+  .then(() => {
+    const sdk = gorkieAgent.getChannels()?.sdk;
+    if (!sdk) return;
+    setChat(sdk);
+    registerEvents();
+    console.log('[gorkie] online');
+  })
+  .catch((err: unknown) => console.error('[gorkie] channels init failed', err));

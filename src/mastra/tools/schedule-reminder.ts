@@ -1,6 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { getBot } from '../channels/bot';
+import { chat } from '../chat/instance';
 import { channelContext } from '../types';
 
 export const scheduleReminderTool = createTool({
@@ -20,8 +20,12 @@ export const scheduleReminderTool = createTool({
     const userId = channelContext(context?.requestContext).userId;
     if (!userId) throw new Error('No user to remind.');
     const postAt = new Date(Date.now() + seconds * 1000);
-    const dm = await getBot().openDM(userId);
-    await dm.schedule({ markdown: text }, { postAt });
-    return { scheduledFor: postAt.toISOString(), userId };
+    try {
+      const dm = await chat().openDM(userId);
+      await dm.schedule({ markdown: text }, { postAt });
+      return { success: true, scheduledFor: postAt.toISOString(), userId };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
   },
 });

@@ -9,6 +9,7 @@ import { scheduleReminderTool } from './schedule-reminder';
 import { leaveThreadTool } from './leave-thread';
 import { searchWebTool } from './search-web';
 import { searchSlackTool } from './search-slack';
+import { summarizeThreadTool } from './summarize-thread';
 
 export const tools = {
   search_web: searchWebTool,
@@ -22,4 +23,5 @@ export const tools = {
   post_message: postMessageTool,
   schedule_reminder: scheduleReminderTool,
   leave_thread: leaveThreadTool,
+  summarize_thread: summarizeThreadTool,
 };
