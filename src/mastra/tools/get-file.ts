@@ -4,7 +4,7 @@ import type { E2BSandbox } from '@mastra/e2b';
 import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../chat/slack';
-import { workdir } from '../workspace/config';
+import { p } from '../lib/path';
 
 const SLACK_FILE_ID = /(F[A-Z0-9]{6,})/;
 
@@ -53,7 +53,7 @@ export const getFileTool = createTool({
       /[^\w.-]+/g,
       '_'
     );
-    const path = `${workdir}/downloads/${name}`;
+    const path = p('downloads', name);
     await sandbox.e2b.files.write(path, data);
 
     return {

@@ -6,8 +6,8 @@ import {
 } from '@mastra/core/workspace';
 import { E2BSandbox } from '@mastra/e2b';
 import { env } from '@/env';
+import { sandbox as config } from '../config';
 import { channelContext } from '../lib/context';
-import { template } from './config';
 
 export const workspace = new Workspace({
   id: 'gorkie-workspace',
@@ -15,7 +15,7 @@ export const workspace = new Workspace({
   sandbox: () =>
     new E2BSandbox({
       apiKey: env.E2B_API_KEY,
-      template,
+      template: config.template,
       instructions: [
         'You have a persistent E2B Linux sandbox (Debian, Node.js 24, Python 3) for this conversation, driven by `execute_command`.',
         'Pre-installed: agent-browser (browser automation: run `agent-browser skills get core` for usage), agentmail (Python), wrangler (Cloudflare Workers), ripgrep, fd, ffmpeg, imagemagick, jq, pillow/matplotlib/numpy/pandas.',
@@ -24,7 +24,7 @@ export const workspace = new Workspace({
         'Verify your work by running it before claiming it works; read stderr and fix failures instead of re-running the same failing command.',
         'The sandbox persists across turns in this thread, so files and installed tools you create stay available. Files are not visible in chat unless you post them back.',
       ].join(' '),
-      timeout: 480_000
+      timeout: config.timeout,
     }),
   sandboxCacheKey: ({ requestContext }) =>
     channelContext(requestContext).threadId,

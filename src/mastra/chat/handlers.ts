@@ -1,5 +1,5 @@
 import type { Message, Thread } from 'chat';
-import { logger } from '../logger';
+import { logger } from '../lib/logger';
 import type { GorkieThreadState } from '../types';
 import { copyFilesToSandbox } from './attachments';
 import { rawText, withoutLeadingMentions } from './message';

@@ -41,12 +41,11 @@ export const summarizeThreadTool = createTool({
       return { success: false, message: 'No messages found in the thread.' };
     }
 
-    const transcript = result.messages
-      .map(
-        (m) =>
-          `${m.author.fullName || m.author.userName || 'unknown'}: ${m.text}`
-      )
-      .join('\n');
+    const lines = result.messages.map((message) => {
+      const author = message.author.fullName || message.author.userName;
+      return `${author}: ${message.text}`;
+    });
+    const transcript = lines.join('\n');
 
     const prompt = `${instructions ? `${instructions}\n\n` : ''}Summarize this thread clearly and concisely. Preserve decisions, open questions, and action items when present.\n\n${transcript}`;
     const { text } = await summarizerAgent.generate(prompt);

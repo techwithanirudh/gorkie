@@ -1,5 +1,4 @@
-import { sandboxLifecycle } from './sandbox-lifecycle';
-import { turnLog } from './turn-log';
+import { sandbox } from './sandbox';
+import { turns } from './turns';
 
-// Agent output processors, in order.
-export const outputProcessors = [sandboxLifecycle, turnLog];
+export const outputProcessors = [sandbox, turns];

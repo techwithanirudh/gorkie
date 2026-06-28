@@ -3,7 +3,7 @@ import type {
   ProcessOutputStepArgs,
 } from '@mastra/core/processors';
 import { channelContext } from '../lib/context';
-import { logger } from '../logger';
+import { logger } from '../lib/logger';
 
 const MAX = 500;
 const clip = (value: unknown): string => {
@@ -11,8 +11,8 @@ const clip = (value: unknown): string => {
   return s.length > MAX ? `${s.slice(0, MAX).trimEnd()}...` : s;
 };
 
-export const turnLog = {
-  id: 'turn-log',
+export const turns = {
+  id: 'turns',
   processOutputStep(args: ProcessOutputStepArgs) {
     const threadId = channelContext(args.requestContext).threadId;
     for (const call of args.toolCalls ?? []) {
@@ -38,7 +38,7 @@ export const turnLog = {
     logger.info('[turn] final finished', {
       threadId,
       finishReason: args.result.finishReason,
-      steps: args.result.steps?.length ?? 0
+      steps: args.result.steps?.length ?? 0,
     });
     return args.messages;
   },

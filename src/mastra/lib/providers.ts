@@ -42,7 +42,7 @@ export const orchestrator: ModelWithRetries[] = [
     : []),
   {
     model: {
-      id: 'opencode-go/glm-k2.6',
+      id: 'opencode-go/glm-5.2',
       apiKey: env.OPENCODE_API_KEY,
       url: 'https://opencode.ai/zen/go/v1',
     },

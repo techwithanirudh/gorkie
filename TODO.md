@@ -4,6 +4,17 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 
 ## Recently completed
 
+- [x] **Restore startup smoke-test log**: code review found the documented `[gorkie] online` signal was missing; restored it after channel event registration.
+- [x] **Review uncommitted changes**: inspected current changes and provided actionable code review feedback.
+- [x] **Move sandbox path helper to util**: move sandbox path joining out of config into a utility file and shorten the helper to `p(...)`.
+- [x] **Add sandbox path helper**: centralize POSIX sandbox path joining so callers can build sandbox paths without importing `node:path` directly.
+- [x] **Clean logger/config/path utilities**: move Mastra logger into `lib/logger.ts`, export sandbox config separately, use `path.join` for sandbox file paths, and keep channel-context access centralized.
+- [x] **Centralize sandbox config and rename processors**: moved sandbox template/workdir/timeout into `src/mastra/config.ts`, renamed `sandbox-lifecycle.ts` to `sandbox.ts`, and renamed `turn-log.ts` to `turns.ts`.
+- [x] **Extract agent stop-condition helpers**: move tool-success and step-count stop conditions into `src/mastra/lib/tools.ts` and use them from `gorkie.ts`.
+- [x] **Use Chat SDK Postgres channel state**: configure channels with `@chat-adapter/state-pg` so subscriptions and `thread.state` persist like the reference bot.
+- [x] **Move Slack mention override into custom adapter**: mirror the reference mention annotation shape and preserve original Slack user IDs in model-visible mention text.
+- [x] **Disable incoming Slack mention hijacking**: override the Slack adapter's incoming inline mention resolution so `<@U...>` stays as IDs in model-visible input.
+- [x] **Restore top-level mention follow after restart**: replaced the temporary root-message fallback with persistent Chat SDK Postgres state for `respondOnThreadMessages`.
 - [x] **Seed attachments at absolute paths**: `copyFilesToSandbox` and `get_file` now write/report `/home/user/attachments/...` and `/home/user/downloads/...` instead of relative paths, so commands keep working after the model `cd`s out of the home dir (a relative `tar xzf attachments/...` was failing).
 - [x] **Dedupe attachment downloads**: the seeded-file note tells the model the files are already present and not to `get_file` them; `get_file` is scoped to files not attached to the current message. Stops the same upload being downloaded twice (e.g. a 182MB tarball).
 - [x] **Hide skill tool cards**: `tool-display` suppresses `skill` / `skill_search` / `skill_read` task widgets (constant, noisy).

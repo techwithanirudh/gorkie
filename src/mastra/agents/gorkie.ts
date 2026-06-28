@@ -1,5 +1,7 @@
+import { createPostgresState } from '@chat-adapter/state-pg';
 import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
+import { env } from '@/env';
 import {
   onDirectMessage,
   onMention,
@@ -8,6 +10,7 @@ import {
 import { slack } from '../chat/slack';
 import { toolDisplay } from '../chat/tool-display';
 import { memory, orchestrator } from '../lib/providers';
+import { stepCountAtLeast, toolCall } from '../lib/tools';
 import { outputProcessors } from '../processors';
 import { buildInstructions } from '../prompts';
 import { tools } from '../tools';
@@ -19,7 +22,7 @@ export const gorkieAgent = new Agent({
   instructions: ({ requestContext }) => buildInstructions(requestContext),
   model: orchestrator,
   defaultOptions: {
-    maxSteps: 150,
+    stopWhen: [toolCall('skip'), stepCountAtLeast(150)],
   },
   workspace,
   outputProcessors,
@@ -35,6 +38,7 @@ export const gorkieAgent = new Agent({
     },
   }),
   channels: {
+    state: createPostgresState({ url: env.DATABASE_URL }),
     adapters: {
       slack: {
         adapter: slack,

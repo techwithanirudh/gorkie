@@ -6,6 +6,7 @@
       "name": "gorkie",
       "dependencies": {
         "@chat-adapter/slack": "^4.31.0",
+        "@chat-adapter/state-pg": "^4.31.0",
         "@mastra/core": "^1.46.0",
         "@mastra/duckdb": "^1.5.0",
         "@mastra/e2b": "^0.4.0",
@@ -129,6 +130,8 @@
     "@chat-adapter/shared": ["@chat-adapter/shared@4.31.0", "", { "dependencies": { "chat": "4.31.0" } }, "sha512-vT/0S/LKSU5QTz5xJNWdiGp1jl55x0o8Z9I2VqlHfwjOKxVR87z++bQjXlE99w6BAxZjSYhWErlveyKo4LiDGg=="],
 
     "@chat-adapter/slack": ["@chat-adapter/slack@4.31.0", "", { "dependencies": { "@chat-adapter/shared": "4.31.0", "@slack/socket-mode": "^2.0.5", "@slack/web-api": "^7.14.0", "chat": "4.31.0" } }, "sha512-b+nUizoTQac0gNEaZ+F4XAYcFtynXufpGUYMkeSwfiD9najoQEKXpvZya8PgqX1Ddn3SPddeJ/ip+RS2oQuBLA=="],
+
+    "@chat-adapter/state-pg": ["@chat-adapter/state-pg@4.31.0", "", { "dependencies": { "chat": "4.31.0", "pg": "^8.20.0" } }, "sha512-cKCjWh4q+w85TGZzTAXpQcDbRVzOy/M/ZEyax3y3/BSrjzy/fxNnhcsuvvNrGKR6605bf404b+tuPQ0wcmgNLA=="],
 
     "@clack/core": ["@clack/core@1.4.2", "", { "dependencies": { "fast-wrap-ansi": "^0.2.0", "sisteransi": "^1.0.5" } }, "sha512-0Ty/1Gfm+Kb07sXcuESjyKfwEhSy4Ns1AgeEisHb/bDY5fWme0tTeTkU14T1Gmcs17YIjB/teiDe4uaCghbYqQ=="],
 

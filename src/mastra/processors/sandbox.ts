@@ -3,12 +3,11 @@ import type {
   ProcessOutputStepArgs,
 } from '@mastra/core/processors';
 import type { E2BSandbox } from '@mastra/e2b';
+import { sandbox as config } from '../config';
 import { workspace } from '../workspace';
 
-const SANDBOX_MS = 480_000;
-
-export const sandboxLifecycle = {
-  id: 'sandbox-lifecycle',
+export const sandbox = {
+  id: 'sandbox',
   async processOutputStep(args: ProcessOutputStepArgs) {
     const { toolCalls, requestContext, messages } = args;
     if (
@@ -27,7 +26,7 @@ export const sandboxLifecycle = {
         const sandbox = (await workspace.resolveSandbox({ requestContext })) as
           | E2BSandbox
           | undefined;
-        await sandbox?.e2b.setTimeout(SANDBOX_MS);
+        await sandbox?.e2b.setTimeout(config.timeout);
       } catch {
         /* not started */
       }

@@ -13,7 +13,7 @@ import { gorkieAgent } from './agents/gorkie';
 import { summarizerAgent } from './agents/summarizer';
 import { registerEvents } from './chat/events';
 import { setChat } from './chat/instance';
-import { logger } from './logger';
+import { logger } from './lib/logger';
 
 export const mastra = new Mastra({
   agents: { gorkieAgent, summarizerAgent },
@@ -59,6 +59,5 @@ gorkieAgent
     }
     setChat(sdk);
     registerEvents();
-    console.log('[gorkie] online');
   })
   .catch((err: unknown) => console.error('[gorkie] channels init failed', err));

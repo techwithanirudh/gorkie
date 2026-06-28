@@ -1,9 +1,12 @@
 import { defaultBuildLogger, Template } from 'e2b';
 import { env } from '@/env';
-import { template, workdir } from './config';
+import { sandbox as config } from '../config';
+import { p } from '../lib/path';
 
 async function main(): Promise<void> {
-  console.log(`[sandbox] building e2b template: ${template}`);
+  console.log(`[sandbox] building e2b template: ${config.template}`);
+  const attachments = p('attachments');
+  const output = p('output');
 
   const build = await Template.build(
     Template()
@@ -41,12 +44,12 @@ async function main(): Promise<void> {
         'python3 -m pip install --no-cache-dir --break-system-packages --no-user pillow matplotlib numpy pandas requests agentmail',
         'npm install -g agent-browser wrangler',
         'bash -lc "yes | agent-browser install --with-deps"',
-        `mkdir -p ${workdir}/attachments ${workdir}/output`,
-        `chown -R user:user ${workdir}`,
+        `mkdir -p ${attachments} ${output}`,
+        `chown -R user:user ${config.workdir}`,
       ])
       .setUser('user')
-      .setWorkdir(workdir),
-    template,
+      .setWorkdir(config.workdir),
+    config.template,
     { apiKey: env.E2B_API_KEY, onBuildLogs: defaultBuildLogger() }
   );
 

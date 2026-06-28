@@ -26,7 +26,7 @@ export async function joinChannel(channelId: string): Promise<void> {
       channel: rawId(channelId),
     });
   } catch {
-    /* already a member, or can't join — reads will fail clearly if truly unreadable */
+    /* already a member, or can't join; reads will fail clearly if truly unreadable */
   }
 }
 
