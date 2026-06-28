@@ -73,6 +73,8 @@ See [DESIGN.md](./DESIGN.md) for architecture.
 
 ## Features (phased)
 
+- [ ] **Tool display — back to `timeline` + custom tool render** — `grouped` loses fidelity; revisit switching `toolDisplay` back to `'timeline'` and adding a custom tool render (an `onToolCall`-style formatter like old/v1 gorkie). We can't drive a streaming plan with correct per-tool data, but timeline + a custom render keeps the rendered data correct. Investigate the channels hook that lets us format each tool call.
+- [ ] **`[Thread context]` mention encoding** — Mastra's auto-injected thread-context block HTML-escapes mentions (`&lt;@U…&gt;`) so the model reads escaped junk (our own `read_conversation_history` output is clean). Decide: disable `threadContext` (`maxMessages: 0`) and rely on the tool, override the block, or report upstream.
 - [ ] **Stop button (queued next, before more tool batches)** — `sdk.onAction('stop_turn')` → `agent.abortThreadStream()`; post a Block Kit card with a Stop button during a run. Verify the abort actually stops the run.
 - [ ] **Steering** — check whether channels handles mid-run follow-ups internally (`agent.sendMessage` delivers into an active run). Test; only build something if it doesn't work natively.
 - [ ] **App Home** — `sdk.onAppHomeOpened()`; persona presets + per-user custom instructions store.
@@ -85,6 +87,8 @@ See [DESIGN.md](./DESIGN.md) for architecture.
 - [ ] **Custom E2B template** — heavy one-shot installs (Playwright/Chromium ~300MB) can exceed the idle window in a single command. Now that the sandbox persists, the agent can install once and reuse, but the cleaner fix is a pre-built E2B template (`template` option) with chromium/playwright/ffmpeg baked in. Investigate.
 - [ ] **Sandbox egress** — the agent reported `transfer.sh` uploads not returning a URL from inside the sandbox. Check E2B outbound network / whether we need it; the persistent sandbox + `upload_file` should cover most "share a file" needs without external hosting.
 - [ ] **Re-test screenshots/Playwright** now that the sandbox persists across tool calls.
+- [ ] **Test attachment handling end-to-end** — upload an image, confirm gorkie (a) sees it (vision via channels), (b) can read/modify it from the seeded sandbox path (`copySlackFilesIntoSandbox`), and (c) `get_file` works for files behind a **Slack canvas** (not just plain uploads).
+- [ ] **Sandbox-lifecycle bump — align with reference?** Reference bumps the sandbox timeout **before every command** (`extendTimeout` → `setTimeout(~21min)` right before `commands.run`), so long commands are protected. We bump in `processOutputStep` **after** the step, to only **5 min** — a single `execute_command` running >5 min could pause mid-run. Consider bumping pre-step and/or raising `SANDBOX_MS` to match the command timeout.
 - [ ] **Harness vs plain Agent** — the Mastra Harness wraps the Agent and adds interruption/threading handling. Evaluate whether we need it; if only parts, dig into the harness source and pull just those into our agent.
 - [ ] **Channels escape hatch** — if channels' all-in-one handling (streaming, tool display, attachments, task handling, context fetch, multi-user) ever limits us, evaluate copying those pieces and owning them ourselves.
 - [ ] **Composite storage (DuckDB for observability)** — implement after tools to silence the logs/metrics warnings without changing batching.

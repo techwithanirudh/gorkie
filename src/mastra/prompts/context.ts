@@ -1,5 +1,5 @@
 import type { RequestContext } from '@mastra/core/request-context';
-import { channelContext } from '../types';
+import { channelContext } from '../lib/context';
 
 export function contextPrompt(requestContext: RequestContext): string {
   const ctx = channelContext(requestContext);

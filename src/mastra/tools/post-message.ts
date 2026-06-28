@@ -18,10 +18,10 @@ export const postMessageTool = createTool({
     const bot = chat();
     if (type === 'channel') {
       const sent = await bot.channel(id).post({ markdown: message });
-      return { messageId: sent.id, threadId: sent.threadId };
+      return { success: true, messageId: sent.id, threadId: sent.threadId, message: `Posted to channel ${id}.` };
     }
     const thread = type === 'user' ? await bot.openDM(id) : bot.thread(id);
     const sent = await thread.post({ markdown: message });
-    return { messageId: sent.id, threadId: sent.threadId };
+    return { success: true, messageId: sent.id, threadId: sent.threadId, message: `Posted to ${type} ${id}.` };
   },
 });

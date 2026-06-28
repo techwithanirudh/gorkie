@@ -2,7 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../chat/slack';
 import { getSearchToken } from '../chat/search-token';
-import { channelContext } from '../types';
+import { channelContext } from '../lib/context';
 
 const contextMessage = z
   .looseObject({
@@ -72,7 +72,7 @@ export const searchSlackTool = createTool({
     if (!token) {
       return {
         success: false,
-        error:
+        message:
           'No Slack search token for this turn. Slack only provides one when the user @mentions gorkie, so ask them to mention you and try again.',
       };
     }
@@ -88,15 +88,19 @@ export const searchSlackTool = createTool({
       }),
     );
     if (!res.ok) {
-      return { success: false, error: `Slack search failed: ${res.error ?? 'unknown'}` };
+      return {
+        success: false,
+        message: `Slack search failed for "${query}": ${res.error ?? 'unknown'}.`,
+      };
     }
 
     const messages = res.results?.messages ?? [];
     return {
       success: true,
       messages,
-      resultCount: messages.length,
+      count: messages.length,
       nextCursor: res.response_metadata?.next_cursor || undefined,
+      message: `Slack search found ${messages.length} message${messages.length === 1 ? '' : 's'} for "${query}".`,
     };
   },
 });

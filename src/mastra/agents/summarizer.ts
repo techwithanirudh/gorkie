@@ -1,5 +1,5 @@
 import { Agent } from '@mastra/core/agent';
-import { env } from '../../env';
+import { env } from '@/env';
 
 export const summarizerAgent = new Agent({
   id: 'summarizer',
@@ -15,6 +15,10 @@ export const summarizerAgent = new Agent({
     },
     {
       model: { id: 'openrouter/google/gemini-2.5-flash', apiKey: env.OPENROUTER_API_KEY, url: env.OPENROUTER_BASE_URL },
+      maxRetries: 3,
+    },
+    {
+      model: { id: 'opencode-go/deepseek-v4-flash', apiKey: env.OPENCODE_API_KEY, url: 'https://opencode.ai/zen/go/v1' },
       maxRetries: 3,
     },
   ],

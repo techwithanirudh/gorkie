@@ -1,11 +1,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { uploadSlackFiles } from '@chat-adapter/slack/api';
 import type { E2BSandbox } from '@mastra/e2b';
-import { slack } from '../chat/slack';
-import { env } from '../../env';
-import { rawId } from './slack-context';
-import { channelContext } from '../types';
+import { chat } from '../chat/instance';
+import { channelContext } from '../lib/context';
 
 export const uploadFileTool = createTool({
   id: 'upload_file',
@@ -17,13 +14,12 @@ export const uploadFileTool = createTool({
       .min(1)
       .describe('Path to the file in the sandbox (relative to the working dir).'),
     filename: z.string().optional().describe('Optional filename shown in Slack.'),
-    title: z.string().optional(),
     comment: z
       .string()
       .optional()
       .describe('Optional message to post alongside the file.'),
   }),
-  execute: async ({ path, filename, title, comment }, context) => {
+  execute: async ({ path, filename, comment }, context) => {
     if (!context?.workspace || !context.requestContext) {
       throw new Error('No workspace context.');
     }
@@ -36,18 +32,13 @@ export const uploadFileTool = createTool({
     const bytes = await sandbox.e2b.files.read(path, { format: 'bytes' });
     const name = filename ?? path.split('/').pop() ?? 'file';
 
-    const ctx = channelContext(context.requestContext);
-    const decoded = ctx.threadId ? slack.decodeThreadId(ctx.threadId) : undefined;
-    const channelId = decoded?.channel ?? (ctx.channelId ? rawId(ctx.channelId) : undefined);
-    if (!channelId) throw new Error('No channel to upload to.');
+    const threadId = channelContext(context.requestContext).threadId;
+    if (!threadId) throw new Error('No current thread to upload to.');
 
-    await uploadSlackFiles([{ data: bytes, filename: name, title }], {
-      token: env.SLACK_BOT_TOKEN,
-      channelId,
-      threadTs: decoded?.threadTs,
-      initialComment: comment,
-    });
+    await chat()
+      .thread(threadId)
+      .post({ markdown: comment ?? '', files: [{ data: Buffer.from(bytes), filename: name }] });
 
-    return { filename: name, path, summary: `Uploaded ${name} to this Slack thread.` };
+    return { success: true, filename: name, path, message: `Uploaded ${name} to this Slack thread.` };
   },
 });

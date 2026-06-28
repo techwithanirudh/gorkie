@@ -6,7 +6,8 @@ import { tools } from '../tools';
 import { buildInstructions } from '../prompts';
 import { slack } from '../chat/slack';
 import { onMention, onSubscribedMessage, onDirectMessage } from '../chat/handlers';
-import { env } from '../../env';
+import { toolDisplay } from '../chat/tool-display';
+import { env } from '@/env';
 
 export const gorkieAgent = new Agent({
   id: 'gorkie',
@@ -36,7 +37,11 @@ export const gorkieAgent = new Agent({
     options: {
       lastMessages: 20,
       observationalMemory: {
-        model: { id: 'openrouter/google/gemini-2.5-flash', apiKey: env.HACKCLUB_API_KEY, url: 'https://ai.hackclub.com/proxy/v1' },
+        model: [
+          { model: { id: 'openrouter/google/gemini-2.5-flash', apiKey: env.HACKCLUB_API_KEY, url: 'https://ai.hackclub.com/proxy/v1' }, maxRetries: 3 },
+          { model: { id: 'openrouter/google/gemini-2.5-flash', apiKey: env.OPENROUTER_API_KEY, url: env.OPENROUTER_BASE_URL }, maxRetries: 3 },
+          { model: { id: 'opencode-go/deepseek-v4-flash', apiKey: env.OPENCODE_API_KEY, url: 'https://opencode.ai/zen/go/v1' }, maxRetries: 3 },
+        ],
         temporalMarkers: true,
         scope: 'thread',
       },
@@ -44,7 +49,12 @@ export const gorkieAgent = new Agent({
   }),
   channels: {
     adapters: {
-      slack: { adapter: slack, streaming: true, toolDisplay: 'grouped' },
+      slack: {
+        adapter: slack,
+        streaming: true,
+        toolDisplay,
+        formatError: (error) => `*Oops, something went wrong.*\n\n> ${error.message}`,
+      },
     },
     threadContext: { maxMessages: 10 },
     handlers: { onMention, onSubscribedMessage, onDirectMessage },

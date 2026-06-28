@@ -1,7 +1,7 @@
 import type { Message } from 'chat';
 import { chat } from '../chat/instance';
 import { slack } from '../chat/slack';
-import { rawId, chatChannelId } from './slack-context';
+import { rawId, chatChannelId } from '../lib/ids';
 
 export async function assertReadableChannel(channelId: string, currentThreadId?: string) {
   const id = chatChannelId(channelId);

@@ -1,8 +1,9 @@
-import { Workspace, LocalSkillSource } from '@mastra/core/workspace';
+import { resolve } from 'node:path';
+import { Workspace, LocalSkillSource, WORKSPACE_TOOLS } from '@mastra/core/workspace';
 import { E2BSandbox } from '@mastra/e2b';
-import { channelContext } from '../types';
-import { template, projectRoot } from './config';
-import { env } from '../../env';
+import { channelContext } from '../lib/context';
+import { template } from './config';
+import { env } from '@/env';
 
 export const workspace = new Workspace({
   id: 'gorkie-workspace',
@@ -21,6 +22,11 @@ export const workspace = new Workspace({
       ].join(' '),
     }),
   sandboxCacheKey: ({ requestContext }) => channelContext(requestContext).threadId,
-  skillSource: new LocalSkillSource({ basePath: projectRoot }),
+  skillSource: new LocalSkillSource({ basePath: resolve(import.meta.dirname, '../../workspace') }),
   skills: ['skills'],
+  tools: {
+    [WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND]: { name: 'execute_command' },
+    [WORKSPACE_TOOLS.SANDBOX.GET_PROCESS_OUTPUT]: { name: 'get_process_output' },
+    [WORKSPACE_TOOLS.SANDBOX.KILL_PROCESS]: { name: 'kill_process' }
+  },
 });

@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import Exa from 'exa-js';
-import { env } from '../../env';
+import { env } from '@/env';
 
 const exa = new Exa(env.EXA_API_KEY);
 
@@ -22,15 +22,21 @@ export const searchWebTool = createTool({
       numResults: 8,
       contents: { text: { maxCharacters: 1200 } },
     });
+    const links = results.slice(0, 5).map((r) => r.url);
     return {
-      links: results.slice(0, 5).map((r) => r.url),
-      resultCount: results.length,
+      links,
+      count: results.length,
       results: results.map((r) => ({
         title: r.title ?? r.url,
         url: r.url,
         text: r.text ?? '',
         publishedDate: r.publishedDate,
       })),
+      success: true,
+      message:
+        results.length === 0
+          ? `Search web found no results for "${query}".`
+          : `Search web found ${results.length} result${results.length === 1 ? '' : 's'} for "${query}". Top links: ${links.join(', ')}`,
     };
   },
 });

@@ -1,5 +1,5 @@
 import { createSlackAdapter } from '@chat-adapter/slack';
-import { env } from '../../env';
+import { env } from '@/env';
 import { chatLogger } from './logger';
 
 export const slack = createSlackAdapter({

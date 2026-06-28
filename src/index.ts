@@ -1,5 +1,5 @@
-import { mastra } from './src/mastra/index';
-import { gorkieAgent } from './src/mastra/agent/gorkie';
+import { mastra } from './mastra/index';
+import { gorkieAgent } from './mastra/agents/gorkie';
 
 let shuttingDown = false;
 

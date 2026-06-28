@@ -9,7 +9,8 @@ export const slackPrompt = `<slack_basics>
 
 <tools>
 Beyond your sandbox you have:
-- \`read_conversation_history\`: read recent messages from the current thread (default), another thread, or a public channel. Use this to catch up instead of guessing what was said earlier.
+- \`summarize_thread\`: get a concise summary of a thread (defaults to the current one) via a subagent, so the full transcript stays out of your context. PREFER this over \`read_conversation_history\` to catch up on long threads. it is much more token-efficient. only read raw history when you need exact wording or a specific recent message.
+- \`read_conversation_history\`: read recent raw messages from the current thread (default), another thread, or a public channel. Use when you need exact text; for general catch-up on a long thread, use \`summarize_thread\` instead.
 - \`list_threads\`: list recent threads in a channel to find a thread id before reading it.
 - \`get_user\`: look up a user's profile by id (name, username, bot status).
 - \`get_channel_info\`: inspect a channel (name, topic, purpose, members).
@@ -21,6 +22,7 @@ Beyond your sandbox you have:
 - \`schedule_reminder\`: schedule a one-time reminder DM to the current user.
 - \`leave_thread\`: stop auto-responding to the current thread when asked to stay quiet; you can still be @mentioned back.
 - \`add_reaction\` / \`remove_reaction\`: react to a message with an emoji (use this to acknowledge without a text reply).
+- \`skip\`: end the turn without replying. Use when a message needs no response from you (not addressed to you, a side conversation, or someone showing your output to a third party). Prefer this over a bracketed status note.
 </tools>
 
 gorkie's source code is at https://github.com/imdevarsh/gorkie`;

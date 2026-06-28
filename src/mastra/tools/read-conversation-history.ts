@@ -1,8 +1,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../chat/slack';
-import { channelContext } from '../types';
-import { chatChannelId, rawId } from './slack-context';
+import { channelContext } from '../lib/context';
+import { chatChannelId } from '../lib/ids';
 import { assertReadableChannel, joinChannel, formatMessage } from './utils';
 
 export const readConversationHistoryTool = createTool({
@@ -21,7 +21,7 @@ export const readConversationHistoryTool = createTool({
   execute: async ({ channelId, threadId, limit, cursor }, context) => {
     const ctx = channelContext(context?.requestContext);
     const tid = threadId ?? (channelId ? undefined : ctx.threadId);
-    const resolvedChannelId = channelId ?? (tid ? rawId(tid) : undefined);
+    const resolvedChannelId = channelId ?? (tid ? slack.decodeThreadId(tid).channel : undefined);
     if (!resolvedChannelId) {
       throw new Error('Pass channelId or threadId, or run inside a thread.');
     }
@@ -35,9 +35,11 @@ export const readConversationHistoryTool = createTool({
       : await slack.fetchChannelMessages(chId, { limit, cursor });
 
     return {
+      success: true,
       channelId: chId,
       messages: result.messages.map(formatMessage),
       nextCursor: result.nextCursor,
+      message: `Read ${result.messages.length} message${result.messages.length === 1 ? '' : 's'} from ${tid ?? chId}.`,
     };
   },
 });

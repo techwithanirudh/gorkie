@@ -1,4 +1,3 @@
-import type { RequestContext } from '@mastra/core/request-context';
 import type {
   ProcessOutputStepArgs,
   ProcessOutputResultArgs,
@@ -8,24 +7,21 @@ import { workspace } from './index';
 
 const SANDBOX_MS = 300_000;
 
-async function sandboxFor(requestContext: RequestContext): Promise<E2BSandbox | undefined> {
-  return (await workspace.resolveSandbox({ requestContext })) as E2BSandbox | undefined;
-}
-
 export const sandboxLifecycle = {
   id: 'sandbox-lifecycle',
   async processOutputStep(args: ProcessOutputStepArgs) {
     const { toolCalls, requestContext, messages } = args;
     if (
       requestContext &&
-      toolCalls?.some(
-        (t) =>
-          t.toolName.startsWith('mastra_workspace_') ||
-          ['get_file', 'upload_file'].includes(t.toolName),
+      toolCalls?.some((t) =>
+        ['execute_command', 'get_process_output', 'kill_process', 'get_file', 'upload_file'].includes(
+          t.toolName,
+        ),
       )
     ) {
       try {
-        await (await sandboxFor(requestContext))?.e2b.setTimeout(SANDBOX_MS);
+        const sandbox = (await workspace.resolveSandbox({ requestContext })) as E2BSandbox | undefined;
+        await sandbox?.e2b.setTimeout(SANDBOX_MS);
       } catch {
         /* not started */
       }
@@ -36,7 +32,8 @@ export const sandboxLifecycle = {
     const { requestContext, messages } = args;
     if (requestContext) {
       try {
-        await (await sandboxFor(requestContext))?.e2b.pause();
+        const sandbox = (await workspace.resolveSandbox({ requestContext })) as E2BSandbox | undefined;
+        await sandbox?.e2b.pause();
       } catch {
         /* not started / already paused */
       }

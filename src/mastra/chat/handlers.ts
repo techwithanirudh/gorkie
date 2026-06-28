@@ -8,18 +8,17 @@ import { copySlackFilesIntoSandbox } from './attachments';
 type DefaultHandler = (thread: Thread, message: Message) => Promise<void>;
 
 function shouldIgnore(message: Message): boolean {
+  if (
+    message.author.isBot === true ||
+    message.author.userId === 'USLACKBOT' ||
+    message.author.isMe === true
+  ) {
+    return true;
+  }
   for (const line of rawText(message).split('\n')) {
     if (withoutLeadingMentions(line).trimStart().startsWith('##')) return true;
   }
   return false;
-}
-
-function isThreadRoot(message: Message): boolean {
-  try {
-    return slack.decodeThreadId(message.threadId).threadTs === message.id;
-  } catch {
-    return false;
-  }
 }
 
 async function respond(
@@ -37,7 +36,9 @@ export async function onMention(
 ): Promise<void> {
   captureSearchToken(thread.id, message.raw);
   if (shouldIgnore(message)) return;
-  if (isThreadRoot(message)) await thread.setState({ respondOnThreadMessages: true });
+  if (slack.decodeThreadId(message.threadId).threadTs === message.id) {
+    await thread.setState({ respondOnThreadMessages: true });
+  }
   await respond(thread, message, defaultHandler);
 }
 

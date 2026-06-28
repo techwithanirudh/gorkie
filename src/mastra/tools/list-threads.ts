@@ -1,8 +1,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../chat/slack';
-import { channelContext } from '../types';
-import { chatChannelId } from './slack-context';
+import { channelContext } from '../lib/context';
+import { chatChannelId } from '../lib/ids';
 import { assertReadableChannel, joinChannel, formatMessage } from './utils';
 
 export const listThreadsTool = createTool({
@@ -25,6 +25,7 @@ export const listThreadsTool = createTool({
 
     const result = await slack.listThreads(chId, { limit, cursor });
     return {
+      success: true,
       channelId: chId,
       threads: result.threads.map((thread) => ({
         id: thread.id,
@@ -33,6 +34,7 @@ export const listThreadsTool = createTool({
         rootMessage: formatMessage(thread.rootMessage),
       })),
       nextCursor: result.nextCursor,
+      message: `Found ${result.threads.length} thread${result.threads.length === 1 ? '' : 's'} in ${chId}.`,
     };
   },
 });

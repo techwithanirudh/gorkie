@@ -1,6 +1,6 @@
 {
   "name": "gorkie",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "type": "module",
   "private": true,
   "devDependencies": {
@@ -18,7 +18,7 @@
     "dev": "mastra dev",
     "build": "mastra build",
     "start": "mastra start",
-    "bot": "bun run index.ts",
+    "bot": "bun run src/index.ts",
     "build:template": "bun run src/mastra/workspace/build-template.ts"
   },
   "dependencies": {

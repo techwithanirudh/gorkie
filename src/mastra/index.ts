@@ -8,8 +8,8 @@ import {
   SensitiveDataFilter,
 } from '@mastra/observability';
 import { LangfuseExporter } from '@mastra/langfuse';
-import { gorkieAgent } from './agent/gorkie';
-import { summarizerAgent } from './agent/summarizer';
+import { gorkieAgent } from './agents/gorkie';
+import { summarizerAgent } from './agents/summarizer';
 import { setChat } from './chat/instance';
 import { registerEvents } from './chat/events';
 import { logger } from './logger';

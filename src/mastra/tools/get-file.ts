@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { fetchSlackFile } from '@chat-adapter/slack/api';
 import type { E2BSandbox } from '@mastra/e2b';
 import { slack } from '../chat/slack';
-import { env } from '../../env';
+import { env } from '@/env';
 
 const SLACK_FILE_ID = /(F[A-Z0-9]{6,})/;
 
@@ -50,10 +50,11 @@ export const getFileTool = createTool({
     await sandbox.e2b.files.write(path, data);
 
     return {
+      success: true,
       path,
       filename: name,
       mimeType: info?.mimetype,
-      summary: `Downloaded ${name} to ${path} in the sandbox.`,
+      message: `Downloaded ${name} to ${path} in the sandbox.`,
     };
   },
 });

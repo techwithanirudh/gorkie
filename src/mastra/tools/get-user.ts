@@ -12,10 +12,10 @@ export const getUserTool = createTool({
   execute: async ({ userId }) => {
     const profile = await resolveUserProfile(userId);
     if (!profile) {
-      return { found: false, userId, summary: `Could not find a user with id ${userId}.` };
+      return { success: false, userId, message: `Could not find a user with id ${userId}.` };
     }
     return {
-      found: true,
+      success: true,
       userId,
       userName: profile.displayName,
       fullName: profile.realName,
@@ -23,7 +23,7 @@ export const getUserTool = createTool({
       title: profile.title,
       status: profile.status,
       fields: profile.fields,
-      summary: `${profile.displayName ?? userId}${profile.pronouns ? ` (${profile.pronouns})` : ''}${profile.title ? `, ${profile.title}` : ''}.`,
+      message: `${profile.displayName ?? userId}${profile.pronouns ? ` (${profile.pronouns})` : ''}${profile.title ? `, ${profile.title}` : ''}.`,
     };
   },
 });

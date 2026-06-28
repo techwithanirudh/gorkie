@@ -1,10 +1,10 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../chat/slack';
-import { channelContext } from '../types';
-import { chatChannelId, rawId } from './slack-context';
+import { channelContext } from '../lib/context';
+import { chatChannelId } from '../lib/ids';
 import { assertReadableChannel, joinChannel } from './utils';
-import { summarizerAgent } from '../agent/summarizer';
+import { summarizerAgent } from '../agents/summarizer';
 
 export const summarizeThreadTool = createTool({
   id: 'summarize_thread',
@@ -22,13 +22,13 @@ export const summarizeThreadTool = createTool({
     const target = threadId ?? ctx.threadId;
     if (!target) throw new Error('No thread to summarize.');
 
-    const channelId = chatChannelId(rawId(target));
+    const channelId = chatChannelId(slack.channelIdFromThreadId(target));
     await assertReadableChannel(channelId, ctx.threadId);
     await joinChannel(channelId);
 
     const result = await slack.fetchMessages(target, { limit: 100, direction: 'backward' });
     if (result.messages.length === 0) {
-      return { success: false, error: 'No messages found in the thread.' };
+      return { success: false, message: 'No messages found in the thread.' };
     }
 
     const transcript = result.messages
@@ -41,7 +41,7 @@ export const summarizeThreadTool = createTool({
     return {
       success: true,
       messageCount: result.messages.length,
-      summary: text,
+      message: text,
     };
   },
 });

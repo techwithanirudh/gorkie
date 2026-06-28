@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { chat } from '../chat/instance';
-import { channelContext } from '../types';
+import { channelContext } from '../lib/context';
 
 export const scheduleReminderTool = createTool({
   id: 'schedule_reminder',
@@ -23,9 +23,14 @@ export const scheduleReminderTool = createTool({
     try {
       const dm = await chat().openDM(userId);
       await dm.schedule({ markdown: text }, { postAt });
-      return { success: true, scheduledFor: postAt.toISOString(), userId };
+      return {
+        success: true,
+        scheduledFor: postAt.toISOString(),
+        userId,
+        message: `Reminder scheduled for ${postAt.toISOString()}.`,
+      };
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return { success: false, message: error instanceof Error ? error.message : String(error) };
     }
   },
 });

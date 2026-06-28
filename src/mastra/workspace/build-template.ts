@@ -1,6 +1,6 @@
 import { defaultBuildLogger, Template } from 'e2b';
 import { template, workdir } from './config';
-import { env } from '../../env';
+import { env } from '@/env';
 
 async function main(): Promise<void> {
   console.log(`[sandbox] building e2b template: ${template}`);

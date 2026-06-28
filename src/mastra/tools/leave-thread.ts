@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { chat } from '../chat/instance';
-import { channelContext } from '../types';
+import { channelContext } from '../lib/context';
 
 export const leaveThreadTool = createTool({
   id: 'leave_thread',
@@ -15,8 +15,8 @@ export const leaveThreadTool = createTool({
     await thread.setState({ respondOnThreadMessages: false });
     await thread.unsubscribe();
     return {
-      left: true,
-      summary: 'Left the thread. I will stay quiet unless someone @mentions me directly.',
+      success: true,
+      message: 'Left the thread. I will stay quiet unless someone @mentions me directly.',
     };
   },
 });

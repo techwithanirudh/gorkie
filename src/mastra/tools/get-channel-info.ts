@@ -1,6 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { channelContext } from '../types';
+import { channelContext } from '../lib/context';
 import { assertReadableChannel } from './utils';
 
 export const getChannelInfoTool = createTool({
@@ -16,11 +16,13 @@ export const getChannelInfoTool = createTool({
     if (!id) throw new Error('No channel to inspect.');
     const info = await assertReadableChannel(id, ctx.threadId);
     return {
+      success: true,
       id: info.id,
       name: info.name,
       isDM: info.isDM ?? false,
       memberCount: info.memberCount,
       channelVisibility: info.channelVisibility,
+      message: `${info.isDM ? 'DM' : `#${info.name ?? info.id}`}${info.memberCount != null ? `, ${info.memberCount} members` : ''}.`,
     };
   },
 });
