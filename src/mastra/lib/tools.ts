@@ -1,11 +1,4 @@
-interface MastraStep {
-  toolResults?: Array<{
-    output?: unknown;
-    toolName?: string;
-  }>;
-}
-
-type MastraStopCondition = (options: { steps: MastraStep[] }) => boolean;
+import type { MastraStopCondition } from '../types';
 
 export function successToolCall(toolName: string): MastraStopCondition {
   return ({ steps }) =>
@@ -29,8 +22,4 @@ export function toolCall(toolName: string): MastraStopCondition {
 
 export function stepCountIs(stepCount: number): MastraStopCondition {
   return ({ steps }) => steps.length === stepCount;
-}
-
-export function stepCountAtLeast(stepCount: number): MastraStopCondition {
-  return ({ steps }) => steps.length >= stepCount;
 }

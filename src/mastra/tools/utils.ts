@@ -1,6 +1,6 @@
 import type { Message } from 'chat';
+import { slack } from '../chat/client';
 import { chat } from '../chat/instance';
-import { slack } from '../chat/slack';
 import { chatChannelId, rawId } from '../lib/ids';
 
 export async function assertReadableChannel(

@@ -2,17 +2,17 @@ import { createPostgresState } from '@chat-adapter/state-pg';
 import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
 import { env } from '@/env';
+import { slack } from '../chat/client';
 import {
   onDirectMessage,
   onMention,
   onSubscribedMessage,
 } from '../chat/handlers';
-import { slack } from '../chat/slack';
 import { toolDisplay } from '../chat/tool-display';
-import { memory, orchestrator } from '../lib/providers';
-import { stepCountAtLeast, toolCall } from '../lib/tools';
+import { stepCountIs, toolCall } from '../lib/tools';
 import { outputProcessors } from '../processors';
 import { buildInstructions } from '../prompts';
+import { memory, orchestrator } from '../providers';
 import { tools } from '../tools';
 import { workspace } from '../workspace';
 
@@ -22,7 +22,7 @@ export const gorkieAgent = new Agent({
   instructions: ({ requestContext }) => buildInstructions(requestContext),
   model: orchestrator,
   defaultOptions: {
-    stopWhen: [toolCall('skip'), stepCountAtLeast(150)],
+    stopWhen: [toolCall('skip'), stepCountIs(150)],
   },
   workspace,
   outputProcessors,

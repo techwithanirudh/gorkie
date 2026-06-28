@@ -1,5 +1,5 @@
 import type { Logger as ChatLogger } from 'chat';
-import { logger } from '../lib/logger';
+import { logger } from '.';
 
 function meta(args: unknown[]): Record<string, unknown> {
   const [first] = args;

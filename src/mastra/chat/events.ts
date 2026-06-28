@@ -1,5 +1,5 @@
+import { slack } from './client';
 import { chat } from './instance';
-import { slack } from './slack';
 
 const STARTERS = [
   {

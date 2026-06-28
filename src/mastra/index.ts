@@ -59,5 +59,8 @@ gorkieAgent
     }
     setChat(sdk);
     registerEvents();
+    logger.info('[gorkie] online');
   })
-  .catch((err: unknown) => console.error('[gorkie] channels init failed', err));
+  .catch((error: unknown) =>
+    logger.error('[gorkie] initialization failed', { error })
+  );

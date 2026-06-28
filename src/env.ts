@@ -17,7 +17,7 @@ export const env = createEnv({
     OPENROUTER_BASE_URL: z.url().default('https://openrouter.ai/api/v1'),
 
     INFERENCE_API_KEY: z.string().min(1).optional(),
-    INFERENCE_BASE_URL: z.url().default('https://baishui.jam06452.uk/'),
+    INFERENCE_BASE_URL: z.url().default('https://openrouter.ai/api/v1'),
 
     OPENCODE_API_KEY: z.string().min(1).optional(),
 

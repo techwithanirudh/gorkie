@@ -1,5 +1,5 @@
 import { Agent } from '@mastra/core/agent';
-import { summarizer } from '../lib/providers';
+import { summarizer } from '../providers';
 
 export const summarizerAgent = new Agent({
   id: 'summarizer',

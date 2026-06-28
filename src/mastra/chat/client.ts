@@ -1,6 +1,6 @@
 import { env } from '@/env';
+import { chatLogger } from '../lib/logger/chat';
 import { GorkieSlackAdapter } from './adapter';
-import { chatLogger } from './logger';
 
 export const slack = new GorkieSlackAdapter({
   mode: 'socket',

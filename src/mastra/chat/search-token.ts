@@ -1,15 +1,19 @@
+import { z } from 'zod';
+
+const actionToken = z.looseObject({
+  action_token: z.string().min(1).optional(),
+  assistant_thread: z
+    .looseObject({ action_token: z.string().min(1).optional() })
+    .optional(),
+});
+
 const tokens = new Map<string, string>();
 
 export function extractActionToken(raw: unknown): string | undefined {
-  if (!raw || typeof raw !== 'object') {
-    return;
-  }
-  const r = raw as {
-    action_token?: unknown;
-    assistant_thread?: { action_token?: unknown };
-  };
-  const token = r.action_token ?? r.assistant_thread?.action_token;
-  return typeof token === 'string' ? token : undefined;
+  const parsed = actionToken.safeParse(raw);
+  return parsed.success
+    ? (parsed.data.action_token ?? parsed.data.assistant_thread?.action_token)
+    : undefined;
 }
 
 export function captureSearchToken(threadId: string, raw: unknown): void {

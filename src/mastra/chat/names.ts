@@ -1,15 +1,7 @@
 import { z } from 'zod';
+import type { UserProfile } from '../types';
+import { slack } from './client';
 import { chat } from './instance';
-import { slack } from './slack';
-
-export interface UserProfile {
-  displayName?: string;
-  fields: { label: string; value: string }[];
-  pronouns?: string;
-  realName?: string;
-  status?: string;
-  title?: string;
-}
 
 const profileFields = z.record(
   z.string(),

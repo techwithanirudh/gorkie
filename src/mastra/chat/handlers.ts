@@ -2,9 +2,9 @@ import type { Message, Thread } from 'chat';
 import { logger } from '../lib/logger';
 import type { GorkieThreadState } from '../types';
 import { copyFilesToSandbox } from './attachments';
+import { slack } from './client';
 import { rawText, withoutLeadingMentions } from './message';
 import { captureSearchToken } from './search-token';
-import { slack } from './slack';
 
 type DefaultHandler = (thread: Thread, message: Message) => Promise<void>;
 

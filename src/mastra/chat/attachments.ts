@@ -3,8 +3,8 @@ import { E2BSandbox } from '@mastra/e2b';
 import type { Message, Thread } from 'chat';
 import { parseMarkdown } from 'chat';
 import { logger } from '../lib/logger';
-import { p } from '../lib/path';
 import { workspace } from '../workspace';
+import { p } from '../workspace/path';
 
 const MAX_ATTACHMENTS = 10;
 

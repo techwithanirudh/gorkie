@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+import { slack } from '../chat/client';
 import { getSearchToken } from '../chat/search-token';
-import { slack } from '../chat/slack';
 import { channelContext } from '../lib/context';
 
 const contextMessage = z

@@ -3,8 +3,8 @@ import { createTool } from '@mastra/core/tools';
 import type { E2BSandbox } from '@mastra/e2b';
 import { z } from 'zod';
 import { env } from '@/env';
-import { slack } from '../chat/slack';
-import { p } from '../lib/path';
+import { slack } from '../chat/client';
+import { p } from '../workspace/path';
 
 const SLACK_FILE_ID = /(F[A-Z0-9]{6,})/;
 

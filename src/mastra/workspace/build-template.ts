@@ -1,7 +1,7 @@
 import { defaultBuildLogger, Template } from 'e2b';
 import { env } from '@/env';
 import { sandbox as config } from '../config';
-import { p } from '../lib/path';
+import { p } from './path';
 
 async function main(): Promise<void> {
   console.log(`[sandbox] building e2b template: ${config.template}`);
