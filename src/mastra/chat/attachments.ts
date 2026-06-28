@@ -4,6 +4,7 @@ import type { Message, Thread } from 'chat';
 import { parseMarkdown } from 'chat';
 import { logger } from '../logger';
 import { workspace } from '../workspace';
+import { workdir } from '../workspace/config';
 
 const MAX_ATTACHMENTS = 10;
 
@@ -39,7 +40,7 @@ export async function copyFilesToSandbox(
       }
       const content = raw instanceof Blob ? raw : new Uint8Array(raw).buffer;
       const name = safeName(att.name ?? `file-${i + 1}`);
-      const path = `attachments/${safeName(message.id)}/${name}`;
+      const path = `${workdir}/attachments/${safeName(message.id)}/${name}`;
       await sandbox.e2b.files.write(path, content);
       copied.push(
         `- ${name}${att.mimeType ? ` (${att.mimeType})` : ''}: ${path}`

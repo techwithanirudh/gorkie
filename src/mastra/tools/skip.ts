@@ -11,8 +11,8 @@ export const skipTool = createTool({
       .optional()
       .describe('Optional short reason for skipping.'),
   }),
-  execute: async ({ reason }) => ({
+  execute: async () => ({
     success: true,
-    message: reason ? `Skipped: ${reason}` : 'Skipped (no reply needed).',
+    message: 'Skipped',
   }),
 });

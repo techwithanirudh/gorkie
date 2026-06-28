@@ -3,6 +3,7 @@ import { getFileTool } from './get-file';
 import { getUserTool } from './get-user';
 import { leaveThreadTool } from './leave-thread';
 import { listThreadsTool } from './list-threads';
+import { mermaidTool } from './mermaid';
 import { postMessageTool } from './post-message';
 import { readConversationHistoryTool } from './read-conversation-history';
 import { scheduleReminderTool } from './schedule-reminder';
@@ -22,6 +23,7 @@ export const tools = {
   get_channel_info: getChannelInfoTool,
   get_file: getFileTool,
   upload_file: uploadFileTool,
+  mermaid: mermaidTool,
   post_message: postMessageTool,
   schedule_reminder: scheduleReminderTool,
   leave_thread: leaveThreadTool,

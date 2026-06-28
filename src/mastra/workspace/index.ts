@@ -24,11 +24,12 @@ export const workspace = new Workspace({
         'Verify your work by running it before claiming it works; read stderr and fix failures instead of re-running the same failing command.',
         'The sandbox persists across turns in this thread, so files and installed tools you create stay available. Files are not visible in chat unless you post them back.',
       ].join(' '),
+      timeout: 480_000
     }),
   sandboxCacheKey: ({ requestContext }) =>
     channelContext(requestContext).threadId,
   skillSource: new LocalSkillSource({
-    basePath: resolve(import.meta.dirname, '../../workspace'),
+    basePath: resolve(process.cwd(), 'workspace'),
   }),
   skills: ['skills'],
   tools: {

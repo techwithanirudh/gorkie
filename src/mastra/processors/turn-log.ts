@@ -8,7 +8,7 @@ import { logger } from '../logger';
 const MAX = 500;
 const clip = (value: unknown): string => {
   const s = typeof value === 'string' ? value : JSON.stringify(value ?? '');
-  return s.length > MAX ? `${s.slice(0, MAX)}…` : s;
+  return s.length > MAX ? `${s.slice(0, MAX).trimEnd()}...` : s;
 };
 
 export const turnLog = {
@@ -35,6 +35,11 @@ export const turnLog = {
         });
       }
     }
+    logger.info('[turn] final finished', {
+      threadId,
+      finishReason: args.result.finishReason,
+      steps: args.result.steps?.length ?? 0
+    });
     return args.messages;
   },
 };

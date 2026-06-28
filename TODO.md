@@ -4,6 +4,11 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 
 ## Recently completed
 
+- [x] **Seed attachments at absolute paths**: `copyFilesToSandbox` and `get_file` now write/report `/home/user/attachments/...` and `/home/user/downloads/...` instead of relative paths, so commands keep working after the model `cd`s out of the home dir (a relative `tar xzf attachments/...` was failing).
+- [x] **Dedupe attachment downloads**: the seeded-file note tells the model the files are already present and not to `get_file` them; `get_file` is scoped to files not attached to the current message. Stops the same upload being downloaded twice (e.g. a 182MB tarball).
+- [x] **Hide skill tool cards**: `tool-display` suppresses `skill` / `skill_search` / `skill_read` task widgets (constant, noisy).
+- [x] **Add `mermaid` tool**: renders Mermaid via `mermaid.ink` (deflate + pako URL, no new dep) and uploads the PNG to the current thread; registered in the tool index and the Slack prompt.
+- [x] **Robust skill basePath**: anchor `LocalSkillSource` on `process.cwd()` (repo root) instead of `import.meta.dirname`, so skills load the same way under `mastra dev` (source) and `mastra start` (bundled `.mastra/output`).
 - [x] **Ignore skills lockfile in cspell**: added `skills-lock.json` to cspell ignored paths so skill source names do not fail spelling CI.
 - [x] **Refactor tool task rendering**: stopped duplicated tool input/output in Slack task cards, formatted JSON-only input/output cleanly, and preserved useful long command output without awkward truncation.
 - [x] **Normalize tool task labels**: render tool names and field names as readable capitalized labels instead of raw underscore/camelCase identifiers.
@@ -11,6 +16,12 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 - [x] **Redact provider response headers in model errors**: keep useful provider error bodies visible, but hide noisy response headers from LLM failure logs.
 - [x] **Add inference provider fallback**: add `INFERENCE_API_KEY` / `INFERENCE_BASE_URL` env support and include the same Kimi model in the gorkie model chain.
 - [x] **Clean up inference model typing**: remove the awkward inline `satisfies ModelWithRetries[]` conditional from the gorkie model chain.
+- [x] **Polish tool display and turn logs**: use `...` for truncation, show non-empty skill-loading output, and log when turns finish.
+- [x] **Use inference provider across agent models**: add the inference fallback to summarizer and observational-memory model chains, not just gorkie.
+- [x] **Centralize model config (`providers.ts`)**: `agents/gorkie.ts`, `agents/summarizer.ts`, and the observational-memory config now use shared model chains.
+- [x] **Make `skip` terminal**: stop the agent loop after the `skip` tool runs, instead of letting the model continue.
+- [x] **Rename provider chains**: name shared provider chains `orchestrator`, `summarizer`, and `memory`, and avoid `.push` construction.
+- [x] **Clarify final turn logging and provider setup**: log final turn completion separately from tool results, and replace the provider helper function with direct optional entries.
 
 ## Open questions (need your call)
 
@@ -30,9 +41,8 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 
 ## Tools
 
-- [ ] **Generative tools**: `generate_image`, `mermaid` (render + upload to the thread).
+- [ ] **Generative tools**: `generate_image` (render + upload to the thread). `mermaid` is done.
 - [ ] **`search_slack` token plumbing cleanup**: the `captureSearchToken`/`getSearchToken` flow (grab the per-message Slack `action_token` from `message.raw` in the handlers, stash per-thread, read it back in the tool) is hacky. Find a cleaner way to plumb the action token to the tool.
-- [ ] **Centralize model config (`providers.ts`)**: `agents/gorkie.ts`, `agents/summarizer.ts`, and the observational-memory config all repeat the same fallback arrays (Hack Club, OpenRouter, opencode-go). Extract the kimi chain and the gemini/deepseek chain into one place (e.g. `src/mastra/lib/providers.ts`) and import them, so model/URL/key changes happen once.
 
 ## Prompts
 

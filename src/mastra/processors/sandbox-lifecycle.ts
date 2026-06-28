@@ -5,7 +5,7 @@ import type {
 import type { E2BSandbox } from '@mastra/e2b';
 import { workspace } from '../workspace';
 
-const SANDBOX_MS = 300_000;
+const SANDBOX_MS = 480_000;
 
 export const sandboxLifecycle = {
   id: 'sandbox-lifecycle',
