@@ -10,7 +10,7 @@ function rawSlackText(message: Message): string | undefined {
     !('text' in raw) ||
     typeof (raw as { text: unknown }).text !== 'string'
   ) {
-    return undefined;
+    return;
   }
   return (raw as { text: string }).text;
 }

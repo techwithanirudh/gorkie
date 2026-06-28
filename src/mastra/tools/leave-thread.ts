@@ -10,13 +10,16 @@ export const leaveThreadTool = createTool({
   inputSchema: z.object({}),
   execute: async (_input, context) => {
     const threadId = channelContext(context?.requestContext).threadId;
-    if (!threadId) throw new Error('No current thread.');
+    if (!threadId) {
+      throw new Error('No current thread.');
+    }
     const thread = chat().thread(threadId);
     await thread.setState({ respondOnThreadMessages: false });
     await thread.unsubscribe();
     return {
       success: true,
-      message: 'Left the thread. I will stay quiet unless someone @mentions me directly.',
+      message:
+        'Left the thread. I will stay quiet unless someone @mentions me directly.',
     };
   },
 });

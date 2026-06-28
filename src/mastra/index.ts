@@ -1,19 +1,19 @@
 import { Mastra } from '@mastra/core/mastra';
 import { MastraCompositeStore } from '@mastra/core/storage';
-import { PostgresStore } from '@mastra/pg';
 import { DuckDBStore } from '@mastra/duckdb';
+import { LangfuseExporter } from '@mastra/langfuse';
 import {
-  Observability,
   MastraStorageExporter,
+  Observability,
   SensitiveDataFilter,
 } from '@mastra/observability';
-import { LangfuseExporter } from '@mastra/langfuse';
+import { PostgresStore } from '@mastra/pg';
+import { env } from '../env';
 import { gorkieAgent } from './agents/gorkie';
 import { summarizerAgent } from './agents/summarizer';
-import { setChat } from './chat/instance';
 import { registerEvents } from './chat/events';
+import { setChat } from './chat/instance';
 import { logger } from './logger';
-import { env } from '../env';
 
 export const mastra = new Mastra({
   agents: { gorkieAgent, summarizerAgent },
@@ -49,12 +49,14 @@ export const mastra = new Mastra({
   logger,
 });
 
-void gorkieAgent
+gorkieAgent
   .getChannels()
   ?.initialize(mastra)
   .then(() => {
     const sdk = gorkieAgent.getChannels()?.sdk;
-    if (!sdk) return;
+    if (!sdk) {
+      return;
+    }
     setChat(sdk);
     registerEvents();
     console.log('[gorkie] online');

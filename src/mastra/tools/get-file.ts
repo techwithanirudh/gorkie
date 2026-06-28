@@ -1,9 +1,9 @@
-import { createTool } from '@mastra/core/tools';
-import { z } from 'zod';
 import { fetchSlackFile } from '@chat-adapter/slack/api';
+import { createTool } from '@mastra/core/tools';
 import type { E2BSandbox } from '@mastra/e2b';
-import { slack } from '../chat/slack';
+import { z } from 'zod';
 import { env } from '@/env';
+import { slack } from '../chat/slack';
 
 const SLACK_FILE_ID = /(F[A-Z0-9]{6,})/;
 
@@ -19,13 +19,15 @@ export const getFileTool = createTool({
     filename: z.string().optional().describe('Optional name to save it as.'),
   }),
   execute: async ({ file, filename }, context) => {
-    if (!context?.workspace || !context.requestContext) {
+    if (!(context?.workspace && context.requestContext)) {
       throw new Error('No workspace context.');
     }
     const sandbox = (await context.workspace.resolveSandbox({
       requestContext: context.requestContext,
     })) as E2BSandbox | undefined;
-    if (!sandbox) throw new Error('No sandbox available.');
+    if (!sandbox) {
+      throw new Error('No sandbox available.');
+    }
     await sandbox.start();
 
     const fileId = SLACK_FILE_ID.exec(file)?.[1];
@@ -36,15 +38,19 @@ export const getFileTool = createTool({
       info?.url_private_download ??
       info?.url_private ??
       (file.startsWith('http') ? file : undefined);
-    if (!url) throw new Error(`Could not resolve a download URL for: ${file}`);
+    if (!url) {
+      throw new Error(`Could not resolve a download URL for: ${file}`);
+    }
 
     const res = await fetchSlackFile({ token: env.SLACK_BOT_TOKEN, url });
-    if (!res.ok) throw new Error(`Failed to download Slack file: ${res.status}`);
+    if (!res.ok) {
+      throw new Error(`Failed to download Slack file: ${res.status}`);
+    }
     const data = await res.arrayBuffer();
 
     const name = (filename ?? info?.name ?? fileId ?? 'slack-file').replace(
-      /[^\w.\-]+/g,
-      '_',
+      /[^\w.-]+/g,
+      '_'
     );
     const path = `downloads/${name}`;
     await sandbox.e2b.files.write(path, data);

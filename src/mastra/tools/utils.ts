@@ -1,21 +1,30 @@
 import type { Message } from 'chat';
 import { chat } from '../chat/instance';
 import { slack } from '../chat/slack';
-import { rawId, chatChannelId } from '../lib/ids';
+import { chatChannelId, rawId } from '../lib/ids';
 
-export async function assertReadableChannel(channelId: string, currentThreadId?: string) {
+export async function assertReadableChannel(
+  channelId: string,
+  currentThreadId?: string
+) {
   const id = chatChannelId(channelId);
   const metadata = await chat().channel(id).fetchMetadata();
-  if (currentThreadId && id === chatChannelId(currentThreadId)) return metadata;
+  if (currentThreadId && id === chatChannelId(currentThreadId)) {
+    return metadata;
+  }
   if (metadata.isDM || metadata.channelVisibility !== 'workspace') {
-    throw new Error('Reading DMs, private channels, or external conversations is not allowed.');
+    throw new Error(
+      'Reading DMs, private channels, or external conversations is not allowed.'
+    );
   }
   return metadata;
 }
 
 export async function joinChannel(channelId: string): Promise<void> {
   try {
-    await slack.webClient.apiCall('conversations.join', { channel: rawId(channelId) });
+    await slack.webClient.apiCall('conversations.join', {
+      channel: rawId(channelId),
+    });
   } catch {
     /* already a member, or can't join — reads will fail clearly if truly unreadable */
   }

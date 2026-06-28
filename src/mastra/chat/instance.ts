@@ -7,6 +7,8 @@ export function setChat(bot: Chat): void {
 }
 
 export function chat(): Chat {
-  if (!instance) throw new Error('Chat SDK is not initialized yet.');
+  if (!instance) {
+    throw new Error('Chat SDK is not initialized yet.');
+  }
   return instance;
 }

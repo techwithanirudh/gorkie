@@ -11,17 +11,29 @@ export const postMessageTool = createTool({
     id: z
       .string()
       .min(1)
-      .describe('Chat SDK id: thread (slack:C...:ts), channel (slack:C...), or a user id.'),
+      .describe(
+        'Chat SDK id: thread (slack:C...:ts), channel (slack:C...), or a user id.'
+      ),
     message: z.string().min(1).describe('Markdown message body.'),
   }),
   execute: async ({ type, id, message }) => {
     const bot = chat();
     if (type === 'channel') {
       const sent = await bot.channel(id).post({ markdown: message });
-      return { success: true, messageId: sent.id, threadId: sent.threadId, message: `Posted to channel ${id}.` };
+      return {
+        success: true,
+        messageId: sent.id,
+        threadId: sent.threadId,
+        message: `Posted to channel ${id}.`,
+      };
     }
     const thread = type === 'user' ? await bot.openDM(id) : bot.thread(id);
     const sent = await thread.post({ markdown: message });
-    return { success: true, messageId: sent.id, threadId: sent.threadId, message: `Posted to ${type} ${id}.` };
+    return {
+      success: true,
+      messageId: sent.id,
+      threadId: sent.threadId,
+      message: `Posted to ${type} ${id}.`,
+    };
   },
 });

@@ -1,7 +1,9 @@
 const tokens = new Map<string, string>();
 
 export function extractActionToken(raw: unknown): string | undefined {
-  if (!raw || typeof raw !== 'object') return undefined;
+  if (!raw || typeof raw !== 'object') {
+    return;
+  }
   const r = raw as {
     action_token?: unknown;
     assistant_thread?: { action_token?: unknown };
@@ -12,7 +14,9 @@ export function extractActionToken(raw: unknown): string | undefined {
 
 export function captureSearchToken(threadId: string, raw: unknown): void {
   const token = extractActionToken(raw);
-  if (token) tokens.set(threadId, token);
+  if (token) {
+    tokens.set(threadId, token);
+  }
 }
 
 export function getSearchToken(threadId: string): string | undefined {

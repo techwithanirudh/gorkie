@@ -1,6 +1,6 @@
 import { defaultBuildLogger, Template } from 'e2b';
-import { template, workdir } from './config';
 import { env } from '@/env';
+import { template, workdir } from './config';
 
 async function main(): Promise<void> {
   console.log(`[sandbox] building e2b template: ${template}`);
@@ -27,7 +27,7 @@ async function main(): Promise<void> {
           'jq',
           'sudo',
         ],
-        { noInstallRecommends: true },
+        { noInstallRecommends: true }
       )
       .runCmd([
         'if command -v fdfind >/dev/null 2>&1; then ln -sf "$(command -v fdfind)" /usr/local/bin/fd; fi',
@@ -47,7 +47,7 @@ async function main(): Promise<void> {
       .setUser('user')
       .setWorkdir(workdir),
     template,
-    { apiKey: env.E2B_API_KEY, onBuildLogs: defaultBuildLogger() },
+    { apiKey: env.E2B_API_KEY, onBuildLogs: defaultBuildLogger() }
   );
 
   console.log(`[sandbox] built e2b template: ${build.templateId}`);

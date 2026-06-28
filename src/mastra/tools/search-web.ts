@@ -1,6 +1,6 @@
 import { createTool } from '@mastra/core/tools';
-import { z } from 'zod';
 import Exa from 'exa-js';
+import { z } from 'zod';
 import { env } from '@/env';
 
 const exa = new Exa(env.EXA_API_KEY);

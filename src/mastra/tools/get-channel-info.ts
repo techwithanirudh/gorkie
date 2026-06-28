@@ -8,12 +8,17 @@ export const getChannelInfoTool = createTool({
   description:
     'Fetch metadata for a channel: name, member count, DM status, visibility. Defaults to the current channel.',
   inputSchema: z.object({
-    channelId: z.string().optional().describe('Channel id; defaults to the current channel.'),
+    channelId: z
+      .string()
+      .optional()
+      .describe('Channel id; defaults to the current channel.'),
   }),
   execute: async ({ channelId }, context) => {
     const ctx = channelContext(context?.requestContext);
     const id = channelId ?? ctx.channelId;
-    if (!id) throw new Error('No channel to inspect.');
+    if (!id) {
+      throw new Error('No channel to inspect.');
+    }
     const info = await assertReadableChannel(id, ctx.threadId);
     return {
       success: true,
@@ -22,7 +27,7 @@ export const getChannelInfoTool = createTool({
       isDM: info.isDM ?? false,
       memberCount: info.memberCount,
       channelVisibility: info.channelVisibility,
-      message: `${info.isDM ? 'DM' : `#${info.name ?? info.id}`}${info.memberCount != null ? `, ${info.memberCount} members` : ''}.`,
+      message: `${info.isDM ? 'DM' : `#${info.name ?? info.id}`}${info.memberCount == null ? '' : `, ${info.memberCount} members`}.`,
     };
   },
 });

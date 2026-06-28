@@ -1,0 +1,79 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "!node_modules",
+      "!**/dist",
+      "!**/.mastra",
+      "!workspace",
+      "!**/public",
+      "!**/.source",
+      "!.agents",
+      "!.github/skills",
+      "!.vercel",
+      "!bun.lock",
+      "!**/*.md",
+      "!**/*.mdx",
+      "!**/.agents",
+      "!**/.claude"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "formatWithErrors": true,
+    "indentStyle": "space",
+    "indentWidth": 2
+  },
+  "javascript": {
+    "formatter": {
+      "enabled": true,
+      "quoteStyle": "single",
+      "jsxQuoteStyle": "single",
+      "semicolons": "always"
+    },
+    "globals": ["Bun"]
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "complexity": {
+        "noExcessiveCognitiveComplexity": "off"
+      },
+      "correctness": {
+        "noUnusedImports": "error"
+      },
+      "performance": {
+        "noBarrelFile": "off",
+        "noNamespaceImport": "off",
+        "useTopLevelRegex": "off"
+      },
+      "suspicious": {
+        "noEmptyBlockStatements": "error"
+      }
+    }
+  },
+  "json": {
+    "parser": {
+      "allowComments": true
+    }
+  },
+  "html": {
+    "parser": {
+      "interpolation": true
+    }
+  },
+  "extends": ["ultracite/biome/core"]
+}

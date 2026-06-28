@@ -1,0 +1,24 @@
+name: 'Setup and install'
+description: 'Common setup steps for CI (bun + deps + dummy env)'
+
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@v2
+
+    - shell: bash
+      run: bun install --frozen-lockfile
+
+    - name: Create environment variables file
+      shell: bash
+      run: |
+        cat << 'EOF' > .env
+        SLACK_BOT_TOKEN=xoxb-dummy
+        SLACK_APP_TOKEN=xapp-dummy
+        HACKCLUB_API_KEY=dummy
+        DATABASE_URL=postgresql://user:pass@localhost:5432/db
+        E2B_API_KEY=dummy
+        EXA_API_KEY=dummy
+        LANGFUSE_PUBLIC_KEY=pk-lf-dummy
+        LANGFUSE_SECRET_KEY=sk-lf-dummy
+        EOF

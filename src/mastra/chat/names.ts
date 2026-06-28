@@ -4,16 +4,16 @@ import { slack } from './slack';
 
 export interface UserProfile {
   displayName?: string;
-  realName?: string;
-  pronouns?: string;
-  title?: string;
-  status?: string;
   fields: { label: string; value: string }[];
+  pronouns?: string;
+  realName?: string;
+  status?: string;
+  title?: string;
 }
 
 const profileFields = z.record(
   z.string(),
-  z.looseObject({ label: z.string().optional(), value: z.string().optional() }),
+  z.looseObject({ label: z.string().optional(), value: z.string().optional() })
 );
 const DAY_MS = 86_400_000;
 
@@ -21,7 +21,9 @@ function rawUserId(id: string): string {
   return id.replace(/^slack:/, '').split(':')[0] ?? id;
 }
 
-export async function resolveUserProfile(id: string): Promise<UserProfile | undefined> {
+export async function resolveUserProfile(
+  id: string
+): Promise<UserProfile | undefined> {
   const userId = rawUserId(id);
   const key = `slack:user-profile:${userId}`;
   const bot = chat();
@@ -37,21 +39,30 @@ export async function resolveUserProfile(id: string): Promise<UserProfile | unde
         include_labels: true,
         user: userId,
       });
-      if (!(raw || user)) return undefined;
+      if (!(raw || user)) {
+        return;
+      }
       const fields = profileFields.parse(raw?.fields ?? {});
       profile = {
         displayName: raw?.display_name || undefined,
         fields: Object.values(fields).flatMap((field) =>
-          field.value && field.label ? [{ label: field.label, value: field.value }] : [],
+          field.value && field.label
+            ? [{ label: field.label, value: field.value }]
+            : []
         ),
         pronouns: raw?.pronouns || undefined,
         realName: raw?.real_name || undefined,
         status: raw?.status_text || undefined,
         title: raw?.title || undefined,
       };
-      await bot.getState().set(key, profile, DAY_MS).catch(() => undefined);
+      await bot
+        .getState()
+        .set(key, profile, DAY_MS)
+        .catch(() => undefined);
     } catch {
-      if (!user) return undefined;
+      if (!user) {
+        return;
+      }
       profile = { fields: [] };
     }
   }

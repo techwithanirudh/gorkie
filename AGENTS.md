@@ -6,17 +6,17 @@ gorkie is an AI assistant for Slack. Bun + TypeScript, built on **Mastra** (agen
 
 Load the `mastra` skill BEFORE any Mastra work, and read the embedded docs/source in `node_modules/@mastra/*` rather than guessing. Mastra APIs change between versions; cached knowledge is usually wrong.
 
-## TODO discipline (do this every turn)
+## TODO
 
 `TODO.md` is the source of truth for outstanding requests so nothing is forgotten.
 
-- When the user asks for anything — small or large — add it to `TODO.md` immediately, in the right group.
+- When the user asks for anything: small or large, add it to `TODO.md` immediately, in the right group.
 - Tick an item the moment it's done, then remove ticked items (keep them briefly under "Recently completed" so the user can see, then prune).
 - Before saying you're finished, re-read `TODO.md` and confirm nothing asked is left unlogged.
 
 ## Mental Model
 
-One Mastra `Agent` (`gorkieAgent`) serves Slack through Mastra's built-in `channels`. Channels owns the message flow: Socket Mode, streaming, live tool widgets, typing status, thread-history backfill with multi-user prefixing, and `MastraStateAdapter`. We do not hand-roll any of that — we shape it with channel `handlers` and config.
+One Mastra `Agent` (`gorkieAgent`) serves Slack through Mastra's built-in `channels`. Channels owns the message flow: Socket Mode, streaming, live tool widgets, typing status, thread-history backfill with multi-user prefixing, and `MastraStateAdapter`. We do not hand-roll any of that, we shape it with channel `handlers` and config.
 
 The agent brain runs on the host. Code execution runs in a per-thread **E2B** sandbox (isolated cloud Linux VM). Model keys, Slack tokens, and DB credentials live on the host and never enter the sandbox.
 
@@ -40,13 +40,15 @@ Storage is **Postgres** (agent memory, channel state, observability traces). Lon
 - No what-comments, no JSDoc. Comment only a non-obvious *why*.
 - Types live in `src/mastra/types/`, not scattered across modules.
 - Direct names: delete dead wrappers instead of renaming them.
+- No em dashes anywhere (markdown, prose, comments, replies). Use a comma, colon, or period instead.
 
 ## Validation
 
 After code changes:
 
-1. `bun run --bun tsc --noEmit`
-2. `bun run bot` (smoke test: it should log `[gorkie] online`)
+1. `bun run typecheck`
+2. `bun run check` (Biome/ultracite) and `bun run check:spelling`
+3. `bun run start` (smoke test: it should log `[gorkie] online`)
 
 ## Resources
 

@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+    branches: ['*']
+  push:
+    branches: ['main']
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  FORCE_COLOR: 3
+
+jobs:
+  types:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Run type check
+        run: bun run typecheck
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Run lint
+        run: bun run check
+
+  spelling:
+    name: Spelling
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Run spelling check
+        run: bun run check:spelling

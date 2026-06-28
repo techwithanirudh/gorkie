@@ -46,9 +46,8 @@ dist
 # Mastra runtime artifacts (regenerated)
 /src/mastra/public
 
-# Workspace holds committed skills; ignore any runtime scratch but keep skills/.
-/workspace/*
-!/workspace/skills
+# CSpell
+.cspellcache
 
 # DuckDB observability (local)
 *.duckdb

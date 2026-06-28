@@ -18,7 +18,9 @@ export const scheduleReminderTool = createTool({
   }),
   execute: async ({ text, seconds }, context) => {
     const userId = channelContext(context?.requestContext).userId;
-    if (!userId) throw new Error('No user to remind.');
+    if (!userId) {
+      throw new Error('No user to remind.');
+    }
     const postAt = new Date(Date.now() + seconds * 1000);
     try {
       const dm = await chat().openDM(userId);
@@ -30,7 +32,10 @@ export const scheduleReminderTool = createTool({
         message: `Reminder scheduled for ${postAt.toISOString()}.`,
       };
     } catch (error) {
-      return { success: false, message: error instanceof Error ? error.message : String(error) };
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : String(error),
+      };
     }
   },
 });

@@ -1,9 +1,10 @@
 import type { Message, Thread } from 'chat';
+import { logger } from '../logger';
 import type { GorkieThreadState } from '../types';
-import { slack } from './slack';
+import { copyFilesToSandbox } from './attachments';
 import { rawText, withoutLeadingMentions } from './message';
 import { captureSearchToken } from './search-token';
-import { copySlackFilesIntoSandbox } from './attachments';
+import { slack } from './slack';
 
 type DefaultHandler = (thread: Thread, message: Message) => Promise<void>;
 
@@ -16,7 +17,9 @@ function shouldIgnore(message: Message): boolean {
     return true;
   }
   for (const line of rawText(message).split('\n')) {
-    if (withoutLeadingMentions(line).trimStart().startsWith('##')) return true;
+    if (withoutLeadingMentions(line).trimStart().startsWith('##')) {
+      return true;
+    }
   }
   return false;
 }
@@ -24,18 +27,26 @@ function shouldIgnore(message: Message): boolean {
 async function respond(
   thread: Thread,
   message: Message,
-  defaultHandler: DefaultHandler,
+  defaultHandler: DefaultHandler
 ): Promise<void> {
-  await defaultHandler(thread, await copySlackFilesIntoSandbox(thread, message));
+  logger.info('[chat] turn started', {
+    threadId: thread.id,
+    author: message.author.userName,
+    attachments: message.attachments.length,
+    text: message.text,
+  });
+  await defaultHandler(thread, await copyFilesToSandbox(thread, message));
 }
 
 export async function onMention(
   thread: Thread,
   message: Message,
-  defaultHandler: DefaultHandler,
+  defaultHandler: DefaultHandler
 ): Promise<void> {
   captureSearchToken(thread.id, message.raw);
-  if (shouldIgnore(message)) return;
+  if (shouldIgnore(message)) {
+    return;
+  }
   if (slack.decodeThreadId(message.threadId).threadTs === message.id) {
     await thread.setState({ respondOnThreadMessages: true });
   }
@@ -45,21 +56,27 @@ export async function onMention(
 export async function onSubscribedMessage(
   thread: Thread,
   message: Message,
-  defaultHandler: DefaultHandler,
+  defaultHandler: DefaultHandler
 ): Promise<void> {
   captureSearchToken(thread.id, message.raw);
-  if (shouldIgnore(message)) return;
+  if (shouldIgnore(message)) {
+    return;
+  }
   const state = (await thread.state) as GorkieThreadState | null;
-  if (!(state?.respondOnThreadMessages === true || message.isMention)) return;
+  if (!(state?.respondOnThreadMessages === true || message.isMention)) {
+    return;
+  }
   await respond(thread, message, defaultHandler);
 }
 
 export async function onDirectMessage(
   thread: Thread,
   message: Message,
-  defaultHandler: DefaultHandler,
+  defaultHandler: DefaultHandler
 ): Promise<void> {
   captureSearchToken(thread.id, message.raw);
-  if (shouldIgnore(message)) return;
+  if (shouldIgnore(message)) {
+    return;
+  }
   await respond(thread, message, defaultHandler);
 }

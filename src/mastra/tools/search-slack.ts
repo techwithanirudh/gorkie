@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { slack } from '../chat/slack';
 import { getSearchToken } from '../chat/search-token';
+import { slack } from '../chat/slack';
 import { channelContext } from '../lib/context';
 
 const contextMessage = z
@@ -15,7 +15,9 @@ const contextMessage = z
 const searchResponse = z.looseObject({
   ok: z.boolean(),
   error: z.string().optional(),
-  response_metadata: z.looseObject({ next_cursor: z.string().optional() }).optional(),
+  response_metadata: z
+    .looseObject({ next_cursor: z.string().optional() })
+    .optional(),
   results: z
     .looseObject({
       messages: z
@@ -45,13 +47,16 @@ const searchResponse = z.looseObject({
               channelName: m.channel_name,
               text: m.content ?? '',
               context: m.context_messages
-                ? { after: m.context_messages.after ?? [], before: m.context_messages.before ?? [] }
+                ? {
+                    after: m.context_messages.after ?? [],
+                    before: m.context_messages.before ?? [],
+                  }
                 : undefined,
               isAuthorBot: m.is_author_bot,
               ts: m.message_ts,
               permalink: m.permalink,
               teamId: m.team_id,
-            })),
+            }))
         )
         .optional(),
     })
@@ -64,7 +69,10 @@ export const searchSlackTool = createTool({
     'Search Slack messages for past conversations, decisions, links, or people outside the current thread. Use specific queries (keywords, names, channels, dates).',
   inputSchema: z.object({
     query: z.string().min(1).max(500),
-    cursor: z.string().optional().describe('Cursor from a previous result page.'),
+    cursor: z
+      .string()
+      .optional()
+      .describe('Cursor from a previous result page.'),
   }),
   execute: async ({ query, cursor }, context) => {
     const threadId = channelContext(context?.requestContext).threadId;
@@ -85,7 +93,7 @@ export const searchSlackTool = createTool({
         include_context_messages: true,
         limit: 10,
         query,
-      }),
+      })
     );
     if (!res.ok) {
       return {

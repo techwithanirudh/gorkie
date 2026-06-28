@@ -13,11 +13,35 @@
       "skillPath": "agentmail/SKILL.md",
       "computedHash": "c4056c9eaf5c01ed9aebdca1abe5926b08695bb71cb8ad0128b29af3c6530f3d"
     },
+    "ai-sdk": {
+      "source": "vercel/ai",
+      "sourceType": "github",
+      "skillPath": "skills/use-ai-sdk/SKILL.md",
+      "computedHash": "2fdbb3c2c9c0e19c64f03f2febd4fec134473e2fe7443f7ebe67870eba5b3c75"
+    },
+    "chat-sdk": {
+      "source": "vercel/chat",
+      "sourceType": "github",
+      "skillPath": "skills/chat/SKILL.md",
+      "computedHash": "dd2e9e18aa536e4f2625a6830247e4f593ba0c65ba7527365c18375c2cc618bd"
+    },
+    "grill-with-docs": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/grill-with-docs/SKILL.md",
+      "computedHash": "e7ef25bbee50cda2eb7b3a8ef541db0a0396dad7d369f7d14fb610671dd1864b"
+    },
     "mastra": {
       "source": "mastra-ai/skills",
       "sourceType": "github",
       "skillPath": "skills/mastra/SKILL.md",
       "computedHash": "f0ca76d36d67a345064f471a9577e752beb2b20ab46acdf154ed223905e1d3a4"
+    },
+    "ultracite": {
+      "source": "haydenbleasel/ultracite",
+      "sourceType": "github",
+      "skillPath": "skills/ultracite/SKILL.md",
+      "computedHash": "5efa7db1bc960b8beda708e3a6a4f633bf592e68b9d720524d17a300e091ac0e"
     }
   }
 }

@@ -1,4 +1,5 @@
 <div align="center">
+  <img alt="gorkie banner" src="./.github/banner.png" />
   <h1>gorkie</h1>
   <p>An AI coding assistant for Slack, built on Mastra.</p>
 </div>
@@ -20,8 +21,8 @@ gorkie is an AI assistant for Slack. It replies to mentions, DMs, and subscribed
 threads with answers backed by sandboxed code execution and tools.
 
 The bot runs as a long-lived Bun process. Slack events are handled through
-[Mastra][mastra]'s built-in [channels][channels] feature — which wires the
-[Vercel Chat SDK][chat-sdk] Slack adapter in **Socket Mode** — while the agent
+[Mastra][mastra]'s built-in [channels][channels] feature, which wires the
+[Vercel Chat SDK][chat-sdk] Slack adapter in **Socket Mode**: while the agent
 runs through Mastra's native runtime. Each Slack thread gets its own isolated
 [E2B][e2b] sandbox so gorkie can run commands and inspect files without ever
 touching the host machine.
@@ -30,7 +31,7 @@ touching the host machine.
 
 - Slack-native replies for mentions, DMs, and subscribed thread follow-ups.
 - Real-time streaming responses with live tool-activity widgets.
-- Per-thread [E2B][e2b] sandbox sessions — isolated cloud VMs, never the host.
+- Per-thread [E2B][e2b] sandbox sessions: isolated cloud VMs, never the host.
 - [Observational Memory][om]: long conversations are compressed into a dense
   observation log instead of carrying full raw history.
 - A `get_weather` tool (Open-Meteo, no key required).
@@ -40,7 +41,7 @@ touching the host machine.
 ## Tech Stack
 
 - [Bun][bun] and TypeScript
-- [Mastra][mastra] — agent runtime + [channels][channels]
+- [Mastra][mastra], agent runtime + [channels][channels]
 - [Vercel Chat SDK][chat-sdk] with `@chat-adapter/slack` (via Mastra channels)
 - [OpenRouter][openrouter] model routing (defaults to the [Hack Club][hackclub] proxy)
 - [E2B][e2b] sandbox sessions
@@ -92,7 +93,7 @@ $PGBIN/createdb -h 127.0.0.1 -p 5434 -U coder gorkie      # first time only
 |---|---|---|
 | `SLACK_BOT_TOKEN` | yes | Bot User OAuth token (`xoxb-…`) |
 | `SLACK_APP_TOKEN` | yes | App-level token with `connections:write` (`xapp-…`) |
-| `OPENROUTER_API_KEY` | yes | Model key — a Hack Club `sk-hc-v1-…` key with the default base URL |
+| `OPENROUTER_API_KEY` | yes | Model key, a Hack Club `sk-hc-v1-…` key with the default base URL |
 | `OPENROUTER_BASE_URL` | no | Defaults to the Hack Club proxy; drop it to use real OpenRouter |
 | `DATABASE_URL` | yes | Postgres connection string |
 | `E2B_API_KEY` | yes | E2B sandbox key (`e2b_…`) |

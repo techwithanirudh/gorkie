@@ -5,9 +5,11 @@ const MAX = 800;
 // Stringify any value and clip it for display.
 function format(value: unknown): string {
   let s: string;
-  if (value == null) s = '';
-  else if (typeof value === 'string') s = value;
-  else {
+  if (value == null) {
+    s = '';
+  } else if (typeof value === 'string') {
+    s = value;
+  } else {
     try {
       s = JSON.stringify(value, null, 2);
     } catch {
@@ -27,7 +29,16 @@ export const toolDisplay: ToolDisplayFn = (event) => {
 
   switch (event.kind) {
     case 'running':
-      return { kind: 'stream', chunk: { type: 'task_update', id, title, status: 'in_progress', details } };
+      return {
+        kind: 'stream',
+        chunk: {
+          type: 'task_update',
+          id,
+          title,
+          status: 'in_progress',
+          details,
+        },
+      };
     case 'result': {
       const r = event.result as { success?: boolean; message?: unknown } | null;
       const failed = event.isError || r?.success === false;
@@ -35,11 +46,31 @@ export const toolDisplay: ToolDisplayFn = (event) => {
         r && typeof r.message === 'string'
           ? `${failed ? '*Error*: ' : ''}${r.message}`
           : format(event.result);
-      return { kind: 'stream', chunk: { type: 'task_update', id, title, status: failed ? 'error' : 'complete', details, output } };
+      return {
+        kind: 'stream',
+        chunk: {
+          type: 'task_update',
+          id,
+          title,
+          status: failed ? 'error' : 'complete',
+          details,
+          output,
+        },
+      };
     }
     case 'error':
-      return { kind: 'stream', chunk: { type: 'task_update', id, title, status: 'error', details, output: `*Error*: ${format(event.errorText)}` } };
+      return {
+        kind: 'stream',
+        chunk: {
+          type: 'task_update',
+          id,
+          title,
+          status: 'error',
+          details,
+          output: `*Error*: ${format(event.errorText)}`,
+        },
+      };
     default:
-      return undefined;
+      return;
   }
 };
