@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import {
   LocalSkillSource,
@@ -12,10 +13,16 @@ import { channelContext } from '../lib/context';
 export const workspace = new Workspace({
   id: 'gorkie-workspace',
   name: 'gorkie',
-  sandbox: () =>
-    new E2BSandbox({
+  sandbox: ({ requestContext }) => {
+    const threadId = channelContext(requestContext).threadId;
+    if (!threadId) {
+      throw new Error('No thread id available for sandbox.');
+    }
+    return new E2BSandbox({
+      id: `gorkie-${createHash('sha256').update(threadId).digest('hex').slice(0, 32)}`,
       apiKey: env.E2B_API_KEY,
       template: config.template,
+      metadata: { 'thread-id': threadId },
       instructions: [
         'You have a persistent E2B Linux sandbox (Debian, Node.js 24, Python 3) for this conversation, driven by `execute_command`.',
         'Pre-installed: agent-browser (browser automation: run `agent-browser skills get core` for usage), agentmail (Python), wrangler (Cloudflare Workers), ripgrep, fd, ffmpeg, imagemagick, jq, pillow/matplotlib/numpy/pandas.',
@@ -25,7 +32,8 @@ export const workspace = new Workspace({
         'The sandbox persists across turns in this thread, so files and installed tools you create stay available. Files are not visible in chat unless you post them back.',
       ].join(' '),
       timeout: config.timeout,
-    }),
+    });
+  },
   sandboxCacheKey: ({ requestContext }) =>
     channelContext(requestContext).threadId,
   skillSource: new LocalSkillSource({

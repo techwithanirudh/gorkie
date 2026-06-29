@@ -2,6 +2,12 @@
 
 Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.md) for architecture.
 
+## Priority queue
+
+- [ ] **P0: Skills**: add more workspace skills now that current skill discovery/tool exposure is working.
+- [ ] **P1: Sandbox filesystem**: add E2B-backed filesystem tools so Gorkie can read/write/edit files and view generated images such as `agent-browser` PNG output.
+- [ ] **Later: Tool display preference**: let users choose hidden vs original/visible tool display mode.
+
 ## Open questions (need your call)
 
 - [ ] **`resourceId` for shared threads**: channels defaults to the first speaker's `slack:<userId>`. Key on the channel/thread instead (so memory belongs to the conversation, not one person)? Ties to OM scope (thread vs resource).
@@ -9,7 +15,6 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 ## Testing (E2E, needs you in Slack)
 
 - [ ] Tool calling in **Slack** (programmatic test passes).
-- [ ] **Tool display regressions**: tool display is still buggy for some tools, especially `execute_command` input and skill output rendering.
 - [ ] **DM** conversation (gorkie replies to every message).
 - [ ] **@mention in a new thread** → follows the whole thread; **@mention mid-thread** → answers once, re-fetches recent context.
 - [ ] **Observational Memory + compaction**: long thread, confirm older history compresses and recall still works.
@@ -39,8 +44,9 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 
 ## Features
 
-- [ ] **Skills not loading**: investigate why skills are not loaded.
-- [ ] **Filesystem tools backed by the E2B sandbox**: bring back `read_file`/`write_file`/`edit_file`/`ast_edit`/`grep`/`list_files`, which need a `WorkspaceFilesystem`. There is **no** E2B-backed provider (Mastra ships Local/S3/Azure/GCS only; [#13133 dynamic filesystem resolution](https://github.com/mastra-ai/mastra/issues/13133), [#14104 Azure provider](https://github.com/mastra-ai/mastra/issues/14104) are related, none for E2B). Write a custom `WorkspaceFilesystem` wrapping `sandbox.e2b.files` (read↔readFile, write↔writeFile, list↔readdir, …), likely via a per-thread resolver (note: resolver-backed filesystem may conflict with `lsp: true`). Big upgrade over shelling out to `sed`.
+- [ ] **Add more skills**: expand available skills after current skill loading is fixed.
+- [ ] **Filesystem tools backed by the E2B sandbox**: top-priority item 2. Bring back `read_file`/`write_file`/`edit_file`/`ast_edit`/`grep`/`list_files`, which need a `WorkspaceFilesystem`. There is **no** E2B-backed provider (Mastra ships Local/S3/Azure/GCS only; [#13133 dynamic filesystem resolution](https://github.com/mastra-ai/mastra/issues/13133), [#14104 Azure provider](https://github.com/mastra-ai/mastra/issues/14104) are related, none for E2B). Write a custom `WorkspaceFilesystem` wrapping `sandbox.e2b.files` (read↔readFile, write↔writeFile, list↔readdir, …), likely via a per-thread resolver (note: resolver-backed filesystem may conflict with `lsp: true`). Big upgrade over shelling out to `sed`.
+- [ ] **Tool display preference**: future lower-priority feature, let users choose hidden vs original/visible tool display mode.
 - [ ] **Agent browser**: consider adding a proper agent browser integration instead of relying on ad hoc browser tooling.
 - [ ] **Image-capable file reads**: check whether Mastra's read-file tooling can let the agent view images when reading files.
 - [ ] **`[Thread context]` mention encoding**: Mastra's auto-injected thread-context block HTML-escapes mentions (`&lt;@U…&gt;`) so the model reads escaped junk (our `read_conversation_history` output is clean). Decide: disable `threadContext` (`maxMessages: 0`) + rely on the tool, override the block, or report upstream.

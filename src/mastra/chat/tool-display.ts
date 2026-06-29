@@ -38,28 +38,40 @@ function text(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
+function codeBlock(value: string): string {
+  let fence = '```';
+  while (value.includes(fence)) {
+    fence += '`';
+  }
+  return `${fence}\n${value}\n${fence}`;
+}
+
 function format(value: unknown, max: number): string {
-  const output = isRecord(value)
-    ? Object.entries(value)
-        .filter(
-          ([, fieldValue]) => fieldValue !== undefined && fieldValue !== ''
-        )
-        .map(([key, fieldValue]) => {
-          const formatted = text(fieldValue);
-          const name = label(key);
-          return formatted.includes('\n')
-            ? `${name}:\n${formatted}`
-            : `${name}: ${formatted}`;
-        })
-        .join('\n')
-    : text(value);
+  const output = (
+    isRecord(value)
+      ? Object.entries(value)
+          .filter(
+            ([, fieldValue]) => fieldValue !== undefined && fieldValue !== ''
+          )
+          .map(([key, fieldValue]) => {
+            const formatted = text(fieldValue);
+            const name = label(key);
+            return formatted.includes('\n')
+              ? `${name}:\n${formatted}`
+              : `${name}: ${formatted}`;
+          })
+          .join('\n')
+      : text(value)
+  ).trim();
 
   if (output.length <= max) {
-    return output;
+    return output ? codeBlock(output) : '';
   }
-  return `${output.slice(0, max).trimEnd()}...\n\n(truncated ${
-    output.length - max
-  } chars)`;
+  return codeBlock(
+    `${output.slice(0, max).trimEnd()}...\n\n(truncated ${
+      output.length - max
+    } chars)`
+  );
 }
 
 function taskUpdate({
@@ -112,7 +124,7 @@ export const toolDisplay: ToolDisplayFn = (event) => {
         id,
         title,
         status: failed ? 'error' : 'complete',
-        output: failed && output ? `*Error*: ${output}` : output || 'Done.',
+        output: failed && output ? `*Error*:\n${output}` : output || 'Done.',
       });
     }
     case 'error':
@@ -120,7 +132,7 @@ export const toolDisplay: ToolDisplayFn = (event) => {
         id,
         title,
         status: 'error',
-        output: `*Error*: ${format(event.errorText, MAX_OUTPUT)}`,
+        output: `*Error*:\n${format(event.errorText, MAX_OUTPUT)}`,
       });
     default:
       return;
