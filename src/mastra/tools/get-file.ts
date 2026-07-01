@@ -46,7 +46,7 @@ export const getFileTool = createTool({
     if (!sandbox) {
       throw new Error('No sandbox available.');
     }
-    await sandbox.start();
+    await sandbox.ensureRunning();
 
     const fileId = SLACK_FILE_ID.exec(file)?.[1];
     const info = fileId

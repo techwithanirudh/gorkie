@@ -34,8 +34,6 @@ interface E2BFilesystemOptions {
   sandbox: E2BSandbox;
 }
 
-const sandboxStarts = new WeakMap<E2BSandbox, Promise<void>>();
-
 export class E2BFilesystem extends MastraFilesystem {
   readonly id: string;
   readonly name = 'E2BFilesystem';
@@ -55,7 +53,7 @@ export class E2BFilesystem extends MastraFilesystem {
   private readonly sandbox: E2BSandbox;
 
   async init(): Promise<void> {
-    await this.startSandbox();
+    await this.sandbox.ensureRunning();
     await this.sandbox.retryOnDead(() =>
       this.sandbox.e2b.files.makeDir(this.basePath)
     );
@@ -491,19 +489,6 @@ export class E2BFilesystem extends MastraFilesystem {
       }
       throw error;
     }
-  }
-
-  private startSandbox(): Promise<void> {
-    let start = sandboxStarts.get(this.sandbox);
-    if (!start) {
-      start = this.sandbox.start().finally(() => {
-        if (sandboxStarts.get(this.sandbox) === start) {
-          sandboxStarts.delete(this.sandbox);
-        }
-      });
-      sandboxStarts.set(this.sandbox, start);
-    }
-    return start;
   }
 
   private toE2BContent(content: FileContent): string | ArrayBuffer {

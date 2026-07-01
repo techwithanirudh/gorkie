@@ -39,4 +39,19 @@ export function registerEvents(): void {
   bot.onAssistantContextChanged((event) =>
     setStarters(event.channelId, event.threadTs)
   );
+
+  bot.onMemberJoinedChannel((event) => {
+    if (event.userId !== event.adapter.botUserId) {
+      return;
+    }
+
+    bot
+      .channel(event.channelId)
+      .post(
+        "hey! i'm hanging out in this channel now! just @ me whenever you need something :)"
+      )
+      .catch((err: unknown) =>
+        console.error('[events] channel join greeting failed', err)
+      );
+  });
 }

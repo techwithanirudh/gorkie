@@ -19,9 +19,14 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 
 ## Recently completed
 
+- [x] **Sandbox lifecycle and join-channel parity check**: verified all E2B-using tools use Mastra lifecycle helpers correctly, compared channel-history tools against the old auto-join behavior, and restored the missing bot-added-to-channel greeting.
+- [x] **E2B lifecycle startup fix**: use Mastra sandbox `ensureRunning()` instead of direct `start()` for E2B filesystem, `get_file`, and `upload_file`; remove the local `sandboxStarts` workaround.
 - [x] **Lazy Slack attachment downloads**: message attachments are no longer automatically copied into the sandbox. The model sees attachment metadata and can call `get_file` only when it needs file bytes; explicit `get_file` downloads now honor Mastra abort signals.
 - [x] **Numbered chunk Slack downloads**: `get_file` now uses Ky plus numbered chunk files (`.part.00000`, etc.) for known-size Slack files, resumes by skipping complete chunks, and completed a 568,059,725-byte zip validation with `unzip -t`.
 - [x] **`get_file` library survey**: checked resumable downloader packages, range-parser utilities, and generic HTTP clients. One package has a close internal writer abstraction, but its public Node API still targets local files.
+- [x] **Download library viability research**: verified the candidate package exports, Node API, browser API, custom writer behavior, saved progress shape, and a local range-server resume probe before deciding whether to refactor `get_file` around it.
+- [x] **E2B filesystem start guard review**: checked `sandboxStarts` against Mastra filesystem lifecycle and `@mastra/e2b` start/retry behavior; it only dedupes concurrent initial starts.
+- [x] **Mastra filesystem lifecycle comparison**: checked LocalFilesystem, CompositeFilesystem, workspace tool wrappers, lifecycle helpers, and sandbox process manager patterns; upstream prefers lifecycle wrappers/`ensureRunning()` over direct `start()`.
 - [x] **Slack search output cleanup**: removed `isAuthorBot` and `ts` from compact search results; kept permalinks as source pointers for exact Slack messages.
 - [x] **Attachment logging cleanup**: turn-start logs include attachment names, MIME types, sizes, and Slack URLs; the attachment context helper is now named `attachments`.
 - [x] **Streamed Slack file downloads**: `get_file` no longer buffers full Slack files in host memory. It streams the Slack response body into an E2B `.part` file, verifies size when known, then renames it into place.
@@ -88,6 +93,8 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 
 ## Research
 
+- [ ] **Model output-token budgeting**: check whether high `maxOutputTokens` changes Mastra observability, memory persistence, provider routing, or agent behavior beyond provider preflight/billing checks; also research whether OpenRouter can avoid rejecting requests based on reserved output-token affordability.
+- [ ] **Built output env loading**: confirm whether Mastra build intentionally drops `dotenv/config` from the standalone output, and decide whether local smoke should use `node --env-file=.env .mastra/output/index.mjs` or an explicit runtime env loader.
 - [ ] **Re-test screenshots/Playwright** now that the sandbox persists and the template pre-installs agent-browser.
 - [ ] **Sandbox-lifecycle bump, raise the duration?** `processOutputStep` runs *before tool execution* (per Mastra docs), so our `e2b.setTimeout(SANDBOX_MS)` is already proactive, but `SANDBOX_MS` is only **5 min**, so a single `execute_command` running >5 min could pause mid-run. Reference uses ~21 min (`executionTimeoutMs + 60s`). Consider raising `SANDBOX_MS`; we `pause()` at turn end anyway, so the timeout is just an abandon-safety net.
 - [ ] **Harness vs plain Agent**: evaluate whether we need Mastra's Harness (interruption/threading); if only parts, pull just those.

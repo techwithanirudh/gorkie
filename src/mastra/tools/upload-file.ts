@@ -34,7 +34,7 @@ export const uploadFileTool = createTool({
     if (!sandbox) {
       throw new Error('No sandbox available.');
     }
-    await sandbox.start();
+    await sandbox.ensureRunning();
 
     const bytes = await sandbox.retryOnDead(() =>
       sandbox.e2b.files.read(path, { format: 'bytes' })

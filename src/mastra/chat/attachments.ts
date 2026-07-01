@@ -8,7 +8,7 @@ export function attachments(message: Message): Message {
 
   const text = [
     message.text,
-    'Attached files are available in Slack but have not been downloaded into the sandbox yet:',
+    'Slack attachments, not downloaded yet:',
     ...message.attachments.map((attachment, i) => {
       const size = attachment.size
         ? `${Math.ceil(attachment.size / 1024 / 1024)} MB`
@@ -21,7 +21,7 @@ export function attachments(message: Message): Message {
       ].filter(Boolean);
       return `- ${details.join(', ')}`;
     }),
-    'Use get_file with the Slack URL or file id only if you need to inspect the file bytes.',
+    'Call get_file with a Slack URL or file id to download it into the workspace.',
   ]
     .filter(Boolean)
     .join('\n\n');
