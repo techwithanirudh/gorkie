@@ -36,7 +36,9 @@ export const uploadFileTool = createTool({
     }
     await sandbox.start();
 
-    const bytes = await sandbox.e2b.files.read(path, { format: 'bytes' });
+    const bytes = await sandbox.retryOnDead(() =>
+      sandbox.e2b.files.read(path, { format: 'bytes' })
+    );
     const name = filename ?? path.split('/').pop() ?? 'file';
 
     const threadId = channelContext(context.requestContext).threadId;

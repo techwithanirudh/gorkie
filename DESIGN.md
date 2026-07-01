@@ -31,7 +31,7 @@ Earlier iterations owned the Chat SDK manually (`new Chat(...)`, custom `run-tur
 
 ## How a turn runs
 
-1. Slack event over Socket Mode → our handler override → `shouldIgnore` check → `copyFilesToSandbox` (seed attachments) → `defaultHandler`.
+1. Slack event over Socket Mode → our handler override → `shouldIgnore` check → `attachments` (describe attachments without downloading them) → `defaultHandler`.
 2. Channels maps the platform thread to a Mastra thread (by `channel_*` metadata), backfills history on first mention, persists `channel_subscribed`.
 3. Channels runs the agent via `agent.sendMessage(...)` (durable) + `subscribeToThread(...)`, streaming output back with our `toolDisplay`.
 4. Output processors (`src/mastra/processors/`) run per step/turn: **sandbox-lifecycle** (bump the E2B timeout before sandbox tools; `pause()` at turn end) and **turn-log** (log every tool call + result).
@@ -55,7 +55,7 @@ Hack Club/OpenRouter speak the OpenRouter-compatible API, so we use explicit `ur
 gorkie is public, so the agent must never run code on the host. The workspace (`src/mastra/workspace/index.ts`) uses a dynamic **`E2BSandbox`** (template `gorkie-workspace:1.0`, prebuilt via `bun run build:template`, agent-browser/agentmail/wrangler + Chromium baked in), resolved per request and memoized by `sandboxCacheKey` (thread id) so each thread gets a warm, isolated sandbox.
 
 - **No host `LocalFilesystem`**: the agent gets sandbox tools only (`execute_command`, `get_process_output`, `kill_process`), renamed off the `mastra_workspace_` prefix via the `tools` config. File I/O is done via shell in the VM.
-- **Skills** are discovered locally (`LocalSkillSource`, `basePath: resolve(import.meta.dirname, '../../workspace')` → `workspace/skills/`), Mastra can't read skills from the sandbox, so they live in the repo. Tools (agent-browser CLI, etc.) are baked into the sandbox template; the skill `SKILL.md`s are discovery stubs.
+- **Skills** are discovered locally (`LocalSkillSource`, `workspace/skills` + `.`) from repo stubs. Mastra dev runs from `src/mastra/public`, so the source path falls back to the repo root from there. The E2B template also copies those stubs to `/home/user/skills` so sandbox filesystem access sees the same skill tree. Tools (agent-browser CLI, etc.) are baked into the sandbox template; the skill `SKILL.md`s are discovery stubs.
 - **Lifecycle**: `processOutputStep` runs *before* tool execution, so the `e2b.setTimeout(SANDBOX_MS)` bump is proactive; `processOutputResult` calls `e2b.pause()` at turn end to stop paying for idle compute.
 
 ---

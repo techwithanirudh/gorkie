@@ -8,7 +8,7 @@ const exa = new Exa(env.EXA_API_KEY);
 export const searchWebTool = createTool({
   id: 'search_web',
   description:
-    'Search the web for current information, documentation, news, and facts. Use it when you need up-to-date info rather than guessing.',
+    'Search the web for current information, documentation, news, and facts. For unfamiliar names, acronyms, projects, links, screenshots, or "what is X" questions, also use search_slack when available before answering because the reference may be internal.',
   inputSchema: z.object({
     query: z
       .string()

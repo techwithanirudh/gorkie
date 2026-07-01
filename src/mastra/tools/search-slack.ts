@@ -4,6 +4,14 @@ import { slack } from '../chat/client';
 import { getSearchToken } from '../chat/search-token';
 import { channelContext } from '../lib/context';
 
+function snippet(text: string, max = 600): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= max) {
+    return normalized;
+  }
+  return `${normalized.slice(0, max - 3)}...`;
+}
+
 const contextMessage = z
   .looseObject({
     text: z.string().optional(),
@@ -35,8 +43,6 @@ const searchResponse = z.looseObject({
                   before: z.array(contextMessage).optional(),
                 })
                 .optional(),
-              is_author_bot: z.boolean().optional(),
-              message_ts: z.string().optional(),
               permalink: z.string().optional(),
               team_id: z.string().optional(),
             })
@@ -45,17 +51,14 @@ const searchResponse = z.looseObject({
               userId: m.author_user_id,
               channelId: m.channel_id,
               channelName: m.channel_name,
-              text: m.content ?? '',
-              context: m.context_messages
-                ? {
-                    after: m.context_messages.after ?? [],
-                    before: m.context_messages.before ?? [],
-                  }
-                : undefined,
-              isAuthorBot: m.is_author_bot,
-              ts: m.message_ts,
+              text: snippet(m.content ?? ''),
+              before: (m.context_messages?.before ?? [])
+                .slice(-3)
+                .map((item) => snippet(item.text, 180)),
+              after: (m.context_messages?.after ?? [])
+                .slice(0, 3)
+                .map((item) => snippet(item.text, 180)),
               permalink: m.permalink,
-              teamId: m.team_id,
             }))
         )
         .optional(),
@@ -66,7 +69,7 @@ const searchResponse = z.looseObject({
 export const searchSlackTool = createTool({
   id: 'search_slack',
   description:
-    'Search Slack messages for past conversations, decisions, links, or people outside the current thread. Use specific queries (keywords, names, channels, dates).',
+    'Search Slack messages for past conversations, decisions, links, people, or internal references outside the current thread. Use specific queries (keywords, names, channels, dates). For unfamiliar references and "what is X" questions, pair this with search_web and compare results before answering.',
   inputSchema: z.object({
     query: z.string().min(1).max(500),
     cursor: z

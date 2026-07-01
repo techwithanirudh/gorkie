@@ -1,72 +1,27 @@
-import { RequestContext } from '@mastra/core/request-context';
-import { E2BSandbox } from '@mastra/e2b';
-import type { Message, Thread } from 'chat';
+import type { Message } from 'chat';
 import { parseMarkdown } from 'chat';
-import { logger } from '../lib/logger';
-import { workspace } from '../workspace';
-import { p } from '../workspace/path';
 
-const MAX_ATTACHMENTS = 10;
-
-const safeName = (name: string): string =>
-  name.replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '') || 'file';
-
-export async function copyFilesToSandbox(
-  thread: Thread,
-  message: Message
-): Promise<Message> {
+export function attachments(message: Message): Message {
   if (message.attachments.length === 0) {
     return message;
   }
 
-  const requestContext = new RequestContext();
-  requestContext.set('channel', { threadId: thread.id });
-
-  const sandbox = await workspace.resolveSandbox({ requestContext });
-  if (!(sandbox instanceof E2BSandbox)) {
-    return message;
-  }
-  await sandbox.start();
-
-  const copied: string[] = [];
-
-  for (const [i, att] of message.attachments
-    .slice(0, MAX_ATTACHMENTS)
-    .entries()) {
-    try {
-      const raw = att.fetchData ? await att.fetchData() : att.data;
-      if (!raw) {
-        continue;
-      }
-      const content = raw instanceof Blob ? raw : new Uint8Array(raw).buffer;
-      const name = safeName(att.name ?? `file-${i + 1}`);
-      const path = p('attachments', safeName(message.id), name);
-      await sandbox.e2b.files.write(path, content);
-      copied.push(
-        `- ${name}${att.mimeType ? ` (${att.mimeType})` : ''}: ${path}`
-      );
-    } catch (error) {
-      logger.warn('[chat] failed to copy attachment into sandbox', {
-        messageId: message.id,
-        error: String(error),
-      });
-    }
-  }
-  if (copied.length === 0) {
-    return message;
-  }
-
-  const truncated =
-    message.attachments.length > MAX_ATTACHMENTS
-      ? `(showing the first ${MAX_ATTACHMENTS} of ${message.attachments.length} attachments)`
-      : undefined;
-
   const text = [
     message.text,
-    'Attached files are downloaded into the sandbox:',
-    ...copied,
-    truncated,
-    'Use these local paths to read, edit, or process them.',
+    'Attached files are available in Slack but have not been downloaded into the sandbox yet:',
+    ...message.attachments.map((attachment, i) => {
+      const size = attachment.size
+        ? `${Math.ceil(attachment.size / 1024 / 1024)} MB`
+        : undefined;
+      const details = [
+        attachment.name ?? `file-${i + 1}`,
+        attachment.mimeType,
+        size,
+        attachment.url ?? attachment.fetchMetadata?.url,
+      ].filter(Boolean);
+      return `- ${details.join(', ')}`;
+    }),
+    'Use get_file with the Slack URL or file id only if you need to inspect the file bytes.',
   ]
     .filter(Boolean)
     .join('\n\n');

@@ -52,3 +52,6 @@ dist
 # DuckDB observability (local)
 *.duckdb
 *.duckdb.wal
+
+# logs
+*.log

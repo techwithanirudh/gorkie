@@ -1,5 +1,6 @@
 import { createPostgresState } from '@chat-adapter/state-pg';
 import { Agent } from '@mastra/core/agent';
+import { TokenLimiterProcessor } from '@mastra/core/processors';
 import { Memory } from '@mastra/memory';
 import { env } from '@/env';
 import { slack } from '../chat/client';
@@ -22,9 +23,14 @@ export const gorkieAgent = new Agent({
   instructions: ({ requestContext }) => buildInstructions(requestContext),
   model: orchestrator,
   defaultOptions: {
+    modelSettings: { maxOutputTokens: 32_768 },
     stopWhen: [toolCall('skip'), stepCountIs(150)],
   },
   workspace,
+  inputProcessors: [
+    // TODO: Learn about TokenLimiterProcessor and it's modes
+    new TokenLimiterProcessor({ limit: 900_000, trimMode: 'contiguous' }),
+  ],
   outputProcessors,
   tools,
   memory: new Memory({
@@ -32,6 +38,12 @@ export const gorkieAgent = new Agent({
       lastMessages: 20,
       observationalMemory: {
         model: memory,
+        observation: {
+          modelSettings: { maxOutputTokens: 32_768 },
+        },
+        reflection: {
+          modelSettings: { maxOutputTokens: 32_768 },
+        },
         temporalMarkers: true,
         scope: 'thread',
       },

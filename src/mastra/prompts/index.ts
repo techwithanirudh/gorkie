@@ -4,6 +4,7 @@ import { contextPrompt } from './context';
 import { corePrompt } from './core';
 import { personalityPrompt } from './personality';
 import { slackPrompt } from './slack';
+import { toolsPrompt } from './tools';
 
 export function buildInstructions(
   requestContext: RequestContext
@@ -12,7 +13,9 @@ export function buildInstructions(
   const messages: CoreSystemMessage[] = [
     {
       role: 'system',
-      content: [corePrompt, personalityPrompt, slackPrompt].join('\n\n'),
+      content: [corePrompt, personalityPrompt, slackPrompt, toolsPrompt].join(
+        '\n\n'
+      ),
     },
   ];
   if (context) {

@@ -1,7 +1,7 @@
 import type { Message, Thread } from 'chat';
 import { logger } from '../lib/logger';
 import type { GorkieThreadState } from '../types';
-import { copyFilesToSandbox } from './attachments';
+import { attachments } from './attachments';
 import { slack } from './client';
 import { rawText, withoutLeadingMentions } from './message';
 import { captureSearchToken } from './search-token';
@@ -32,10 +32,15 @@ async function respond(
   logger.info('[chat] turn started', {
     threadId: thread.id,
     author: message.author.userName,
-    attachments: message.attachments.length,
+    attachments: message.attachments.map((attachment) => ({
+      name: attachment.name,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+      url: attachment.url ?? attachment.fetchMetadata?.url,
+    })),
     text: message.text,
   });
-  await defaultHandler(thread, await copyFilesToSandbox(thread, message));
+  await defaultHandler(thread, attachments(message));
 }
 
 export async function onMention(

@@ -4,27 +4,61 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 
 ## Priority queue
 
+- [ ] **P0: GLM image input crash**: uploaded images can crash GLM/non-vision models. Detect model image support before Mastra sends image parts, and degrade to file/path text for models that do not support images.
+- [ ] **P0: Model quota error handling**: daily spending-limit 429s should stop retrying, surface a clear Slack message, and optionally fall back to another model/provider.
+- [ ] **P0: Provider/log redaction**: upstream model errors can persist full provider response bodies, provider key-management URLs, and giant HTML error pages in observability/logs. Sanitize `APICallError` bodies before logging and storage export.
+- [ ] **P0: Background Slack file downloads**: evaluate Mastra background tasks for `get_file` so large user-requested downloads can outlive foreground tool timeouts and report completion cleanly.
+- [ ] **P0: `get_file` cleanup audit**: chunked downloads are reliable but cluttered. Re-check whether the Ky direct bearer-token path can replace `fetchSlackFile` safely long-term, and simplify the chunk/manifest code without losing resume guarantees.
+- [ ] **P0: Sandbox image file viewing bug**: viewing images from files in the sandbox is currently bugged. `read_file` media is disabled because Mastra sends base64 tool results through a broken media path; fix upstream or add a safe replacement before re-enabling. [might be related to opencode go and might wrk fine with all other providers]
 - [ ] **P0: Skills**: add more workspace skills now that current skill discovery/tool exposure is working.
-- [ ] **P1: Sandbox filesystem**: add E2B-backed filesystem tools so Gorkie can read/write/edit files and view generated images such as `agent-browser` PNG output.
 - [ ] **Later: Tool display preference**: let users choose hidden vs original/visible tool display mode.
 
 ## Open questions (need your call)
 
 - [ ] **`resourceId` for shared threads**: channels defaults to the first speaker's `slack:<userId>`. Key on the channel/thread instead (so memory belongs to the conversation, not one person)? Ties to OM scope (thread vs resource).
 
+## Recently completed
+
+- [x] **Lazy Slack attachment downloads**: message attachments are no longer automatically copied into the sandbox. The model sees attachment metadata and can call `get_file` only when it needs file bytes; explicit `get_file` downloads now honor Mastra abort signals.
+- [x] **Numbered chunk Slack downloads**: `get_file` now uses Ky plus numbered chunk files (`.part.00000`, etc.) for known-size Slack files, resumes by skipping complete chunks, and completed a 568,059,725-byte zip validation with `unzip -t`.
+- [x] **`get_file` library survey**: checked resumable downloader packages, range-parser utilities, and generic HTTP clients. One package has a close internal writer abstraction, but its public Node API still targets local files.
+- [x] **Slack search output cleanup**: removed `isAuthorBot` and `ts` from compact search results; kept permalinks as source pointers for exact Slack messages.
+- [x] **Attachment logging cleanup**: turn-start logs include attachment names, MIME types, sizes, and Slack URLs; the attachment context helper is now named `attachments`.
+- [x] **Streamed Slack file downloads**: `get_file` no longer buffers full Slack files in host memory. It streams the Slack response body into an E2B `.part` file, verifies size when known, then renames it into place.
+- [x] **Resumable Slack file downloads**: `get_file` resumes from an existing `.part` file with HTTP `Range` when Slack supports it, appends the remaining bytes in the sandbox, and falls back to a clean restart when range requests are not supported.
+- [x] **Large-file timeout test**: tested `get_file` on a huge Slack zip with 30s and 60s forced aborts, then completed the retry. Final zip was 568,059,725 bytes and `unzip -t` reported no errors.
+- [x] **Slack search output research**: Slack `assistant.search.context` can return contextual before/after messages, up to 20 results per page, and cursors. Bot-token calls require `action_token`; user-token calls do not. Compact model output is needed.
+- [x] **Token limiter research**: current Mastra `TokenLimiterProcessor` runs per step, counts tool-result JSON, removes whole old messages, and can TripWire if nothing fits. It is a hard guard, not a semantic compressor.
+- [x] **Observational memory token-limit research**: `MessageHistory` recalls `lastMessages` before later per-step pruning, and observational memory is separate from live prompt compression. Need tests before assuming a limiter will not affect recall quality.
+- [x] **Token limiter loop probe**: local probe with a huge old Slack tool result kept the current user request and latest tool result under both `best-fit` and `contiguous`; system-message preservation still needs validation with real Mastra `MessageList`.
+- [x] **Input context/token guard**: added a Mastra `TokenLimiterProcessor` input guard with contiguous trimming, and compacted Slack search output so raw context JSON no longer reaches model/tool display/log result payloads.
+- [x] **Resumed file download abort progress**: `get_file` now preserves an aborted `.part.range` by folding it into `.part` before the next resume request.
+- [x] **`get_file` resume under timeout follow-up**: repeated the huge Slack zip test with 30s, 60s, 10s, and 5s aborts. `.part` advanced from 70,760,314 to 263,606,525 to 272,535,797 bytes, final zip was 568,059,725 bytes, and `unzip -t` passed.
+- [x] **Slack search compact-output probe**: synthetic 10-result Slack search output dropped from 254,519 bytes to 18,859 bytes, a 93% reduction, while preserving author, user, channel, timestamp, permalink, snippets, and cursor.
+
 ## Testing (E2E, needs you in Slack)
 
+- [ ] **Images without extensions**: fix `read_file` on downloaded images/binaries without file extensions so it detects MIME from bytes instead of dumping raw binary text.
 - [ ] Tool calling in **Slack** (programmatic test passes).
 - [ ] **DM** conversation (gorkie replies to every message).
 - [ ] **@mention in a new thread** → follows the whole thread; **@mention mid-thread** → answers once, re-fetches recent context.
 - [ ] **Observational Memory + compaction**: long thread, confirm older history compresses and recall still works.
 - [ ] **Sandbox stability**: can it build/serve a site; does the sandbox stay alive across turns.
-- [ ] **Attachment handling end-to-end**: upload an image, confirm gorkie (a) sees it (vision via channels), (b) can read/modify it from the seeded sandbox path (`copyFilesToSandbox`), and (c) `get_file` works for files behind a **Slack canvas** (not just plain uploads).
-- [ ] **Attachment input/output rendering**: confirm attachments resolve properly in model input and tool/task output, including seeded sandbox paths and `get_file` results.
+- [ ] **Attachment handling end-to-end**: upload an image, confirm gorkie (a) sees it through channels, (b) receives lazy attachment metadata without downloading first, and (c) `get_file` works for files behind a **Slack canvas** (not just plain uploads).
+- [ ] **Attachment input/output rendering**: confirm attachments resolve properly in model input and tool/task output, including lazy metadata and `get_file` results.
+- [ ] **Slack search compact-output test**: after researching a compact `search_slack` model output shape, test repeated broad Slack searches in one turn and confirm the model sees concise hits plus cursors instead of giant context JSON.
+- [ ] **Token limiter loop test**: after researching the Mastra `TokenLimiterProcessor` settings, run a tool-heavy multi-step turn and confirm per-step pruning prevents context overflow without deleting the active user request or latest tool result.
+- [ ] **Observational memory token-limit test**: test whether an input token limiter interferes with observational memory, long-thread recall, or observation/reflection writes, especially when older messages are pruned from the live model prompt.
+- [ ] **Tool-result media vision**: `read_file` workspace media is disabled because sandbox image/PDF tool results can send base64 through a bugged Mastra media path. Trace model/provider media support and Mastra tool-result conversion before re-enabling.
 - [ ] **Mention input/output rendering**: confirm Slack mentions resolve properly in model-visible input, thread context, history/tool output, and final Slack replies.
 - [ ] **Reasoning "Thinking" tasks** (deferred): surface model reasoning as a task. Needs reasoning chunks; they don't come through `ToolDisplayFn` (tool events only).
 - [ ] **Skip tool behavior**: test that `skip` stops the agent loop and renders the expected Slack task state.
 - [ ] **Skill tool task UI**: confirm `skill`, `skill_search`, and `skill_read` render or suppress task UI exactly as intended.
+- [ ] **Filesystem tools in Slack**: confirm `read_file`, `write_file`, `edit_file`, `list_files`, `grep`, `delete_file`, `file_stat`, and `mkdir` work through Slack and render cleanly.
+- [ ] **Full filesystem provider audit**: compare E2B filesystem against LocalFilesystem, CompositeFilesystem, AgentFS/remote providers, and E2B mount/S3/FUSE code for edge-case parity.
+- [ ] **Full tool robustness audit**: review all repo tools plus installed Mastra workspace tools for direct E2B access, stale sandbox recovery, path handling, and output/media behavior.
+- [ ] **Slack skill activation**: investigate Slack `skill` tool reporting `Skill "wrangler" not found` even though programmatic `skill_search` and `skill` can see Wrangler.
+- [ ] **Slack skill registry after restart**: restart the bot and confirm `skill_search("agent")`, `skill_search("agent-browser")`, and `skill("wrangler")` return local skills in Slack.
 - [ ] **All tool smoke tests**: test every registered tool in Slack, including `mermaid` and `getUser`/user lookup behavior.
 - [ ] **Tool caching parity**: validate caching behavior for all tools against the reference code.
 
@@ -45,10 +79,9 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 ## Features
 
 - [ ] **Add more skills**: expand available skills after current skill loading is fixed.
-- [ ] **Filesystem tools backed by the E2B sandbox**: top-priority item 2. Bring back `read_file`/`write_file`/`edit_file`/`ast_edit`/`grep`/`list_files`, which need a `WorkspaceFilesystem`. There is **no** E2B-backed provider (Mastra ships Local/S3/Azure/GCS only; [#13133 dynamic filesystem resolution](https://github.com/mastra-ai/mastra/issues/13133), [#14104 Azure provider](https://github.com/mastra-ai/mastra/issues/14104) are related, none for E2B). Write a custom `WorkspaceFilesystem` wrapping `sandbox.e2b.files` (read↔readFile, write↔writeFile, list↔readdir, …), likely via a per-thread resolver (note: resolver-backed filesystem may conflict with `lsp: true`). Big upgrade over shelling out to `sed`.
 - [ ] **Tool display preference**: future lower-priority feature, let users choose hidden vs original/visible tool display mode.
 - [ ] **Agent browser**: consider adding a proper agent browser integration instead of relying on ad hoc browser tooling.
-- [ ] **Image-capable file reads**: check whether Mastra's read-file tooling can let the agent view images when reading files.
+- [ ] **Image-capable file reads**: fix sandbox file image viewing. Mastra's read-file media path is currently unsafe/bugged for our provider path.
 - [ ] **`[Thread context]` mention encoding**: Mastra's auto-injected thread-context block HTML-escapes mentions (`&lt;@U…&gt;`) so the model reads escaped junk (our `read_conversation_history` output is clean). Decide: disable `threadContext` (`maxMessages: 0`) + rely on the tool, override the block, or report upstream.
 - [ ] **App Home**: `sdk.onAppHomeOpened()`; persona presets + per-user custom instructions store.
 - [ ] **Allowlist / onboarding**: opt-in gating (old `isUserAllowed` + opt-in flow).
