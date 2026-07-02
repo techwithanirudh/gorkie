@@ -31,6 +31,12 @@
       "skillPath": "skills/engineering/grill-with-docs/SKILL.md",
       "computedHash": "e7ef25bbee50cda2eb7b3a8ef541db0a0396dad7d369f7d14fb610671dd1864b"
     },
+    "langfuse": {
+      "source": "langfuse/skills",
+      "sourceType": "github",
+      "skillPath": "skills/langfuse/SKILL.md",
+      "computedHash": "d573d66b2c2ca58d4c5de124102a10afa5c3aec64a67a8596f1452b88ba97847"
+    },
     "mastra": {
       "source": "mastra-ai/skills",
       "sourceType": "github",

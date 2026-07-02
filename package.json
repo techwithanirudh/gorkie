@@ -34,6 +34,7 @@
     "e2b": "^2.31.0",
     "exa-js": "^2.15.0",
     "mime-types": "^3.0.2",
+    "unique-names-generator": "^4.7.1",
     "zod": "^4"
   },
   "devDependencies": {

@@ -97,6 +97,8 @@ $PGBIN/createdb -h 127.0.0.1 -p 5434 -U coder gorkie      # first time only
 | `OPENROUTER_BASE_URL` | no | Defaults to the Hack Club proxy; drop it to use real OpenRouter |
 | `DATABASE_URL` | yes | Postgres connection string |
 | `E2B_API_KEY` | yes | E2B sandbox key (`e2b_…`) |
+| `AGENTMAIL_API_KEY` | no | Broker AgentMail API access into sandbox egress for `gorkie@agentmail.to` |
+| `GITHUB_TOKEN` | no | Broker GitHub API access into sandbox egress for the `gorkie-agent` account |
 | `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | no | Enable Langfuse tracing when both are set |
 | `LANGFUSE_BASE_URL` | no | Defaults to `https://cloud.langfuse.com` |
 
