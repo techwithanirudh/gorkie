@@ -1,8 +1,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { slack } from '../chat/client';
-import { getSearchToken } from '../chat/search-token';
-import { channelContext } from '../lib/context';
+import { slack } from '../../chat/client';
+import { getSearchToken } from '../../chat/search-token';
+import { channelContext } from '../../lib/context';
 
 function snippet(text: string, max = 600): string {
   const normalized = text.replace(/\s+/g, ' ').trim();

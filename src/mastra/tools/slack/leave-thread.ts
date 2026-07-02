@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { chat } from '../chat/instance';
-import { channelContext } from '../lib/context';
+import { chat } from '../../chat/instance';
+import { channelContext } from '../../lib/context';
 
 export const leaveThreadTool = createTool({
   id: 'leave_thread',

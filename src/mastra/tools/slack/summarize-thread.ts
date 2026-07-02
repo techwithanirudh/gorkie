@@ -1,15 +1,15 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { summarizerAgent } from '../agents/summarizer';
-import { slack } from '../chat/client';
-import { channelContext } from '../lib/context';
-import { chatChannelId } from '../lib/ids';
+import { summarizerAgent } from '../../agents/summarizer';
+import { slack } from '../../chat/client';
+import { channelContext } from '../../lib/context';
+import { chatChannelId } from '../../lib/ids';
 import { assertReadableChannel, joinChannel } from './utils';
 
 export const summarizeThreadTool = createTool({
   id: 'summarize_thread',
   description:
-    'Summarize a conversation thread (defaults to the current thread). Delegates to a dedicated summarizer subagent so the long transcript stays out of your context.',
+    'Summarize a conversation thread (defaults to the current thread) without returning the full transcript to the main model context.',
   inputSchema: z.object({
     threadId: z
       .string()

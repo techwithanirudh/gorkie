@@ -49,6 +49,8 @@ export const mastra = new Mastra({
   logger,
 });
 
+await mastra.startWorkers();
+
 gorkieAgent
   .getChannels()
   ?.initialize(mastra)

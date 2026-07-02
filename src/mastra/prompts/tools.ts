@@ -1,5 +1,17 @@
 export const toolsPrompt = `\
 <tools>
+<tool>
+<name>delegate_task</name>
+<description>Run one of three focused helper agents, with the helper's tool calls shown live in Slack and only its compact final result returned to you.</description>
+<note>
+Pick the narrowest agent that can do the job. All three write nothing to Slack themselves (no messages, no file uploads); you deliver the final answer.
+
+- research: Slack, web, user, channel, and thread lookups only. Cannot touch the workspace or run commands. Use for "what is X", background on a person/channel/thread, or web facts.
+- explore: read-only workspace inspection (read_file, list_files, grep, file_stat) plus the same research tools. Cannot write, edit, delete, or run commands. Use to gather implementation context before a change, or to answer "where is X in the code" / "how does Y work" without touching anything.
+- execute: full workspace access (read, write, edit, delete, run commands) for a scoped task. Use only when something actually needs to change or a command needs to run; give it a specific, bounded task, not an open-ended one.
+</note>
+</tool>
+
 <lookup>
 For "what is X", "who is X", unfamiliar names, acronyms, projects, links, screenshots, or references, ALWAYS try multiple sources before answering: search_web, search_slack, and read_conversation_history or summarize_thread when thread context may matter. 
 
@@ -8,7 +20,7 @@ Do NOT answer from only web if Slack search is available. If sources suggest dif
 
 <tool>
 <name>summarize_thread</name>
-<description>Get a concise summary of a thread, defaulting to the current one, via a subagent.</description>
+<description>Get a concise summary of a thread, defaulting to the current one.</description>
 <note>Prefer this over read_conversation_history for long threads so the full transcript stays out of context. Read raw history only when exact wording matters.</note>
 </tool>
 
@@ -61,6 +73,7 @@ If unavailable because the user did not @mention you, use web search and say you
 <tool>
 <name>upload_file</name>
 <description>Upload a file from the sandbox back to this thread.</description>
+<note>A footer crediting the requesting user is appended automatically. Do not add your own attribution.</note>
 </tool>
 
 <tool>
@@ -71,12 +84,40 @@ If unavailable because the user did not @mention you, use web search and say you
 <tool>
 <name>post_message</name>
 <description>Send a message to another thread, channel, or user.</description>
-<note>Your streamed reply is ALREADY the message to the current thread. NEVER post your normal reply through this tool.</note>
+<note>Your streamed reply is ALREADY the message to the current thread. NEVER post your normal reply through this tool. A footer crediting the requesting user is appended automatically. Do not add your own attribution.</note>
 </tool>
 
 <tool>
 <name>schedule_reminder</name>
 <description>Schedule a one-time reminder DM to the current user.</description>
+<note>Use only for one-time reminders. Write reminder text as a useful future note, not a terse label. Include what timezone or relative time basis the user used when the reminder was created, when it was created, the source thread link or thread identifier when available, and the relevant context inferred from the conversation.</note>
+</tool>
+
+<tool>
+<name>create_scheduled_task</name>
+<description>Create a recurring scheduled task from a cron expression.</description>
+<note>Use for recurring tasks only, not one-time reminders. By default the task replies in the thread it was scheduled from. Pass target only when the user explicitly asks for delivery elsewhere (e.g. a DM or another channel); never infer or guess a target. Include an IANA timezone when the user's schedule is time-of-day sensitive.</note>
+</tool>
+
+<tool>
+<name>list_scheduled_tasks</name>
+<description>List recurring scheduled tasks.</description>
+<note>Use before pause_scheduled_task, resume_scheduled_task, or delete_scheduled_task if the target id is unclear.</note>
+</tool>
+
+<tool>
+<name>pause_scheduled_task</name>
+<description>Temporarily stop a recurring scheduled task without deleting it.</description>
+</tool>
+
+<tool>
+<name>resume_scheduled_task</name>
+<description>Restart a paused recurring scheduled task.</description>
+</tool>
+
+<tool>
+<name>delete_scheduled_task</name>
+<description>Permanently cancel a recurring scheduled task.</description>
 </tool>
 
 <tool>

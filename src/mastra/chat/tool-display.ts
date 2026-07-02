@@ -95,7 +95,27 @@ function taskUpdate({
 
 export const toolDisplay: ToolDisplayFn = (event) => {
   const id = event.toolCallId;
-  const title = label(event.displayName || event.toolName);
+  const delegated = /^agent_([a-z0-9-]+)_(.+)$/.exec(event.toolName);
+  const delegatedName = delegated?.[1]
+    .replace(/^(research|explore|execute)-/, '')
+    .replace(/-[a-z0-9]+$/, '');
+  const delegateTaskName =
+    event.kind === 'result' &&
+    event.toolName === 'delegate_task' &&
+    isRecord(event.result)
+      ? [
+          text(event.result.agent),
+          text(event.result.name)
+            .replace(/^(research|explore|execute)-/, '')
+            .replace(/-[a-z0-9]+$/, ''),
+        ]
+          .filter(Boolean)
+          .map(label)
+          .join(' Agent: ')
+      : undefined;
+  const title = delegated
+    ? `${label(delegatedName ?? delegated[1])}: ${label(delegated[2])}`
+    : (delegateTaskName ?? label(event.displayName || event.toolName));
 
   switch (event.kind) {
     case 'running':

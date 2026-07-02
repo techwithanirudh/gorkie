@@ -1,282 +1,72 @@
 ---
 name: agentmail
-description: Give AI agents their own email inboxes using the AgentMail API. Use when building email agents, sending/receiving emails programmatically, managing inboxes, handling attachments, organizing with labels, creating drafts for human approval, or setting up real-time notifications via webhooks/websockets. Supports multi-tenant isolation with pods.
+description: Give Gorkie email access through AgentMail. Use when the user asks Gorkie to send email, read email, inspect inboxes, reply to messages, handle attachments, draft mail for approval, or set up email notifications.
 ---
 
-# AgentMail SDK
+# AgentMail
 
-AgentMail is an API-first email platform for AI agents. Install the SDK and initialize the client.
+Gorkie owns the inbox `gorkie@agentmail.to`. Use AgentMail from Python inside the sandbox when the user asks to send, receive, search, reply to, draft, or inspect email.
 
-## Installation
+## Credentials
 
-```bash
-# TypeScript/Node
-npm install agentmail
-
-# Python
-pip install agentmail
-```
-
-## Setup
-
-```typescript
-import { AgentMailClient } from "agentmail";
-const client = new AgentMailClient({ apiKey: "YOUR_API_KEY" });
-```
+Use this placeholder:
 
 ```python
 from agentmail import AgentMail
-client = AgentMail(api_key="YOUR_API_KEY")
+
+client = AgentMail(api_key="brokered-by-gorkie")
 ```
 
-## Inboxes
+The placeholder is not a secret. It only makes the SDK construct authenticated requests. Gorkie's host can inject the real `Authorization` header through the sandbox network policy. Never print API keys, bearer headers, or credential-broker internals.
 
-Create scalable inboxes on-demand. Each inbox has a unique email address.
+## Ground Rules
 
-```typescript
-// Create inbox (auto-generated address)
-const autoInbox = await client.inboxes.create();
+- Use `gorkie@agentmail.to` unless the user names another inbox.
+- Prefer drafts for sensitive, external, broad, or ambiguous messages.
+- Send directly only when the user clearly asked for the exact recipient, subject, and body.
+- Before sending attachments, confirm the path exists and check size with `ls -lh`.
+- Summarize recipient addresses, subject, body intent, labels, and attachment filenames after any send or draft.
+- Do not expose private message bodies unless the user asked to inspect them.
+- Do not set up webhook forwarding to third-party URLs without explicit approval.
 
-// Create with custom username and domain
-const customInbox = await client.inboxes.create({
-  username: "support",
-  domain: "yourdomain.com",
-});
+## Common Workflows
 
-// List, get, delete
-const inboxes = await client.inboxes.list();
-const fetchedInbox = await client.inboxes.get("inbox@agentmail.to");
-await client.inboxes.delete("inbox@agentmail.to");
-```
+List recent mail:
 
 ```python
-# Create inbox (auto-generated address)
-inbox = client.inboxes.create()
+from agentmail import AgentMail
 
-# Create with custom username and domain
-from agentmail.inboxes.types import CreateInboxRequest
-inbox = client.inboxes.create(
-    request=CreateInboxRequest(username="support", domain="yourdomain.com"),
-)
-
-# List, get, delete
-inboxes = client.inboxes.list()
-inbox = client.inboxes.get(inbox_id="inbox@agentmail.to")
-client.inboxes.delete(inbox_id="inbox@agentmail.to")
+client = AgentMail(api_key="brokered-by-gorkie")
+messages = client.inboxes.messages.list(inbox_id="gorkie@agentmail.to")
+for message in messages:
+    print(message)
 ```
 
-## Messages
-
-Always send both `text` and `html` for best deliverability.
-
-```typescript
-// Send message
-await client.inboxes.messages.send("agent@agentmail.to", {
-  to: "recipient@example.com",
-  subject: "Hello",
-  text: "Plain text version",
-  html: "<p>HTML version</p>",
-  labels: ["outreach"],
-});
-
-// Reply to message
-await client.inboxes.messages.reply("agent@agentmail.to", "msg_123", {
-  text: "Thanks for your email!",
-});
-
-// List and get messages
-const messages = await client.inboxes.messages.list("agent@agentmail.to");
-const message = await client.inboxes.messages.get("agent@agentmail.to", "msg_123");
-
-// Update labels
-await client.inboxes.messages.update("agent@agentmail.to", "msg_123", {
-  addLabels: ["replied"],
-  removeLabels: ["unreplied"],
-});
-```
+Send plain text mail:
 
 ```python
-# Send message
 client.inboxes.messages.send(
-    inbox_id="agent@agentmail.to",
+    inbox_id="gorkie@agentmail.to",
     to="recipient@example.com",
     subject="Hello",
-    text="Plain text version",
-    html="<p>HTML version</p>",
-    labels=["outreach"]
-)
-
-# Reply to message
-client.inboxes.messages.reply(
-    inbox_id="agent@agentmail.to",
-    message_id="msg_123",
-    text="Thanks for your email!"
-)
-
-# List and get messages
-messages = client.inboxes.messages.list(inbox_id="agent@agentmail.to")
-message = client.inboxes.messages.get(inbox_id="agent@agentmail.to", message_id="msg_123")
-
-# Update labels
-client.inboxes.messages.update(
-    inbox_id="agent@agentmail.to",
-    message_id="msg_123",
-    add_labels=["replied"],
-    remove_labels=["unreplied"]
+    text="Plain text body",
 )
 ```
 
-## Threads
-
-Threads group related messages in a conversation.
-
-```typescript
-// List threads (with optional label filter)
-const threads = await client.inboxes.threads.list("agent@agentmail.to", {
-  labels: ["unreplied"],
-});
-
-// Get thread details
-const thread = await client.inboxes.threads.get("agent@agentmail.to", "thd_123");
-
-// Org-wide thread listing
-const allThreads = await client.threads.list();
-```
+Create a draft for user approval:
 
 ```python
-# List threads (with optional label filter)
-threads = client.inboxes.threads.list(inbox_id="agent@agentmail.to", labels=["unreplied"])
-
-# Get thread details
-thread = client.inboxes.threads.get(inbox_id="agent@agentmail.to", thread_id="thd_123")
-
-# Org-wide thread listing
-all_threads = client.threads.list()
-```
-
-## Attachments
-
-Send attachments with Base64 encoding. Retrieve from messages or threads.
-
-```typescript
-// Send with attachment
-const content = Buffer.from(fileBytes).toString("base64");
-await client.inboxes.messages.send("agent@agentmail.to", {
-  to: "recipient@example.com",
-  subject: "Report",
-  text: "See attached.",
-  attachments: [
-    { content, filename: "report.pdf", contentType: "application/pdf" },
-  ],
-});
-
-// Get attachment
-const fileData = await client.inboxes.messages.getAttachment(
-  "agent@agentmail.to",
-  "msg_123",
-  "att_456",
-);
-```
-
-```python
-import base64
-
-# Send with attachment
-content = base64.b64encode(file_bytes).decode()
-client.inboxes.messages.send(
-    inbox_id="agent@agentmail.to",
-    to="recipient@example.com",
-    subject="Report",
-    text="See attached.",
-    attachments=[{"content": content, "filename": "report.pdf", "content_type": "application/pdf"}]
-)
-
-# Get attachment
-file_data = client.inboxes.messages.get_attachment(
-    inbox_id="agent@agentmail.to",
-    message_id="msg_123",
-    attachment_id="att_456"
-)
-```
-
-## Drafts
-
-Create drafts for human-in-the-loop approval before sending.
-
-```typescript
-// Create draft
-const draft = await client.inboxes.drafts.create("agent@agentmail.to", {
-  to: "recipient@example.com",
-  subject: "Pending approval",
-  text: "Draft content",
-});
-
-// Send draft (converts to message)
-await client.inboxes.drafts.send("agent@agentmail.to", draft.draftId, {});
-```
-
-```python
-# Create draft
 draft = client.inboxes.drafts.create(
-    inbox_id="agent@agentmail.to",
+    inbox_id="gorkie@agentmail.to",
     to="recipient@example.com",
     subject="Pending approval",
-    text="Draft content"
+    text="Draft content",
 )
-
-# Send draft (converts to message)
-client.inboxes.drafts.send(inbox_id="agent@agentmail.to", draft_id=draft.draft_id)
+print(draft)
 ```
 
-## Pods
+## References
 
-Multi-tenant isolation for SaaS platforms. Each customer gets isolated inboxes.
-
-```typescript
-// Create pod for a customer
-const pod = await client.pods.create({ clientId: "customer_123" });
-
-// Create inbox within pod
-const inbox = await client.pods.inboxes.create(pod.podId, {});
-
-// List inboxes scoped to pod
-const inboxes = await client.pods.inboxes.list(pod.podId);
-```
-
-```python
-# Create pod for a customer
-pod = client.pods.create(client_id="customer_123")
-
-# Create inbox within pod (pods.inboxes.create accepts flat kwargs)
-inbox = client.pods.inboxes.create(pod_id=pod.pod_id)
-
-# List inboxes scoped to pod
-inboxes = client.pods.inboxes.list(pod_id=pod.pod_id)
-```
-
-## Idempotency
-
-Use `clientId` for safe retries on create operations.
-
-```typescript
-const inbox = await client.inboxes.create({
-  clientId: "unique-idempotency-key",
-});
-// Retrying with same clientId returns the original inbox, not a duplicate
-```
-
-```python
-from agentmail.inboxes.types import CreateInboxRequest
-
-inbox = client.inboxes.create(
-    request=CreateInboxRequest(client_id="unique-idempotency-key"),
-)
-# Retrying with same client_id returns the original inbox, not a duplicate
-```
-
-## Real-Time Events
-
-For real-time notifications, see the reference files:
-
-- [webhooks.md](references/webhooks.md) - HTTP-based notifications (requires public URL)
-- [websockets.md](references/websockets.md) - Persistent connection (no public URL needed)
+- Full Python inbox, message, thread, draft, attachment, pod, and label examples: [Core API](references/api.md).
+- Webhook creation and signature verification: [Webhooks](references/webhooks.md).
+- WebSocket subscriptions for live inbox events: [WebSockets](references/websockets.md).

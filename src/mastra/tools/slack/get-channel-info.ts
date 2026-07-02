@@ -1,6 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { channelContext } from '../lib/context';
+import { channelContext } from '../../lib/context';
 import { assertReadableChannel } from './utils';
 
 export const getChannelInfoTool = createTool({

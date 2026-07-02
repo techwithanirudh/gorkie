@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   LocalSkillSource,
   WORKSPACE_TOOLS,
@@ -39,9 +40,15 @@ export const workspace: Workspace = new Workspace({
   sandboxCacheKey: ({ requestContext }) =>
     channelContext(requestContext).threadId,
   skillSource: new LocalSkillSource({
-    basePath: existsSync(resolve(process.cwd(), 'workspace/skills'))
-      ? resolve(process.cwd(), 'workspace/skills')
-      : resolve(process.cwd(), '../../../workspace/skills'),
+    basePath:
+      [
+        resolve(process.cwd(), 'workspace/skills'),
+        resolve(process.cwd(), '../../../workspace/skills'),
+        resolve(
+          dirname(fileURLToPath(import.meta.url)),
+          '../../workspace/skills'
+        ),
+      ].find(existsSync) ?? resolve(process.cwd(), 'workspace/skills'),
   }),
   skills: ['.'],
   tools: {

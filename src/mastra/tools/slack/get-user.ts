@@ -1,6 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { resolveUserProfile } from '../chat/names';
+import { resolveUserProfile } from '../../chat/names';
 
 export const getUserTool = createTool({
   id: 'get_user',

@@ -6,9 +6,15 @@ import { channelContext } from '../lib/context';
 export const scheduleReminderTool = createTool({
   id: 'schedule_reminder',
   description:
-    'Schedule a one-time reminder DM to the current user. Not for recurring reminders.',
+    'Schedule a one-time reminder DM to the current user. Not for recurring reminders. The reminder text should include the creation context, user-relative timezone or time basis, source thread link or thread id when available, and enough inferred detail to be useful later.',
   inputSchema: z.object({
-    text: z.string().min(1).max(3000).describe('What to remind them about.'),
+    text: z
+      .string()
+      .min(1)
+      .max(3000)
+      .describe(
+        'A clean, detailed reminder. Include what to remember, why it matters, the user-relative timezone or time basis used to schedule it, when it was created, and the source thread link or thread id when available.'
+      ),
     seconds: z
       .number()
       .int()

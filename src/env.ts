@@ -28,6 +28,7 @@ export const env = createEnv({
     EXA_API_KEY: z.string().min(1),
 
     AGENTMAIL_API_KEY: z.string().min(1).optional(),
+    GITHUB_TOKEN: z.string().min(1).optional(),
 
     LANGFUSE_PUBLIC_KEY: z.string().min(1),
     LANGFUSE_SECRET_KEY: z.string().min(1),

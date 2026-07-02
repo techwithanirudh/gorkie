@@ -1,8 +1,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { slack } from '../chat/client';
-import { channelContext } from '../lib/context';
-import { chatChannelId } from '../lib/ids';
+import { slack } from '../../chat/client';
+import { channelContext } from '../../lib/context';
+import { chatChannelId } from '../../lib/ids';
 import { assertReadableChannel, formatMessage, joinChannel } from './utils';
 
 export const listThreadsTool = createTool({
