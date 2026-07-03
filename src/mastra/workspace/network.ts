@@ -15,15 +15,28 @@ export function createNetwork(): SandboxNetworkOpts {
   }
 
   if (env.GITHUB_TOKEN) {
-    const rule = [
+    const apiRule = [
       {
         transform: {
           headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}` },
         },
       },
     ];
-    rules['api.github.com'] = rule;
-    rules['uploads.github.com'] = rule;
+    rules['api.github.com'] = apiRule;
+    rules['uploads.github.com'] = apiRule;
+
+    rules['github.com'] = [
+      {
+        transform: {
+          headers: {
+            Authorization: `Basic ${Buffer.from(
+              `x-access-token:${env.GITHUB_TOKEN}`,
+              'utf8'
+            ).toString('base64')}`,
+          },
+        },
+      },
+    ];
   }
 
   return { rules };

@@ -20,8 +20,9 @@ If auth fails, stop and say GitHub credentials are not available in the sandbox.
 
 1. Identify the repo with `gh repo view`, a URL from the user, or `owner/repo`.
 2. For reads, use `gh repo view`, `gh issue`, `gh pr`, `gh run`, `gh search`, or `gh api`.
-3. For writes, summarize the intended change first when it affects public GitHub state.
-4. Report URLs for created or modified issues, PRs, releases, workflow runs, and repos.
+3. For contributions to a repo Gorkie does not own, fork first and push branches to the fork. Do not push feature branches directly to upstream.
+4. For writes, summarize the intended change first when it affects public GitHub state.
+5. Report URLs for created or modified issues, PRs, releases, workflow runs, and repos.
 
 ## References
 

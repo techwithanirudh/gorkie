@@ -5,6 +5,7 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 ## Priority queue
 
 - [ ] **P0: Delegate task title/heartbeat UI**: fix `delegate_task` so the Slack tool card is not born as `Delegate Task`, heartbeat/progress updates are visible while long delegates run, and cancellation ends as cancelled rather than a misleading finished `Starting Task`.
+- [ ] **P0: Delegate long-run failure state**: check why long helper-agent runs with no heartbeat can make the parent task show a generic error even though the helper started, and make stalled or failed delegates report a useful status.
 - [ ] **P0: AgentMail in dev**: fix AgentMail/email sending in `gorkie (dev)`.
 - [ ] **P0: Subagent stability**: investigate why subagents are still broken in Slack, including interruption behavior vs original turns.
 - [ ] **P0: Port recurring scheduled tasks with Mastra heartbeats**: expose one AI tool, `scheduled_task`, backed by `mastra.heartbeats` for create, list, pause, resume, and delete/cancel. Drop the old App Home task UI and custom `scheduled_tasks` runner/table. Default every task to run where it was scheduled: current Slack thread, DM, or channel from `channelContext`, with explicit override only when the user asks. Use heartbeat `threadId`/`resourceId` for threaded runs, persist instead of barging in when the target thread is active, and wake when idle with the original Slack request context.
@@ -15,6 +16,7 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 - [ ] **P0: Skills**: add more workspace skills now that current skill discovery/tool exposure is working.
 - [ ] **P1: Signals and email monitor**: add event triggers such as "email arrived, spawn an agent", process/respond automatically only when appropriate, and wire an email monitor.
 - [ ] **P1: GitHub repo troubleshooting workflow**: add GitHub account access, repo cloning, code inspection, and troubleshooting flows for user repos.
+- [ ] **P1: `upload_file` custom emoji support**: let `upload_file` add a workspace custom emoji from a sandbox image path when Slack credentials and scopes allow it, with a clear fallback when Slack rejects the emoji API.
 - [ ] **Later: Tool display preference**: let users choose hidden vs original/visible tool display mode.
 - [ ] **Later: `upload_file` target support**: add upload support for thread/channel/DM targets similar to `post_message`.
 - [ ] **Later: Subagent availability prompt**: make Gorkie know which helper agents exist and which tasks each one should handle.
@@ -25,6 +27,9 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 
 ## Recently completed
 
+- Fixed sandbox Git HTTPS auth by brokering `github.com` with Basic auth while keeping GitHub API hosts on Bearer auth, and updated the `gh-cli` skill so external contributions fork first and push PR branches to the fork.
+- Confirmed the execute helper agent is gone from the registered helper-agent set and prompts; only Research and Explore remain.
+- Confirmed `search_slack` catches thrown Slack `invalid_action_token` / `token_expired` errors, clears the thread search token, and returns a model-readable prompt to ask for a fresh mention.
 - Styled the completion footer as italic Slack mrkdwn and confirmed the current footer path has no steering-detection state. It posts from Mastra's final `processOutputResult` hook only after a run resolves.
 - Killed all active `mastra dev` / `.mastra/output` runtime processes for this checkout, then verified port `4111` and `observability.duckdb` have no open listeners or locks.
 - Refactored `delegate_task` cancellation/display: abort now stops the heartbeat loop and marks the parent task as cancelled, child stream abort chunks stop the delegate loop, and the parent Slack card title stays `Starting Task: ...` through completion.
