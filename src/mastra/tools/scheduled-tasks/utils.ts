@@ -16,6 +16,5 @@ export function formatTask(task: Heartbeat): Record<string, unknown> {
       : undefined,
     threadId: task.threadId,
     task: task.metadata?.task,
-    target: task.metadata?.target,
   };
 }

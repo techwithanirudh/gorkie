@@ -2,14 +2,13 @@ import type {
   ProcessOutputResultArgs,
   ProcessOutputStepArgs,
 } from '@mastra/core/processors';
+import { slack } from '../chat/client';
+import { clip } from '../lib/clip';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
 
-const MAX = 500;
-const clip = (value: unknown): string => {
-  const s = typeof value === 'string' ? value : JSON.stringify(value ?? '');
-  return s.length > MAX ? `${s.slice(0, MAX).trimEnd()}...` : s;
-};
+const COMPLETION_FOOTER =
+  '_Gorkie may make mistakes. Double-check important information._';
 
 export const turns = {
   id: 'turns',
@@ -24,7 +23,7 @@ export const turns = {
     }
     return args.messages;
   },
-  processOutputResult(args: ProcessOutputResultArgs) {
+  async processOutputResult(args: ProcessOutputResultArgs) {
     const threadId = channelContext(args.requestContext).threadId;
     for (const step of args.result.steps ?? []) {
       for (const { payload } of step.toolResults ?? []) {
@@ -40,6 +39,16 @@ export const turns = {
       finishReason: args.result.finishReason,
       steps: args.result.steps?.length ?? 0,
     });
+    if (threadId) {
+      await slack
+        .postMessage(threadId, COMPLETION_FOOTER)
+        .catch((error: unknown) =>
+          logger.warn('[chat] failed to post completion footer', {
+            threadId,
+            error,
+          })
+        );
+    }
     return args.messages;
   },
 };

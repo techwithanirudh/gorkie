@@ -4,10 +4,10 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 
 ## Priority queue
 
+- [ ] **P0: Delegate task title/heartbeat UI**: fix `delegate_task` so the Slack tool card is not born as `Delegate Task`, heartbeat/progress updates are visible while long delegates run, and cancellation ends as cancelled rather than a misleading finished `Starting Task`.
 - [ ] **P0: AgentMail in dev**: fix AgentMail/email sending in `gorkie (dev)`.
 - [ ] **P0: Subagent stability**: investigate why subagents are still broken in Slack, including interruption behavior vs original turns.
 - [ ] **P0: Port recurring scheduled tasks with Mastra heartbeats**: expose one AI tool, `scheduled_task`, backed by `mastra.heartbeats` for create, list, pause, resume, and delete/cancel. Drop the old App Home task UI and custom `scheduled_tasks` runner/table. Default every task to run where it was scheduled: current Slack thread, DM, or channel from `channelContext`, with explicit override only when the user asks. Use heartbeat `threadId`/`resourceId` for threaded runs, persist instead of barging in when the target thread is active, and wake when idle with the original Slack request context.
-- [ ] **P0: E2B network option cleanup**: replace the current `Sandbox.create` patch wrapper with direct `new E2BSandbox({ network, ... })` once the merged Mastra PR #18785 is published in `@mastra/e2b` or intentionally vendored.
 - [ ] **P0: GLM image input crash**: uploaded images can crash GLM/non-vision models. Detect model image support before Mastra sends image parts, and degrade to file/path text for models that do not support images.
 - [ ] **P0: Provider/log redaction**: upstream model errors can persist full provider response bodies, provider key-management URLs, and giant HTML error pages in observability/logs. Sanitize `APICallError` bodies before logging and storage export.
 - [ ] **P0: `get_file` complexity follow-up**: keep the simple `.part`/`.next`/`.merge` resumable download path for now. Only revisit chunk libraries or numbered-part flows after real Slack E2E failures, because the downloader experiments made the tool too complicated.
@@ -25,6 +25,20 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 
 ## Recently completed
 
+- Styled the completion footer as italic Slack mrkdwn and confirmed the current footer path has no steering-detection state. It posts from Mastra's final `processOutputResult` hook only after a run resolves.
+- Killed all active `mastra dev` / `.mastra/output` runtime processes for this checkout, then verified port `4111` and `observability.duckdb` have no open listeners or locks.
+- Refactored `delegate_task` cancellation/display: abort now stops the heartbeat loop and marks the parent task as cancelled, child stream abort chunks stop the delegate loop, and the parent Slack card title stays `Starting Task: ...` through completion.
+- Confirmed scheduled tasks are created with the current channel `threadId` plus agent `resourceId`, so runs wake or persist back into the same Slack context where the task was scheduled. Access currently allows the same resource or same thread.
+- Audited the Mastra dev/HMR path. The running dev server hot-reloaded successfully, but a second dev/start process fails because the existing dev child owns port `4111` and the DuckDB write lock.
+- Removed the temporary steering tracker from Slack handlers. The completion footer now posts from the Mastra result hook without steering detection.
+- Restored the last committed delegate-task display behavior for the Slack "Starting Agent" card.
+- Restored the older ranged `.part`/`.next`/`.merge` `get_file` downloader because Slack files are often huge and interrupted retries should resume.
+- Added the completion footer through Mastra's `processOutputResult` hook: non-steered Slack turns post `Gorkie may make mistakes. Double-check important information.`, and `skip` gets the footer for now.
+- Scrapped the completion-divider experiment completely after Slack rejected divider-only messages with `no_text`.
+- Removed the experimental turn-status reaction code and keep `skip` visually silent by hiding its tool row.
+- Explained why steering can show a tick: Mastra's channel handler can return after delivering a new message into the active run, while `respond()` unconditionally marks that message `done` after `defaultHandler` returns.
+- Updated `@mastra/e2b` to `0.5.0-alpha.0`, switched sandbox creation to direct `new E2BSandbox({ network, ... })`, renamed the sandbox helper functions to `createNetwork` and `createEnv`, and removed the `GorkieSandbox` post-start `updateNetwork` wrapper path.
+- Wrote `CODING_STANDARDS.md` and did a standards-driven cleanup pass: replaced the `Sandbox.create` monkeypatch with `e2b.updateNetwork()` applied after start in `GorkieSandbox` (works until the `@mastra/e2b` network option ships), centralized the `as E2BSandbox` casts into `resolveE2BSandbox()`, removed the redundant toolCallId/toolName Maps and duplicated stream branches in `delegate_task`, deduped `label()` into `lib/label.ts`, deleted dead `successToolCall` and the unused `config` wrapper, folded the repeated heartbeats cast and task scoping into `scheduled-tasks/queries.ts`, and split `get_file`'s 170-line closure into named download functions.
 - Checked the old reference scheduled-task implementation. It is a recurring automation system, not just one-shot reminders: `scheduleTask` creates cron jobs, `listScheduledTasks` and `cancelScheduledTask` manage them, App Home renders/cancels them, and a background `scheduledTaskAgent` runs each task and calls `sendScheduledMessage` exactly once.
 - Refined the scheduled-task plan to be AI-facing only: create/list/pause/resume/delete, no App Home task UI, and default delivery to the Slack place where the task was scheduled.
 - Confirmed Mastra PR [#18785](https://github.com/mastra-ai/mastra/pull/18785) was merged at `2026-07-02T10:06:03Z` as commit `cb7a7218`. NPM is still at `@mastra/e2b@0.4.1`, so local cleanup waits for release or explicit vendoring.

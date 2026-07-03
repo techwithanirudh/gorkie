@@ -2,9 +2,8 @@ import type {
   ProcessOutputResultArgs,
   ProcessOutputStepArgs,
 } from '@mastra/core/processors';
-import type { E2BSandbox } from '@mastra/e2b';
 import { sandbox as config } from '../config';
-import { workspace } from '../workspace';
+import { resolveE2BSandbox } from '../workspace';
 
 const sandboxTools = new Set([
   'execute_command',
@@ -36,9 +35,7 @@ export const sandbox = {
       )
     ) {
       try {
-        const sandbox = (await workspace.resolveSandbox({ requestContext })) as
-          | E2BSandbox
-          | undefined;
+        const sandbox = await resolveE2BSandbox(requestContext);
         await sandbox?.retryOnDead(() =>
           sandbox.e2b.setTimeout(config.timeout)
         );
@@ -52,9 +49,7 @@ export const sandbox = {
     const { requestContext, messages } = args;
     if (requestContext) {
       try {
-        const sandbox = (await workspace.resolveSandbox({ requestContext })) as
-          | E2BSandbox
-          | undefined;
+        const sandbox = await resolveE2BSandbox(requestContext);
         await sandbox?.retryOnDead(() => sandbox.e2b.pause());
       } catch {
         /* not started / already paused */

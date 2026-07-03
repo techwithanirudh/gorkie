@@ -10,12 +10,15 @@ import {
   onSubscribedMessage,
 } from '../chat/handlers';
 import { toolDisplay } from '../chat/tool-display';
+import { agent as config } from '../config';
 import { stepCountIs, toolCall } from '../lib/tools';
 import { outputProcessors } from '../processors';
 import { buildInstructions } from '../prompts';
-import { memory, orchestrator } from '../providers';
-import { tools } from '../tools';
+import { orchestrator, summarizer } from '../providers';
+import { baseTools } from '../tools/base';
 import { workspace } from '../workspace';
+import { exploreAgent } from './explore';
+import { researchAgent } from './research';
 
 export const gorkieAgent = new Agent({
   id: 'gorkie',
@@ -23,26 +26,33 @@ export const gorkieAgent = new Agent({
   instructions: ({ requestContext }) => buildInstructions(requestContext),
   model: orchestrator,
   defaultOptions: {
-    modelSettings: { maxOutputTokens: 32_768 },
+    modelSettings: { maxOutputTokens: config.maxTokens.output },
     stopWhen: [toolCall('skip'), stepCountIs(150)],
   },
   workspace,
   inputProcessors: [
     // TODO: Learn about TokenLimiterProcessor and it's modes
-    new TokenLimiterProcessor({ limit: 900_000, trimMode: 'contiguous' }),
+    new TokenLimiterProcessor({
+      limit: config.maxTokens.input,
+      trimMode: 'contiguous',
+    }),
   ],
   outputProcessors,
-  tools,
+  tools: baseTools,
+  agents: {
+    research: researchAgent,
+    explore: exploreAgent,
+  },
   memory: new Memory({
     options: {
       lastMessages: 20,
       observationalMemory: {
-        model: memory,
+        model: summarizer,
         observation: {
-          modelSettings: { maxOutputTokens: 32_768 },
+          modelSettings: { maxOutputTokens: config.maxTokens.output },
         },
         reflection: {
-          modelSettings: { maxOutputTokens: 32_768 },
+          modelSettings: { maxOutputTokens: config.maxTokens.output },
         },
         temporalMarkers: true,
         scope: 'thread',

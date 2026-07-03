@@ -1,28 +1,11 @@
 import type { ToolDisplayFn } from '@mastra/core/channels';
+import { label } from '../lib/label';
 
 const MAX_DETAILS = 1200;
 const MAX_OUTPUT = 4000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function label(value: string): string {
-  const words = value
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  return words.length === 0
-    ? value
-    : words
-        .map(
-          (word) =>
-            `${word.charAt(0).toUpperCase()}${word.slice(1).toLowerCase()}`
-        )
-        .join(' ');
 }
 
 function text(value: unknown): string {
@@ -94,28 +77,15 @@ function taskUpdate({
 }
 
 export const toolDisplay: ToolDisplayFn = (event) => {
+  if (event.toolName === 'skip') {
+    return;
+  }
+
   const id = event.toolCallId;
-  const delegated = /^agent_([a-z0-9-]+)_(.+)$/.exec(event.toolName);
-  const delegatedName = delegated?.[1]
-    .replace(/^(research|explore|execute)-/, '')
-    .replace(/-[a-z0-9]+$/, '');
-  const delegateTaskName =
-    event.kind === 'result' &&
-    event.toolName === 'delegate_task' &&
-    isRecord(event.result)
-      ? [
-          text(event.result.agent),
-          text(event.result.name)
-            .replace(/^(research|explore|execute)-/, '')
-            .replace(/-[a-z0-9]+$/, ''),
-        ]
-          .filter(Boolean)
-          .map(label)
-          .join(' Agent: ')
-      : undefined;
+  const delegated = /^agent-([a-z0-9-]+?)_(.+)$/.exec(event.toolName);
   const title = delegated
-    ? `${label(delegatedName ?? delegated[1])}: ${label(delegated[2])}`
-    : (delegateTaskName ?? label(event.displayName || event.toolName));
+    ? `${label(delegated[1])}: ${label(delegated[2])}`
+    : label(event.displayName || event.toolName);
 
   switch (event.kind) {
     case 'running':
@@ -131,7 +101,8 @@ export const toolDisplay: ToolDisplayFn = (event) => {
         (isRecord(event.result) && event.result.success === false);
       const output = format(
         isRecord(event.result)
-          ? (event.result.message ??
+          ? (event.result.text ??
+              event.result.message ??
               event.result.output ??
               event.result.stdout ??
               event.result.stderr ??

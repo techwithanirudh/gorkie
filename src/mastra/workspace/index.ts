@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { RequestContext } from '@mastra/core/request-context';
 import {
   LocalSkillSource,
   WORKSPACE_TOOLS,
@@ -12,23 +13,26 @@ import { channelContext } from '../lib/context';
 import { E2BFilesystem } from './filesystem';
 import { createSandbox } from './sandbox';
 
-function getThreadId(
-  requestContext: Parameters<typeof channelContext>[0]
-): string {
-  const threadId = channelContext(requestContext).threadId;
-  if (!threadId) {
-    throw new Error('No thread id available for workspace.');
-  }
-  return threadId;
+export async function resolveE2BSandbox(
+  requestContext: RequestContext
+): Promise<E2BSandbox | undefined> {
+  const sandbox = await workspace.resolveSandbox({ requestContext });
+  return sandbox instanceof E2BSandbox ? sandbox : undefined;
 }
 
 export const workspace: Workspace = new Workspace({
   id: 'gorkie-workspace',
   name: 'gorkie',
-  sandbox: ({ requestContext }) => createSandbox(getThreadId(requestContext)),
+  sandbox: ({ requestContext }) => {
+    const threadId = channelContext(requestContext).threadId;
+    if (!threadId) {
+      throw new Error('No thread id available for workspace.');
+    }
+    return createSandbox(threadId);
+  },
   filesystem: async ({ requestContext }) => {
-    const sandbox = await workspace.resolveSandbox({ requestContext });
-    if (!(sandbox instanceof E2BSandbox)) {
+    const sandbox = await resolveE2BSandbox(requestContext);
+    if (!sandbox) {
       throw new Error('No E2B sandbox available for filesystem.');
     }
 

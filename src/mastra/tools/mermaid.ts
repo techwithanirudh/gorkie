@@ -4,17 +4,13 @@ import { z } from 'zod';
 import { chat } from '../chat/instance';
 import { channelContext } from '../lib/context';
 
-const PLUS_REGEX = /\+/g;
-const SLASH_REGEX = /\//g;
-const EQUALS_REGEX = /=+$/;
-
 function mermaidImageUrl(code: string): string {
   const payload = JSON.stringify({ code, mermaid: {} });
   const base64 = deflateSync(new TextEncoder().encode(payload))
     .toString('base64')
-    .replace(PLUS_REGEX, '-')
-    .replace(SLASH_REGEX, '_')
-    .replace(EQUALS_REGEX, '');
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 
   return `https://mermaid.ink/img/pako:${base64}?type=png`;
 }

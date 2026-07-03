@@ -9,7 +9,7 @@
         "@chat-adapter/state-pg": "^4.31.0",
         "@mastra/core": "^1.48.0",
         "@mastra/duckdb": "^1.5.0",
-        "@mastra/e2b": "^0.4.0",
+        "@mastra/e2b": "^0.5.0-alpha.0",
         "@mastra/langfuse": "^1.4.1",
         "@mastra/loggers": "^1.2.0",
         "@mastra/memory": "^1.21.1",
@@ -17,10 +17,10 @@
         "@mastra/pg": "^1.14.1",
         "@t3-oss/env-core": "^0.13.11",
         "chat": "^4.31.0",
+        "dotenv": "^17.4.2",
         "e2b": "^2.31.0",
         "exa-js": "^2.15.0",
         "mime-types": "^3.0.2",
-        "unique-names-generator": "^4.7.1",
         "zod": "^4",
       },
       "devDependencies": {
@@ -452,7 +452,7 @@
 
     "@mastra/duckdb": ["@mastra/duckdb@1.5.0", "", { "dependencies": { "@duckdb/node-api": "^1.5.2-r.2" }, "peerDependencies": { "@mastra/core": ">=1.0.0-0 <2.0.0-0" } }, "sha512-mmqOEFAb13lFb5OsmEN6JVFgX/6IZogRc2wyfkOi7XSWLbA2qTRP49M9m/xi6v+Ak/ePRp3PnxI3UGwNheAbmg=="],
 
-    "@mastra/e2b": ["@mastra/e2b@0.4.0", "", { "dependencies": { "e2b": "^2.29.1" }, "peerDependencies": { "@mastra/core": ">=1.12.0-0 <2.0.0-0" } }, "sha512-0nkTfpGkIHP1A5qkqpz2RBD4adXjtRrz5k4AVwSAZklVizSgJmu3E61i16sNOGbjF9s33QBERjnFFBBdA36P1Q=="],
+    "@mastra/e2b": ["@mastra/e2b@0.5.0-alpha.0", "", { "dependencies": { "e2b": "^2.29.1" }, "peerDependencies": { "@mastra/core": ">=1.12.0-0 <2.0.0-0" } }, "sha512-wunIXsNCIxbM6SbW9i99D00W8EPGBWfDACmVFP+owQ4xMqYVeCCnMn1DEQPKAWudSOaT8bat3xqByewx14l6rA=="],
 
     "@mastra/langfuse": ["@mastra/langfuse@1.4.1", "", { "dependencies": { "@langfuse/client": "^5.4.1", "@langfuse/otel": "^5.4.1", "@mastra/observability": "1.15.1", "@mastra/otel-exporter": "1.3.1" }, "peerDependencies": { "@mastra/core": ">=1.16.0-0 <2.0.0-0", "@opentelemetry/api": "^1.9.0", "@opentelemetry/sdk-trace-base": "^2.0.1" } }, "sha512-znhY3tXooIpmDxYa2Nq8Ldx5afulFhWJ0JI8iLsvcchw9I/QO1RxunfSQ52709t7uQ7emEfqq701E58b4/oBsg=="],
 
@@ -1615,8 +1615,6 @@
     "unicorn-magic": ["unicorn-magic@0.3.0", "", {}, "sha512-+QBBXBCvifc56fsbuxZQ6Sic3wqqc3WWaqxs58gvJrcOuN83HGTCwz3oS5phzU9LthRNE9VrJCFCLUgHeeFnfA=="],
 
     "unified": ["unified@11.0.5", "", { "dependencies": { "@types/unist": "^3.0.0", "bail": "^2.0.0", "devlop": "^1.0.0", "extend": "^3.0.0", "is-plain-obj": "^4.0.0", "trough": "^2.0.0", "vfile": "^6.0.0" } }, "sha512-xKvGhPWw3k84Qjh8bI3ZeJjqnyadK+GEFtazSfZv/rKeTkTjOJho6mFqh2SM96iIcZokxiOpg78GazTSg8+KHA=="],
-
-    "unique-names-generator": ["unique-names-generator@4.7.1", "", {}, "sha512-lMx9dX+KRmG8sq6gulYYpKWZc9RlGsgBR6aoO8Qsm3qvkSJ+3rAymr+TnV8EDMrIrwuFJ4kruzMWM/OpYzPoow=="],
 
     "unist-util-is": ["unist-util-is@6.0.1", "", { "dependencies": { "@types/unist": "^3.0.0" } }, "sha512-LsiILbtBETkDz8I9p1dQ0uyRUWuaQzd/cuEeS1hoRSyW5E5XGmTzlwY1OrNzzakGowI9Dr/I8HVaw4hTtnxy8g=="],
 

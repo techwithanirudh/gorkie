@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { rawId } from '../lib/ids';
 import type { UserProfile } from '../types';
 import { slack } from './client';
 import { chat } from './instance';
@@ -9,14 +10,10 @@ const profileFields = z.record(
 );
 const DAY_MS = 86_400_000;
 
-function rawUserId(id: string): string {
-  return id.replace(/^slack:/, '').split(':')[0] ?? id;
-}
-
 export async function resolveUserProfile(
   id: string
 ): Promise<UserProfile | undefined> {
-  const userId = rawUserId(id);
+  const userId = rawId(id);
   const key = `slack:user-profile:${userId}`;
   const bot = chat();
   const [user, cached] = await Promise.all([

@@ -1,17 +1,5 @@
 import type { MastraStopCondition } from '../types';
 
-export function successToolCall(toolName: string): MastraStopCondition {
-  return ({ steps }) =>
-    steps
-      .at(-1)
-      ?.toolResults?.some(
-        (toolResult) =>
-          toolResult.toolName === toolName &&
-          (toolResult.output as { success?: boolean } | undefined)?.success ===
-            true
-      ) ?? false;
-}
-
 export function toolCall(toolName: string): MastraStopCondition {
   return ({ steps }) =>
     steps

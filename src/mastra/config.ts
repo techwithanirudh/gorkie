@@ -4,6 +4,6 @@ export const sandbox = {
   workdir: '/home/user',
 };
 
-export const config = {
-  sandbox,
+export const agent = {
+  maxTokens: { input: 900_000, output: 32_768 },
 };

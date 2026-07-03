@@ -1,14 +1,13 @@
-import type { MastraUnion } from '@mastra/core/tools';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
+import { heartbeats } from './queries';
 import { AGENT_ID, formatTask, scheduledTaskKind } from './utils';
 
 export const createScheduledTaskTool = createTool({
   id: 'create_scheduled_task',
   description:
-    'Create a recurring scheduled task from a cron expression. By default it replies in the thread it was scheduled from; pass target to deliver elsewhere (e.g. a DM or another channel).',
+    'Create a recurring scheduled task from a cron expression. The task runs where it was scheduled: the current Slack thread, DM, or channel.',
   inputSchema: z.object({
     task: z
       .string()
@@ -29,17 +28,9 @@ export const createScheduledTaskTool = createTool({
       .max(120)
       .optional()
       .describe('Short human-readable label for the task.'),
-    target: targetSchema
-      .optional()
-      .describe(
-        'Optional destination other than the thread this was scheduled from.'
-      ),
   }),
   execute: async (input, context) => {
-    // `context.mastra` is typed optional by the SDK, but every agent in this
-    // app runs on the real Mastra instance (or Mastra's own ephemeral
-    // fallback), so it's always populated here.
-    const service = (context?.mastra as MastraUnion).heartbeats;
+    const service = heartbeats(context);
     const ctx = channelContext(context?.requestContext);
     const resourceId = context.agent?.resourceId;
     const threadId = ctx.threadId;
@@ -47,14 +38,10 @@ export const createScheduledTaskTool = createTool({
       throw new Error('No current Slack thread/resource to schedule into.');
     }
 
-    const delivery = input.target
-      ? `Deliver the result with post_message to ${input.target.type} ${input.target.id}. Do not reply in this thread.`
-      : 'Respond in this same Slack conversation with the result.';
-
     const created = await service.create({
       agentId: AGENT_ID,
       cron: input.cron,
-      prompt: `Scheduled task due now. Task: ${input.task}\n\n${delivery}`,
+      prompt: `Scheduled task due now. Task: ${input.task}\n\nRespond in this same Slack conversation with the result.`,
       ...(input.name ? { name: input.name } : {}),
       ...(input.timezone ? { timezone: input.timezone } : {}),
       threadId,
@@ -76,7 +63,6 @@ export const createScheduledTaskTool = createTool({
           isDM: ctx.isDM,
           threadId,
         },
-        ...(input.target ? { target: input.target } : {}),
       },
     });
 

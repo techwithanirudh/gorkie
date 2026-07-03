@@ -1,19 +1,9 @@
 import { createTool } from '@mastra/core/tools';
-import type { E2BSandbox } from '@mastra/e2b';
 import { z } from 'zod';
 import { withAttribution } from '../../chat/attribution';
-import { resolveTarget, type Target, targetSchema } from '../../chat/target';
+import { resolveTarget, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
-
-function isSameThread(
-  target: Target | undefined,
-  currentThreadId: string | undefined
-): boolean {
-  if (!target) {
-    return true;
-  }
-  return target.type === 'thread' && target.id === currentThreadId;
-}
+import { resolveE2BSandbox } from '../../workspace';
 
 export const uploadFileTool = createTool({
   id: 'upload_file',
@@ -39,12 +29,10 @@ export const uploadFileTool = createTool({
       .describe('Optional destination other than the current thread.'),
   }),
   execute: async ({ path, filename, comment, target }, context) => {
-    if (!(context?.workspace && context.requestContext)) {
+    if (!context?.requestContext) {
       throw new Error('No workspace context.');
     }
-    const sandbox = (await context.workspace.resolveSandbox({
-      requestContext: context.requestContext,
-    })) as E2BSandbox | undefined;
+    const sandbox = await resolveE2BSandbox(context.requestContext);
     if (!sandbox) {
       throw new Error('No sandbox available.');
     }
@@ -58,18 +46,19 @@ export const uploadFileTool = createTool({
     const { threadId: currentThreadId, userId } = channelContext(
       context.requestContext
     );
-    if (!(target || currentThreadId)) {
+    const resolved =
+      target ??
+      (currentThreadId
+        ? { type: 'thread' as const, id: currentThreadId }
+        : undefined);
+    if (!resolved) {
       throw new Error('No current thread to upload to.');
     }
-    const markdown = withAttribution(
-      comment ?? '',
-      userId,
-      isSameThread(target, currentThreadId)
-    );
+    const isCurrentThread =
+      resolved.type === 'thread' && resolved.id === currentThreadId;
+    const markdown = withAttribution(comment ?? '', userId, isCurrentThread);
 
-    const destination = target
-      ? await resolveTarget(target)
-      : await resolveTarget({ type: 'thread', id: currentThreadId as string });
+    const destination = await resolveTarget(resolved);
 
     await destination.post({
       markdown,

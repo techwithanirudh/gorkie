@@ -1,8 +1,9 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
-import { getSearchToken } from '../../chat/search-token';
+import { chat } from '../../chat/instance';
 import { channelContext } from '../../lib/context';
+import type { GorkieThreadState } from '../../types';
 
 function snippet(text: string, max = 600): string {
   const normalized = text.replace(/\s+/g, ' ').trim();
@@ -21,8 +22,6 @@ const contextMessage = z
   .transform((m) => ({ text: m.text ?? '', ts: m.ts, userId: m.user_id }));
 
 const searchResponse = z.looseObject({
-  ok: z.boolean(),
-  error: z.string().optional(),
   response_metadata: z
     .looseObject({ next_cursor: z.string().optional() })
     .optional(),
@@ -79,30 +78,43 @@ export const searchSlackTool = createTool({
   }),
   execute: async ({ query, cursor }, context) => {
     const threadId = channelContext(context?.requestContext).threadId;
-    const token = threadId ? getSearchToken(threadId) : undefined;
-    if (!token) {
+    const thread = threadId ? chat().thread(threadId) : undefined;
+    const state = ((await thread?.state) ?? null) as GorkieThreadState | null;
+    const token = state?.searchToken;
+    if (!(thread && token)) {
       return {
         success: false,
         message:
-          'No Slack search token for this turn. Slack only provides one when the user @mentions gorkie, so ask them to mention you and try again.',
+          'No fresh Slack search token for this thread. Slack only provides a short-lived one when the user messages or @mentions gorkie, so ask them to mention you and try again.',
       };
     }
 
-    const res = searchResponse.parse(
-      await slack.webClient.apiCall('assistant.search.context', {
-        action_token: token,
-        content_types: ['messages'],
-        cursor,
-        include_context_messages: true,
-        limit: 10,
-        query,
-      })
-    );
-    if (!res.ok) {
-      return {
-        success: false,
-        message: `Slack search failed for "${query}": ${res.error ?? 'unknown'}.`,
-      };
+    let res: z.infer<typeof searchResponse>;
+    try {
+      res = searchResponse.parse(
+        await slack.webClient.apiCall('assistant.search.context', {
+          action_token: token,
+          content_types: ['messages'],
+          cursor,
+          include_context_messages: true,
+          limit: 10,
+          query,
+        })
+      );
+    } catch (error) {
+      const reason = String(error);
+      if (
+        reason.includes('invalid_action_token') ||
+        reason.includes('token_expired')
+      ) {
+        await thread.setState({ searchToken: undefined });
+        return {
+          success: false,
+          message:
+            'The Slack search token for this thread expired. Ask the user to send another message or @mention gorkie, then search again.',
+        };
+      }
+      throw error;
     }
 
     const messages = res.results?.messages ?? [];

@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 import { slack } from './client';
 import { chat } from './instance';
 
@@ -24,8 +25,8 @@ const STARTERS = [
 async function setStarters(channelId: string, threadTs: string): Promise<void> {
   await slack
     .setSuggestedPrompts(channelId, threadTs, STARTERS)
-    .catch((err: unknown) =>
-      console.error('[events] setSuggestedPrompts failed', err)
+    .catch((error: unknown) =>
+      logger.error('[events] setSuggestedPrompts failed', { error })
     );
 }
 
@@ -50,8 +51,8 @@ export function registerEvents(): void {
       .post(
         "hey! i'm hanging out in this channel now! just @ me whenever you need something :)"
       )
-      .catch((err: unknown) =>
-        console.error('[events] channel join greeting failed', err)
+      .catch((error: unknown) =>
+        logger.error('[events] channel join greeting failed', { error })
       );
   });
 }

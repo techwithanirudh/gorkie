@@ -1,4 +1,5 @@
 import { Agent } from '@mastra/core/agent';
+import { agent as config } from '../config';
 import { summarizer } from '../providers';
 
 export const summarizerAgent = new Agent({
@@ -10,6 +11,6 @@ export const summarizerAgent = new Agent({
     'You summarize Slack threads. Be clear and concise. Preserve decisions, open questions, and action items when present. Output only the summary, no preamble.',
   model: summarizer,
   defaultOptions: {
-    modelSettings: { maxOutputTokens: 32_768 },
+    modelSettings: { maxOutputTokens: config.maxTokens.output },
   },
 });

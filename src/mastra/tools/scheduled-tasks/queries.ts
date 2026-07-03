@@ -1,11 +1,28 @@
 import type { Heartbeat, Heartbeats } from '@mastra/core/agent';
+import { channelContext } from '../../lib/context';
+import type { TaskToolContext } from '../../types';
 import { AGENT_ID, scheduledTaskKind } from './utils';
 
-export function requireResourceId(resourceId: string | undefined): string {
+export function heartbeats(context: TaskToolContext): Heartbeats {
+  const service = context.mastra?.heartbeats;
+  if (!service) {
+    throw new Error('No Mastra instance available for scheduled tasks.');
+  }
+  return service;
+}
+
+export function taskScope(context: TaskToolContext): {
+  resourceId: string;
+  threadId?: string;
+} {
+  const resourceId = context.agent?.resourceId;
   if (!resourceId) {
     throw new Error('No current Slack user/resource to scope this to.');
   }
-  return resourceId;
+  return {
+    resourceId,
+    threadId: channelContext(context.requestContext).threadId,
+  };
 }
 
 export function canAccessTask(

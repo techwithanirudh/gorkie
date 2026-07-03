@@ -1,5 +1,6 @@
 import { Agent } from '@mastra/core/agent';
 import { TokenLimiterProcessor } from '@mastra/core/processors';
+import { agent as config } from '../config';
 import { stepCountIs } from '../lib/tools';
 import { orchestrator } from '../providers';
 import { baseTools } from '../tools/base';
@@ -14,7 +15,10 @@ export const researchAgent = new Agent({
   model: orchestrator,
   tools: baseTools,
   inputProcessors: [
-    new TokenLimiterProcessor({ limit: 900_000, trimMode: 'contiguous' }),
+    new TokenLimiterProcessor({
+      limit: config.maxTokens.input,
+      trimMode: 'contiguous',
+    }),
   ],
   defaultOptions: {
     activeTools: [

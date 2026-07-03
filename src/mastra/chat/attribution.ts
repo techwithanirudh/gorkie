@@ -1,8 +1,3 @@
-export function attributionFooter(userId: string): string {
-  return `_sent on behalf of <@${userId}>_`;
-}
-
-/** Only credit the requester when posting somewhere other than the current thread. */
 export function withAttribution(
   message: string,
   userId: string | undefined,
@@ -11,6 +6,6 @@ export function withAttribution(
   if (!userId || isCurrentThread) {
     return message;
   }
-  const footer = attributionFooter(userId);
+  const footer = `_sent on behalf of <@${userId}>_`;
   return message ? `${message}\n\n${footer}` : footer;
 }

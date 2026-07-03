@@ -1,14 +1,13 @@
 export const toolsPrompt = `\
 <tools>
 <tool>
-<name>delegate_task</name>
-<description>Run one of three focused helper agents, with the helper's tool calls shown live in Slack and only its compact final result returned to you.</description>
+<name>agent-research / agent-explore</name>
+<description>Run a focused helper agent, with the helper's tool calls shown live in Slack and only its compact final answer returned to you.</description>
 <note>
-Pick the narrowest agent that can do the job. All three write nothing to Slack themselves (no messages, no file uploads); you deliver the final answer.
+Pick the narrowest agent that can do the job, and put the full task with all needed context in prompt. Both write nothing to Slack themselves (no messages, no file uploads); you deliver the final answer.
 
-- research: Slack, web, user, channel, and thread lookups only. Cannot touch the workspace or run commands. Use for "what is X", background on a person/channel/thread, or web facts.
-- explore: read-only workspace inspection (read_file, list_files, grep, file_stat) plus the same research tools. Cannot write, edit, delete, or run commands. Use to gather implementation context before a change, or to answer "where is X in the code" / "how does Y work" without touching anything.
-- execute: full workspace access (read, write, edit, delete, run commands) for a scoped task. Use only when something actually needs to change or a command needs to run; give it a specific, bounded task, not an open-ended one.
+- agent-research: Slack, web, user, channel, and thread lookups only. Cannot touch the workspace or run commands. Use for "what is X", background on a person/channel/thread, or web facts.
+- agent-explore: read-only workspace inspection (read_file, list_files, grep, file_stat) plus the same research tools. Cannot write, edit, delete, or run commands. Use to gather implementation context before a change, or to answer "where is X in the code" / "how does Y work" without touching anything.
 </note>
 </tool>
 
@@ -96,7 +95,7 @@ If unavailable because the user did not @mention you, use web search and say you
 <tool>
 <name>create_scheduled_task</name>
 <description>Create a recurring scheduled task from a cron expression.</description>
-<note>Use for recurring tasks only, not one-time reminders. By default the task replies in the thread it was scheduled from. Pass target only when the user explicitly asks for delivery elsewhere (e.g. a DM or another channel); never infer or guess a target. Include an IANA timezone when the user's schedule is time-of-day sensitive.</note>
+<note>Use for recurring tasks only, not one-time reminders. The task runs where it was scheduled: the current thread, DM, or channel. Include an IANA timezone when the user's schedule is time-of-day sensitive.</note>
 </tool>
 
 <tool>

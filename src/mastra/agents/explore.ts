@@ -1,5 +1,6 @@
 import { Agent } from '@mastra/core/agent';
 import { TokenLimiterProcessor } from '@mastra/core/processors';
+import { agent as config } from '../config';
 import { stepCountIs } from '../lib/tools';
 import { sandbox } from '../processors/sandbox';
 import { orchestrator } from '../providers';
@@ -17,7 +18,10 @@ export const exploreAgent = new Agent({
   workspace,
   tools: baseTools,
   inputProcessors: [
-    new TokenLimiterProcessor({ limit: 900_000, trimMode: 'contiguous' }),
+    new TokenLimiterProcessor({
+      limit: config.maxTokens.input,
+      trimMode: 'contiguous',
+    }),
   ],
   defaultOptions: {
     activeTools: [

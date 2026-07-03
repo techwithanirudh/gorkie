@@ -1,48 +1,7 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
-import { Sandbox, type SandboxNetworkOpts, type SandboxOpts } from 'e2b';
+import type { SandboxNetworkOpts } from 'e2b';
 import { env } from '@/env';
 
-const networks = new AsyncLocalStorage<SandboxNetworkOpts | undefined>();
-const create = Sandbox.create;
-let patched = false;
-
-export function installSandboxNetworkPatch(): void {
-  if (patched) {
-    return;
-  }
-  patched = true;
-
-  Object.defineProperty(Sandbox, 'create', {
-    value: (
-      templateOrOptions?: string | SandboxOpts,
-      options?: SandboxOpts
-    ) => {
-      const sandboxOptions =
-        typeof templateOrOptions === 'string' ? options : templateOrOptions;
-      const network = networks.getStore();
-      const nextOptions = network
-        ? { ...sandboxOptions, network }
-        : sandboxOptions;
-
-      return Reflect.apply(
-        create,
-        Sandbox,
-        typeof templateOrOptions === 'string'
-          ? [templateOrOptions, nextOptions]
-          : [nextOptions]
-      );
-    },
-  });
-}
-
-export function withSandboxNetwork<T>(
-  network: SandboxNetworkOpts | undefined,
-  operation: () => Promise<T>
-): Promise<T> {
-  return networks.run(network, operation);
-}
-
-export function createSandboxNetwork(): SandboxNetworkOpts | undefined {
+export function createNetwork(): SandboxNetworkOpts {
   const rules: NonNullable<SandboxNetworkOpts['rules']> = {};
 
   if (env.AGENTMAIL_API_KEY) {
@@ -67,13 +26,7 @@ export function createSandboxNetwork(): SandboxNetworkOpts | undefined {
     rules['uploads.github.com'] = rule;
   }
 
-  if (Object.keys(rules).length === 0) {
-    return;
-  }
-
-  return {
-    rules,
-  };
+  return { rules };
 }
 
 const placeholder = Buffer.from(
@@ -81,7 +34,7 @@ const placeholder = Buffer.from(
   'utf8'
 ).toString('base64');
 
-export function createSandboxEnv(): Record<string, string> {
+export function createEnv(): Record<string, string> {
   return {
     SSL_CERT_FILE: '/usr/lib/ssl/cert.pem',
     ...(env.AGENTMAIL_API_KEY ? { AGENTMAIL_API_KEY: placeholder } : {}),
