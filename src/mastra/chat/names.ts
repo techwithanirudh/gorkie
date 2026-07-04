@@ -8,6 +8,14 @@ const profileFields = z.record(
   z.string(),
   z.looseObject({ label: z.string().optional(), value: z.string().optional() })
 );
+const userInfo = z.looseObject({
+  user: z
+    .looseObject({
+      tz: z.string().optional(),
+      tz_label: z.string().optional(),
+    })
+    .optional(),
+});
 const DAY_MS = 86_400_000;
 
 export async function resolveUserProfile(
@@ -24,10 +32,14 @@ export async function resolveUserProfile(
   let profile = cached ?? undefined;
   if (!profile) {
     try {
-      const { profile: raw } = await slack.webClient.users.profile.get({
-        include_labels: true,
-        user: userId,
-      });
+      const [{ profile: raw }, rawUser] = await Promise.all([
+        slack.webClient.users.profile.get({
+          include_labels: true,
+          user: userId,
+        }),
+        slack.webClient.users.info({ user: userId }),
+      ]);
+      const info = userInfo.parse(rawUser);
       if (!(raw || user)) {
         return;
       }
@@ -42,6 +54,8 @@ export async function resolveUserProfile(
         pronouns: raw?.pronouns || undefined,
         realName: raw?.real_name || undefined,
         status: raw?.status_text || undefined,
+        timezone: info.user?.tz || undefined,
+        timezoneLabel: info.user?.tz_label || undefined,
         title: raw?.title || undefined,
       };
       await bot

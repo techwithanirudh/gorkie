@@ -4,6 +4,9 @@ export const AGENT_ID = 'gorkie';
 export const scheduledTaskKind = 'gorkie-scheduled-task';
 
 export function formatTask(task: Heartbeat): Record<string, unknown> {
+  const createdIn = task.metadata?.createdIn as
+    | { threadId?: string }
+    | undefined;
   return {
     id: task.id,
     name: task.name,
@@ -14,7 +17,7 @@ export function formatTask(task: Heartbeat): Record<string, unknown> {
     lastFireAt: task.lastFireAt
       ? new Date(task.lastFireAt).toISOString()
       : undefined,
-    threadId: task.threadId,
+    threadId: createdIn?.threadId ?? task.threadId,
     task: task.metadata?.task,
   };
 }

@@ -1,6 +1,9 @@
 import { createPostgresState } from '@chat-adapter/state-pg';
 import { Agent } from '@mastra/core/agent';
-import { TokenLimiterProcessor } from '@mastra/core/processors';
+import {
+  ProviderHistoryCompat,
+  TokenLimiterProcessor,
+} from '@mastra/core/processors';
 import { Memory } from '@mastra/memory';
 import { env } from '@/env';
 import { slack } from '../chat/client';
@@ -13,6 +16,7 @@ import { toolDisplay } from '../chat/tool-display';
 import { agent as config } from '../config';
 import { stepCountIs, toolCall } from '../lib/tools';
 import { outputProcessors } from '../processors';
+import { relocateToolResultImages } from '../processors/tool-media';
 import { buildInstructions } from '../prompts';
 import { orchestrator, summarizer } from '../providers';
 import { baseTools } from '../tools/base';
@@ -35,6 +39,9 @@ export const gorkieAgent = new Agent({
     new TokenLimiterProcessor({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
+    }),
+    new ProviderHistoryCompat({
+      additionalRules: [relocateToolResultImages],
     }),
   ],
   outputProcessors,

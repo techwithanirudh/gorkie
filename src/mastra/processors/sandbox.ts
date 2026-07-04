@@ -24,6 +24,7 @@ const sandboxTools = new Set([
 
 export const sandbox = {
   id: 'sandbox',
+  name: 'Sandbox Lifecycle',
   async processOutputStep(args: ProcessOutputStepArgs) {
     const { toolCalls, requestContext, messages } = args;
     if (

@@ -10,13 +10,14 @@ export const readConversationHistoryTool = createTool({
   description:
     'Read channel history or thread replies. The current conversation is always readable; other channels must be public.',
   inputSchema: z.object({
-    channelId: z.string().optional().describe('Read channel-level history.'),
+    channelId: z
+      .string()
+      .optional()
+      .describe('Channel id (slack:C...) to read channel-level history.'),
     threadId: z
       .string()
       .optional()
-      .describe(
-        'Chat SDK thread id (slack:C...:ts). Defaults to the current thread.'
-      ),
+      .describe('Thread id (slack:C...:ts). Defaults to the current thread.'),
     limit: z.number().int().min(1).max(200).default(40),
     cursor: z
       .string()

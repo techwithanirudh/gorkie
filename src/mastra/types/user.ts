@@ -4,5 +4,7 @@ export interface UserProfile {
   pronouns?: string;
   realName?: string;
   status?: string;
+  timezone?: string;
+  timezoneLabel?: string;
   title?: string;
 }

@@ -1,4 +1,4 @@
-export interface GorkieThreadState {
+export interface ThreadState {
   respondOnThreadMessages?: boolean;
   searchToken?: string;
 }

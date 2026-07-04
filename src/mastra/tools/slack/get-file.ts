@@ -1,9 +1,9 @@
 import { fetchSlackFile } from '@chat-adapter/slack/api';
 import { createTool } from '@mastra/core/tools';
-import type { E2BSandbox } from '@mastra/e2b';
 import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
+import { resolveE2BSandbox } from '../../workspace';
 import { p } from '../../workspace/path';
 
 const SLACK_FILE_ID = /(F[A-Z0-9]{6,})/;
@@ -37,12 +37,10 @@ export const getFileTool = createTool({
     filename: z.string().optional().describe('Optional name to save it as.'),
   }),
   execute: async ({ file, filename }, context) => {
-    if (!(context?.workspace && context.requestContext)) {
+    if (!context?.requestContext) {
       throw new Error('No workspace context.');
     }
-    const sandbox = (await context.workspace.resolveSandbox({
-      requestContext: context.requestContext,
-    })) as E2BSandbox | undefined;
+    const sandbox = await resolveE2BSandbox(context.requestContext);
     if (!sandbox) {
       throw new Error('No sandbox available.');
     }

@@ -1,8 +1,12 @@
 import { Agent } from '@mastra/core/agent';
-import { TokenLimiterProcessor } from '@mastra/core/processors';
+import {
+  ProviderHistoryCompat,
+  TokenLimiterProcessor,
+} from '@mastra/core/processors';
 import { agent as config } from '../config';
 import { stepCountIs } from '../lib/tools';
 import { sandbox } from '../processors/sandbox';
+import { relocateToolResultImages } from '../processors/tool-media';
 import { orchestrator } from '../providers';
 import { baseTools } from '../tools/base';
 import { workspace } from '../workspace';
@@ -22,6 +26,9 @@ export const exploreAgent = new Agent({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
     }),
+    new ProviderHistoryCompat({
+      additionalRules: [relocateToolResultImages],
+    }),
   ],
   defaultOptions: {
     activeTools: [
@@ -30,6 +37,7 @@ export const exploreAgent = new Agent({
       'grep',
       'file_stat',
       'search_web',
+      'fetch_url',
       'search_slack',
       'read_conversation_history',
       'list_threads',

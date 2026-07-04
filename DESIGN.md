@@ -64,7 +64,7 @@ gorkie is public, so the agent must never run code on the host. The workspace (`
 
 All custom tools are Mastra `createTool`s returning a uniform `{ success, message, ...data }` shape (the `message` feeds the tool display). Slack ids are handled with `lib/ids.ts` + the adapter natives (`slack.decodeThreadId` / `channelIdFromThreadId`).
 
-`search_web`, `search_slack`, `read_conversation_history`, `list_threads`, `get_user`, `get_channel_info`, `get_file`, `upload_file` (native `thread.post({ files })`), `post_message`, `schedule_reminder`, `leave_thread`, `summarize_thread` (delegates to a summarizer subagent), `skip`. Plus the built-in channel reaction tools.
+`search_web`, `fetch_url`, `search_slack`, `read_conversation_history`, `list_threads`, `get_user`, `get_channel_info`, `get_file`, `upload_file` (native `thread.post({ files })`), `post_message`, `schedule_reminder`, `leave_thread`, `summarize_thread` (delegates to a summarizer subagent), `skip`. Plus the built-in channel reaction tools.
 
 ---
 

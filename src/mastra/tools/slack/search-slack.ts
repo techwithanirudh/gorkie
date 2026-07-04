@@ -2,8 +2,8 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
+import { threadState } from '../../chat/state';
 import { channelContext } from '../../lib/context';
-import type { GorkieThreadState } from '../../types';
 
 function snippet(text: string, max = 600): string {
   const normalized = text.replace(/\s+/g, ' ').trim();
@@ -79,7 +79,7 @@ export const searchSlackTool = createTool({
   execute: async ({ query, cursor }, context) => {
     const threadId = channelContext(context?.requestContext).threadId;
     const thread = threadId ? chat().thread(threadId) : undefined;
-    const state = ((await thread?.state) ?? null) as GorkieThreadState | null;
+    const state = await threadState(thread);
     const token = state?.searchToken;
     if (!(thread && token)) {
       return {

@@ -1,10 +1,10 @@
 import type { Message, Thread } from 'chat';
 import { z } from 'zod';
 import { logger } from '../lib/logger';
-import type { GorkieThreadState } from '../types';
 import { attachments } from './attachments';
 import { slack } from './client';
 import { rawText, withoutLeadingMentions } from './message';
+import { threadState } from './state';
 
 type DefaultHandler = (thread: Thread, message: Message) => Promise<void>;
 
@@ -85,7 +85,7 @@ export async function onSubscribedMessage(
   if (shouldIgnore(message)) {
     return;
   }
-  const state = (await thread.state) as GorkieThreadState | null;
+  const state = await threadState(thread);
   if (!(state?.respondOnThreadMessages === true || message.isMention)) {
     return;
   }

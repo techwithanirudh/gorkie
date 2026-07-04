@@ -11,6 +11,25 @@ export function heartbeats(context: TaskToolContext): Heartbeats {
   return service;
 }
 
+export async function resolveMemoryThread(
+  context: TaskToolContext,
+  externalThreadId: string
+): Promise<{ id: string; resourceId?: string }> {
+  const agent = context.mastra?.getAgentById(AGENT_ID);
+  const memory = await agent?.getMemory();
+  const found = await memory?.listThreads({
+    filter: { metadata: { channel_externalThreadId: externalThreadId } },
+    perPage: 1,
+  });
+  const thread = found?.threads[0];
+  if (!thread) {
+    throw new Error(
+      'Could not resolve this conversation to a memory thread yet. Send another message and try again.'
+    );
+  }
+  return thread;
+}
+
 export function taskScope(context: TaskToolContext): {
   resourceId: string;
   threadId?: string;
@@ -29,8 +48,13 @@ export function canAccessTask(
   task: Heartbeat,
   { resourceId, threadId }: { resourceId: string; threadId?: string }
 ): boolean {
+  const createdIn = task.metadata?.createdIn as
+    | { threadId?: string }
+    | undefined;
+
   return (
-    task.resourceId === resourceId || (!!threadId && task.threadId === threadId)
+    task.resourceId === resourceId ||
+    (!!threadId && createdIn?.threadId === threadId)
   );
 }
 

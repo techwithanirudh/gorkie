@@ -23,6 +23,7 @@ export const researchAgent = new Agent({
   defaultOptions: {
     activeTools: [
       'search_web',
+      'fetch_url',
       'search_slack',
       'read_conversation_history',
       'list_threads',

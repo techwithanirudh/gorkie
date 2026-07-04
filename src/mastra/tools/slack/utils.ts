@@ -1,6 +1,7 @@
 import type { Message } from 'chat';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
+import type { Target } from '../../chat/target';
 import { chatChannelId, rawId } from '../../lib/ids';
 
 export async function assertReadableChannel(
@@ -12,17 +13,64 @@ export async function assertReadableChannel(
   if (currentThreadId && id === chatChannelId(currentThreadId)) {
     return metadata;
   }
-  if (metadata.isDM || metadata.channelVisibility !== 'workspace') {
+
+  if (metadata.channelVisibility === 'workspace') {
+    return metadata;
+  }
+
+  throw new Error(
+    'Reading DMs, private channels, or external conversations is not allowed.'
+  );
+}
+
+async function isChannelMember(
+  channelId: string,
+  userId: string
+): Promise<boolean> {
+  const channel = rawId(channelId);
+  let cursor: string | undefined;
+  do {
+    const response = await slack.webClient.conversations.members({
+      channel,
+      limit: 1000,
+      cursor,
+    });
+    if (response.members?.includes(userId)) {
+      return true;
+    }
+    cursor = response.response_metadata?.next_cursor || undefined;
+  } while (cursor);
+  return false;
+}
+
+/**
+ * Prevents using Gorkie as a relay into channels the requesting user has no
+ * access to: only Gorkie's own membership was previously required, so any
+ * user could have it post into any channel Gorkie belongs to.
+ */
+export async function assertCanPostTo(
+  target: Target,
+  userId: string | undefined,
+  isCurrentThread: boolean
+): Promise<void> {
+  if (isCurrentThread || target.type === 'user') {
+    return;
+  }
+  if (!userId) {
     throw new Error(
-      'Reading DMs, private channels, or external conversations is not allowed.'
+      'Cannot verify channel membership without a known requesting user, so Gorkie will not post there.'
     );
   }
-  return metadata;
+  if (!(await isChannelMember(target.id, userId))) {
+    throw new Error(
+      'You are not a member of that channel, so Gorkie cannot post there on your behalf. Ask a member to invite you, or post it yourself.'
+    );
+  }
 }
 
 export async function joinChannel(channelId: string): Promise<void> {
   try {
-    await slack.webClient.apiCall('conversations.join', {
+    await slack.webClient.conversations.join({
       channel: rawId(channelId),
     });
   } catch {

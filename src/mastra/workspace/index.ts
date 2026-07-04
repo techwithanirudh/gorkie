@@ -56,12 +56,7 @@ export const workspace: Workspace = new Workspace({
   }),
   skills: ['.'],
   tools: {
-    // TODO: Fix sandbox image viewing via file reads. Mastra read_file media currently
-    // sends base64 tool results through a bugged multimodal path, so workspace media
-    [WORKSPACE_TOOLS.FILESYSTEM.READ_FILE]: {
-      name: 'read_file',
-      mediaTypes: false,
-    },
+    [WORKSPACE_TOOLS.FILESYSTEM.READ_FILE]: { name: 'read_file' },
     [WORKSPACE_TOOLS.FILESYSTEM.WRITE_FILE]: { name: 'write_file' },
     [WORKSPACE_TOOLS.FILESYSTEM.EDIT_FILE]: { name: 'edit_file' },
     [WORKSPACE_TOOLS.FILESYSTEM.LIST_FILES]: { name: 'list_files' },

@@ -5,7 +5,7 @@ import { resolveUserProfile } from '../../chat/names';
 export const getUserTool = createTool({
   id: 'get_user',
   description:
-    "Look up a Slack user's profile by id (U0123ABCD): display name, real name, pronouns, title, status, and custom profile fields (Website, GitHub, etc.). Use their pronouns when referring to them.",
+    "Look up a Slack user's profile by id (U0123ABCD): display name, real name, pronouns, timezone, title, status, and custom profile fields (Website, GitHub, etc.). Use their pronouns when referring to them.",
   inputSchema: z.object({
     userId: z.string().min(1).describe('Slack user id, e.g. U123ABC'),
   }),
@@ -26,6 +26,8 @@ export const getUserTool = createTool({
       pronouns: profile.pronouns,
       title: profile.title,
       status: profile.status,
+      timezone: profile.timezone,
+      timezoneLabel: profile.timezoneLabel,
       fields: profile.fields,
       message: `${profile.displayName ?? userId}${profile.pronouns ? ` (${profile.pronouns})` : ''}${profile.title ? `, ${profile.title}` : ''}.`,
     };

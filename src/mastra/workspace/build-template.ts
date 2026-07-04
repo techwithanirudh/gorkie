@@ -18,6 +18,7 @@ async function main(): Promise<void> {
         [
           'curl',
           'ca-certificates',
+          'git',
           'fd-find',
           'ripgrep',
           'imagemagick',
@@ -53,6 +54,10 @@ async function main(): Promise<void> {
         `chown -R user:user ${config.workdir}`,
       ])
       .setUser('user')
+      .runCmd([
+        'git config --global user.name gorkie-agent',
+        'git config --global user.email gorkie@agentmail.to',
+      ])
       .setWorkdir(config.workdir),
     config.template,
     { apiKey: env.E2B_API_KEY, onBuildLogs: defaultBuildLogger() }

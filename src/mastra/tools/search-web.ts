@@ -1,9 +1,6 @@
 import { createTool } from '@mastra/core/tools';
-import Exa from 'exa-js';
 import { z } from 'zod';
-import { env } from '@/env';
-
-const exa = new Exa(env.EXA_API_KEY);
+import { exa } from '../lib/exa';
 
 export const searchWebTool = createTool({
   id: 'search_web',

@@ -4,6 +4,7 @@ import { withAttribution } from '../../chat/attribution';
 import { resolveTarget, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
 import { resolveE2BSandbox } from '../../workspace';
+import { assertCanPostTo } from './utils';
 
 export const uploadFileTool = createTool({
   id: 'upload_file',
@@ -56,6 +57,7 @@ export const uploadFileTool = createTool({
     }
     const isCurrentThread =
       resolved.type === 'thread' && resolved.id === currentThreadId;
+    await assertCanPostTo(resolved, userId, isCurrentThread);
     const markdown = withAttribution(comment ?? '', userId, isCurrentThread);
 
     const destination = await resolveTarget(resolved);
@@ -70,7 +72,7 @@ export const uploadFileTool = createTool({
       filename: name,
       path,
       message: target
-        ? `Uploaded ${name} to ${target.type} ${target.id}.`
+        ? `Uploaded ${name} to ${resolved.type} ${resolved.id}.`
         : `Uploaded ${name} to this Slack thread.`,
     };
   },

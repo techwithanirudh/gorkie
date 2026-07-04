@@ -4,10 +4,12 @@ export const toolsPrompt = `\
 <name>agent-research / agent-explore</name>
 <description>Run a focused helper agent, with the helper's tool calls shown live in Slack and only its compact final answer returned to you.</description>
 <note>
-Pick the narrowest agent that can do the job, and put the full task with all needed context in prompt. Both write nothing to Slack themselves (no messages, no file uploads); you deliver the final answer.
+If a task looks like heavy research or a broad codebase sweep (several lookups/reads, raw results you only need conclusions from, or a self-contained side quest inside a bigger request), delegate it. Handle it yourself when a couple of direct tool calls will answer, when you need the raw content itself to act on (e.g. you are about to edit that exact file), or when the user is asking about the current conversation.
 
-- agent-research: Slack, web, user, channel, and thread lookups only. Cannot touch the workspace or run commands. Use for "what is X", background on a person/channel/thread, or web facts.
-- agent-explore: read-only workspace inspection (read_file, list_files, grep, file_stat) plus the same research tools. Cannot write, edit, delete, or run commands. Use to gather implementation context before a change, or to answer "where is X in the code" / "how does Y work" without touching anything.
+Pick the narrowest agent that can do the job, and put the full task with all needed context in prompt — the helper cannot see this conversation, so include names, ids, links, and what a good answer looks like. Both write nothing to Slack themselves (no messages, no file uploads); you deliver the final answer.
+
+- agent-research: Slack, web (search_web, fetch_url), user, channel, and thread lookups only. Cannot touch the workspace or run commands. Use for "what is X", background on a person/channel/thread, web facts, or reading a specific URL.
+- agent-explore: read-only workspace inspection (read_file, list_files, grep, file_stat) plus the same research tools (including fetch_url). Cannot write, edit, delete, or run commands. Use to gather implementation context before a change, or to answer "where is X in the code" / "how does Y work" without touching anything.
 </note>
 </tool>
 
@@ -44,13 +46,23 @@ Do NOT answer from only web if Slack search is available. If sources suggest dif
 <description>Inspect a channel's name, topic, purpose, and members.</description>
 </tool>
 
+<note>
+Slack ids are standardized and MUST be passed exactly as seen elsewhere in this conversation, never invented or reformatted: channel -> slack:C..., thread -> slack:C...:ts, user -> raw U... (no prefix). Get them from tool outputs (read_conversation_history, list_threads, get_channel_info) or from a user mention, not by guessing.
+</note>
+
 <tool>
 <name>search_web</name>
 <description>Search the web for current information, documentation, news, and facts.</description>
 <note>
-Do NOT guess at recent or external facts. 
+Do NOT guess at recent or external facts.
 For unfamiliar names, acronyms, projects, links, screenshots, or "what is X" questions, you MUST also try search_slack when available because the reference may be internal.
 </note>
+</tool>
+
+<tool>
+<name>fetch_url</name>
+<description>Fetch the readable content of a specific, known URL.</description>
+<note>Use this for a link someone shared or a URL search_web returned, when you need the actual page content, not just a search result. Not a search tool; you need the exact URL already.</note>
 </tool>
 
 <tool>
@@ -81,9 +93,15 @@ If unavailable because the user did not @mention you, use web search and say you
 </tool>
 
 <tool>
+<name>generate_image</name>
+<description>Generate one or more AI images from a prompt into the sandbox.</description>
+<note>Use only for explicit image creation requests. Writes files into the sandbox; follow up with upload_file to send them to Slack (defaults to this thread, or pass target for elsewhere), or process them first with other sandbox tools.</note>
+</tool>
+
+<tool>
 <name>post_message</name>
 <description>Send a message to another thread, channel, or user.</description>
-<note>Your streamed reply is ALREADY the message to the current thread. NEVER post your normal reply through this tool. A footer crediting the requesting user is appended automatically. Do not add your own attribution.</note>
+<note>Your streamed reply is ALREADY the message to the current thread. NEVER post your normal reply through this tool. A footer crediting the requesting user is appended automatically. Do not add your own attribution. Gorkie must be a member of a channel to post into it: a channel_not_found error on a private channel means Gorkie is not a member (Slack hides it entirely), and not_in_channel means Gorkie has not joined yet — in both cases tell the user to /invite @gorkie there instead of retrying.</note>
 </tool>
 
 <tool>
@@ -95,7 +113,7 @@ If unavailable because the user did not @mention you, use web search and say you
 <tool>
 <name>create_scheduled_task</name>
 <description>Create a recurring scheduled task from a cron expression.</description>
-<note>Use for recurring tasks only, not one-time reminders. The task runs where it was scheduled: the current thread, DM, or channel. Include an IANA timezone when the user's schedule is time-of-day sensitive.</note>
+<note>Use for recurring tasks only, not one-time reminders. The task runs where it was scheduled: the current Slack thread or DM. A top-level channel message is treated as a thread rooted at that message. Include an IANA timezone when the user's schedule is time-of-day sensitive. Minimum interval is 30 minutes between fires — each run costs model credits. NEVER create a schedule that fires more often than every 30 minutes; refuse and offer the nearest 30-minute-or-slower cadence instead.</note>
 </tool>
 
 <tool>
@@ -140,13 +158,13 @@ If unavailable because the user did not @mention you, use web search and say you
 <name>read_file</name>
 <description>Read sandbox files.</description>
 <note>
-Use read_file only for text files and these supported media formats: .png, .jpg, .jpeg, .webp, and .pdf. Do NOT use it on arbitrary binary files.
+Use read_file for text files and images. Do NOT use it on arbitrary binary files.
 
-Before reading any supported media file, make sure the path ALWAYS has the correct extension. Do NOT rely on MIME inference for unnamed files or files without extensions. If a downloaded file has no extension, use execute_command to copy, rename, or convert it to a path with the correct extension before calling read_file.
+Before reading a file, make sure the path ALWAYS has the correct extension. Do NOT rely on MIME inference for unnamed files or files without extensions. If a downloaded file has no extension, use execute_command to copy, rename, or convert it to a path with the correct extension before calling read_file.
 
 WARNING: If read_file cannot identify the format, it may treat binary data as text and dump raw bytes into context. This can overload the model context and crash the turn. For unsupported binary files, prefer file_stat, or converting to a supported format with a clear extension.
 
-NOTE: Currently, image support is non-functional, so do NOT read_file with images.
+Images (.png, .jpg, .webp, etc.) are delivered to you visually — describe only what you actually see in the delivered image, never guess from filenames or context. read_file cannot show you PDF content; convert PDFs to images first (e.g. with execute_command) or tell the user you can't view PDFs directly.
 </note>
 </tool>
 

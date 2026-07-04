@@ -13,7 +13,7 @@ export const listThreadsTool = createTool({
     channelId: z
       .string()
       .optional()
-      .describe('Channel id; defaults to the current channel.'),
+      .describe('Channel id (slack:C...); defaults to the current channel.'),
     limit: z.number().int().min(1).max(100).default(20),
     cursor: z.string().optional(),
   }),

@@ -13,6 +13,7 @@ const childChunk = z.looseObject({
 
 export const delegates = {
   id: 'delegates',
+  name: 'Sub-Agents Logging',
   processOutputStream({ part }: ProcessOutputStreamArgs) {
     if (part.type !== 'tool-output') {
       return part;

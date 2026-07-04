@@ -20,7 +20,7 @@ One Mastra `Agent` (`gorkieAgent`) serves Slack through Mastra's built-in `chann
 
 The agent brain runs on the host. Code execution runs in a per-thread **E2B** sandbox (isolated cloud Linux VM). Model keys, Slack tokens, and DB credentials live on the host and never enter the sandbox.
 
-Storage is **Postgres** (agent memory, channel state, observability traces). Long-term memory is **Observational Memory**, thread-scoped.
+Storage is **Postgres** (agent memory, channel state). Long-term memory is **Observational Memory**, thread-scoped. Observability traces live in a local **DuckDB** file (`observability.duckdb`, wired via `MastraCompositeStore` domain override in `src/mastra/index.ts`): it works and is the ground truth for debugging what the model actually received and returned. Query it read-only (e.g. `duckdb -readonly`) while the dev server is stopped; DuckDB is single-writer, so a running `mastra dev`/`mastra start` holds the lock.
 
 ## Boundaries
 

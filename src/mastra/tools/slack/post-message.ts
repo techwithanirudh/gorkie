@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { withAttribution } from '../../chat/attribution';
 import { resolveTarget, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
+import { assertCanPostTo } from './utils';
 
 export const postMessageTool = createTool({
   id: 'post_message',
@@ -16,15 +17,33 @@ export const postMessageTool = createTool({
     const { threadId: currentThreadId, userId } = channelContext(
       context?.requestContext
     );
-    const isCurrentThread = type === 'thread' && id === currentThreadId;
+    const target = { type, id };
+    const isCurrentThread =
+      target.type === 'thread' && target.id === currentThreadId;
+    await assertCanPostTo(target, userId, isCurrentThread);
     const markdown = withAttribution(message, userId, isCurrentThread);
-    const destination = await resolveTarget({ type, id });
-    const sent = await destination.post({ markdown });
-    return {
-      success: true,
-      messageId: sent.id,
-      threadId: sent.threadId,
-      message: `Posted to ${type} ${id}.`,
-    };
+    try {
+      const destination = await resolveTarget(target);
+      const sent = await destination.post({ markdown });
+      return {
+        success: true,
+        messageId: sent.id,
+        threadId: sent.threadId,
+        message: `Posted to ${target.type} ${target.id}.`,
+      };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      if (reason.includes('channel_not_found')) {
+        throw new Error(
+          'Slack rejected the post with channel_not_found. For private channels this means Gorkie is not a member. Slack hides private channels from non-members entirely. Ask a member to run `/invite @gorkie` in that channel, then retry. If the channel is public, double-check the id (it must come from a tool output or mention, e.g. slack:C...).'
+        );
+      }
+      if (reason.includes('not_in_channel')) {
+        throw new Error(
+          'Slack rejected the post with not_in_channel: Gorkie must join that channel before posting. Ask a member to run `/invite @gorkie` there, then retry.'
+        );
+      }
+      throw error;
+    }
   },
 });

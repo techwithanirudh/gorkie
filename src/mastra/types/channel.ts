@@ -1,12 +1,6 @@
+import type { ChannelContext as MastraChannelContext } from '@mastra/core/channels';
 import type { RequestContext } from '@mastra/core/request-context';
 
-export interface ChannelContext {
-  channelId?: string;
-  isDM?: boolean;
-  platform?: string;
-  threadId?: string;
-  userId?: string;
-  userName?: string;
-}
+export type ChannelContext = Partial<MastraChannelContext>;
 
 export type GorkieRequestContext = RequestContext<{ channel?: ChannelContext }>;

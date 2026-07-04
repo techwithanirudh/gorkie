@@ -11,7 +11,7 @@ export const getChannelInfoTool = createTool({
     channelId: z
       .string()
       .optional()
-      .describe('Channel id; defaults to the current channel.'),
+      .describe('Channel id (slack:C...); defaults to the current channel.'),
   }),
   execute: async ({ channelId }, context) => {
     const ctx = channelContext(context?.requestContext);

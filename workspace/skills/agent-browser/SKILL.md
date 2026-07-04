@@ -11,6 +11,17 @@ Fast browser automation CLI for AI agents. Chrome/Chromium via CDP with accessib
 
 Install: `npm i -g agent-browser && agent-browser install`
 
+Screenshots saved to the sandbox (e.g. via `agent-browser screenshot page.png`) can be viewed directly with the `read_file` tool. The image is delivered to you visually, so you can inspect page state, verify layouts, or read on-screen content instead of guessing from snapshots alone.
+
+## Work WITH the user
+
+ALWAYS treat the requesting user as a collaborator sitting next to you. Work is invisible to them unless you show it:
+
+- Narrate as you go: a short one-line explanation per meaningful step ("logging in", "form submitted, confirmation page loaded") keeps them in the loop without spamming.
+- Send screenshots of key steps with `upload_file`, after navigation milestones, before/after actions (submitting forms, payments, deletions), and whenever you claim something happened. A claim with a screenshot beats a paragraph.
+- When building or changing a website: screenshot the result and VIEW it yourself with `read_file` before declaring success. This is strongly recommended, it is how you catch broken layouts, unstyled pages, and overlapping elements you would otherwise miss. Then send that screenshot to the user too.
+- Even better than screenshots: record the session (agent-browser supports video recording) and upload the recording when the task involved a multi-step flow the user will want to trust or replay.
+
 ## Start here
 
 This file is a discovery stub, not the usage guide. Before running any `agent-browser` command, load the actual workflow content from the CLI:
