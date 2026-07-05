@@ -25,8 +25,8 @@ import { exploreAgent } from './explore';
 import { researchAgent } from './research';
 
 export const gorkieAgent = new Agent({
-  id: 'gorkie',
-  name: 'gorkie',
+  id: config.id,
+  name: 'Gorkie',
   instructions: ({ requestContext }) => buildInstructions(requestContext),
   model: orchestrator,
   defaultOptions: {

@@ -1,5 +1,6 @@
 import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
+import { grepTool } from './grep';
 import { mermaidTool } from './mermaid';
 import { scheduleReminderTool } from './schedule-reminder';
 import { scheduledTaskTools } from './scheduled-tasks';
@@ -13,6 +14,7 @@ export const baseTools = {
   skip: skipTool,
   search_web: searchWebTool,
   fetch_url: fetchUrlTool,
+  grep: grepTool,
   mermaid: mermaidTool,
   schedule_reminder: scheduleReminderTool,
   generate_image: generateImageTool,

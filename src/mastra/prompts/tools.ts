@@ -77,7 +77,7 @@ If unavailable because the user did not @mention you, use web search and say you
 
 <tool>
 <name>get_file</name>
-<description>Download a Slack file that is not on the current message, such as an earlier upload, snippet, image, canvas, link, or file id, into the sandbox.</description>
+<description>Download a Slack file that is not on the current message, such as an earlier upload, snippet, image, canvas, link, or file id, into the sandbox. Also downloads a custom emoji image by shortcode (e.g. :partyparrot:).</description>
 <note>When saving images, ALWAYS preserve or provide a useful filename extension like .png, .jpg, .jpeg, or .webp so read_file can infer MIME type.</note>
 </tool>
 
@@ -171,7 +171,7 @@ Images (.png, .jpg, .webp, etc.) are delivered to you visually — describe only
 <tool>
 <name>write_file / edit_file / list_files / grep / delete_file / file_stat / mkdir / ast_edit</name>
 <description>Inspect and modify sandbox files.</description>
-<note>Prefer these over shell commands for normal file edits, searches, file stats, directory creation, and structured code edits.</note>
+<note>Prefer these over shell commands for normal file edits, searches, file stats, directory creation, and structured code edits. grep runs real ripgrep inside the sandbox (fast, respects .gitignore) and takes a 30s internal timeout, so a single call is safe even on a large freshly cloned repo. Still avoid firing many grep calls in parallel against the same large tree in one step; a few sequential calls are fine.</note>
 </tool>
 
 <tool>

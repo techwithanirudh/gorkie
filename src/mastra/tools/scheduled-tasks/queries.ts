@@ -1,7 +1,8 @@
 import type { Heartbeat, Heartbeats } from '@mastra/core/agent';
+import { agent } from '../../config';
 import { channelContext } from '../../lib/context';
 import type { TaskToolContext } from '../../types';
-import { AGENT_ID, scheduledTaskKind } from './utils';
+import { scheduledTaskKind } from './utils';
 
 export function heartbeats(context: TaskToolContext): Heartbeats {
   const service = context.mastra?.heartbeats;
@@ -9,25 +10,6 @@ export function heartbeats(context: TaskToolContext): Heartbeats {
     throw new Error('No Mastra instance available for scheduled tasks.');
   }
   return service;
-}
-
-export async function resolveMemoryThread(
-  context: TaskToolContext,
-  externalThreadId: string
-): Promise<{ id: string; resourceId?: string }> {
-  const agent = context.mastra?.getAgentById(AGENT_ID);
-  const memory = await agent?.getMemory();
-  const found = await memory?.listThreads({
-    filter: { metadata: { channel_externalThreadId: externalThreadId } },
-    perPage: 1,
-  });
-  const thread = found?.threads[0];
-  if (!thread) {
-    throw new Error(
-      'Could not resolve this conversation to a memory thread yet. Send another message and try again.'
-    );
-  }
-  return thread;
 }
 
 export function taskScope(context: TaskToolContext): {
@@ -44,7 +26,7 @@ export function taskScope(context: TaskToolContext): {
   };
 }
 
-export function canAccessTask(
+export function canViewTask(
   task: Heartbeat,
   { resourceId, threadId }: { resourceId: string; threadId?: string }
 ): boolean {
@@ -58,23 +40,28 @@ export function canAccessTask(
   );
 }
 
+export function canManageTask(
+  task: Heartbeat,
+  { resourceId }: { resourceId: string }
+): boolean {
+  return task.resourceId === resourceId;
+}
+
 export async function findOwnedTask(
   service: Heartbeats,
-  {
-    id,
-    resourceId,
-    threadId,
-  }: { id: string; resourceId: string; threadId?: string }
+  { id, resourceId }: { id: string; resourceId: string }
 ): Promise<Heartbeat> {
-  const current = await service.list({ agentId: AGENT_ID });
+  const current = await service.list({ agentId: agent.id });
   const task = current.find(
     (item) =>
       item.id === id &&
       item.metadata?.kind === scheduledTaskKind &&
-      canAccessTask(item, { resourceId, threadId })
+      canManageTask(item, { resourceId })
   );
   if (!task) {
-    throw new Error(`Scheduled task not found: ${id}`);
+    throw new Error(
+      `Scheduled task not found: ${id}. Only the task's creator can pause, resume, or delete it.`
+    );
   }
   return task;
 }

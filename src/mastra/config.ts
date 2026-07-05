@@ -5,6 +5,7 @@ export const sandbox = {
 };
 
 export const agent = {
+  id: 'gorkie',
   // kimi-k2.6's context window is ~256k total, so input must leave room for
   // maxOutputTokens plus system/tool-schema overhead that isn't counted here.
   maxTokens: { input: 200_000, output: 32_768 },

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { logger } from '../lib/logger';
 import { attachments } from './attachments';
 import { slack } from './client';
+import { handleCommand } from './commands';
 import { rawText, withoutLeadingMentions } from './message';
 import { threadState } from './state';
 
@@ -73,6 +74,9 @@ export async function onMention(
   if (slack.decodeThreadId(message.threadId).threadTs === message.id) {
     await thread.setState({ respondOnThreadMessages: true });
   }
+  if (await handleCommand(thread, message)) {
+    return;
+  }
   await respond(thread, message, defaultHandler);
 }
 
@@ -89,6 +93,9 @@ export async function onSubscribedMessage(
   if (!(state?.respondOnThreadMessages === true || message.isMention)) {
     return;
   }
+  if (await handleCommand(thread, message)) {
+    return;
+  }
   await respond(thread, message, defaultHandler);
 }
 
@@ -99,6 +106,9 @@ export async function onDirectMessage(
 ): Promise<void> {
   await captureSearchToken(thread, message.raw);
   if (shouldIgnore(message)) {
+    return;
+  }
+  if (await handleCommand(thread, message)) {
     return;
   }
   await respond(thread, message, defaultHandler);

@@ -3,10 +3,13 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
+import { getEmojiUrl } from '../../lib/emoji';
+import { sh } from '../../lib/shell';
 import { resolveE2BSandbox } from '../../workspace';
 import { p } from '../../workspace/path';
 
 const SLACK_FILE_ID = /(F[A-Z0-9]{6,})/;
+const EMOJI_NAME = /^:?([a-z0-9_+-]+):?$/i;
 
 function bytes(value: number): string {
   if (value < 1024 * 1024) {
@@ -21,19 +24,17 @@ function throwIfAborted(signal?: AbortSignal): void {
   }
 }
 
-function sh(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
 export const getFileTool = createTool({
   id: 'get_file',
   description:
-    'Download a Slack file (upload, snippet, image, canvas, any type) into the sandbox so you can read or process it. Accepts a Slack file URL, permalink, or file id. When downloading images, pass a filename with the correct extension (.png, .jpg, .jpeg, .webp).',
+    'Download a Slack file (upload, snippet, image, canvas, any type) or a custom emoji into the sandbox so you can read or process it. Accepts a Slack file URL, permalink, file id, or an emoji shortcode like :partyparrot:. When downloading images, pass a filename with the correct extension (.png, .jpg, .jpeg, .webp).',
   inputSchema: z.object({
     file: z
       .string()
       .min(1)
-      .describe('A Slack file URL, permalink, or file id (e.g. F0123ABCD).'),
+      .describe(
+        'A Slack file URL, permalink, file id (e.g. F0123ABCD), or emoji shortcode (e.g. :partyparrot:).'
+      ),
     filename: z.string().optional().describe('Optional name to save it as.'),
   }),
   execute: async ({ file, filename }, context) => {
@@ -50,7 +51,23 @@ export const getFileTool = createTool({
     const info = fileId
       ? (await slack.webClient.files.info({ file: fileId })).file
       : undefined;
+
+    const emojiMatch =
+      fileId || file.startsWith('http') ? null : EMOJI_NAME.exec(file);
+    let emojiUrl: string | undefined;
+    let emojiName: string | undefined;
+    if (emojiMatch) {
+      emojiName = emojiMatch[1];
+      emojiUrl = await getEmojiUrl(emojiName);
+      if (!emojiUrl) {
+        throw new Error(
+          `"${emojiName}" is not a custom emoji in this workspace (or it's a standard Unicode emoji, which has no image file to download).`
+        );
+      }
+    }
+
     const url =
+      emojiUrl ??
       info?.url_private_download ??
       info?.url_private ??
       (file.startsWith('http') ? file : undefined);
@@ -58,10 +75,11 @@ export const getFileTool = createTool({
       throw new Error(`Could not resolve a download URL for: ${file}`);
     }
 
-    const name = (filename ?? info?.name ?? fileId ?? 'slack-file').replace(
-      /[^\w.-]+/g,
-      '_'
-    );
+    const emojiExt = emojiUrl?.match(/\.([a-z0-9]+)(?:\?|$)/i)?.[1];
+    const defaultName = emojiName
+      ? `${emojiName}${emojiExt ? `.${emojiExt}` : ''}`
+      : (info?.name ?? fileId ?? 'slack-file');
+    const name = (filename ?? defaultName).replace(/[^\w.-]+/g, '_');
     const path = p('downloads', name);
     await sandbox.retryOnDead(() => sandbox.e2b.files.makeDir(p('downloads')));
     const partPath = `${path}.part`;

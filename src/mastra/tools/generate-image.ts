@@ -4,6 +4,7 @@ import { generateImage } from 'ai';
 import { z } from 'zod';
 import { images } from '../providers';
 import { resolveE2BSandbox } from '../workspace';
+import { p } from '../workspace/path';
 
 const imageModel = createOpenAI({
   apiKey: images.apiKey,
@@ -13,7 +14,7 @@ const imageModel = createOpenAI({
 export const generateImageTool = createTool({
   id: 'generate_image',
   description:
-    'Generate one or more AI images from a prompt and write them into the sandbox. Use upload_file afterward to send them to Slack (defaults to the current thread; pass target for elsewhere) or process them first (resize, composite, edit) with other sandbox tools.',
+    'Generate one or more AI images from a prompt and write them into the sandbox downloads/ directory. Use upload_file afterward to send them to Slack (defaults to the current thread; pass target for elsewhere) or process them first (resize, composite, edit) with other sandbox tools.',
   inputSchema: z.object({
     prompt: z
       .string()
@@ -33,14 +34,8 @@ export const generateImageTool = createTool({
       )
       .optional()
       .describe('Optional aspect ratio like 16:9 or 1:1.'),
-    sandboxPath: z
-      .string()
-      .optional()
-      .describe(
-        'Directory in the sandbox to write images to. Defaults to generated-images/.'
-      ),
   }),
-  execute: async ({ prompt, n, aspectRatio, sandboxPath }, context) => {
+  execute: async ({ prompt, n, aspectRatio }, context) => {
     if (!context?.requestContext) {
       throw new Error('No workspace context.');
     }
@@ -58,7 +53,7 @@ export const generateImageTool = createTool({
     const total = result.images.length;
 
     await sandbox.ensureRunning();
-    const dir = (sandboxPath ?? 'generated-images').replace(/\/+$/, '');
+    const dir = p('downloads');
     await sandbox.retryOnDead(() => sandbox.e2b.files.makeDir(dir));
 
     const batch =
@@ -67,7 +62,7 @@ export const generateImageTool = createTool({
     const paths: string[] = [];
     for (const [index, image] of result.images.entries()) {
       const ext = image.mediaType.split('/').at(1) ?? 'png';
-      const path = `${dir}/gorkie-image-${batch}-${index + 1}.${ext}`;
+      const path = p('downloads', `gorkie-image-${batch}-${index + 1}.${ext}`);
       const buffer = Buffer.from(image.uint8Array);
       await sandbox.retryOnDead(() =>
         sandbox.e2b.files.write(

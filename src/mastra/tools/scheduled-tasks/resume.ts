@@ -11,12 +11,13 @@ export const resumeScheduledTaskTool = createTool({
   }),
   execute: async ({ id }, context) => {
     const service = heartbeats(context);
-    await findOwnedTask(service, { id, ...taskScope(context) });
+    const scope = taskScope(context);
+    await findOwnedTask(service, { id, resourceId: scope.resourceId });
     const updated = await service.resume(id);
 
     return {
       success: true,
-      task: formatTask(updated),
+      task: formatTask(updated, scope.resourceId),
       message: `Resumed scheduled task ${id}.`,
     };
   },

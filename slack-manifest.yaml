@@ -39,6 +39,7 @@ oauth_config:
       - team:read
       - users.profile:read
       - users:read
+      - emoji:read
 
 settings:
   event_subscriptions:

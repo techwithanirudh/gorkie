@@ -53,6 +53,7 @@
     "numpy",
     "opencode",
     "openrouter",
+    "partyparrot",
     "pgbin",
     "pgdata",
     "pooler",
@@ -68,6 +69,7 @@
     "sshx",
     "sriram",
     "stringifying",
+    "submatches",
     "supabase",
     "techwithanirudh",
     "termux",
@@ -80,6 +82,7 @@
     "VUSAEB",
     "webdev",
     "xapp",
+    "xoxc",
     "xoxb"
   ]
 }

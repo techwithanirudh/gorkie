@@ -10,7 +10,8 @@ export const deleteScheduledTaskTool = createTool({
   }),
   execute: async ({ id }, context) => {
     const service = heartbeats(context);
-    await findOwnedTask(service, { id, ...taskScope(context) });
+    const scope = taskScope(context);
+    await findOwnedTask(service, { id, resourceId: scope.resourceId });
     await service.delete(id);
 
     return {

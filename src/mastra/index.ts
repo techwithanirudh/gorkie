@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { Mastra } from '@mastra/core/mastra';
 import { MastraCompositeStore } from '@mastra/core/storage';
 import { DuckDBStore } from '@mastra/duckdb';
@@ -15,6 +16,23 @@ import { registerEvents } from './chat/events';
 import { setChat } from './chat/instance';
 import { logger } from './lib/logger';
 
+/**
+ * `mastra dev`'s actual server process runs with cwd set to its own dev
+ * public dir, and `mastra start` runs with cwd set to `.mastra/output` —
+ * neither is the repo root. A bare relative DuckDB path silently resolves
+ * to a different file per mode. Both CLI paths inject MASTRA_PROJECT_ROOT
+ * (the real repo root) as an env var specifically for this, so anchor to
+ * that instead of relying on cwd.
+ */
+const projectRoot = process.env.MASTRA_PROJECT_ROOT ?? process.cwd();
+
+process.on('unhandledRejection', (error: unknown) => {
+  logger.error('[process] unhandled rejection', { error });
+});
+process.on('uncaughtException', (error: Error) => {
+  logger.error('[process] uncaught exception', { error });
+});
+
 export const mastra = new Mastra({
   agents: { gorkieAgent, summarizerAgent },
   storage: new MastraCompositeStore({
@@ -25,7 +43,7 @@ export const mastra = new Mastra({
     }),
     domains: {
       observability: await new DuckDBStore({
-        path: './observability.duckdb',
+        path: join(projectRoot, 'observability.duckdb'),
       }).getStore('observability'),
     },
   }),

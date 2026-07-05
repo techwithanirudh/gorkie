@@ -1,7 +1,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { canAccessTask, heartbeats, taskScope } from './queries';
-import { AGENT_ID, formatTask, scheduledTaskKind } from './utils';
+import { agent } from '../../config';
+import { canViewTask, heartbeats, taskScope } from './queries';
+import { formatTask, scheduledTaskKind } from './utils';
 
 export const listScheduledTasksTool = createTool({
   id: 'list_scheduled_tasks',
@@ -10,20 +11,20 @@ export const listScheduledTasksTool = createTool({
   inputSchema: z.object({}),
   execute: async (_input, context) => {
     const scope = taskScope(context);
-    const tasks = await heartbeats(context).list({ agentId: AGENT_ID });
+    const tasks = await heartbeats(context).list({ agentId: agent.id });
     const visible = tasks.filter(
       (task) =>
-        task.metadata?.kind === scheduledTaskKind && canAccessTask(task, scope)
+        task.metadata?.kind === scheduledTaskKind && canViewTask(task, scope)
     );
 
     return {
       success: true,
       count: visible.length,
-      tasks: visible.map(formatTask),
+      tasks: visible.map((task) => formatTask(task, scope.resourceId)),
       message:
         visible.length === 0
           ? 'No recurring scheduled tasks found.'
-          : `Found ${visible.length} recurring scheduled task${visible.length === 1 ? '' : 's'}.`,
+          : `Found ${visible.length} recurring scheduled task${visible.length === 1 ? '' : 's'}. Only the creator (canManage: true) can pause, resume, or delete each one.`,
     };
   },
 });

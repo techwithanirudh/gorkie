@@ -17,12 +17,14 @@
     "check:unsafe": "ultracite fix --unsafe .",
     "check:write": "ultracite fix .",
     "fix": "ultracite fix .",
-    "prepare": "lefthook install"
+    "prepare": "lefthook install",
+    "postinstall": "bun run scripts/verify-mastra-patch.ts"
   },
   "patchedDependencies": {
     "@mastra/core@1.50.0-alpha.1": "patches/@mastra+core@1.50.0-alpha.1.patch"
   },
   "dependencies": {
+    "@ai-sdk/openai": "3",
     "@chat-adapter/slack": "^4.31.0",
     "@chat-adapter/state-pg": "^4.31.0",
     "@mastra/core": "^1.50.0-alpha.1",
@@ -37,7 +39,6 @@
     "@t3-oss/env-core": "^0.13.11",
     "ai": "^6.0.219",
     "chat": "^4.31.0",
-    "croner": "^10.0.1",
     "dotenv": "^17.4.2",
     "e2b": "^2.31.0",
     "exa-js": "^2.15.0",

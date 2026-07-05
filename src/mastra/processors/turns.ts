@@ -2,6 +2,7 @@ import type {
   ProcessOutputResultArgs,
   ProcessOutputStepArgs,
 } from '@mastra/core/processors';
+import { Card, CardText } from 'chat';
 import { slack } from '../chat/client';
 import { clip } from '../lib/clip';
 import { channelContext } from '../lib/context';
@@ -25,16 +26,20 @@ export const turns = {
     const ctx = channelContext(args.requestContext);
     const threadId = ctx.threadId;
 
-    let skipped = false;
     for (const step of args.result.steps ?? []) {
       for (const { payload } of step.toolResults ?? []) {
-        logger.info('[tool] result', {
-          threadId,
-          tool: payload.toolName,
-          output: clip(payload.result),
-        });
-        if (payload.toolName === 'skip') {
-          skipped = true;
+        if (payload.isError) {
+          logger.warn('[tool] error', {
+            threadId,
+            tool: payload.toolName,
+            error: clip(payload.result),
+          });
+        } else {
+          logger.info('[tool] result', {
+            threadId,
+            tool: payload.toolName,
+            output: clip(payload.result),
+          });
         }
       }
     }
@@ -43,11 +48,29 @@ export const turns = {
       finishReason: args.result.finishReason,
       steps: args.result.steps?.length ?? 0,
     });
-    if (threadId && ctx.platform === 'slack' && !skipped) {
+
+    const hasTextResponse = args.result.text.trim().length > 0;
+    const hasToolCall = (args.result.steps ?? []).some(
+      (step) => (step.toolResults ?? []).length > 0
+    );
+    if (
+      threadId &&
+      ctx.platform === 'slack' &&
+      (hasTextResponse || hasToolCall)
+    ) {
       await slack
         .postMessage(
           threadId,
-          '_Gorkie may make mistakes. Double-check important information._'
+          Card({
+            children: [
+              CardText(
+                'gorkie may make mistakes. double-check important information.',
+                {
+                  style: 'muted',
+                }
+              ),
+            ],
+          })
         )
         .catch((error: unknown) =>
           logger.warn('[chat] failed to post completion footer', {

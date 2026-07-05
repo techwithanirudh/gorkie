@@ -20,7 +20,7 @@ One Mastra `Agent` (`gorkieAgent`) serves Slack through Mastra's built-in `chann
 
 The agent brain runs on the host. Code execution runs in a per-thread **E2B** sandbox (isolated cloud Linux VM). Model keys, Slack tokens, and DB credentials live on the host and never enter the sandbox.
 
-Storage is **Postgres** (agent memory, channel state). Long-term memory is **Observational Memory**, thread-scoped. Observability traces live in a local **DuckDB** file (`observability.duckdb`, wired via `MastraCompositeStore` domain override in `src/mastra/index.ts`): it works and is the ground truth for debugging what the model actually received and returned. Query it read-only (e.g. `duckdb -readonly`) while the dev server is stopped; DuckDB is single-writer, so a running `mastra dev`/`mastra start` holds the lock.
+Storage is **Postgres** (agent memory, channel state). Long-term memory is **Observational Memory**, thread-scoped. Observability traces live in a local **DuckDB** file at the repo root (`observability.duckdb`, wired via `MastraCompositeStore` domain override in `src/mastra/index.ts`, path anchored to `MASTRA_PROJECT_ROOT` so it's the same file under both `mastra dev` and `mastra start`): it works and is the ground truth for debugging what the model actually received and returned. Query it read-only (e.g. `duckdb -readonly`) while the dev server is stopped; DuckDB is single-writer, so a running `mastra dev`/`mastra start` holds the lock. When no server is running, hit `http://localhost:4111/api/observability/traces` on whatever instance the user already has up instead of starting your own (see Boundaries).
 
 ## Boundaries
 
@@ -29,6 +29,7 @@ Storage is **Postgres** (agent memory, channel state). Long-term memory is **Obs
 - Never hand-roll what channels already does (streaming, history fetch, multi-user prefixes). Control it through `handlers`, `threadContext`, and subscription state.
 - Never read `process.env` outside `src/env.ts`.
 - Ask first: dependency changes, schema-shape changes, destructive git operations.
+- Never start, restart, or kill `mastra dev`/`mastra start`/the built server on your own initiative. This is a live Slack bot; the user runs it themselves, and two instances racing for the same Slack Socket Mode connection causes real, confusing failures. If you must verify a code change actually works, ask the user to test it in their own running instance, or use `mastra api` against whatever they already have running instead of launching a new process.
 
 ## Coding Rules
 

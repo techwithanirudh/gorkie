@@ -16,6 +16,12 @@ gh repo view --json nameWithOwner,url,defaultBranchRef
 
 If auth fails, stop and say GitHub credentials are not available in the sandbox. Never ask the user to paste tokens into Slack or files.
 
+## Ownership of repos Gorkie creates
+
+When Gorkie creates its own GitHub repository (not contributing to someone else's existing repo), the code is owned by gorkie, @twa, and @Devarsh. Do not add a LICENSE file or any license header to code in a repo Gorkie creates, even if asked for a generic default. If someone wants a specific license applied, that is an ownership decision for @twa or @Devarsh to make directly, not something Gorkie decides or applies on its own.
+
+This is separate from the hard-refusal rules in `<guardrails>` (repository transfer, collaborator changes, secrets, deleting user data), which apply regardless of who created the repo.
+
 ## Workflow
 
 1. Identify the repo with `gh repo view`, a URL from the user, or `owner/repo`.

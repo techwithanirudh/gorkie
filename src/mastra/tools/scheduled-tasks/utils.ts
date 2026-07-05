@@ -1,9 +1,11 @@
 import type { Heartbeat } from '@mastra/core/agent';
 
-export const AGENT_ID = 'gorkie';
-export const scheduledTaskKind = 'gorkie-scheduled-task';
+export const scheduledTaskKind = 'scheduled-task';
 
-export function formatTask(task: Heartbeat): Record<string, unknown> {
+export function formatTask(
+  task: Heartbeat,
+  currentResourceId?: string
+): Record<string, unknown> {
   const createdIn = task.metadata?.createdIn as
     | { threadId?: string }
     | undefined;
@@ -19,5 +21,9 @@ export function formatTask(task: Heartbeat): Record<string, unknown> {
       : undefined,
     threadId: createdIn?.threadId ?? task.threadId,
     task: task.metadata?.task,
+    createdBy: task.metadata?.createdBy,
+    canManage: currentResourceId
+      ? task.resourceId === currentResourceId
+      : undefined,
   };
 }
