@@ -18,16 +18,19 @@
     "check:write": "ultracite fix .",
     "fix": "ultracite fix .",
     "prepare": "lefthook install",
-    "postinstall": "bun run scripts/verify-mastra-patch.ts"
+    "postinstall": "bun run scripts/verify-patches.ts"
   },
   "patchedDependencies": {
-    "@mastra/core@1.50.0-alpha.1": "patches/@mastra+core@1.50.0-alpha.1.patch"
+    "@mastra/core@1.50.0-alpha.2": "patches/@mastra+core@1.50.0-alpha.2.patch"
+  },
+  "overrides": {
+    "chat": "^4.32.0"
   },
   "dependencies": {
     "@ai-sdk/openai": "3",
-    "@chat-adapter/slack": "^4.31.0",
-    "@chat-adapter/state-pg": "^4.31.0",
-    "@mastra/core": "^1.50.0-alpha.1",
+    "@chat-adapter/slack": "^4.32.0",
+    "@chat-adapter/state-pg": "^4.32.0",
+    "@mastra/core": "^1.50.0-alpha.2",
     "@mastra/duckdb": "1.5.0",
     "@mastra/e2b": "0.5.0",
     "@mastra/langfuse": "1.4.2",
@@ -38,25 +41,25 @@
     "@openrouter/ai-sdk-provider": "^2.10.0",
     "@t3-oss/env-core": "^0.13.11",
     "ai": "^6.0.219",
-    "chat": "^4.31.0",
+    "chat": "^4.32.0",
     "dotenv": "^17.4.2",
     "e2b": "^2.31.0",
-    "exa-js": "^2.15.0",
+    "exa-js": "^2.16.0",
     "mime-types": "^3.0.2",
     "zod": "^4"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.16",
-    "@commitlint/cli": "^21.1.0",
-    "@commitlint/config-conventional": "^21.1.0",
-    "@commitlint/types": "^21.1.0",
+    "@biomejs/biome": "2.5.2",
+    "@commitlint/cli": "^21.2.0",
+    "@commitlint/config-conventional": "^21.2.0",
+    "@commitlint/types": "^21.2.0",
     "@types/bun": "latest",
     "@types/mime-types": "^3.0.1",
-    "@types/node": "^26.0.1",
+    "@types/node": "^26.1.0",
     "cspell": "^10.0.1",
     "lefthook": "^2.1.9",
     "mastra": "1.18.0",
-    "ultracite": "7.8.3"
+    "ultracite": "7.9.0"
   },
   "peerDependencies": {
     "typescript": "^6.0.3"

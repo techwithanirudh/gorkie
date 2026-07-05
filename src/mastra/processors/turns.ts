@@ -64,14 +64,14 @@ export const turns = {
     });
 
     const hasTextResponse = args.result.text.trim().length > 0;
-    const hasToolCall = (args.result.steps ?? []).some(
-      (step) => (step.toolResults ?? []).length > 0
+    const hasVisibleToolCall = (args.result.steps ?? []).some((step) =>
+      (step.toolResults ?? []).some(({ payload }) => payload.toolName !== 'skip')
     );
 
     if (
       threadId &&
       ctx.platform === 'slack' &&
-      (hasTextResponse || hasToolCall)
+      (hasTextResponse || hasVisibleToolCall)
     ) {
       const parts: string[] = [];
 

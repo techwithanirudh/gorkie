@@ -1,26 +1,36 @@
 --- a/dist/chunk-B3SHPOO6.js
 +++ b/dist/chunk-B3SHPOO6.js
-@@ -3099,6 +3099,10 @@
+@@ -3099,6 +3099,15 @@
                  }
                }
              }
 +          } else if (part.type === "file") {
 +            const mediaType = typeof part.mediaType === "string" ? part.mediaType : "";
 +            tokenString += `${part.filename ?? ""}${mediaType}`;
-+            overhead += mediaType.startsWith("image/") ? 765 : 258;
++            const url = typeof part.url === "string" ? part.url : "";
++            const base64Length = url.includes(",") ? url.length - url.indexOf(",") - 1 : url.length;
++            const estimatedBytes = Math.floor(base64Length * 3 / 4);
++            const bySize = Math.round(estimatedBytes / 750);
++            const fallback = mediaType.startsWith("image/") ? 765 : 258;
++            overhead += bySize > 0 ? Math.max(200, Math.min(4000, bySize)) : fallback;
            } else {
              tokenString += JSON.stringify(part);
            }
 --- a/dist/chunk-P6SA5MPH.cjs
 +++ b/dist/chunk-P6SA5MPH.cjs
-@@ -3131,6 +3131,10 @@
+@@ -3131,6 +3131,15 @@
                  }
                }
              }
 +          } else if (part.type === "file") {
 +            const mediaType = typeof part.mediaType === "string" ? part.mediaType : "";
 +            tokenString += `${part.filename ?? ""}${mediaType}`;
-+            overhead += mediaType.startsWith("image/") ? 765 : 258;
++            const url = typeof part.url === "string" ? part.url : "";
++            const base64Length = url.includes(",") ? url.length - url.indexOf(",") - 1 : url.length;
++            const estimatedBytes = Math.floor(base64Length * 3 / 4);
++            const bySize = Math.round(estimatedBytes / 750);
++            const fallback = mediaType.startsWith("image/") ? 765 : 258;
++            overhead += bySize > 0 ? Math.max(200, Math.min(4000, bySize)) : fallback;
            } else {
              tokenString += JSON.stringify(part);
            }
