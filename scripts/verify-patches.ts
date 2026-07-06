@@ -2,11 +2,11 @@ import { existsSync, readFileSync } from 'node:fs';
 
 const CHECKS = [
   {
-    file: 'node_modules/@mastra/core/dist/chunk-B3SHPOO6.js',
+    file: 'node_modules/@mastra/core/dist/chunk-WNAR4CR3.js',
     signature: 'part.type === "file"',
   },
   {
-    file: 'node_modules/@mastra/core/dist/chunk-P6SA5MPH.cjs',
+    file: 'node_modules/@mastra/core/dist/chunk-EMMWR65D.cjs',
     signature: 'part.type === "file"',
   },
 ];
@@ -15,14 +15,14 @@ let ok = true;
 for (const { file, signature } of CHECKS) {
   if (!existsSync(file)) {
     console.error(
-      `[verify-mastra-patch] Missing file: ${file} (chunk names are content-hashed — this usually means @mastra/core's version changed and the hash moved).`
+      `[verify-patches] Missing file: ${file} (chunk names are content-hashed — this usually means @mastra/core's version changed and the hash moved).`
     );
     ok = false;
     continue;
   }
   if (!readFileSync(file, 'utf8').includes(signature)) {
     console.error(
-      `[verify-mastra-patch] Patch not applied to ${file} — expected to find "${signature}".`
+      `[verify-patches] Patch not applied to ${file} — expected to find "${signature}".`
     );
     ok = false;
   }
@@ -30,7 +30,7 @@ for (const { file, signature } of CHECKS) {
 
 if (!ok) {
   console.error(
-    '\n[verify-mastra-patch] patches/@mastra+core@1.50.0-alpha.1.patch did not apply.\n' +
+    '\n[verify-patches] patches/@mastra+core@1.50.0-alpha.2.patch did not apply.\n' +
       "This usually means @mastra/core's installed version no longer matches the patchedDependencies key in package.json.\n" +
       'See TODO.md ("read_file tool-result images never reach the model") for what this patch fixes and why.\n' +
       'Fix: re-derive the patch against the new version (fetch a pristine tarball, reapply the same edits, regenerate the diff), then update the patchedDependencies key.\n'
@@ -38,4 +38,4 @@ if (!ok) {
   process.exit(1);
 }
 
-console.log('[verify-mastra-patch] @mastra/core patch verified OK.');
+console.log('[verify-patches] @mastra/core patch verified OK.');

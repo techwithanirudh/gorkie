@@ -3,7 +3,8 @@
   "assist": {
     "actions": {
       "source": {
-        "organizeImports": "on"
+        "organizeImports": "on",
+        "useSortedKeys": "off"
       }
     }
   },
@@ -60,8 +61,12 @@
         "noNamespaceImport": "off",
         "useTopLevelRegex": "off"
       },
+      "style": {
+        "noIncrementDecrement": "off"
+      },
       "suspicious": {
-        "noEmptyBlockStatements": "error"
+        "noEmptyBlockStatements": "error",
+        "noShadow": "off"
       }
     }
   },

@@ -31,11 +31,10 @@ export const gorkieAgent = new Agent({
   model: orchestrator,
   defaultOptions: {
     modelSettings: { maxOutputTokens: config.maxTokens.output },
-    stopWhen: [toolCall('skip'), stepCountIs(150)],
+    stopWhen: [toolCall('skip'), stepCountIs(200)],
   },
   workspace,
   inputProcessors: [
-    // TODO: Learn about TokenLimiterProcessor and it's modes
     new TokenLimiterProcessor({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',

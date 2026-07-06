@@ -94,12 +94,11 @@ export const grepTool = createTool({
     const command = `rg ${args.join(' ')}`;
     let stdout: string;
     try {
-      const result = await sandbox.retryOnDead(() =>
+      ({ stdout } = await sandbox.retryOnDead(() =>
         sandbox.e2b.commands.run(command, {
           timeoutMs: 30 * 1000,
         })
-      );
-      stdout = result.stdout;
+      ));
     } catch (error) {
       // rg exits 1 for "no matches" (not an error) and 2 for real errors
       // (e.g. invalid regex); E2B throws CommandExitError on any non-zero exit.
@@ -116,7 +115,8 @@ export const grepTool = createTool({
         };
       }
       throw new Error(
-        `grep failed (exit ${exit.exitCode}): ${exit.stderr || exit.stdout || String(error)}`
+        `grep failed (exit ${exit.exitCode}): ${exit.stderr || exit.stdout || String(error)}`,
+        { cause: error }
       );
     }
 
@@ -147,12 +147,12 @@ export const grepTool = createTool({
         fileOrder.push(filePath.text);
       }
       if (record.type === 'match') {
-        matchCount++;
+        matchCount += 1;
         fileLines.push(`  Line ${lineNumber}: ${text}`);
       } else {
         fileLines.push(`  Line ${lineNumber}- ${text}`);
       }
-      lineCount++;
+      lineCount += 1;
       if (lineCount >= MAX_OUTPUT_LINES) {
         truncated = true;
         break;

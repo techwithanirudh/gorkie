@@ -1,8 +1,6 @@
 import type { Message } from 'chat';
 import { z } from 'zod';
 
-const leadingMentions = /^\s*(?:<@[A-Z0-9][A-Z0-9._-]*(?:\|[^>]+)?>\s*)+/;
-
 const slackRawText = z.looseObject({ text: z.string() });
 
 export function rawText(message: Message): string {
@@ -11,5 +9,5 @@ export function rawText(message: Message): string {
 }
 
 export function withoutLeadingMentions(text: string): string {
-  return text.replace(leadingMentions, '');
+  return text.replace(/^\s*(?:<@[A-Z0-9][A-Z0-9._-]*(?:\|[^>]+)?>\s*)+/, '');
 }

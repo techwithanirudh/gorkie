@@ -107,7 +107,7 @@ export class E2BFilesystem extends MastraFilesystem {
         throw error;
       }
       if (this.isNotFound(error)) {
-        throw new FileNotFoundError(inputPath);
+        throw this.withCause(new FileNotFoundError(inputPath), error);
       }
       throw error;
     }
@@ -203,7 +203,7 @@ export class E2BFilesystem extends MastraFilesystem {
       }
       if (this.isNotFound(error)) {
         if (!options?.force) {
-          throw new FileNotFoundError(inputPath);
+          throw this.withCause(new FileNotFoundError(inputPath), error);
         }
         return;
       }
@@ -246,7 +246,7 @@ export class E2BFilesystem extends MastraFilesystem {
         throw error;
       }
       if (this.isNotFound(error)) {
-        throw new FileNotFoundError(src);
+        throw this.withCause(new FileNotFoundError(src), error);
       }
       throw error;
     }
@@ -273,7 +273,7 @@ export class E2BFilesystem extends MastraFilesystem {
       await this.e2b(() => this.sandbox.e2b.files.rename(srcPath, destPath));
     } catch (error) {
       if (this.isNotFound(error)) {
-        throw new FileNotFoundError(src);
+        throw this.withCause(new FileNotFoundError(src), error);
       }
       throw error;
     }
@@ -335,7 +335,7 @@ export class E2BFilesystem extends MastraFilesystem {
       }
       if (this.isNotFound(error)) {
         if (!options?.force) {
-          throw new DirectoryNotFoundError(inputPath);
+          throw this.withCause(new DirectoryNotFoundError(inputPath), error);
         }
         return;
       }
@@ -392,7 +392,7 @@ export class E2BFilesystem extends MastraFilesystem {
         throw error;
       }
       if (this.isNotFound(error)) {
-        throw new DirectoryNotFoundError(inputPath);
+        throw this.withCause(new DirectoryNotFoundError(inputPath), error);
       }
       throw error;
     }
@@ -413,7 +413,7 @@ export class E2BFilesystem extends MastraFilesystem {
       info = await this.e2b(() => this.sandbox.e2b.files.getInfo(filePath));
     } catch (error) {
       if (this.isNotFound(error)) {
-        throw new FileNotFoundError(inputPath);
+        throw this.withCause(new FileNotFoundError(inputPath), error);
       }
       throw error;
     }
@@ -485,7 +485,10 @@ export class E2BFilesystem extends MastraFilesystem {
         throw error;
       }
       if (this.isNotFound(error)) {
-        throw new DirectoryNotFoundError(path.posix.dirname(inputPath));
+        throw this.withCause(
+          new DirectoryNotFoundError(path.posix.dirname(inputPath)),
+          error
+        );
       }
       throw error;
     }
@@ -512,5 +515,10 @@ export class E2BFilesystem extends MastraFilesystem {
       (error instanceof Error && error.name === 'FileNotFoundError') ||
       (error instanceof Error && error.message.includes('[not_found]'))
     );
+  }
+
+  private withCause<T extends Error>(error: T, cause: unknown): T {
+    error.cause = cause;
+    return error;
   }
 }

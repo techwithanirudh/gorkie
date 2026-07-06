@@ -69,15 +69,15 @@ For unfamiliar names, acronyms, projects, links, screenshots, or "what is X" que
 <name>search_slack</name>
 <description>Search Slack for past messages, decisions, links, people, or internal references outside the current thread.</description>
 <note>
-Use query with keywords, names, channels, and dates. 
-For unfamiliar references, you MUST pair this with search_web and compare the results before answering. 
+Use query with keywords, names, channels, and dates. For from:/to:, use the person's Slack username, NOT their raw user id, from:U0123ABCD will not match.
+For unfamiliar references, you MUST pair this with search_web and compare the results before answering.
 If unavailable because the user did not @mention you, use web search and say you need an @mention to check Slack history.
 </note>
 </tool>
 
 <tool>
 <name>get_file</name>
-<description>Download a Slack file that is not on the current message, such as an earlier upload, snippet, image, canvas, link, or file id, into the sandbox. Also downloads a custom emoji image by shortcode (e.g. :partyparrot:).</description>
+<description>Download a Slack file that is not on the current message, such as an earlier upload, snippet, image, canvas, link, or file id, into the sandbox.</description>
 <note>When saving images, ALWAYS preserve or provide a useful filename extension like .png, .jpg, .jpeg, or .webp so read_file can infer MIME type.</note>
 </tool>
 

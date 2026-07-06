@@ -4,11 +4,11 @@ import { clip } from '../lib/clip';
 import { logger } from '../lib/logger';
 
 const childChunk = z.looseObject({
-  type: z.enum(['tool-call', 'tool-result', 'tool-error']),
   payload: z.looseObject({
     toolCallId: z.string(),
     toolName: z.string(),
   }),
+  type: z.enum(['tool-call', 'tool-result', 'tool-error']),
 });
 
 export const delegates = {
@@ -18,7 +18,7 @@ export const delegates = {
     if (part.type !== 'tool-output') {
       return part;
     }
-    const output = part.payload.output;
+    const { output } = part.payload;
     const child = childChunk.safeParse(output);
     if (!child.success) {
       return part;
@@ -43,6 +43,7 @@ export const delegates = {
       ...output,
       payload: {
         ...output.payload,
+        toolCallId: `${part.payload.toolCallId}::${child.data.payload.toolCallId}`,
         toolName: `${part.payload.toolName ?? 'agent'}_${child.data.payload.toolName}`,
       },
     };

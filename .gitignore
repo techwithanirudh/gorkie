@@ -55,3 +55,6 @@ dist
 
 # logs
 *.log
+
+# wayfinder
+.wayfinder

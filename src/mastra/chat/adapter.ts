@@ -9,11 +9,10 @@ export class GorkieSlackAdapter extends SlackAdapter {
   ) {
     const mentionNames = new Map<string, string>();
     const missingIds = new Set<string>();
-    const botUserId = this.botUserId;
+    const { botUserId } = this;
 
     for (const mention of text.matchAll(mentionPattern)) {
-      const userId = mention[1];
-      const label = mention[2];
+      const [, userId, label] = mention;
       if (
         !userId ||
         mentionNames.has(userId) ||

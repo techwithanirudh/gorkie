@@ -26,8 +26,8 @@ function opencode(id: `${string}/${string}`): ModelConfig {
 }
 
 export const orchestrator: ModelWithRetries[] = [
-  { model: opencode('opencode-go/kimi-k2.6'), maxRetries: 3 },
-  ...gateways('openrouter/moonshotai/kimi-k2.6').map((model) => ({
+  { model: opencode('opencode-go/kimi-k2.7-code'), maxRetries: 3 },
+  ...gateways('openrouter/moonshotai/kimi-k2.7-code').map((model) => ({
     model,
     maxRetries: 3,
     providerOptions: {
@@ -39,6 +39,22 @@ export const orchestrator: ModelWithRetries[] = [
 export const summarizer: ModelWithRetries[] = [
   { model: opencode('opencode-go/deepseek-v4-flash'), maxRetries: 3 },
   ...gateways('openrouter/google/gemini-2.5-flash').map((model) => ({
+    model,
+    maxRetries: 3,
+  })),
+];
+
+export const scout: ModelWithRetries[] = [
+  { model: opencode('opencode-go/deepseek-v4-flash'), maxRetries: 3 },
+  ...gateways('openrouter/deepseek/deepseek-v4-flash').map((model) => ({
+    model,
+    maxRetries: 3,
+  })),
+];
+
+export const explorer: ModelWithRetries[] = [
+  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
+  ...gateways('openrouter/minimax/minimax-m3').map((model) => ({
     model,
     maxRetries: 3,
   })),

@@ -27,7 +27,7 @@ export const getChannelInfoTool = createTool({
       isDM: info.isDM ?? false,
       memberCount: info.memberCount,
       channelVisibility: info.channelVisibility,
-      message: `${info.isDM ? 'DM' : `#${info.name ?? info.id}`}${info.memberCount == null ? '' : `, ${info.memberCount} members`}.`,
+      message: `${info.isDM ? 'DM' : (info.name ?? `#${info.id}`)}${info.memberCount === undefined ? '' : `, ${info.memberCount} members`}.`,
     };
   },
 });

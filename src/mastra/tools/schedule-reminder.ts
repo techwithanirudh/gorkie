@@ -23,7 +23,7 @@ export const scheduleReminderTool = createTool({
       .describe('How many seconds from now to send the reminder.'),
   }),
   execute: async ({ text, seconds }, context) => {
-    const userId = channelContext(context?.requestContext).userId;
+    const { userId } = channelContext(context?.requestContext);
     if (!userId) {
       throw new Error('No user to remind.');
     }

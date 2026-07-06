@@ -59,22 +59,26 @@ export const generateImageTool = createTool({
     const batch =
       context.agent?.toolCallId.replace(/[^\w-]/g, '').slice(-8) ||
       Date.now().toString(36);
-    const paths: string[] = [];
-    for (const [index, image] of result.images.entries()) {
-      const ext = image.mediaType.split('/').at(1) ?? 'png';
-      const path = p('downloads', `gorkie-image-${batch}-${index + 1}.${ext}`);
-      const buffer = Buffer.from(image.uint8Array);
-      await sandbox.retryOnDead(() =>
-        sandbox.e2b.files.write(
-          path,
-          buffer.buffer.slice(
-            buffer.byteOffset,
-            buffer.byteOffset + buffer.byteLength
+    const paths = await Promise.all(
+      result.images.map(async (image, index) => {
+        const ext = image.mediaType.split('/').at(1) ?? 'png';
+        const path = p(
+          'downloads',
+          `gorkie-image-${batch}-${index + 1}.${ext}`
+        );
+        const buffer = Buffer.from(image.uint8Array);
+        await sandbox.retryOnDead(() =>
+          sandbox.e2b.files.write(
+            path,
+            buffer.buffer.slice(
+              buffer.byteOffset,
+              buffer.byteOffset + buffer.byteLength
+            )
           )
-        )
-      );
-      paths.push(path);
-    }
+        );
+        return path;
+      })
+    );
 
     return {
       success: true,

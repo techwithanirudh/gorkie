@@ -10,7 +10,7 @@ function mermaidImageUrl(code: string): string {
     .toString('base64')
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
-    .replace(/=+$/, '');
+    .replace(/[=]+$/, '');
 
   return `https://mermaid.ink/img/pako:${base64}?type=png`;
 }
@@ -35,7 +35,7 @@ export const mermaidTool = createTool({
       .describe('Optional title shown with the uploaded diagram.'),
   }),
   execute: async ({ code, title }, context) => {
-    const threadId = channelContext(context?.requestContext).threadId;
+    const { threadId } = channelContext(context?.requestContext);
     if (!threadId) {
       throw new Error('No current thread to upload to.');
     }

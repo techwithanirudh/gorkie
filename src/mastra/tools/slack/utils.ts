@@ -30,6 +30,7 @@ async function isChannelMember(
   const channel = rawId(channelId);
   let cursor: string | undefined;
   do {
+    // biome-ignore lint/performance/noAwaitInLoops: each page's cursor comes from the previous response, so this can't be parallelized.
     const response = await slack.webClient.conversations.members({
       channel,
       limit: 1000,
@@ -90,10 +91,10 @@ export function formatMessage(message: Message) {
       isBot: message.author.isBot,
       isMe: message.author.isMe,
     },
-    dateSent: message.metadata.dateSent?.toISOString(),
+    dateSent: message.metadata.dateSent.toISOString(),
     edited: message.metadata.edited,
     isMention: message.isMention,
-    attachments: (message.attachments ?? []).map((a) => ({
+    attachments: message.attachments.map((a) => ({
       type: a.type,
       name: a.name,
       mimeType: a.mimeType,

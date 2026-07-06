@@ -3,11 +3,13 @@ import {
   ProviderHistoryCompat,
   TokenLimiterProcessor,
 } from '@mastra/core/processors';
+import { InMemoryStore } from '@mastra/core/storage';
+import { Memory } from '@mastra/memory';
 import { agent as config } from '../config';
 import { stepCountIs } from '../lib/tools';
 import { sandbox } from '../processors/sandbox';
 import { relocateToolResultImages } from '../processors/tool-media';
-import { orchestrator } from '../providers';
+import { explorer } from '../providers';
 import { baseTools } from '../tools/base';
 import { workspace } from '../workspace';
 
@@ -17,8 +19,11 @@ export const exploreAgent = new Agent({
   description:
     'Reads workspace files and gathers implementation context without making changes.',
   instructions:
-    'You are Explore. Inspect the workspace and gather context. Do not modify files, delete files, upload files, post messages, or run risky commands. Return concise findings with file paths, facts, and uncertainties.',
-  model: orchestrator,
+    'You are Explore. Inspect the workspace and gather context. Do not modify files, delete files, upload files, post messages, or run risky commands. Keep total tool calls under 300, then write up your findings. Return concise findings with file paths, facts, and uncertainties.',
+  model: explorer,
+  // In-memory only: every delegate call is a fresh, one-shot thread that's
+  // never revisited, so there's no reason to persist it to real storage.
+  memory: new Memory({ storage: new InMemoryStore() }),
   workspace,
   tools: baseTools,
   inputProcessors: [
@@ -45,7 +50,7 @@ export const exploreAgent = new Agent({
       'get_channel_info',
     ],
     modelSettings: { maxOutputTokens: 16_384 },
-    stopWhen: stepCountIs(80),
+    stopWhen: stepCountIs(400),
   },
   outputProcessors: [sandbox],
 });

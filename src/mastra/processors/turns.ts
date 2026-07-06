@@ -1,4 +1,3 @@
-import type { Mastra } from '@mastra/core/mastra';
 import type {
   ProcessOutputResultArgs,
   ProcessOutputStepArgs,
@@ -9,15 +8,16 @@ import { clip } from '../lib/clip';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
 
-let mastraInstance: Mastra | undefined;
+const compactTokens = new Intl.NumberFormat('en', {
+  compactDisplay: 'short',
+  notation: 'compact',
+});
 
 export const turns = {
   id: 'turns',
-  __registerMastra(mastra: Mastra) {
-    mastraInstance = mastra;
-  },
+  name: 'Turn Logging',
   processOutputStep(args: ProcessOutputStepArgs) {
-    const threadId = channelContext(args.requestContext).threadId;
+    const { threadId } = channelContext(args.requestContext);
     for (const call of args.toolCalls ?? []) {
       logger.info('[tool] call', {
         threadId,
@@ -30,9 +30,9 @@ export const turns = {
   },
   async processOutputResult(args: ProcessOutputResultArgs) {
     const ctx = channelContext(args.requestContext);
-    const threadId = ctx.threadId;
+    const { threadId } = ctx;
 
-    for (const step of args.result.steps ?? []) {
+    for (const step of args.result.steps) {
       for (const { payload } of step.toolResults ?? []) {
         if (payload.isError) {
           logger.warn('[tool] error', {
@@ -50,7 +50,7 @@ export const turns = {
       }
     }
 
-    const usage = args.result.usage;
+    const { usage } = args.result;
     const inputTokens = usage?.inputTokens ?? 0;
     const outputTokens = usage?.outputTokens ?? 0;
     const totalTokens = usage?.totalTokens ?? 0;
@@ -58,28 +58,31 @@ export const turns = {
     logger.info('[turn] final finished', {
       threadId,
       finishReason: args.result.finishReason,
-      steps: args.result.steps?.length ?? 0,
+      steps: args.result.steps.length,
       inputTokens,
       outputTokens,
     });
 
     const hasTextResponse = args.result.text.trim().length > 0;
-    const hasToolCall = (args.result.steps ?? []).some(
-      (step) => (step.toolResults ?? []).length > 0
+    const silentTools = new Set(['skip', 'add_reaction', 'remove_reaction']);
+    const hasVisibleToolCall = args.result.steps.some((step) =>
+      (step.toolResults ?? []).some(
+        ({ payload }) => !silentTools.has(payload.toolName)
+      )
     );
 
     if (
       threadId &&
       ctx.platform === 'slack' &&
-      (hasTextResponse || hasToolCall)
+      (hasTextResponse || hasVisibleToolCall)
     ) {
       const parts: string[] = [];
 
       if (totalTokens > 0) {
-        parts.push(`${totalTokens} tok`);
+        parts.push(`${compactTokens.format(totalTokens)} tok`);
       }
 
-      const startTime = args.state.startTime;
+      const { startTime } = args.state;
       if (typeof startTime === 'number') {
         const elapsedMs = Date.now() - startTime;
         const elapsedSec = elapsedMs / 1000;
@@ -89,7 +92,8 @@ export const turns = {
         }
       }
 
-      const obsStore = mastraInstance?.getStorage()?.stores?.observability;
+      const obsStore = args.agent?.getMastraInstance()?.getStorage()
+        ?.stores?.observability;
       if (obsStore) {
         try {
           const traceId = args.tracing?.currentSpan?.traceId;
@@ -116,7 +120,7 @@ export const turns = {
               parts.push(`$${costStr} ${costUnit}`);
             }
           }
-        } catch (e) {
+        } catch {
           /* cost query failed */
         }
       }

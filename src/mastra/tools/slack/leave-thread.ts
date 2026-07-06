@@ -9,7 +9,7 @@ export const leaveThreadTool = createTool({
     'Leave the current thread: stop auto-responding to its messages. Use this when asked to stop following a thread, be quiet, or let people talk without you. You can still be pinged back with a direct @mention.',
   inputSchema: z.object({}),
   execute: async (_input, context) => {
-    const threadId = channelContext(context?.requestContext).threadId;
+    const { threadId } = channelContext(context?.requestContext);
     if (!threadId) {
       throw new Error('No current thread.');
     }

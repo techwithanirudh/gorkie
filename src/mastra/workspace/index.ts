@@ -24,7 +24,7 @@ export const workspace: Workspace = new Workspace({
   id: 'gorkie-workspace',
   name: 'gorkie',
   sandbox: ({ requestContext }) => {
-    const threadId = channelContext(requestContext).threadId;
+    const { threadId } = channelContext(requestContext);
     if (!threadId) {
       throw new Error('No thread id available for workspace.');
     }

@@ -70,14 +70,20 @@ export const searchSlackTool = createTool({
   description:
     'Search Slack messages for past conversations, decisions, links, people, or internal references outside the current thread. Use specific queries (keywords, names, channels, dates). For unfamiliar references and "what is X" questions, pair this with search_web and compare results before answering.',
   inputSchema: z.object({
-    query: z.string().min(1).max(500),
+    query: z
+      .string()
+      .min(1)
+      .max(500)
+      .describe(
+        'Slack search syntax (e.g. "deploy issue in:#eng", "from:alex budget"). For from:/to:, use the person\'s Slack username, NOT their raw user id (from:U0123ABCD will not match).'
+      ),
     cursor: z
       .string()
       .optional()
       .describe('Cursor from a previous result page.'),
   }),
   execute: async ({ query, cursor }, context) => {
-    const threadId = channelContext(context?.requestContext).threadId;
+    const { threadId } = channelContext(context?.requestContext);
     const thread = threadId ? chat().thread(threadId) : undefined;
     const state = await threadState(thread);
     const token = state?.searchToken;
@@ -111,7 +117,7 @@ export const searchSlackTool = createTool({
         return {
           success: false,
           message:
-            'The Slack search token for this thread expired. Ask the user to send another message or @mention gorkie, then search again.',
+            'The Slack search token for this thread expired. Ask the @mention gorkie in a new message, then search again.',
         };
       }
       throw error;

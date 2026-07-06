@@ -35,12 +35,14 @@ export const postMessageTool = createTool({
       const reason = error instanceof Error ? error.message : String(error);
       if (reason.includes('channel_not_found')) {
         throw new Error(
-          'Slack rejected the post with channel_not_found. For private channels this means Gorkie is not a member. Slack hides private channels from non-members entirely. Ask a member to run `/invite @gorkie` in that channel, then retry. If the channel is public, double-check the id (it must come from a tool output or mention, e.g. slack:C...).'
+          'Slack rejected the post with channel_not_found. For private channels this means Gorkie is not a member. Slack hides private channels from non-members entirely. Ask a member to run `/invite @gorkie` in that channel, then retry. If the channel is public, double-check the id (it must come from a tool output or mention, e.g. slack:C...).',
+          { cause: error }
         );
       }
       if (reason.includes('not_in_channel')) {
         throw new Error(
-          'Slack rejected the post with not_in_channel: Gorkie must join that channel before posting. Ask a member to run `/invite @gorkie` there, then retry.'
+          'Slack rejected the post with not_in_channel: Gorkie must join that channel before posting. Ask a member to run `/invite @gorkie` there, then retry.',
+          { cause: error }
         );
       }
       throw error;

@@ -12,7 +12,7 @@ const MAX_CAUSE_DEPTH = 4;
 function redactPaths(): string[] {
   const paths: string[] = [];
   for (const root of ROOTS) {
-    for (let depth = 0; depth <= MAX_CAUSE_DEPTH; depth++) {
+    for (let depth = 0; depth <= MAX_CAUSE_DEPTH; depth += 1) {
       const prefix = root + 'cause.'.repeat(depth);
       for (const field of SENSITIVE_FIELDS) {
         paths.push(prefix + field);

@@ -10,7 +10,7 @@ import { formatTask, scheduledTaskKind } from './utils';
 function assertMinimumInterval(cron: string, timezone?: string): void {
   validateCron(cron, timezone);
   let previous = computeNextFireAt(cron, { timezone });
-  for (let i = 1; i < 5; i++) {
+  for (let i = 1; i < 5; i += 1) {
     let fire: number;
     try {
       fire = computeNextFireAt(cron, { timezone, after: previous });
