@@ -1,7 +1,8 @@
 import type { ToolDisplayFn } from '@mastra/core/channels';
+import { toolDisplay as config } from '../../config';
 import { label } from '../../lib/label';
 import { subagentDisplay, subagentPrompt } from './agents';
-import { formatError, formatInput, formatResult, taskUpdate } from './format';
+import { format, formatInput, formatResult, taskUpdate } from './format';
 
 export const toolDisplay: ToolDisplayFn = (event) => {
   if (event.toolName === 'skip') {
@@ -38,7 +39,7 @@ export const toolDisplay: ToolDisplayFn = (event) => {
   if (event.kind === 'error') {
     return taskUpdate({
       id,
-      output: `*Error*:\n${formatError(event.errorText)}`,
+      output: `*Error*:\n${format(event.errorText, config.maxOutput)}`,
       status: 'error',
       title,
     });

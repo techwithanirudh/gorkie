@@ -1,6 +1,12 @@
 # Wrangler: configuration & service bindings
 
-Full `wrangler.jsonc` config plus the CLI reference for each Cloudflare service. Retrieval-first: confirm exact flags and binding shapes against the Cloudflare docs before using.
+Full `wrangler.jsonc` config plus the CLI reference for each Cloudflare service
+gorkie can actually use through a temporary account (`wrangler deploy
+--temporary`): Workers, Workers Static Assets, Workers KV, D1, Durable
+Objects, Hyperdrive, Queues, and SSL/TLS certificates only. Cloudflare has
+not extended temporary-account support to other products yet. Retrieval-first:
+confirm exact flags and binding shapes against the Cloudflare docs before
+using.
 
 ### Full Config with Bindings
 
@@ -22,22 +28,9 @@ Full `wrangler.jsonc` config plus the CLI reference for each Cloudflare service.
     { "binding": "KV", "id": "<KV_NAMESPACE_ID>" }
   ],
 
-  // R2 Bucket
-  "r2_buckets": [
-    { "binding": "BUCKET", "bucket_name": "my-bucket" }
-  ],
-
   // D1 Database
   "d1_databases": [
     { "binding": "DB", "database_name": "my-db", "database_id": "<DB_ID>" }
-  ],
-
-  // Workers AI (always remote)
-  "ai": { "binding": "AI" },
-
-  // Vectorize
-  "vectorize": [
-    { "binding": "VECTOR_INDEX", "index_name": "my-index" }
   ],
 
   // Hyperdrive
@@ -79,6 +72,28 @@ wrangler types ./src/env.d.ts
 # Check types are up to date (CI)
 wrangler types --check
 ```
+
+## Static Assets (no-account static site hosting)
+
+Since gorkie has no Cloudflare account and Pages always requires one, serve static
+sites (HTML/CSS/JS, no server framework) as a Worker instead, then deploy with
+`wrangler deploy --temporary` like any other Worker.
+
+```jsonc
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "my-site",
+  "compatibility_date": "2026-01-01",
+  "assets": {
+    "directory": "./dist"
+  }
+}
+```
+
+- Omit `"main"` if the site is pure static assets with no Worker logic.
+- To also run server logic (e.g. an API route alongside the static files), keep
+  `"main"` pointing at a Worker script and add `"binding": "ASSETS"` under
+  `"assets"` so the Worker can fetch static files via `env.ASSETS`.
 
 ## KV (Key-Value Store)
 
@@ -123,52 +138,6 @@ wrangler kv bulk put --namespace-id <ID> data.json
 {
   "kv_namespaces": [
     { "binding": "CACHE", "id": "<NAMESPACE_ID>" }
-  ]
-}
-```
-
----
-
-## R2 (Object Storage)
-
-### Manage Buckets
-
-```bash
-# Create bucket
-wrangler r2 bucket create my-bucket
-
-# Create with location hint
-wrangler r2 bucket create my-bucket --location wnam
-
-# List buckets
-wrangler r2 bucket list
-
-# Get bucket info
-wrangler r2 bucket info my-bucket
-
-# Delete bucket
-wrangler r2 bucket delete my-bucket
-```
-
-### Manage Objects
-
-```bash
-# Upload object
-wrangler r2 object put my-bucket/path/file.txt --file ./local-file.txt
-
-# Download object
-wrangler r2 object get my-bucket/path/file.txt
-
-# Delete object
-wrangler r2 object delete my-bucket/path/file.txt
-```
-
-### Config Binding
-
-```jsonc
-{
-  "r2_buckets": [
-    { "binding": "ASSETS", "bucket_name": "my-bucket" }
   ]
 }
 ```
@@ -252,49 +221,6 @@ wrangler d1 export my-database --remote --output schema.sql --no-data
 
 ---
 
-## Vectorize (Vector Database)
-
-### Manage Indexes
-
-```bash
-# Create index with dimensions
-wrangler vectorize create my-index --dimensions 768 --metric cosine
-
-# Create with preset (auto-configures dimensions/metric)
-wrangler vectorize create my-index --preset @cf/baai/bge-base-en-v1.5
-
-# List indexes
-wrangler vectorize list
-
-# Get index info
-wrangler vectorize get my-index
-
-# Delete index
-wrangler vectorize delete my-index
-```
-
-### Manage Vectors
-
-```bash
-# Insert vectors from NDJSON file
-wrangler vectorize insert my-index --file vectors.ndjson
-
-# Query vectors
-wrangler vectorize query my-index --vector "[0.1, 0.2, ...]" --top-k 10
-```
-
-### Config Binding
-
-```jsonc
-{
-  "vectorize": [
-    { "binding": "SEARCH_INDEX", "index_name": "my-index" }
-  ]
-}
-```
-
----
-
 ## Hyperdrive (Database Accelerator)
 
 ### Manage Configs
@@ -339,30 +265,6 @@ wrangler hyperdrive delete <HYPERDRIVE_ID>
 
 ---
 
-## Workers AI
-
-### List Models
-
-```bash
-# List available models
-wrangler ai models
-
-# List finetunes
-wrangler ai finetune list
-```
-
-### Config Binding
-
-```jsonc
-{
-  "ai": { "binding": "AI" }
-}
-```
-
-**Note**: Workers AI always runs remotely and incurs usage charges even in local dev.
-
----
-
 ## Queues
 
 ### Manage Queues
@@ -402,194 +304,3 @@ wrangler queues consumer remove my-queue my-worker
   }
 }
 ```
-
----
-
-## Containers
-
-### Build and Push Images
-
-```bash
-# Build container image
-wrangler containers build -t my-app:latest .
-
-# Build and push in one command
-wrangler containers build -t my-app:latest . --push
-
-# Push existing image to Cloudflare registry
-wrangler containers push my-app:latest
-```
-
-### Manage Containers
-
-```bash
-# List containers
-wrangler containers list
-
-# Get container info
-wrangler containers info <CONTAINER_ID>
-
-# Delete container
-wrangler containers delete <CONTAINER_ID>
-```
-
-### Manage Images
-
-```bash
-# List images in registry
-wrangler containers images list
-
-# Delete image
-wrangler containers images delete my-app:latest
-```
-
-### Manage External Registries
-
-> **Security**: Never hardcode registry credentials in commands. Use environment variables.
-
-```bash
-# List configured registries
-wrangler containers registries list
-
-# Configure external registry (e.g., ECR)
-wrangler containers registries configure <DOMAIN> \
-  --aws-access-key-id "$AWS_ACCESS_KEY_ID"
-
-# Configure DockerHub
-wrangler containers registries configure <DOMAIN> \
-  --dockerhub-username "$DOCKERHUB_USERNAME"
-
-# Delete registry configuration
-wrangler containers registries delete <DOMAIN>
-```
-
----
-
-## Workflows
-
-### Manage Workflows
-
-```bash
-# List workflows
-wrangler workflows list
-
-# Describe workflow
-wrangler workflows describe my-workflow
-
-# Trigger workflow instance
-wrangler workflows trigger my-workflow
-
-# Trigger with parameters
-wrangler workflows trigger my-workflow --params '{"key": "value"}'
-
-# Delete workflow
-wrangler workflows delete my-workflow
-```
-
-### Manage Workflow Instances
-
-```bash
-# List instances
-wrangler workflows instances list my-workflow
-
-# Describe instance
-wrangler workflows instances describe my-workflow <INSTANCE_ID>
-
-# Terminate instance
-wrangler workflows instances terminate my-workflow <INSTANCE_ID>
-```
-
-### Config Binding
-
-```jsonc
-{
-  "workflows": [
-    {
-      "binding": "MY_WORKFLOW",
-      "name": "my-workflow",
-      "class_name": "MyWorkflow"
-    }
-  ]
-}
-```
-
----
-
-## Pipelines
-
-### Manage Pipelines
-
-```bash
-# Create pipeline
-wrangler pipelines create my-pipeline --r2 my-bucket
-
-# List pipelines
-wrangler pipelines list
-
-# Show pipeline details
-wrangler pipelines show my-pipeline
-
-# Update pipeline
-wrangler pipelines update my-pipeline --batch-max-mb 100
-
-# Delete pipeline
-wrangler pipelines delete my-pipeline
-```
-
-### Config Binding
-
-```jsonc
-{
-  "pipelines": [
-    { "binding": "MY_PIPELINE", "pipeline": "my-pipeline" }
-  ]
-}
-```
-
----
-
-## Secrets Store
-
-### Manage Stores
-
-```bash
-# Create store
-wrangler secrets-store store create my-store
-
-# List stores
-wrangler secrets-store store list
-
-# Delete store
-wrangler secrets-store store delete <STORE_ID>
-```
-
-### Manage Secrets in Store
-
-```bash
-# Add secret to store
-wrangler secrets-store secret put <STORE_ID> my-secret
-
-# List secrets in store
-wrangler secrets-store secret list <STORE_ID>
-
-# Get secret
-wrangler secrets-store secret get <STORE_ID> my-secret
-
-# Delete secret from store
-wrangler secrets-store secret delete <STORE_ID> my-secret
-```
-
-### Config Binding
-
-```jsonc
-{
-  "secrets_store_secrets": [
-    {
-      "binding": "MY_SECRET",
-      "store_id": "<STORE_ID>",
-      "secret_name": "my-secret"
-    }
-  ]
-}
-```
-

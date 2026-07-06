@@ -1,6 +1,6 @@
 # Wrangler: dev, deploy, observability, testing
 
-Local development, deployment, Pages, observability, testing, and troubleshooting. Retrieval-first: confirm exact flags against the Cloudflare docs.
+Local development, deployment, observability, testing, and troubleshooting. Retrieval-first: confirm exact flags against the Cloudflare docs.
 
 ## Local Development
 
@@ -24,10 +24,6 @@ wrangler dev --port 8787
 
 # Live reload for HTML changes
 wrangler dev --live-reload
-
-# Test scheduled/cron handlers
-wrangler dev --test-scheduled
-# Then visit: http://localhost:8787/__scheduled
 ```
 
 ### Remote Bindings for Local Dev
@@ -36,17 +32,14 @@ Use `remote: true` in binding config to connect to real resources while running 
 
 ```jsonc
 {
-  "r2_buckets": [
-    { "binding": "BUCKET", "bucket_name": "my-bucket", "remote": true }
+  "d1_databases": [
+    { "binding": "DB", "database_name": "my-db", "database_id": "<DB_ID>", "remote": true }
   ],
-  "ai": { "binding": "AI", "remote": true },
-  "vectorize": [
-    { "binding": "INDEX", "index_name": "my-index", "remote": true }
+  "hyperdrive": [
+    { "binding": "HYPERDRIVE", "id": "<HYPERDRIVE_ID>", "remote": true }
   ]
 }
 ```
-
-**Recommended remote bindings**: AI (required), Vectorize, Browser Rendering, mTLS, Images.
 
 ### Local Secrets
 
@@ -85,7 +78,7 @@ wrangler deploy --minify
 > Never output, log, or hardcode secret values in commands.
 
 ```bash
-# Set secret — interactive prompt (preferred, wrangler will ask for the value securely)
+# Set secret: interactive prompt (preferred, wrangler will ask for the value securely)
 wrangler secret put API_KEY
 
 # Set secret from a file (useful for PEM keys, CI environments)
@@ -117,21 +110,6 @@ wrangler rollback
 wrangler rollback <VERSION_ID>
 ```
 
-## Pages (Frontend Deployment)
-
-```bash
-# Create Pages project
-wrangler pages project create my-site
-
-# Deploy directory to Pages
-wrangler pages deploy ./dist
-
-# Deploy with specific branch
-wrangler pages deploy ./dist --branch main
-
-# List deployments
-wrangler pages deployment list --project-name my-site
-```
 ## Observability
 
 ### Tail Logs
@@ -209,16 +187,4 @@ curl http://localhost:8787/__scheduled
 | Type errors after config change | Run `wrangler types` |
 | Local storage not persisting | Check `.wrangler/state` directory |
 | Binding undefined in Worker | Verify binding name matches config exactly |
-
-### Debug Commands
-
-```bash
-# gorkie has no Cloudflare auth; deploy with `wrangler deploy --temporary` (no login/whoami)
-
-# Profile Worker startup time
-wrangler check startup
-
-# View config schema
-wrangler docs configuration
-```
 

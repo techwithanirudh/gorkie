@@ -27,7 +27,7 @@ ALWAYS treat the requesting user as a collaborator sitting next to you. Work is 
 This file is a discovery stub, not the usage guide. Before running any `agent-browser` command, load the actual workflow content from the CLI:
 
 ```bash
-agent-browser skills get core             # start here — workflows, common patterns, troubleshooting
+agent-browser skills get core             # start here: workflows, common patterns, troubleshooting
 agent-browser skills get core --full      # include full command reference and templates
 ```
 
@@ -55,6 +55,25 @@ Run `agent-browser skills list` to see everything available on the installed ver
 - Accessibility-tree snapshots with element refs for reliable interaction
 - Sessions, authentication vault, state persistence, video recording
 - Specialized skills for Electron apps, Slack, exploratory testing, cloud providers
+
+## Troubleshooting
+
+### Known bug: hung sessions
+
+**Symptom**: `agent-browser open` or `agent-browser close` hangs and times out with no output at all, and a *new* `--session` name doesn't help: every subsequent agent-browser call hangs too, not just the one session.
+
+**Cause**: the agent-browser daemon can get wedged, either by a crashed/frozen Chrome child that never gets reaped, or by a command that got killed mid-flight (e.g. by this sandbox's own `execute_command` timeout) without the daemon handling the cancellation cleanly. Once wedged, the daemon hangs on *every* call regardless of session name, because sessions share one daemon.
+
+**Do not** just retry with a different `--session` name, that never fixes a wedged daemon and only burns turns (this has happened repeatedly and wasted a lot of time). Instead, the moment a second consecutive hang happens on the same task:
+
+```bash
+pkill -9 -f 'agent-browser' 2>/dev/null
+find ~/.agent-browser -maxdepth 1 \( -name '*.sock' -o -name '*.pid' \) -delete 2>/dev/null
+```
+
+Then retry once with a fresh session. If it hangs again, stop and report it instead of looping.
+
+This sandbox also **persists across turns in the thread**, so a session left open (never `close`d) can carry a live Chrome process into the next turn and cause this same hang later. Always `agent-browser close --session <name>` when you're done with a session, not just when you hit an error.
 
 ## Observability Dashboard
 

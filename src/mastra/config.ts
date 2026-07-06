@@ -14,3 +14,9 @@ export const agent = {
 export const scheduledTasks = {
   minInterval: 30 * 60 * 1000,
 };
+
+export const toolDisplay = {
+  maxSummary: 200,
+  maxDetails: 1200,
+  maxOutput: 4000,
+};

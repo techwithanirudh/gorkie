@@ -1,11 +1,11 @@
 import type { ToolDisplayFn } from '@mastra/core/channels';
 import { label } from '../../lib/label';
+import { isRecord } from '../../lib/utils';
 import {
   codeBlock,
-  formatInputSummary,
+  formatInput,
   formatResult,
   inputValue,
-  isRecord,
   type ToolDisplayEvent,
   taskUpdate,
 } from './format';
@@ -24,7 +24,7 @@ export function subagentDisplay(
   const title = `${label(agentName)}: ${stepName}`;
 
   if (event.kind === 'running') {
-    const input = formatInputSummary(event);
+    const input = formatInput(event, 'compact');
     return taskUpdate({
       details: `\n\n**Running:** ${stepName}${input ? ` (${input})` : ''}`,
       id,

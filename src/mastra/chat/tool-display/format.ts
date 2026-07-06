@@ -1,27 +1,10 @@
 import type { ToolDisplayFn } from '@mastra/core/channels';
+import { toolDisplay as config } from '../../config';
 import { label } from '../../lib/label';
-
-const MAX_DETAILS = 1200;
-const MAX_OUTPUT = 4000;
+import { isRecord, text } from '../../lib/utils';
 
 export type ToolDisplayEvent = Parameters<ToolDisplayFn>[0];
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function text(value: unknown): string {
-  if (value === null || value === undefined) {
-    return '';
-  }
-  if (typeof value === 'string') {
-    return value;
-  }
-  if (typeof value !== 'object') {
-    return String(value);
-  }
-  return JSON.stringify(value, null, 2);
-}
+type FormatStyle = 'block' | 'compact';
 
 export function codeBlock(value: string): string {
   let fence = '```';
@@ -31,21 +14,11 @@ export function codeBlock(value: string): string {
   return `${fence}\n${value}\n${fence}`;
 }
 
-function compact(value: unknown): string {
-  const summary = isRecord(value)
-    ? Object.entries(value)
-        .filter(
-          ([, fieldValue]) => fieldValue !== undefined && fieldValue !== ''
-        )
-        .map(([key, fieldValue]) => `${label(key)}: ${text(fieldValue)}`)
-        .join(', ')
-    : text(value);
-  return summary.length > 200
-    ? `${summary.slice(0, 200).trimEnd()}...`
-    : summary;
-}
-
-function format(value: unknown, max: number): string {
+export function format(
+  value: unknown,
+  max: number,
+  style: FormatStyle = 'block'
+): string {
   const output = (
     isRecord(value)
       ? Object.entries(value)
@@ -55,14 +28,20 @@ function format(value: unknown, max: number): string {
           .map(([key, fieldValue]) => {
             const formatted = text(fieldValue);
             const name = label(key);
-            return formatted.includes('\n')
-              ? `${name}:\n${formatted}`
-              : `${name}: ${formatted}`;
+            if (style === 'compact' || !formatted.includes('\n')) {
+              return `${name}: ${formatted}`;
+            }
+            return `${name}:\n${formatted}`;
           })
-          .join('\n')
+          .join(style === 'compact' ? ', ' : '\n')
       : text(value)
   ).trim();
 
+  if (style === 'compact') {
+    return output.length > max
+      ? `${output.slice(0, max).trimEnd()}...`
+      : output;
+  }
   if (output.length <= max) {
     return output ? codeBlock(output) : '';
   }
@@ -81,28 +60,19 @@ export function inputValue(event: ToolDisplayEvent): unknown {
   }
 }
 
-export function formatInput(event: ToolDisplayEvent): string {
-  const input = format(inputValue(event), MAX_DETAILS);
-  if (input) {
-    return input;
+export function formatInput(
+  event: ToolDisplayEvent,
+  style: FormatStyle = 'block'
+): string {
+  const max = style === 'compact' ? config.maxSummary : config.maxDetails;
+  const rendered = format(inputValue(event), max, style);
+  if (rendered) {
+    return rendered;
   }
-  return 'argsSummary' in event && event.argsSummary
-    ? codeBlock(event.argsSummary)
-    : '';
-}
-
-export function formatInputSummary(event: ToolDisplayEvent): string {
-  const input = compact(inputValue(event));
-  if (input) {
-    return input;
+  if (!('argsSummary' in event && event.argsSummary)) {
+    return '';
   }
-  return 'argsSummary' in event && event.argsSummary
-    ? String(event.argsSummary)
-    : '';
-}
-
-export function formatError(errorText: unknown): string {
-  return format(errorText, MAX_OUTPUT);
+  return style === 'compact' ? event.argsSummary : codeBlock(event.argsSummary);
 }
 
 export function formatResult(event: ToolDisplayEvent): {
@@ -123,7 +93,7 @@ export function formatResult(event: ToolDisplayEvent): {
           result.error ??
           result)
       : result,
-    MAX_OUTPUT
+    config.maxOutput
   );
   return { failed: !!failed, output };
 }
