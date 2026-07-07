@@ -14,6 +14,7 @@ import { gorkieAgent } from './agents/gorkie';
 import { summarizerAgent } from './agents/summarizer';
 import { registerEvents } from './chat/events';
 import { setChat } from './chat/instance';
+import { buildAllowlist } from './lib/allowed-users';
 import { logger } from './lib/logger';
 
 /**
@@ -72,13 +73,14 @@ await mastra.startWorkers();
 gorkieAgent
   .getChannels()
   ?.initialize(mastra)
-  .then(() => {
+  .then(async () => {
     const sdk = gorkieAgent.getChannels()?.sdk;
     if (!sdk) {
       return;
     }
     setChat(sdk);
     registerEvents();
+    await buildAllowlist();
     logger.info('[gorkie] online');
   })
   .catch((error: unknown) =>

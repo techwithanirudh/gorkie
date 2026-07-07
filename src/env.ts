@@ -10,6 +10,7 @@ export const env = createEnv({
 
     SLACK_BOT_TOKEN: z.string().min(1),
     SLACK_APP_TOKEN: z.string().min(1),
+    OPT_IN_CHANNEL: z.string().optional(),
 
     HACKCLUB_API_KEY: z.string().min(1),
 
