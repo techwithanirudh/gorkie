@@ -1,11 +1,21 @@
-import type { Heartbeat, Heartbeats } from '@mastra/core/agent';
+import type {
+  AgentSchedule,
+  AnySchedule,
+  Schedules,
+} from '@mastra/core/schedules';
 import { agent } from '../../config';
 import { channelContext } from '../../lib/context';
 import type { TaskToolContext } from '../../types';
 import { scheduledTaskKind } from './utils';
 
-export function heartbeats(context: TaskToolContext): Heartbeats {
-  const service = context.mastra?.heartbeats;
+export function isAgentSchedule(
+  schedule: AnySchedule
+): schedule is AgentSchedule {
+  return schedule.agentId !== undefined;
+}
+
+export function schedules(context: TaskToolContext): Schedules {
+  const service = context.mastra?.schedules;
   if (!service) {
     throw new Error('No Mastra instance available for scheduled tasks.');
   }
@@ -27,7 +37,7 @@ export function taskScope(context: TaskToolContext): {
 }
 
 export function canViewTask(
-  task: Heartbeat,
+  task: AgentSchedule,
   { resourceId, threadId }: { resourceId: string; threadId?: string }
 ): boolean {
   const createdIn = task.metadata?.createdIn as
@@ -41,20 +51,21 @@ export function canViewTask(
 }
 
 export function canManageTask(
-  task: Heartbeat,
+  task: AgentSchedule,
   { resourceId }: { resourceId: string }
 ): boolean {
   return task.resourceId === resourceId;
 }
 
 export async function findOwnedTask(
-  service: Heartbeats,
+  service: Schedules,
   { id, resourceId }: { id: string; resourceId: string }
-): Promise<Heartbeat> {
+): Promise<AgentSchedule> {
   const current = await service.list({ agentId: agent.id });
   const task = current.find(
-    (item) =>
+    (item): item is AgentSchedule =>
       item.id === id &&
+      isAgentSchedule(item) &&
       item.metadata?.kind === scheduledTaskKind &&
       canManageTask(item, { resourceId })
   );

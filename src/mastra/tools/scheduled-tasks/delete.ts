@@ -1,6 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { findOwnedTask, heartbeats, taskScope } from './queries';
+import { findOwnedTask, schedules, taskScope } from './queries';
 
 export const deleteScheduledTaskTool = createTool({
   id: 'delete_scheduled_task',
@@ -9,7 +9,7 @@ export const deleteScheduledTaskTool = createTool({
     id: z.string().min(1).describe('Scheduled task id.'),
   }),
   execute: async ({ id }, context) => {
-    const service = heartbeats(context);
+    const service = schedules(context);
     const scope = taskScope(context);
     await findOwnedTask(service, { id, resourceId: scope.resourceId });
     await service.delete(id);

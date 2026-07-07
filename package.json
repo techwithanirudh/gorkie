@@ -21,7 +21,7 @@
     "postinstall": "bun run scripts/verify-patches.ts"
   },
   "patchedDependencies": {
-    "@mastra/core@1.50.0-alpha.2": "patches/@mastra+core@1.50.0-alpha.2.patch"
+    "@mastra/core@1.50.0": "patches/@mastra+core@1.50.0.patch"
   },
   "overrides": {
     "chat": "^4.32.0"
@@ -30,15 +30,13 @@
     "@ai-sdk/openai": "3",
     "@chat-adapter/slack": "^4.32.0",
     "@chat-adapter/state-pg": "^4.32.0",
-    "@mastra/core": "^1.50.0-alpha.2",
-    "@mastra/duckdb": "1.5.0",
-    "@mastra/e2b": "0.5.0",
-    "@mastra/langfuse": "1.4.2",
+    "@mastra/core": "1.50.0",
+    "@mastra/e2b": "0.5.1",
     "@mastra/loggers": "1.2.0",
     "@mastra/mcp": "^1.13.1",
     "@mastra/memory": "1.22.1",
-    "@mastra/observability": "1.16.0-alpha.0",
-    "@mastra/pg": "1.15.0",
+    "@mastra/observability": "1.16.0",
+    "@mastra/pg": "1.15.1",
     "@openrouter/ai-sdk-provider": "^2.10.0",
     "@t3-oss/env-core": "^0.13.11",
     "ai": "^6.0.219",
@@ -59,7 +57,7 @@
     "@types/node": "^26.1.0",
     "cspell": "^10.0.1",
     "lefthook": "^2.1.9",
-    "mastra": "1.18.0",
+    "mastra": "1.18.1",
     "ultracite": "7.9.0"
   },
   "peerDependencies": {

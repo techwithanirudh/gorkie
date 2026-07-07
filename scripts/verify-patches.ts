@@ -2,11 +2,11 @@ import { existsSync, readFileSync } from 'node:fs';
 
 const CHECKS = [
   {
-    file: 'node_modules/@mastra/core/dist/chunk-WNAR4CR3.js',
+    file: 'node_modules/@mastra/core/dist/chunk-JGDMZZAO.js',
     signature: 'part.type === "file"',
   },
   {
-    file: 'node_modules/@mastra/core/dist/chunk-EMMWR65D.cjs',
+    file: 'node_modules/@mastra/core/dist/chunk-EVJSSG7F.cjs',
     signature: 'part.type === "file"',
   },
 ];
@@ -30,7 +30,7 @@ for (const { file, signature } of CHECKS) {
 
 if (!ok) {
   console.error(
-    '\n[verify-patches] patches/@mastra+core@1.50.0-alpha.2.patch did not apply.\n' +
+    '\n[verify-patches] patches/@mastra+core@1.50.0.patch did not apply.\n' +
       "This usually means @mastra/core's installed version no longer matches the patchedDependencies key in package.json.\n" +
       'See TODO.md ("read_file tool-result images never reach the model") for what this patch fixes and why.\n' +
       'Fix: re-derive the patch against the new version (fetch a pristine tarball, reapply the same edits, regenerate the diff), then update the patchedDependencies key.\n'

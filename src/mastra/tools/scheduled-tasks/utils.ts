@@ -1,9 +1,9 @@
-import type { Heartbeat } from '@mastra/core/agent';
+import type { AgentSchedule } from '@mastra/core/schedules';
 
 export const scheduledTaskKind = 'scheduled-task';
 
 export function formatTask(
-  task: Heartbeat,
+  task: AgentSchedule,
   currentResourceId?: string
 ): Record<string, unknown> {
   const createdIn = task.metadata?.createdIn as

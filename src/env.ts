@@ -28,9 +28,8 @@ export const env = createEnv({
     AGENTMAIL_API_KEY: z.string().min(1).optional(),
     GITHUB_TOKEN: z.string().min(1).optional(),
 
-    LANGFUSE_PUBLIC_KEY: z.string().min(1),
-    LANGFUSE_SECRET_KEY: z.string().min(1),
-    LANGFUSE_BASEURL: z.url().default('https://cloud.langfuse.com'),
+    MASTRA_PLATFORM_ACCESS_TOKEN: z.string().min(1),
+    MASTRA_PROJECT_ID: z.string().min(1),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

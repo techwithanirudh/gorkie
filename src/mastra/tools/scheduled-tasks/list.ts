@@ -1,7 +1,8 @@
+import type { AgentSchedule } from '@mastra/core/schedules';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { agent } from '../../config';
-import { canViewTask, heartbeats, taskScope } from './queries';
+import { canViewTask, isAgentSchedule, schedules, taskScope } from './queries';
 import { formatTask, scheduledTaskKind } from './utils';
 
 export const listScheduledTasksTool = createTool({
@@ -11,10 +12,12 @@ export const listScheduledTasksTool = createTool({
   inputSchema: z.object({}),
   execute: async (_input, context) => {
     const scope = taskScope(context);
-    const tasks = await heartbeats(context).list({ agentId: agent.id });
+    const tasks = await schedules(context).list({ agentId: agent.id });
     const visible = tasks.filter(
-      (task) =>
-        task.metadata?.kind === scheduledTaskKind && canViewTask(task, scope)
+      (task): task is AgentSchedule =>
+        isAgentSchedule(task) &&
+        task.metadata?.kind === scheduledTaskKind &&
+        canViewTask(task, scope)
     );
 
     return {

@@ -54,7 +54,7 @@ touching the host machine.
   Slack via file upload.
 - [Observational Memory][om]: long conversations are compressed into a dense
   observation log instead of carrying full raw history.
-- [Langfuse][langfuse] tracing with sensitive-data redaction.
+- Mastra Platform tracing with sensitive-data redaction.
 
 See [TODO.md](./TODO.md) for the current roadmap and known open issues.
 
@@ -69,7 +69,7 @@ See [TODO.md](./TODO.md) for the current roadmap and known open issues.
 - [E2B][e2b] sandbox sessions
 - [Exa][exa] for web search and page fetching
 - [PostgreSQL][postgres] via `@mastra/pg`
-- [Langfuse][langfuse] + Mastra Observability
+- Mastra Observability + Mastra Platform
 - [Pino][pino] logging
 
 ## Getting Started
@@ -78,7 +78,7 @@ Create a new [Slack app](https://api.slack.com/apps) **from a manifest** using
 [`slack-manifest.yaml`](./slack-manifest.yaml) (enables Socket Mode, the
 Assistant view, scopes, and event subscriptions). You will also need
 [Bun][bun], a [PostgreSQL][postgres] database, an [E2B][e2b] API key, an
-[Exa][exa] API key, a [Langfuse][langfuse] project, and a model key
+[Exa][exa] API key, a Mastra Platform project, and a model key
 ([Hack Club][hackclub] or [OpenRouter][openrouter]).
 
 ```bash
@@ -119,6 +119,7 @@ $PGBIN/createdb -h 127.0.0.1 -p 5434 -U coder gorkie      # first time only
 |---|---|---|
 | `SLACK_BOT_TOKEN` | yes | Bot User OAuth token (`xoxb-…`) |
 | `SLACK_APP_TOKEN` | yes | App-level token with `connections:write` (`xapp-…`) |
+| `OPT_IN_CHANNEL` | no | Slack channel id gating access to members only (opt-in allowlist); unset means everyone is allowed |
 | `HACKCLUB_API_KEY` | yes | Hack Club AI proxy key (`sk-hc-…`), a gateway rung for every model |
 | `OPENROUTER_API_KEY` | no | Real OpenRouter key (`sk-or-v1-…`), used as a fallback gateway |
 | `OPENROUTER_BASE_URL` | no | Defaults to real OpenRouter; override to point elsewhere |
@@ -128,8 +129,8 @@ $PGBIN/createdb -h 127.0.0.1 -p 5434 -U coder gorkie      # first time only
 | `EXA_API_KEY` | yes | Exa key, powers `search_web`/`fetch_url` |
 | `AGENTMAIL_API_KEY` | no | Broker AgentMail API access into sandbox egress for `gorkie@agentmail.to` |
 | `GITHUB_TOKEN` | no | Broker GitHub API access into sandbox egress for the `gorkie-agent` account |
-| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | yes | Langfuse tracing keys |
-| `LANGFUSE_BASEURL` | no | Defaults to `https://cloud.langfuse.com` |
+| `MASTRA_PLATFORM_ACCESS_TOKEN` | yes | Mastra Platform access token for tracing/observability |
+| `MASTRA_PROJECT_ID` | yes | Mastra Platform project id |
 
 ## Project Structure
 
@@ -178,5 +179,4 @@ bun run check        # Lint (ultracite/Biome)
 [exa]: https://exa.ai/
 [postgres]: https://www.postgresql.org/
 [om]: https://mastra.ai/docs/memory/observational-memory
-[langfuse]: https://langfuse.com/
 [pino]: https://getpino.io/

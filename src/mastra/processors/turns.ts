@@ -102,39 +102,6 @@ export const turns = {
         }
       }
 
-      const obsStore = args.agent?.getMastraInstance()?.getStorage()
-        ?.stores?.observability;
-      if (obsStore) {
-        try {
-          const traceId = args.tracing?.currentSpan?.traceId;
-          if (traceId) {
-            const [inputResult, outputResult] = await Promise.all([
-              obsStore.getMetricAggregate({
-                name: ['mastra_model_total_input_tokens'],
-                aggregation: 'sum',
-                filters: { traceId },
-              }),
-              obsStore.getMetricAggregate({
-                name: ['mastra_model_total_output_tokens'],
-                aggregation: 'sum',
-                filters: { traceId },
-              }),
-            ]);
-            const inputCost = inputResult.estimatedCost ?? 0;
-            const outputCost = outputResult.estimatedCost ?? 0;
-            const cost = inputCost + outputCost;
-            const costUnit =
-              inputResult.costUnit ?? outputResult.costUnit ?? 'USD';
-            if (cost > 0) {
-              const costStr = cost >= 1 ? cost.toFixed(2) : cost.toFixed(5);
-              parts.push(`$${costStr} ${costUnit}`);
-            }
-          }
-        } catch {
-          /* cost query failed */
-        }
-      }
-
       await slack
         .postMessage(
           threadId,

@@ -1,6 +1,6 @@
 # gorkie
 
-gorkie is an AI assistant for Slack. Bun + TypeScript, built on **Mastra** (agent runtime + channels), Chat SDK's Slack adapter in Socket Mode, E2B sandboxes, Postgres, and Langfuse.
+gorkie is an AI assistant for Slack. Bun + TypeScript, built on **Mastra** (agent runtime + channels), Chat SDK's Slack adapter in Socket Mode, E2B sandboxes, Postgres, and Mastra Observability (exporting to Mastra Platform).
 
 ## CRITICAL: Load the `mastra` skill first
 

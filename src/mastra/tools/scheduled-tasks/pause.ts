@@ -1,6 +1,11 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { findOwnedTask, heartbeats, taskScope } from './queries';
+import {
+  findOwnedTask,
+  isAgentSchedule,
+  schedules,
+  taskScope,
+} from './queries';
 import { formatTask } from './utils';
 
 export const pauseScheduledTaskTool = createTool({
@@ -11,10 +16,14 @@ export const pauseScheduledTaskTool = createTool({
     id: z.string().min(1).describe('Scheduled task id.'),
   }),
   execute: async ({ id }, context) => {
-    const service = heartbeats(context);
+    const service = schedules(context);
     const scope = taskScope(context);
     await findOwnedTask(service, { id, resourceId: scope.resourceId });
-    const updated = await service.pause(id);
+    const result = await service.pause(id);
+    if (!isAgentSchedule(result)) {
+      throw new Error(`Scheduled task ${id} is not an agent schedule.`);
+    }
+    const updated = result;
 
     return {
       success: true,

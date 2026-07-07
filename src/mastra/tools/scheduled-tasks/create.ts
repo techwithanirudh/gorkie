@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { agent as agentConfig, scheduledTasks } from '../../config';
 import { channelContext } from '../../lib/context';
 import { resolveMemoryThread } from '../../lib/memory';
-import { heartbeats } from './queries';
+import { schedules } from './queries';
 import { formatTask, scheduledTaskKind } from './utils';
 
 function assertMinimumInterval(cron: string, timezone?: string): void {
@@ -55,7 +55,7 @@ export const createScheduledTaskTool = createTool({
       .describe('Short human-readable label for the task.'),
   }),
   execute: async (input, context) => {
-    const service = heartbeats(context);
+    const service = schedules(context);
     const ctx = channelContext(context?.requestContext);
     const resourceId = context.agent?.resourceId;
     const externalThreadId = ctx.threadId;
