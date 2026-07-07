@@ -1,3 +1,5 @@
+import { sandbox } from '../config';
+
 export const toolsPrompt = `\
 <tools>
 <tool>
@@ -101,7 +103,7 @@ If unavailable because the user did not @mention you, use web search and say you
 <tool>
 <name>post_message</name>
 <description>Send a message to another thread, channel, or user.</description>
-<note>Your streamed reply is ALREADY the message to the current thread. NEVER post your normal reply through this tool. A footer crediting the requesting user is appended automatically. Do not add your own attribution. Gorkie must be a member of a channel to post into it: a channel_not_found error on a private channel means Gorkie is not a member (Slack hides it entirely), and not_in_channel means Gorkie has not joined yet — in both cases tell the user to /invite @gorkie there instead of retrying.</note>
+<note>Only for a different destination than the current thread. Not your reply here, still write your normal streamed reply in this thread after calling it, unless this message independently warrants skip. A footer crediting the requesting user is appended automatically, don't add your own. channel_not_found means Gorkie isn't a member of that private channel; not_in_channel means it hasn't joined yet. Either way, tell the user to /invite @gorkie there.</note>
 </tool>
 
 <tool>
@@ -157,7 +159,9 @@ If unavailable because the user did not @mention you, use web search and say you
 <tool>
 <name>skip</name>
 <description>End the turn without replying.</description>
-<note>Use when a message needs no response from you, such as a side conversation, spam, low-value chatter, or someone showing your output to a third party. It only skips this message. Call it with no other text, the tool call itself is the entire response.</note>
+<note>Use when a message needs no response from you at all, such as a side conversation, spam, low-value chatter, or someone showing your output to a third party. It only skips this message. Call it with no other text and no other tool calls, the tool call itself is the entire response.
+
+There are only two valid ways to end a turn: write your normal streamed reply text, or call skip (or leave_channel) alone with no text. An empty reply with no skip call is always wrong, even if you called other tools like post_message earlier in the turn.</note>
 </tool>
 
 <tool>
@@ -184,9 +188,9 @@ Images (.png, .jpg, .webp, etc.) are delivered to you visually — describe only
 <name>execute_command</name>
 <description>Run commands in the persistent E2B sandbox.</description>
 <note>
-The sandbox pauses after 8 minutes of inactivity. That clock only resets between steps, not while a single command is still running, so keep any foreground timeout under 8 minutes (480s).
+The sandbox pauses after ${sandbox.timeout / 60_000} minutes of inactivity. That clock only resets between steps, not while a single command is still running, so keep any foreground timeout under ${sandbox.timeout / 60_000} minutes (${sandbox.timeout / 1000}s).
 
-For anything that genuinely takes longer (data processing, big builds, long-running jobs), start it with background: true and poll it periodically with get_process_output. Each poll is its own step and resets the 8-minute clock, making this the way to safely run something for 15 to 20+ minutes.
+For anything that genuinely takes longer (data processing, big builds, long-running jobs), start it with background: true and poll it periodically with get_process_output. Each poll is its own step and resets the ${sandbox.timeout / 60_000}-minute clock, making this the way to safely run something for 15 to 20+ minutes.
 </note>
 </tool>
 

@@ -10,10 +10,8 @@ function gateways(id: `${string}/${string}`): ModelConfig[] {
       apiKey: env.HACKCLUB_API_KEY,
       url: 'https://ai.hackclub.com/proxy/v1',
     },
-    { id, apiKey: env.OPENROUTER_API_KEY, url: env.OPENROUTER_BASE_URL },
-    ...(env.INFERENCE_API_KEY
-      ? [{ id, apiKey: env.INFERENCE_API_KEY, url: env.INFERENCE_BASE_URL }]
-      : []),
+    { id, apiKey: env.OPENROUTER_API_KEY, url: env.OPENROUTER_BASE_URL }
+
   ];
 }
 
@@ -26,7 +24,6 @@ function opencode(id: `${string}/${string}`): ModelConfig {
 }
 
 export const orchestrator: ModelWithRetries[] = [
-  { model: opencode('opencode-go/kimi-k2.7-code'), maxRetries: 3 },
   ...gateways('openrouter/moonshotai/kimi-k2.7-code').map((model) => ({
     model,
     maxRetries: 3,
@@ -34,30 +31,31 @@ export const orchestrator: ModelWithRetries[] = [
       openrouter: { reasoningEffort: 'medium' },
     },
   })),
+  { model: opencode('opencode-go/kimi-k2.7-code'), maxRetries: 3 },
 ];
 
 export const summarizer: ModelWithRetries[] = [
-  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
   ...gateways('openrouter/google/gemini-2.5-flash').map((model) => ({
     model,
     maxRetries: 3,
   })),
+  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 }
 ];
 
 export const scout: ModelWithRetries[] = [
-  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
   ...gateways('openrouter/minimax/minimax-m3').map((model) => ({
     model,
     maxRetries: 3,
   })),
+  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 }
 ];
 
 export const explorer: ModelWithRetries[] = [
-  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
   ...gateways('openrouter/minimax/minimax-m3').map((model) => ({
     model,
     maxRetries: 3,
   })),
+  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 }
 ];
 
 export const images = {
