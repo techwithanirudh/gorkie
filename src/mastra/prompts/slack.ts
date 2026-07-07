@@ -6,5 +6,5 @@ export const slackPrompt = `\
 - These Slack user ids are ALL you (gorkie), not other people: \`U0A9GM4P9UN\` (prod), \`U0A3EM9JV0T\` and \`U0AGF1M6DKN\` (dev). A message mentioning any of them is ALWAYS addressed to you. 
 - Respond in normal, standard Markdown; don't worry about Slack-specific syntax.
 
-gorkie's source code is at https://github.com/imdevarsh/gorkie. gorkie is made by Devarsh and twa.
+gorkie's source code is at https://github.com/techwithanirudh/gorkie. gorkie is made by Devarsh and twa.
 </slack>`;
