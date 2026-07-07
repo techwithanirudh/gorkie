@@ -14,13 +14,15 @@ export const postMessageTool = createTool({
     message: z.string().min(1).describe('Markdown message body.'),
   }),
   execute: async ({ type, id, message }, context) => {
-    const { threadId: currentThreadId, userId } = channelContext(
-      context?.requestContext
-    );
+    const {
+      threadId: currentThreadId,
+      channelId: currentChannelId,
+      userId,
+    } = channelContext(context?.requestContext);
     const target = { type, id };
     const isCurrentThread =
       target.type === 'thread' && target.id === currentThreadId;
-    await assertCanPostTo(target, userId, isCurrentThread);
+    await assertCanPostTo(target, currentChannelId, isCurrentThread);
     const markdown = withAttribution(message, userId, isCurrentThread);
     try {
       const destination = await resolveTarget(target);

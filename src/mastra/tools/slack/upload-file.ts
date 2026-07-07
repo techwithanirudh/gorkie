@@ -44,9 +44,11 @@ export const uploadFileTool = createTool({
     );
     const name = filename ?? path.split('/').pop() ?? 'file';
 
-    const { threadId: currentThreadId, userId } = channelContext(
-      context.requestContext
-    );
+    const {
+      threadId: currentThreadId,
+      channelId: currentChannelId,
+      userId,
+    } = channelContext(context.requestContext);
     const resolved =
       target ??
       (currentThreadId
@@ -57,7 +59,7 @@ export const uploadFileTool = createTool({
     }
     const isCurrentThread =
       resolved.type === 'thread' && resolved.id === currentThreadId;
-    await assertCanPostTo(resolved, userId, isCurrentThread);
+    await assertCanPostTo(resolved, currentChannelId, isCurrentThread);
     const markdown = withAttribution(comment ?? '', userId, isCurrentThread);
 
     const destination = await resolveTarget(resolved);

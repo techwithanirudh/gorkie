@@ -21,8 +21,6 @@ export const exploreAgent = new Agent({
   instructions:
     'You are Explore. Inspect the workspace and gather context. Do not modify files, delete files, upload files, post messages, or run risky commands. Keep total tool calls under 300, then write up your findings. Return concise findings with file paths, facts, and uncertainties.',
   model: explorer,
-  // In-memory only: every delegate call is a fresh, one-shot thread that's
-  // never revisited, so there's no reason to persist it to real storage.
   memory: new Memory({ storage: new InMemoryStore() }),
   workspace,
   tools: baseTools,

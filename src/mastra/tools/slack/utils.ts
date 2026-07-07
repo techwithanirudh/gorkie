@@ -23,48 +23,26 @@ export async function assertReadableChannel(
   );
 }
 
-async function isChannelMember(
-  channelId: string,
-  userId: string
-): Promise<boolean> {
-  const channel = rawId(channelId);
-  let cursor: string | undefined;
-  do {
-    // biome-ignore lint/performance/noAwaitInLoops: each page's cursor comes from the previous response, so this can't be parallelized.
-    const response = await slack.webClient.conversations.members({
-      channel,
-      limit: 1000,
-      cursor,
-    });
-    if (response.members?.includes(userId)) {
-      return true;
-    }
-    cursor = response.response_metadata?.next_cursor || undefined;
-  } while (cursor);
-  return false;
-}
-
-/**
- * Prevents using Gorkie as a relay into channels the requesting user has no
- * access to: only Gorkie's own membership was previously required, so any
- * user could have it post into any channel Gorkie belongs to.
- */
-export async function assertCanPostTo(
+export function assertCanPostTo(
   target: Target,
-  userId: string | undefined,
+  currentChannelId: string | undefined,
   isCurrentThread: boolean
-): Promise<void> {
+): void {
   if (isCurrentThread || target.type === 'user') {
     return;
   }
-  if (!userId) {
+  if (!currentChannelId) {
     throw new Error(
-      'Cannot verify channel membership without a known requesting user, so Gorkie will not post there.'
+      'No current channel to compare against, so Gorkie will not post there.'
     );
   }
-  if (!(await isChannelMember(target.id, userId))) {
+  const targetChannelId =
+    target.type === 'channel'
+      ? target.id
+      : slack.channelIdFromThreadId(target.id);
+  if (chatChannelId(targetChannelId) !== chatChannelId(currentChannelId)) {
     throw new Error(
-      'You are not a member of that channel, so Gorkie cannot post there on your behalf. Ask a member to invite you, or post it yourself.'
+      'Gorkie can only post to the channel this conversation is already in, not a different channel. Ask a member of that channel to post it there.'
     );
   }
 }

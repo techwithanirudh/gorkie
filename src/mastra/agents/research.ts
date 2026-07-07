@@ -15,8 +15,6 @@ export const researchAgent = new Agent({
   instructions:
     'You are Research. Gather facts using Slack, web, user, channel, and thread tools. Prefer compact sourced findings over raw dumps. Include links, thread ids, channel names, dates, and uncertainty when available. Do not edit files, run commands, upload files, or post messages. Keep total tool calls under 300, then write up your findings.',
   model: scout,
-  // In-memory only: every delegate call is a fresh, one-shot thread that's
-  // never revisited, so there's no reason to persist it to real storage.
   memory: new Memory({ storage: new InMemoryStore() }),
   tools: baseTools,
   inputProcessors: [

@@ -4,7 +4,7 @@ import { summarizer } from '../providers';
 
 export const summarizerAgent = new Agent({
   id: 'summarizer',
-  name: 'summarizer',
+  name: 'Summarizer',
   description:
     'Summarizes a Slack conversation transcript concisely, preserving decisions, open questions, and action items.',
   instructions:
