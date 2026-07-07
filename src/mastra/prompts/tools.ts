@@ -144,6 +144,12 @@ If unavailable because the user did not @mention you, use web search and say you
 </tool>
 
 <tool>
+<name>leave_channel</name>
+<description>Leave the current channel entirely.</description>
+<note>Use only when explicitly asked to leave the channel. Call it with no other text and no other tool calls in the same response, it ends the turn, like skip.</note>
+</tool>
+
+<tool>
 <name>add_reaction / remove_reaction</name>
 <description>Add or remove an emoji reaction.</description>
 </tool>
@@ -151,7 +157,7 @@ If unavailable because the user did not @mention you, use web search and say you
 <tool>
 <name>skip</name>
 <description>End the turn without replying.</description>
-<note>Use when a message needs no response from you, such as a side conversation, spam, low-value chatter, or someone showing your output to a third party. It only skips this message.</note>
+<note>Use when a message needs no response from you, such as a side conversation, spam, low-value chatter, or someone showing your output to a third party. It only skips this message. Call it with no other text, the tool call itself is the entire response.</note>
 </tool>
 
 <tool>
@@ -177,6 +183,11 @@ Images (.png, .jpg, .webp, etc.) are delivered to you visually — describe only
 <tool>
 <name>execute_command</name>
 <description>Run commands in the persistent E2B sandbox.</description>
+<note>
+The sandbox pauses after 8 minutes of inactivity. That clock only resets between steps, not while a single command is still running, so keep any foreground timeout under 8 minutes (480s).
+
+For anything that genuinely takes longer (data processing, big builds, long-running jobs), start it with background: true and poll it periodically with get_process_output. Each poll is its own step and resets the 8-minute clock, making this the way to safely run something for 15 to 20+ minutes.
+</note>
 </tool>
 
 <tool>

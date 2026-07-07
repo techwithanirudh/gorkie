@@ -4,6 +4,7 @@ import type {
 } from '@mastra/core/processors';
 import { Card, CardText } from 'chat';
 import { slack } from '../chat/client';
+import { agent as agentConfig } from '../config';
 import { clip } from '../lib/clip';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
@@ -77,6 +78,15 @@ export const turns = {
       (hasTextResponse || hasVisibleToolCall)
     ) {
       const parts: string[] = [];
+
+      if (args.result.steps.length >= agentConfig.maxSteps) {
+        parts.push(`⚠️ hit ${agentConfig.maxSteps}-step cap`);
+      } else if (
+        args.result.finishReason &&
+        !['stop', 'tool-calls'].includes(args.result.finishReason)
+      ) {
+        parts.push(`⚠️ ${args.result.finishReason}`);
+      }
 
       if (totalTokens > 0) {
         parts.push(`${compactTokens.format(totalTokens)} tok`);

@@ -31,7 +31,11 @@ export const gorkieAgent = new Agent({
   model: orchestrator,
   defaultOptions: {
     modelSettings: { maxOutputTokens: config.maxTokens.output },
-    stopWhen: [toolCall('skip'), stepCountIs(200)],
+    stopWhen: [
+      toolCall('skip'),
+      toolCall('leave_channel'),
+      stepCountIs(config.maxSteps),
+    ],
   },
   workspace,
   inputProcessors: [

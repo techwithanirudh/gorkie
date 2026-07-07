@@ -37,7 +37,7 @@ export const orchestrator: ModelWithRetries[] = [
 ];
 
 export const summarizer: ModelWithRetries[] = [
-  { model: opencode('opencode-go/deepseek-v4-flash'), maxRetries: 3 },
+  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
   ...gateways('openrouter/google/gemini-2.5-flash').map((model) => ({
     model,
     maxRetries: 3,
@@ -45,8 +45,8 @@ export const summarizer: ModelWithRetries[] = [
 ];
 
 export const scout: ModelWithRetries[] = [
-  { model: opencode('opencode-go/deepseek-v4-flash'), maxRetries: 3 },
-  ...gateways('openrouter/deepseek/deepseek-v4-flash').map((model) => ({
+  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
+  ...gateways('openrouter/minimax/minimax-m3').map((model) => ({
     model,
     maxRetries: 3,
   })),
