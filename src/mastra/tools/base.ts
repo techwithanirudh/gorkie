@@ -1,3 +1,4 @@
+// import { mcpClient } from '../mcp';
 import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
 import { grepTool } from './grep';
@@ -18,4 +19,5 @@ export const baseTools = {
   mermaid: mermaidTool,
   schedule_reminder: scheduleReminderTool,
   generate_image: generateImageTool,
+  // ...(await mcpClient.listTools()),
 };
