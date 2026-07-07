@@ -3,7 +3,6 @@
 Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.md) for architecture.
 
 ## Priority queue
-
 - [ ] **Later: DM tool display**: DMs work, but tool calls/tool rows don't load or render in the DM outer layer. Cosmetic/rendering only; investigate the channels tool-widget path for DMs after higher-priority items. Update (2026-07-05): markdown rendering in DMs, which was previously broken, now works correctly — most likely a side effect of deduping the `chat` package version (see the `overrides` entry in `package.json`, below). Tool task rendering specifically is still broken in DMs even after that fix, so the two are separate bugs; narrow the investigation to just tool-task rendering now that markdown is confirmed fixed. Update (2026-07-07): reported that scheduled/heartbeat-fired tasks (`tools/scheduled-tasks/create.ts`, `ifIdle.behavior: 'wake'`) show the same missing-tool-rendering symptom, possibly the same root cause since neither path goes through the normal `onMention`/`onSubscribedMessage` handler chain. No repro or trace pulled yet, investigate DM and scheduled-task cases together.
 - [ ] **Later: Mastra Studio running-agent experience**: improve how a running agent looks/behaves in Studio (progress, streaming, cancellation).
 - [ ] **P0: Delegate long-run failure state**: check why long helper-agent runs with no heartbeat can make the parent task show a generic error even though the helper started, and make stalled or failed delegates report a useful status.
@@ -23,6 +22,8 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 
 ## Recently completed
 
+- **Checked LLM cache invalidation (2026-07-07)**: found no explicit prompt-cache controls or cache invalidation logic in the app code. The main cache-affecting behavior is prompt variability from per-request Slack channel/thread context and ordinary conversation history, not an explicit cache-busting mechanism.
+- **Stopped per-request system prompt changes from invalidating prompt cache (2026-07-07)**: made Gorkie's system instructions static so Slack channel/thread ids are no longer appended as a dynamic system message on every request.
 - **Pushed current git changes (2026-07-05)**: committed and pushed the current working-tree changes to `origin/main`.
 - **Fixed concurrent delegate tool display (2026-07-05)**: delegated child tool-call IDs now carry their parent delegate `toolCallId`, so inner tool updates target the correct parent card even when two same-type agents run concurrently.
 - **Killed running bot processes (2026-07-05)**: stopped the active `bun run dev`, `mastra dev`, and `.mastra/output/index.mjs` processes for this checkout.

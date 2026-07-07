@@ -10,8 +10,7 @@ function gateways(id: `${string}/${string}`): ModelConfig[] {
       apiKey: env.HACKCLUB_API_KEY,
       url: 'https://ai.hackclub.com/proxy/v1',
     },
-    { id, apiKey: env.OPENROUTER_API_KEY, url: env.OPENROUTER_BASE_URL }
-
+    { id, apiKey: env.OPENROUTER_API_KEY, url: env.OPENROUTER_BASE_URL },
   ];
 }
 
@@ -39,7 +38,7 @@ export const summarizer: ModelWithRetries[] = [
     model,
     maxRetries: 3,
   })),
-  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 }
+  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
 ];
 
 export const scout: ModelWithRetries[] = [
@@ -47,7 +46,7 @@ export const scout: ModelWithRetries[] = [
     model,
     maxRetries: 3,
   })),
-  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 }
+  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
 ];
 
 export const explorer: ModelWithRetries[] = [
@@ -55,7 +54,7 @@ export const explorer: ModelWithRetries[] = [
     model,
     maxRetries: 3,
   })),
-  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 }
+  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
 ];
 
 export const images = {

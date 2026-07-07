@@ -1,9 +1,20 @@
-import type { Heartbeat } from '@mastra/core/agent';
-
 export const scheduledTaskKind = 'scheduled-task';
 
+export interface ScheduledTask {
+  cron?: string;
+  id: string;
+  lastFireAt?: string | number | Date;
+  metadata?: Record<string, unknown>;
+  name?: string;
+  nextFireAt: string | number | Date;
+  resourceId?: string;
+  status?: string;
+  threadId?: string;
+  timezone?: string;
+}
+
 export function formatTask(
-  task: Heartbeat,
+  task: ScheduledTask,
   currentResourceId?: string
 ): Record<string, unknown> {
   const createdIn = task.metadata?.createdIn as

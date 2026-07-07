@@ -17,7 +17,7 @@ import { agent as config } from '../config';
 import { stepCountIs, toolCall } from '../lib/tools';
 import { outputProcessors } from '../processors';
 import { relocateToolResultImages } from '../processors/tool-media';
-import { buildInstructions } from '../prompts';
+import { instructions } from '../prompts';
 import { orchestrator, summarizer } from '../providers';
 import { baseTools } from '../tools/base';
 import { workspace } from '../workspace';
@@ -27,7 +27,7 @@ import { researchAgent } from './research';
 export const gorkieAgent = new Agent({
   id: config.id,
   name: 'Gorkie',
-  instructions: ({ requestContext }) => buildInstructions(requestContext),
+  instructions,
   model: orchestrator,
   defaultOptions: {
     modelSettings: { maxOutputTokens: config.maxTokens.output },
