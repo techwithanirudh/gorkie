@@ -90,11 +90,24 @@ export async function onSubscribedMessage(
     return;
   }
   const state = await threadState(thread);
-  if (!(state?.respondOnThreadMessages === true || message.isMention)) {
+  const isFollowingThread = state?.respondOnThreadMessages === true;
+  if (!(isFollowingThread || message.isMention)) {
     return;
   }
   if (await handleCommand(thread, message)) {
     return;
+  }
+  if (!isFollowingThread) {
+    // Mastra marks a thread "subscribed" the moment it processes any message
+    // in it, regardless of whether that first mention was at the thread
+    // root (respondOnThreadMessages only gets set for root mentions). So a
+    // one-off mid-thread mention we're NOT actively following can still
+    // leave Mastra's own subscription flag true, which skips its thread
+    // history backfill on every mention after the first — even though we
+    // never actually saw what happened in between. Force a fresh backfill
+    // for this turn by unsubscribing right before handing off; Mastra
+    // re-subscribes on its own once it processes the message.
+    await thread.unsubscribe().catch(() => undefined);
   }
   await respond(thread, message, defaultHandler);
 }
