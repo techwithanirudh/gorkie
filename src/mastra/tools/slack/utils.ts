@@ -3,11 +3,15 @@ import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import type { Target } from '../../chat/target';
 import { chatChannelId, rawId } from '../../lib/ids';
+import type { ChannelContext } from '../../types';
 
-export async function assertReadableChannel(
-  channelId: string,
-  currentThreadId?: string
-) {
+export async function assertReadableChannel({
+  channelId,
+  currentThreadId,
+}: {
+  channelId: string;
+  currentThreadId?: string;
+}) {
   const id = chatChannelId(channelId);
   const metadata = await chat().channel(id).fetchMetadata();
   if (currentThreadId && id === chatChannelId(currentThreadId)) {
@@ -23,15 +27,27 @@ export async function assertReadableChannel(
   );
 }
 
-export function assertCanPostTo(
-  target: Target,
-  currentChannelId: string | undefined,
-  isCurrentThread: boolean
-): void {
-  if (isCurrentThread || target.type === 'user') {
+export function assertCanPostTo({
+  target,
+  ctx,
+  isCurrentThread,
+}: {
+  target: Target;
+  ctx: ChannelContext;
+  isCurrentThread: boolean;
+}): void {
+  if (isCurrentThread) {
     return;
   }
-  if (!currentChannelId) {
+  if (target.type === 'user') {
+    if (!ctx.userId || rawId(target.id) !== rawId(ctx.userId)) {
+      throw new Error(
+        'Gorkie can only DM the person currently asking, not a third party on their behalf. Ask that person to message Gorkie directly instead.'
+      );
+    }
+    return;
+  }
+  if (!ctx.channelId) {
     throw new Error(
       'No current channel to compare against, so Gorkie will not post there.'
     );
@@ -40,7 +56,7 @@ export function assertCanPostTo(
     target.type === 'channel'
       ? target.id
       : slack.channelIdFromThreadId(target.id);
-  if (chatChannelId(targetChannelId) !== chatChannelId(currentChannelId)) {
+  if (chatChannelId(targetChannelId) !== chatChannelId(ctx.channelId)) {
     throw new Error(
       'Gorkie can only post to the channel this conversation is already in, not a different channel. Ask a member of that channel to post it there.'
     );

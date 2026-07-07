@@ -34,7 +34,10 @@ export const readConversationHistoryTool = createTool({
     }
 
     const chId = chatChannelId(resolvedChannelId);
-    await assertReadableChannel(chId, ctx.threadId);
+    await assertReadableChannel({
+      channelId: chId,
+      currentThreadId: ctx.threadId,
+    });
     await joinChannel(chId);
 
     const result = tid

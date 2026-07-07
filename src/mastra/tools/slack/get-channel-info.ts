@@ -19,7 +19,10 @@ export const getChannelInfoTool = createTool({
     if (!id) {
       throw new Error('No channel to inspect.');
     }
-    const info = await assertReadableChannel(id, ctx.threadId);
+    const info = await assertReadableChannel({
+      channelId: id,
+      currentThreadId: ctx.threadId,
+    });
     return {
       success: true,
       id: info.id,

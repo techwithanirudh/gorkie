@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { withAttribution } from '../../chat/attribution';
 import { resolveTarget, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
+import { rawId } from '../../lib/ids';
 import { resolveE2BSandbox } from '../../workspace';
 import { assertCanPostTo } from './utils';
 
@@ -44,23 +45,27 @@ export const uploadFileTool = createTool({
     );
     const name = filename ?? path.split('/').pop() ?? 'file';
 
-    const {
-      threadId: currentThreadId,
-      channelId: currentChannelId,
-      userId,
-    } = channelContext(context.requestContext);
+    const ctx = channelContext(context.requestContext);
     const resolved =
       target ??
-      (currentThreadId
-        ? { type: 'thread' as const, id: currentThreadId }
+      (ctx.threadId
+        ? { type: 'thread' as const, id: ctx.threadId }
         : undefined);
     if (!resolved) {
       throw new Error('No current thread to upload to.');
     }
     const isCurrentThread =
-      resolved.type === 'thread' && resolved.id === currentThreadId;
-    await assertCanPostTo(resolved, currentChannelId, isCurrentThread);
-    const markdown = withAttribution(comment ?? '', userId, isCurrentThread);
+      resolved.type === 'thread' && resolved.id === ctx.threadId;
+    assertCanPostTo({ target: resolved, ctx, isCurrentThread });
+    const isSelfDm =
+      resolved.type === 'user' &&
+      !!ctx.userId &&
+      rawId(resolved.id) === rawId(ctx.userId);
+    const markdown = withAttribution({
+      message: comment ?? '',
+      userId: ctx.userId,
+      skipAttribution: isCurrentThread || isSelfDm,
+    });
 
     const destination = await resolveTarget(resolved);
 

@@ -25,7 +25,10 @@ export const listThreadsTool = createTool({
     }
 
     const chId = chatChannelId(id);
-    await assertReadableChannel(chId, ctx.threadId);
+    await assertReadableChannel({
+      channelId: chId,
+      currentThreadId: ctx.threadId,
+    });
     await joinChannel(chId);
 
     const result = await slack.listThreads(chId, { limit, cursor });

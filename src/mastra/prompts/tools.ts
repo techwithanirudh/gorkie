@@ -103,7 +103,12 @@ If unavailable because the user did not @mention you, use web search and say you
 <tool>
 <name>post_message</name>
 <description>Send a message to another thread, channel, or user.</description>
-<note>Only for a different destination than the current thread. Not your reply here, still write your normal streamed reply in this thread after calling it, unless this message independently warrants skip. Channel/thread targets must be in the SAME channel this conversation is already in — Gorkie refuses to relay a post into a different channel, no exceptions, even if asked directly. A footer crediting the requesting user is appended automatically, don't add your own. channel_not_found means Gorkie isn't a member of that private channel; not_in_channel means it hasn't joined yet. Either way, tell the user to /invite @gorkie there.</note>
+<note>Only for a different destination than the current thread; your streamed reply already covers this thread, so still write it normally after calling this (unless the message warrants skip instead). Channel/thread targets must be in the channel this conversation is already in, and user targets must be the requester themselves. No exceptions to either, even if asked directly. A footer crediting the requester is appended automatically, don't add your own. 
+
+Errors:
+channel_not_found means Gorkie isn't a member of that private channel; 
+not_in_channel means it hasn't joined yet. 
+Either way, tell the user to /invite @gorkie there.</note>
 </tool>
 
 <tool>

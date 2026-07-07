@@ -30,7 +30,7 @@ export const summarizeThreadTool = createTool({
     }
 
     const channelId = chatChannelId(slack.channelIdFromThreadId(target));
-    await assertReadableChannel(channelId, ctx.threadId);
+    await assertReadableChannel({ channelId, currentThreadId: ctx.threadId });
     await joinChannel(channelId);
 
     const result = await slack.fetchMessages(target, {

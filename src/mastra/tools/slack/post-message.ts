@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { withAttribution } from '../../chat/attribution';
 import { resolveTarget, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
+import { rawId } from '../../lib/ids';
 import { assertCanPostTo } from './utils';
 
 export const postMessageTool = createTool({
@@ -14,16 +15,20 @@ export const postMessageTool = createTool({
     message: z.string().min(1).describe('Markdown message body.'),
   }),
   execute: async ({ type, id, message }, context) => {
-    const {
-      threadId: currentThreadId,
-      channelId: currentChannelId,
-      userId,
-    } = channelContext(context?.requestContext);
+    const ctx = channelContext(context?.requestContext);
     const target = { type, id };
     const isCurrentThread =
-      target.type === 'thread' && target.id === currentThreadId;
-    await assertCanPostTo(target, currentChannelId, isCurrentThread);
-    const markdown = withAttribution(message, userId, isCurrentThread);
+      target.type === 'thread' && target.id === ctx.threadId;
+    assertCanPostTo({ target, ctx, isCurrentThread });
+    const isSelfDm =
+      target.type === 'user' &&
+      !!ctx.userId &&
+      rawId(target.id) === rawId(ctx.userId);
+    const markdown = withAttribution({
+      message,
+      userId: ctx.userId,
+      skipAttribution: isCurrentThread || isSelfDm,
+    });
     try {
       const destination = await resolveTarget(target);
       const sent = await destination.post({ markdown });
