@@ -23,14 +23,14 @@ function opencode(id: `${string}/${string}`): ModelConfig {
 }
 
 export const orchestrator: ModelWithRetries[] = [
-  ...gateways('openrouter/deepseek/deepseek-v4-pro').map((model) => ({
+  ...gateways('openrouter/minimax/minimax-m3').map((model) => ({
     model,
     maxRetries: 3,
     providerOptions: {
       openrouter: { reasoningEffort: 'medium' },
     },
   })),
-  { model: opencode('opencode-go/deepseek-v4-pro'), maxRetries: 3 },
+  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
 ];
 
 export const summarizer: ModelWithRetries[] = [
@@ -42,19 +42,19 @@ export const summarizer: ModelWithRetries[] = [
 ];
 
 export const scout: ModelWithRetries[] = [
-  ...gateways('openrouter/deepseek/deepseek-v4-pro').map((model) => ({
+  ...gateways('openrouter/deepseek/deepseek-v4-flash').map((model) => ({
     model,
     maxRetries: 3,
   })),
-  { model: opencode('opencode-go/deepseek-v4-pro'), maxRetries: 3 },
+  { model: opencode('opencode-go/deepseek-v4-flash'), maxRetries: 3 },
 ];
 
 export const explorer: ModelWithRetries[] = [
-  ...gateways('openrouter/deepseek/deepseek-v4-pro').map((model) => ({
+  ...gateways('openrouter/minimax/minimax-m3').map((model) => ({
     model,
     maxRetries: 3,
   })),
-  { model: opencode('opencode-go/deepseek-v4-pro'), maxRetries: 3 },
+  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
 ];
 
 export const images = {
