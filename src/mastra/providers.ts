@@ -1,9 +1,12 @@
+import type { LanguageModelV3 } from '@ai-sdk/provider';
 import type { ModelWithRetries } from '@mastra/core/agent';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { extractReasoningMiddleware, wrapLanguageModel } from 'ai';
 import { env } from '@/env';
 
-type ModelConfig = ModelWithRetries['model'] & { id: `${string}/${string}` };
+type GatewayConfig = ModelWithRetries['model'] & { id: `${string}/${string}` };
 
-function gateways(id: `${string}/${string}`): ModelConfig[] {
+function gateways(id: `${string}/${string}`): GatewayConfig[] {
   return [
     {
       id,
@@ -14,12 +17,22 @@ function gateways(id: `${string}/${string}`): ModelConfig[] {
   ];
 }
 
-function opencode(id: `${string}/${string}`): ModelConfig {
-  return {
-    id,
-    apiKey: env.OPENCODE_API_KEY,
-    url: 'https://opencode.ai/zen/go/v1',
-  };
+const opencodeProvider = createOpenAICompatible({
+  name: 'opencode-go',
+  baseURL: 'https://opencode.ai/zen/go/v1',
+  apiKey: env.OPENCODE_API_KEY,
+});
+
+function opencode(model: string): LanguageModelV3 {
+  // opencode-go emits reasoning wrapped in <think>...</think> tags inline
+  // with the assistant text. extractReasoningMiddleware strips those tags
+  // and exposes the content as the structured `reasoning` field, matching
+  // AI SDK's native reasoning support so Mastra's model loop can render
+  // reasoning separately instead of leaking it into the final message.
+  return wrapLanguageModel({
+    model: opencodeProvider.chatModel(model),
+    middleware: extractReasoningMiddleware({ tagName: 'think' }),
+  });
 }
 
 export const orchestrator: ModelWithRetries[] = [
@@ -30,7 +43,7 @@ export const orchestrator: ModelWithRetries[] = [
       openrouter: { reasoningEffort: 'medium' },
     },
   })),
-  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
+  { model: opencode('minimax-m3'), maxRetries: 3 },
 ];
 
 export const summarizer: ModelWithRetries[] = [
@@ -38,7 +51,7 @@ export const summarizer: ModelWithRetries[] = [
     model,
     maxRetries: 3,
   })),
-  { model: opencode('opencode-go/mimo-v2.5'), maxRetries: 3 },
+  { model: opencode('mimo-v2.5'), maxRetries: 3 },
 ];
 
 export const scout: ModelWithRetries[] = [
@@ -46,7 +59,7 @@ export const scout: ModelWithRetries[] = [
     model,
     maxRetries: 3,
   })),
-  { model: opencode('opencode-go/deepseek-v4-flash'), maxRetries: 3 },
+  { model: opencode('deepseek-v4-flash'), maxRetries: 3 },
 ];
 
 export const explorer: ModelWithRetries[] = [
@@ -54,7 +67,7 @@ export const explorer: ModelWithRetries[] = [
     model,
     maxRetries: 3,
   })),
-  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
+  { model: opencode('minimax-m3'), maxRetries: 3 },
 ];
 
 export const images = {
