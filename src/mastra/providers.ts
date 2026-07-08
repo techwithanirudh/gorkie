@@ -34,11 +34,11 @@ export const orchestrator: ModelWithRetries[] = [
 ];
 
 export const summarizer: ModelWithRetries[] = [
-  ...gateways('openrouter/google/gemini-2.5-flash').map((model) => ({
+  ...gateways('openrouter/google/gemini-3.1-flash-lite').map((model) => ({
     model,
     maxRetries: 3,
   })),
-  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
+  { model: opencode('opencode-go/mimi-v2.5'), maxRetries: 3 },
 ];
 
 export const scout: ModelWithRetries[] = [
