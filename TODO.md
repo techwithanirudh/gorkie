@@ -4,19 +4,16 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 
 ##
 - Refactor back to agent view
-- Make mastra dev and prod projects, use Mastra's DB offerring ratehr than supabass. Also, add devarsh
+- Make mastra dev and prod projects, use Mastra's DB offering rather than Supabase. Also, add devarsh
 - Add ability for Gorkie to render generative UI
-- Add proper docs for usage. w/fumapress
-  E.g: How to add new MCPS
+- Add proper docs for usage with Fumadocs
+  E.g: How to add new MCPs
   How to disable Tool Display
 - Remove restrictions from post_message, upload_file, etc. etc. for template
 - Cleanup skills
 - Add DOCS on configuring mastra observability, deployment etc.
 - See if we deploy gorkie on mastra?
 - The assistant panel passes channel id and thread id
-- Remove mermaid tool
-- Cleanup readme [e.g local pg section]
-- Fetch last 10 messages if pinged in the middle of a convo
 
 ## Priority queue
 
@@ -46,6 +43,19 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 
 ## Recently completed
 
+- **Cleaned up Slack message-management tools (2026-07-08)**: removed one-line helper functions for current-thread/self-DM checks and inlined those checks at the call sites. Kept edit/delete Slack message source parsing in `tools/slack/utils.ts`, kept ownership checks in `tools/slack/utils.ts`, and let `recordPostedMessage` derive the recorded Slack channel from the posted target/result.
+- **Inlined Slack edit/delete input schemas into tool definitions (2026-07-08)**: removed the remaining `editMessageInputSchema` and `deleteMessageInputSchema` constants. `edit_message` and `delete_message` now define their schemas directly on `inputSchema`.
+- **Inlined Slack edit/delete execute helpers (2026-07-08)**: removed the one-off `editMessage` execute wrapper and removed the shared `resolveMessageSource` branch helper. `edit_message` and `delete_message` now parse url/id inputs directly in each tool execute body.
+- **Inlined Slack edit/delete message source schemas (2026-07-08)**: removed the schema-only `src/mastra/types/tools/slack-message.ts` file. `edit_message` and `delete_message` now keep their small `z.discriminatedUnion('source', ...)` schemas directly in each tool.
+- **Documented dev/prod Mastra Platform observability (2026-07-08)**: README now explains using two Mastra Platform projects with the same env var names and different per-environment values. `.env.example` calls out dev vs prod project ids. `DESIGN.md` now matches current code: Platform exporter only, no DuckDB or storage exporter.
+- **Restored selected prompt tool notes (2026-07-08)**: kept the helper-agent note, restored the `execute_command` sandbox-lifetime note, and restored the normal file-tool preference note. The file-tool note now excludes `grep` and no longer carries the grep-specific performance guidance.
+- **Removed obvious tool prompt notes (2026-07-08)**: trimmed `src/mastra/prompts/tools.ts` again so obvious file-editing, listing, grep, and shell-command usage rely on tool definitions instead of extra prompt text. Kept non-obvious policy and safety notes for delegation, Slack ids, message management, turn control, recurring tasks, and `read_file` binary/media hazards.
+- **Root-caused the `BUG.md` sandbox/browser timeout (2026-07-08)**: read Mastra Platform trace `7392d4f7e41c37de2049214d07fa8d57` for Slack thread `C0A6C5F52BE/p1783487078724849`. The timeout was not a general sandbox background-process failure. The first Next dev server printed `Ready`, but its `next-server` process wedged in `D` state and `curl localhost:3000` hung. After killing the stuck Next and agent-browser processes, a fresh `PORT=3000 npx next dev -p 3000` served HTML successfully. `BUG.md` now records the diagnosis and verification notes.
+- **Finished the prompt tool cleanup (2026-07-08)**: removed the remaining non-note prompt context from `src/mastra/prompts/tools.ts`, including the duplicate helper-agent description and broad lookup block. The file now keeps only note-style behavioral guidance, with actual tool context left to tool definitions.
+- **Tightened `scripts/delete-slack-messages.ts` again (2026-07-08)**: trimmed the one-use token helper, normalized prompted and positional URLs, prints deletion results in input order, and preserved the explicit `--token` or pasted-token flow with no direct env reads.
+- **Removed Mermaid and refreshed README/task docs (2026-07-08)**: removed the `mermaid` tool from the registered base tools and deleted its implementation, trimmed the tools prompt so durable tool-use guidance lives on individual tool descriptions, updated README to reflect current Postgres, Mastra Platform observability, AI image, and mid-thread backfill behavior, and cleaned up `BUG.md` wording.
+- **Deleted the two linked production Gorkie Slack messages and added same-requester message management (2026-07-08)**: initial deletion with the dev token failed with Slack `cant_delete_message`; retrying with an explicit production bot token successfully deleted both linked messages. Added `scripts/delete-slack-messages.ts`, which accepts `--token=...` or prompts interactively for a pasted token. Added `edit_message` and `delete_message` tools. `post_message` now records each sent message's Slack channel/timestamp, original requester, and self-DM status in chat state; edit/delete only work for messages recorded this way and only when the current Slack user is the same requester. Follow-up cleanup removed the extra shared target type layer, inlined the tool input schemas, kept `process.env` access inside `src/env.ts`, and left `utils.ts` checking only the normalized `{ channel, ts }` identity.
+- **Cleaned up `delete-slack-messages` CLI (2026-07-08)**: rewrote argument handling around `Bun.argv` plus `node:util` `parseArgs`, added `--token xoxb-...` and `--token=xoxb-...` support, and made missing token/URL input interactive instead of immediately throwing usage. Removed the fake `SLACK_BOT_TOKEN_PROD` env path and `slackMaintenanceEnv`; maintenance deletion now requires an explicit pasted/input token.
 - **`post_message`'s DM anchor now mints from its own first post instead of guessing (2026-07-07)**: refined the third DM-anchor fix attempt (see the "DM tool display" item above). `postMessage`'s override in `chat/adapter.ts` no longer falls back to a `conversations.history` guess when there's no anchor yet — since `postMessage` can post unanchored (a fresh top-level message becomes its own thread root, same as a channel's first message), it just does that, persists the resulting message as the anchor, and corrects the returned `threadId` to reflect it immediately (the base adapter otherwise echoes the caller's original, unanchored threadId back unchanged). `stream()` still needs the `conversations.history` fallback since Slack's streaming API requires a `thread_ts` up front and can't post unanchored the way a plain message can.
 - **Mid-thread re-mentions were skipping the thread-history backfill — root-caused and fixed (2026-07-07)**: live-reported bug — pinging gorkie a second time in the middle of a thread (not the thread root) replies but doesn't re-fetch the last 10 messages, even though gorkie never saw what happened between the two mentions. Root cause, traced into `@mastra/core`: `processChatMessage` (`chunk-WNAR4CR3.js:12180`) only backfills thread history when `!chatThread.isSubscribed()` (`:12196-12198`), but calls `chatThread.subscribe()` unconditionally on *every* processed message (`:12316`) regardless of which handler ran. Gorkie's own `respondOnThreadMessages` flag (`chat/handlers.ts`) is a completely separate, gorkie-owned concept that only gets set for root mentions — so a one-off mid-thread mention leaves Mastra's *own* subscription flag `true` from that first exchange onward, silently skipping backfill on every mention after the first, even when gorkie isn't actually following the thread in between. Fixed in `chat/handlers.ts`'s `onSubscribedMessage`: when responding to a mention we're not actively following (`respondOnThreadMessages` not set), call the (public) `thread.unsubscribe()` right before handing off to `defaultHandler`, forcing Mastra to see an unsubscribed thread and re-fetch history for that turn; Mastra re-subscribes on its own immediately after. `onMention` doesn't need the same fix — per `chat`'s own docs it's only ever called for mentions in threads Mastra already considers unsubscribed, so backfill already fires correctly there.
 - **Subagent stability and delegate long-run failure state — confirmed fixed (2026-07-07)**: both former P0s (subagents broken in Slack/interruption behavior, and long helper-agent runs showing a generic parent error) are resolved per direct confirmation; no longer tracked as open.
@@ -152,7 +162,7 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 - [ ] **Mention input/output rendering**: confirm Slack mentions resolve properly in model-visible input, thread context, history/tool output, and final Slack replies.
 - [ ] **Filesystem tools in Slack**: confirm `read_file`, `write_file`, `edit_file`, `list_files`, `grep`, `delete_file`, `file_stat`, and `mkdir` work through Slack and render cleanly.
 - [ ] **Full tool robustness audit**: review all repo tools plus installed Mastra workspace tools for direct E2B access, stale sandbox recovery, path handling, and output/media behavior.
-- [ ] **All tool smoke tests**: test every registered tool in Slack, including `mermaid` and `getUser`/user lookup behavior.
+- [ ] **All tool smoke tests**: test every registered tool in Slack, including `getUser`/user lookup behavior.
 - [ ] **Tool caching parity**: validate caching behavior for all tools against the reference code.
 
 ## Tools

@@ -10,7 +10,7 @@ import { assertCanPostTo } from './utils';
 export const uploadFileTool = createTool({
   id: 'upload_file',
   description:
-    'Upload a file from the sandbox to a Slack destination. Defaults to the current thread; pass target to send it elsewhere (e.g. a DM).',
+    'Upload a file from the sandbox to a Slack destination. Defaults to the current thread; pass target to send it elsewhere. A footer crediting the requesting user is appended automatically, so do NOT add your own attribution.',
   inputSchema: z.object({
     path: z
       .string()
@@ -54,9 +54,9 @@ export const uploadFileTool = createTool({
     if (!resolved) {
       throw new Error('No current thread to upload to.');
     }
+    assertCanPostTo({ target: resolved, ctx });
     const isCurrentThread =
       resolved.type === 'thread' && resolved.id === ctx.threadId;
-    assertCanPostTo({ target: resolved, ctx, isCurrentThread });
     const isSelfDm =
       resolved.type === 'user' &&
       !!ctx.userId &&

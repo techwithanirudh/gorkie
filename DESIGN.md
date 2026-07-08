@@ -6,7 +6,7 @@ Gorkie is a **public** Slack coding-assistant bot. Stack:
 
 - **Mastra**: agent runtime (memory, workspace/sandbox, model routing) **and** the Slack integration via its built-in `channels` feature
 - **Chat SDK** (`chat` + `@chat-adapter/slack`): used *through* Mastra channels, not owned directly
-- **Postgres** (`@mastra/pg`): persistent memory + channel state; **DuckDB** (`@mastra/duckdb`): observability spans, via a `MastraCompositeStore`
+- **Postgres** (`@mastra/pg`): persistent memory + channel state
 - **Observational Memory**: long-context memory (Observer/Reflector compress history)
 - **E2B** (`@mastra/e2b`): isolated cloud sandbox for all code execution (never the host)
 - **Observability** (`@mastra/observability`, exporting to Mastra Platform): tracing with secret redaction
@@ -70,9 +70,9 @@ All custom tools are Mastra `createTool`s returning a uniform `{ success, messag
 
 ## Storage, Memory, Observability
 
-- **Storage**: `MastraCompositeStore`: default `PostgresStore(DATABASE_URL)` (memory, channel state) + `DuckDBStore('./observability.duckdb')` for the observability domain.
+- **Storage**: `PostgresStore(DATABASE_URL)` for memory and channel state.
 - **Memory**: `new Memory({ lastMessages: 20, observationalMemory: { model: [gemini fallback chain], scope: 'thread' } })`. Short verbatim window + OM compression for long-context recall. Thread = Slack thread; resource = `slack:<userId>`.
-- **Observability**: `MastraStorageExporter` + `MastraPlatformExporter` (`MASTRA_PLATFORM_ACCESS_TOKEN`/`MASTRA_PROJECT_ID`), with a `SensitiveDataFilter`. Logging is `PinoLogger`.
+- **Observability**: `MastraPlatformExporter` (`MASTRA_PLATFORM_ACCESS_TOKEN`/`MASTRA_PROJECT_ID`), with a `SensitiveDataFilter`. Dev and prod observability are separated by using different Mastra Platform projects through per-environment env values. Logging is `PinoLogger`.
 
 ---
 

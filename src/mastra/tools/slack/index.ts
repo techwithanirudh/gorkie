@@ -1,3 +1,5 @@
+import { deleteMessageTool } from './delete-message';
+import { editMessageTool } from './edit-message';
 import { getChannelInfoTool } from './get-channel-info';
 import { getFileTool } from './get-file';
 import { getUserTool } from './get-user';
@@ -19,6 +21,8 @@ export const slackTools = {
   get_file: getFileTool,
   upload_file: uploadFileTool,
   post_message: postMessageTool,
+  edit_message: editMessageTool,
+  delete_message: deleteMessageTool,
   leave_thread: leaveThreadTool,
   leave_channel: leaveChannelTool,
   summarize_thread: summarizeThreadTool,

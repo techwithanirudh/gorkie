@@ -20,11 +20,10 @@ function throwIfAborted(signal?: AbortSignal): void {
   }
 }
 
-// TODO: custom emoji download by shortcode (e.g. :partyparrot:) was removed
 export const getFileTool = createTool({
   id: 'get_file',
   description:
-    'Download a Slack file (upload, snippet, image, canvas, any type) into the sandbox so you can read or process it. Accepts a Slack file URL, permalink, or file id. When downloading images, pass a filename with the correct extension (.png, .jpg, .jpeg, .webp).',
+    'Download a Slack file (upload, snippet, image, canvas, any type) into the sandbox so you can read or process it. Accepts a Slack file URL, permalink, or file id. When downloading images, always pass or preserve a useful extension like .png, .jpg, .jpeg, or .webp so read_file can infer the MIME type.',
   inputSchema: z.object({
     file: z
       .string()

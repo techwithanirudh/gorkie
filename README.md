@@ -31,7 +31,10 @@ touching the host machine.
 ## Features
 
 - Slack-native replies for mentions, DMs, and subscribed thread follow-ups;
-  `##` ignore for messages that shouldn't get a reply.
+  `##` ignore for messages that shouldn't get a reply. When gorkie is pinged
+  again in the middle of a thread it is not actively following, it forces a
+  fresh thread-history backfill so it sees the recent conversation before
+  answering.
 - Real-time streaming responses with live tool-activity widgets (grouped/
   timeline task cards) in Slack.
 - Per-thread [E2B][e2b] sandbox sessions: isolated cloud VMs, never the host.
@@ -50,8 +53,7 @@ touching the host machine.
 - Recurring scheduled tasks (cron-based, create/list/pause/resume/delete) and
   one-time reminders, both delivered back into the Slack conversation where
   they were scheduled.
-- Mermaid diagram rendering and AI image generation, deliverable back to
-  Slack via file upload.
+- AI image generation, deliverable back to Slack via file upload.
 - [Observational Memory][om]: long conversations are compressed into a dense
   observation log instead of carrying full raw history.
 - Mastra Platform tracing with sensitive-data redaction.
@@ -68,8 +70,8 @@ See [TODO.md](./TODO.md) for the current roadmap and known open issues.
   with automatic per-gateway fallback
 - [E2B][e2b] sandbox sessions
 - [Exa][exa] for web search and page fetching
-- [PostgreSQL][postgres] via `@mastra/pg`
-- Mastra Observability + Mastra Platform
+- [PostgreSQL][postgres] via `@mastra/pg` for Mastra memory and channel state
+- Mastra Observability exported to Mastra Platform
 - [Pino][pino] logging
 
 ## Getting Started
@@ -77,8 +79,8 @@ See [TODO.md](./TODO.md) for the current roadmap and known open issues.
 Create a new [Slack app](https://api.slack.com/apps) **from a manifest** using
 [`slack-manifest.yaml`](./slack-manifest.yaml) (enables Socket Mode, the
 Assistant view, scopes, and event subscriptions). You will also need
-[Bun][bun], a [PostgreSQL][postgres] database, an [E2B][e2b] API key, an
-[Exa][exa] API key, a Mastra Platform project, and a model key
+[Bun][bun], a [PostgreSQL][postgres] connection string, an [E2B][e2b] API key,
+an [Exa][exa] API key, a Mastra Platform project, and a model key
 ([Hack Club][hackclub] or [OpenRouter][openrouter]).
 
 ```bash
@@ -100,18 +102,34 @@ tunnel to receive Slack events. You should see `[gorkie] online` once connected.
 
 For a production-style run: `bun run build` then `bun run start`.
 
-### Local Postgres
+### Database
 
-The default `DATABASE_URL` targets a local cluster on port `5434` (database
-`gorkie`, role `coder`, trust auth). Mastra auto-creates its tables on first run.
+Set `DATABASE_URL` to a Postgres database reachable by the host process. Mastra
+auto-creates its own tables for memory and channel state on first run. App data
+that is not owned by Mastra should use its own schema or clearly named tables in
+the same database.
 
-```bash
-PGBIN=/usr/lib/postgresql/15/bin
-PGDATA="$HOME/.local/pgdata"
-$PGBIN/initdb -D "$PGDATA" -U coder --auth=trust          # first time only
-$PGBIN/pg_ctl -D "$PGDATA" -o "-p 5434 -k /tmp" -l "$PGDATA/server.log" start
-$PGBIN/createdb -h 127.0.0.1 -p 5434 -U coder gorkie      # first time only
-```
+Local Postgres works fine, but the repo no longer assumes a specific local
+cluster, port, database, or role. Use whatever local or hosted Postgres instance
+you normally develop against and put that connection string in `.env`.
+
+### Observability
+
+Gorkie exports traces to Mastra Platform with `MastraPlatformExporter` in
+`src/mastra/index.ts`. Use two Mastra Platform projects: one for development and
+one for production.
+
+Keep the code and variable names the same in both environments:
+
+- Local/dev `.env`: `MASTRA_PROJECT_ID` points at the dev project.
+- Production secrets: `MASTRA_PROJECT_ID` points at the prod project.
+- `MASTRA_PLATFORM_ACCESS_TOKEN` must be a token that can write to the selected
+  project.
+
+This keeps dev traces, experiments, and debugging noise out of the production
+observability project without adding runtime branching. If dev and prod should
+also have separate memory/channel state, give each environment a different
+`DATABASE_URL` too.
 
 ## Environment
 
@@ -124,7 +142,7 @@ $PGBIN/createdb -h 127.0.0.1 -p 5434 -U coder gorkie      # first time only
 | `OPENROUTER_API_KEY` | no | Real OpenRouter key (`sk-or-v1-…`), used as a fallback gateway |
 | `OPENROUTER_BASE_URL` | no | Defaults to real OpenRouter; override to point elsewhere |
 | `OPENCODE_API_KEY` | no | opencode.ai/zen gateway key, tried before the OpenRouter rungs |
-| `DATABASE_URL` | yes | Postgres connection string |
+| `DATABASE_URL` | yes | Postgres connection string for Mastra memory and channel state |
 | `E2B_API_KEY` | yes | E2B sandbox key (`e2b_…`) |
 | `EXA_API_KEY` | yes | Exa key, powers `search_web`/`fetch_url` |
 | `AGENTMAIL_API_KEY` | no | Broker AgentMail API access into sandbox egress for `gorkie@agentmail.to` |
@@ -138,7 +156,7 @@ $PGBIN/createdb -h 127.0.0.1 -p 5434 -U coder gorkie      # first time only
 src/
   env.ts                        Zod-validated environment
   mastra/
-    index.ts                    Mastra instance: Postgres, Observability, logger, agents
+    index.ts                    Mastra instance: Postgres, Platform tracing, logger, agents
     config.ts                   Sandbox, agent, scheduled-task, and tool-display config
     providers.ts                Model gateway definitions (orchestrator, summarizer, scout, explorer)
     agents/gorkie.ts             The agent: model, instructions, memory, tools, channels

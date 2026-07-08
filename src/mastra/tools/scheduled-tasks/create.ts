@@ -30,7 +30,7 @@ function assertMinimumInterval(cron: string, timezone?: string): void {
 export const createScheduledTaskTool = createTool({
   id: 'create_scheduled_task',
   description:
-    'Create a recurring scheduled task from a cron expression. The task runs where it was scheduled: the current Slack thread or DM.',
+    'Create a recurring scheduled task from a cron expression. Use for recurring tasks only, not one-time reminders. The task runs where it was scheduled: the current Slack thread or DM. A top-level channel message is treated as a thread rooted at that message. Include an IANA timezone when the user schedule is time-of-day sensitive. Never create a schedule that fires more often than every 30 minutes; refuse and offer the nearest 30-minute-or-slower cadence instead.',
   inputSchema: z.object({
     task: z
       .string()

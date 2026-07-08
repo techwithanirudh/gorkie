@@ -68,7 +68,7 @@ const searchResponse = z.looseObject({
 export const searchSlackTool = createTool({
   id: 'search_slack',
   description:
-    'Search Slack messages for past conversations, decisions, links, people, or internal references outside the current thread. Use specific queries (keywords, names, channels, dates). For unfamiliar references and "what is X" questions, pair this with search_web and compare results before answering.',
+    'Search Slack messages for past conversations, decisions, links, people, or internal references outside the current thread. Use specific queries (keywords, names, channels, dates). For from:/to:, use the Slack username, not a raw user id. For unfamiliar references and "what is X" questions, pair this with search_web and compare results before answering. If unavailable because the user did not @mention you, say you need an @mention to check Slack history.',
   inputSchema: z.object({
     query: z
       .string()

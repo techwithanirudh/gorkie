@@ -14,7 +14,7 @@ const imageModel = createOpenAI({
 export const generateImageTool = createTool({
   id: 'generate_image',
   description:
-    'Generate one or more AI images from a prompt and write them into the sandbox downloads/ directory. Use upload_file afterward to send them to Slack (defaults to the current thread; pass target for elsewhere) or process them first (resize, composite, edit) with other sandbox tools.',
+    'Generate one or more AI images from an explicit image-creation request and write them into the sandbox downloads/ directory. Use upload_file afterward to send them to Slack (defaults to the current thread; pass target for elsewhere) or process them first with other sandbox tools.',
   inputSchema: z.object({
     prompt: z
       .string()

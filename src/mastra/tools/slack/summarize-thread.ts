@@ -9,7 +9,7 @@ import { assertReadableChannel, joinChannel } from './utils';
 export const summarizeThreadTool = createTool({
   id: 'summarize_thread',
   description:
-    'Summarize a conversation thread (defaults to the current thread) without returning the full transcript to the main model context.',
+    'Summarize a conversation thread, defaulting to the current thread, without returning the full transcript to the main model context. Prefer this over read_conversation_history for long threads; read raw history only when exact wording matters.',
   inputSchema: z.object({
     threadId: z
       .string()

@@ -4,12 +4,12 @@ import { withAttribution } from '../../chat/attribution';
 import { resolveTarget, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
 import { rawId } from '../../lib/ids';
-import { assertCanPostTo } from './utils';
+import { assertCanPostTo, recordPostedMessage } from './utils';
 
 export const postMessageTool = createTool({
   id: 'post_message',
   description:
-    'Post a markdown message to ANOTHER target (thread, channel, or user). Your streamed reply is the message to the current thread; use this only to message somewhere else.',
+    'Post a markdown message to ANOTHER target (thread, channel, or user). Your streamed reply is the message to the current thread; use this only to message somewhere else. Channel/thread targets must be in the channel this conversation is already in, and user targets must be the requester themselves. A footer crediting the requester is appended automatically, so do not add your own attribution.',
   inputSchema: z.object({
     ...targetSchema.shape,
     message: z.string().min(1).describe('Markdown message body.'),
@@ -17,9 +17,9 @@ export const postMessageTool = createTool({
   execute: async ({ type, id, message }, context) => {
     const ctx = channelContext(context?.requestContext);
     const target = { type, id };
+    assertCanPostTo({ target, ctx });
     const isCurrentThread =
       target.type === 'thread' && target.id === ctx.threadId;
-    assertCanPostTo({ target, ctx, isCurrentThread });
     const isSelfDm =
       target.type === 'user' &&
       !!ctx.userId &&
@@ -32,6 +32,12 @@ export const postMessageTool = createTool({
     try {
       const destination = await resolveTarget(target);
       const sent = await destination.post({ markdown });
+      await recordPostedMessage({
+        target,
+        sent,
+        requestedBy: ctx.userId,
+        isSelfDm,
+      });
       return {
         success: true,
         messageId: sent.id,
