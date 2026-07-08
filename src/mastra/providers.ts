@@ -38,7 +38,7 @@ export const summarizer: ModelWithRetries[] = [
     model,
     maxRetries: 3,
   })),
-  { model: opencode('opencode-go/mimi-v2.5'), maxRetries: 3 },
+  { model: opencode('opencode-go/mimo-v2.5'), maxRetries: 3 },
 ];
 
 export const scout: ModelWithRetries[] = [

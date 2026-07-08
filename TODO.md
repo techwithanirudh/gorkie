@@ -14,6 +14,9 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 - Add DOCS on configuring mastra observability, deployment etc.
 - See if we deploy gorkie on mastra?
 - The assistant panel passes channel id and thread id
+- Remove mermaid tool
+- Cleanup readme [e.g local pg section]
+- Fetch last 10 messages if pinged in the middle of a convo
 
 ## Priority queue
 
