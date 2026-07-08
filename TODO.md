@@ -2,6 +2,19 @@
 
 Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.md) for architecture.
 
+##
+- Refactor back to agent view
+- Make mastra dev and prod projects, use Mastra's DB offerring ratehr than supabass. Also, add devarsh
+- Add ability for Gorkie to render generative UI
+- Add proper docs for usage. w/fumapress
+  E.g: How to add new MCPS
+  How to disable Tool Display
+- Remove restrictions from post_message, upload_file, etc. etc. for template
+- Cleanup skills
+- Add DOCS on configuring mastra observability, deployment etc.
+- See if we deploy gorkie on mastra?
+- The assistant panel passes channel id and thread id
+
 ## Priority queue
 
 - [ ] **DM tool display — root-caused (2026-07-07), third fix attempt shipped, needs live verification**: confirmed via two live screenshots that DMs and scheduled/heartbeat-fired tasks both get stuck on a bare `...` placeholder forever instead of rendering tool cards. Root cause, fully traced through the vendored `chat`/`@chat-adapter/slack` packages: `chat`'s `handleStream()` (`node_modules/chat/dist/index.js:1517`) only uses the native live Slack streaming widget (which is what renders tool-call cards) when the adapter's `stream()` returns a message; otherwise it falls back to `fallbackStream()` (`index.js:1609`), a **text-only** post+edit loop with zero awareness of tool calls, whose placeholder is `"..."` by default (`chat` package default for `fallbackStreamingPlaceholderText`) — this never gets replaced if the model's final text stays empty, which is exactly the earlier "empty message" bug too. `@chat-adapter/slack`'s `stream()` (`dist/index.js:3556`) returns `null` (forcing that fallback) whenever `threadTs` is falsy. For a DM's top-level/outer conversation, the adapter's own dispatcher deliberately encodes `threadTs` as `""` when there's no explicit Slack thread (`dist/index.js:2132`: `isDM ? event.thread_ts || "" : event.thread_ts || event.ts` — DMs get `""`, channels fall back to `event.ts`), which is intentional (keeps a whole DM as one continuous conversation rather than fragmenting per top-level message, unlike channels) but also means `stream()` always sees a falsy `threadTs` for that case. Slack's real `chat.startStream` API requires a non-empty `thread_ts` (confirmed via `@slack/web-api`'s `ChatStartStreamArguments extends ... ThreadTS`, not `Partial<ThreadTS>`) — there is no way to get live tool-call rendering in a DM without Slack anchoring to some thread; the text-only fallback path is structurally incapable of rendering tool calls regardless of any patch.
