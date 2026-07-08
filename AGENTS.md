@@ -20,7 +20,7 @@ One Mastra `Agent` (`gorkieAgent`) serves Slack through Mastra's built-in `chann
 
 The agent brain runs on the host. Code execution runs in a per-thread **E2B** sandbox (isolated cloud Linux VM). Model keys, Slack tokens, and DB credentials live on the host and never enter the sandbox.
 
-Storage is **Postgres** (agent memory, channel state). Long-term memory is **Observational Memory**, thread-scoped. Observability traces live in a local **DuckDB** file at the repo root (`observability.duckdb`, wired via `MastraCompositeStore` domain override in `src/mastra/index.ts`, path anchored to `MASTRA_PROJECT_ROOT` so it's the same file under both `mastra dev` and `mastra start`): it works and is the ground truth for debugging what the model actually received and returned. Query it read-only (e.g. `duckdb -readonly`) while the dev server is stopped; DuckDB is single-writer, so a running `mastra dev`/`mastra start` holds the lock. When no server is running, hit `http://localhost:4111/api/observability/traces` on whatever instance the user already has up instead of starting your own (see Boundaries).
+Storage is **Postgres** (agent memory, channel state). Long-term memory is **Observational Memory**, thread-scoped. Observability traces export to Mastra Platform through `MastraPlatformExporter` in `src/mastra/index.ts`, with sensitive-data filtering. Dev and prod observability should use different `MASTRA_PROJECT_ID` and `MASTRA_PLATFORM_ACCESS_TOKEN` values, and dev/prod runtime state should use different `DATABASE_URL` values. There is no local DuckDB observability store now.
 
 ## Boundaries
 
@@ -49,7 +49,7 @@ After code changes:
 
 1. `bun run typecheck`
 2. `bun run check` (Biome/ultracite) and `bun run check:spelling`
-3. `bun run start` (smoke test: it should log `[gorkie] online`)
+3. Do not run `bun run start` yourself. Ask the user to smoke-test their running instance if runtime verification is needed.
 
 ## Resources
 

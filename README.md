@@ -18,8 +18,8 @@
 ## Introduction
 
 gorkie is an AI assistant for Slack. It replies to mentions, DMs, and subscribed
-threads with answers backed by sandboxed code execution and a broad tool set,
-and can also run recurring scheduled tasks and one-time reminders on its own.
+threads with answers backed by sandboxed code execution and a broad tool set.
+It can also run recurring scheduled tasks and one-time reminders.
 
 The bot runs as a long-lived Bun process. Slack events are handled through
 [Mastra][mastra]'s built-in [channels][channels] feature, which wires the
@@ -30,10 +30,9 @@ touching the host machine.
 
 ## Features
 
-- Slack-native replies for mentions, DMs, and subscribed thread follow-ups;
-  `##` ignore for messages that shouldn't get a reply. When gorkie is pinged
-  again in the middle of a thread it is not actively following, it forces a
-  fresh thread-history backfill so it sees the recent conversation before
+- Slack-native replies for mentions, DMs, and subscribed thread follow-ups.
+  `##` skips a reply. When gorkie is pinged again in the middle of a thread it
+  is not actively following, it forces a fresh thread-history backfill before
   answering.
 - Real-time streaming responses with live tool-activity widgets (grouped/
   timeline task cards) in Slack.
@@ -48,8 +47,8 @@ touching the host machine.
 - Web search and page fetching via [Exa][exa], plus Slack search across
   channels, threads, users, and past messages.
 - Slack-native tools: read/summarize conversation history, list threads,
-  inspect channels and users, post to another thread/channel/DM, upload and
-  download files, leave a thread or channel.
+  inspect channels and users, post in the current conversation, DM the current
+  requester, upload/download files, and leave a thread or channel.
 - Recurring scheduled tasks (cron-based, create/list/pause/resume/delete) and
   one-time reminders, both delivered back into the Slack conversation where
   they were scheduled.
@@ -100,18 +99,20 @@ bun run dev
 Local development uses Slack Socket Mode, so the bot does not need a public HTTP
 tunnel to receive Slack events. You should see `[gorkie] online` once connected.
 
-For a production-style run: `bun run build` then `bun run start`.
+For production, use a long-running process with `bun run build` then
+`bun run start`. This repo does not require `mastra deploy`; Mastra Platform is
+used for observability.
 
 ### Database
 
 Set `DATABASE_URL` to a Postgres database reachable by the host process. Mastra
-auto-creates its own tables for memory and channel state on first run. App data
-that is not owned by Mastra should use its own schema or clearly named tables in
-the same database.
+auto-creates its own tables for memory and channel state on first run. Use
+separate dev/prod database URLs so test runs cannot mutate production memory,
+channel state, or scheduled tasks. App data that is not owned by Mastra should
+use its own schema or clearly named tables.
 
-Local Postgres works fine, but the repo no longer assumes a specific local
-cluster, port, database, or role. Use whatever local or hosted Postgres instance
-you normally develop against and put that connection string in `.env`.
+Local Postgres works fine. The repo does not assume a specific local cluster,
+port, database, or role.
 
 ### Observability
 
@@ -126,10 +127,8 @@ Keep the code and variable names the same in both environments:
 - `MASTRA_PLATFORM_ACCESS_TOKEN` must be a token that can write to the selected
   project.
 
-This keeps dev traces, experiments, and debugging noise out of the production
-observability project without adding runtime branching. If dev and prod should
-also have separate memory/channel state, give each environment a different
-`DATABASE_URL` too.
+This keeps dev traces, experiments, and debugging noise out of production
+without runtime branching.
 
 ## Environment
 
@@ -142,7 +141,7 @@ also have separate memory/channel state, give each environment a different
 | `OPENROUTER_API_KEY` | no | Real OpenRouter key (`sk-or-v1-…`), used as a fallback gateway |
 | `OPENROUTER_BASE_URL` | no | Defaults to real OpenRouter; override to point elsewhere |
 | `OPENCODE_API_KEY` | no | opencode.ai/zen gateway key, tried before the OpenRouter rungs |
-| `DATABASE_URL` | yes | Postgres connection string for Mastra memory and channel state |
+| `DATABASE_URL` | yes | Postgres connection string for Mastra memory, channel state, and schedules |
 | `E2B_API_KEY` | yes | E2B sandbox key (`e2b_…`) |
 | `EXA_API_KEY` | yes | Exa key, powers `search_web`/`fetch_url` |
 | `AGENTMAIL_API_KEY` | no | Broker AgentMail API access into sandbox egress for `gorkie@agentmail.to` |
@@ -176,11 +175,12 @@ and the reasoning behind using Mastra channels.
 ## Development
 
 ```bash
-bun run dev          # Mastra Studio + the live bot at http://localhost:4111
-bun run build        # Build for production
-bun run start        # Run the built output (production-style)
-bun run typecheck    # tsc --noEmit
-bun run check        # Lint (ultracite/Biome)
+bun run dev             # Mastra Studio + the live bot at http://localhost:4111
+bun run build           # Build for production
+bun run start           # Run the built output as a long-running process
+bun run typecheck       # tsc --noEmit
+bun run check           # Lint (ultracite/Biome)
+bun run check:spelling  # Spell check docs and source
 ```
 
 ## License
