@@ -12,7 +12,7 @@ features:
     display_name: gorkie
     always_online: true
   assistant_view:
-    assistant_description: Your AI assistant for Slack. Runs code in a sandbox, reads and shares files, searches the web and Slack, draws diagrams, and sets reminders.
+    assistant_description: Your AI assistant for Slack. Searches the web, writes and runs code, generates images, browses websites, manages reminders and scheduled tasks, and more.
 
 oauth_config:
   scopes:
