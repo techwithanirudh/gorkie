@@ -11,6 +11,17 @@ export const env = createEnv({
     SLACK_BOT_TOKEN: z.string().min(1),
     SLACK_APP_TOKEN: z.string().min(1),
     OPT_IN_CHANNEL: z.string().optional(),
+    LEAVE_CHANNEL_BLOCKLIST: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(',')
+              .map((id) => id.trim())
+              .filter((id) => id.length > 0)
+          : []
+      ),
 
     HACKCLUB_API_KEY: z.string().min(1),
 
