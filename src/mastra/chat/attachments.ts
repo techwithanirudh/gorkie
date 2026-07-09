@@ -21,7 +21,7 @@ export function attachments(message: Message): Message {
       ].filter(Boolean);
       return `- ${details.join(', ')}`;
     }),
-    'Call get_file with a Slack URL or file id to download it into the workspace.',
+    'Call get_slack_file with a Slack URL or file id to download it into the workspace.',
   ]
     .filter(Boolean)
     .join('\n\n');
