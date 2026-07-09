@@ -20,6 +20,26 @@ function throwIfAborted(signal?: AbortSignal): void {
   }
 }
 
+// get_file authenticates downloads with the workspace Slack bot token, so the
+// resolved URL must be a Slack-owned host. Without this guard, an attacker
+// could pass an arbitrary URL (e.g. https://evil.example/x) and the tool would
+// send `Authorization: Bearer <SLACK_BOT_TOKEN>` straight to their server,
+// leaking a workspace-wide credential. Use fetch_url for arbitrary web content.
+function isSlackHost(rawUrl: string): boolean {
+  let host: string;
+  try {
+    host = new URL(rawUrl).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return (
+    host === 'slack.com' ||
+    host.endsWith('.slack.com') ||
+    host === 'slack-files.com' ||
+    host.endsWith('.slack-files.com')
+  );
+}
+
 // TODO: custom emoji download by shortcode (e.g. :partyparrot:) was removed
 export const getFileTool = createTool({
   id: 'get_file',
@@ -54,9 +74,20 @@ export const getFileTool = createTool({
     if (!url) {
       throw new Error(`Could not resolve a download URL for: ${file}`);
     }
+    if (!isSlackHost(url)) {
+      throw new Error(
+        `Refusing to download from a non-Slack host: ${url}. get_file only downloads Slack-hosted files (it authenticates with the workspace token); use fetch_url for arbitrary web content.`
+      );
+    }
 
     const defaultName = info?.name ?? fileId ?? 'slack-file';
-    const name = (filename ?? defaultName).replace(/[^\w.-]+/g, '_');
+    // Strip path separators and reject bare "." / ".." so a crafted filename
+    // can't escape the downloads/ directory when joined into the sandbox path.
+    const sanitized = (filename ?? defaultName).replace(/[^\w.-]+/g, '_');
+    const name =
+      sanitized === '' || sanitized === '.' || sanitized === '..'
+        ? 'slack-file'
+        : sanitized;
     const path = p('downloads', name);
     await sandbox.retryOnDead(() => sandbox.e2b.files.makeDir(p('downloads')));
     const partPath = `${path}.part`;
