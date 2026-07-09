@@ -4,7 +4,7 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 
 ##
 - Refactor back to agent view
-- Make mastra dev and prod projects, use Mastra's DB offerring ratehr than supabass. Also, add devarsh
+- Make mastra dev and prod projects, use Mastra's DB offering rather than supabase. Also, add devarsh
 - Add ability for Gorkie to render generative UI
 - Add proper docs for usage. w/fumapress
   E.g: How to add new MCPS
