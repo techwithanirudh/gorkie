@@ -9,7 +9,7 @@ const sandboxTools = new Set([
   'execute_command',
   'get_process_output',
   'kill_process',
-  'get_file',
+  'get_slack_file',
   'upload_file',
   'read_file',
   'write_file',

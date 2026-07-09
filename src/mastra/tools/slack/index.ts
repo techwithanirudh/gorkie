@@ -1,5 +1,5 @@
 import { getChannelInfoTool } from './get-channel-info';
-import { getFileTool } from './get-file';
+import { getSlackFileTool } from './get-slack-file';
 import { getUserTool } from './get-user';
 import { leaveChannelTool } from './leave-channel';
 import { leaveThreadTool } from './leave-thread';
@@ -16,7 +16,7 @@ export const slackTools = {
   list_threads: listThreadsTool,
   get_user: getUserTool,
   get_channel_info: getChannelInfoTool,
-  get_file: getFileTool,
+  get_slack_file: getSlackFileTool,
   upload_file: uploadFileTool,
   post_message: postMessageTool,
   leave_thread: leaveThreadTool,

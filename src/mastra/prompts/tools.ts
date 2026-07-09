@@ -78,7 +78,7 @@ If unavailable because the user did not @mention you, use web search and say you
 </tool>
 
 <tool>
-<name>get_file</name>
+<name>get_slack_file</name>
 <description>Download a Slack file that is not on the current message, such as an earlier upload, snippet, image, canvas, link, or file id, into the sandbox.</description>
 <note>When saving images, ALWAYS preserve or provide a useful filename extension like .png, .jpg, .jpeg, or .webp so read_file can infer MIME type.</note>
 </tool>

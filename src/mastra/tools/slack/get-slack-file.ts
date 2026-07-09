@@ -20,8 +20,8 @@ function throwIfAborted(signal?: AbortSignal): void {
   }
 }
 
-// get_file authenticates downloads with the workspace Slack bot token, so the
-// resolved URL must be a Slack-owned host. Without this guard, an attacker
+// get_slack_file authenticates downloads with the workspace Slack bot token, so
+// the resolved URL must be a Slack-owned host. Without this guard, an attacker
 // could pass an arbitrary URL (e.g. https://evil.example/x) and the tool would
 // send `Authorization: Bearer <SLACK_BOT_TOKEN>` straight to their server,
 // leaking a workspace-wide credential. Use fetch_url for arbitrary web content.
@@ -41,10 +41,10 @@ function isSlackHost(rawUrl: string): boolean {
 }
 
 // TODO: custom emoji download by shortcode (e.g. :partyparrot:) was removed
-export const getFileTool = createTool({
-  id: 'get_file',
+export const getSlackFileTool = createTool({
+  id: 'get_slack_file',
   description:
-    'Download a Slack file (upload, snippet, image, canvas, any type) into the sandbox so you can read or process it. Accepts a Slack file URL, permalink, or file id. When downloading images, pass a filename with the correct extension (.png, .jpg, .jpeg, .webp).',
+    'Download a Slack file (upload, snippet, image, canvas, any type) into the sandbox so you can read or process it. Accepts a Slack file URL, permalink, or file id. Only downloads Slack-hosted files; use fetch_url for arbitrary web URLs. When downloading images, pass a filename with the correct extension (.png, .jpg, .jpeg, .webp).',
   inputSchema: z.object({
     file: z
       .string()
@@ -76,7 +76,7 @@ export const getFileTool = createTool({
     }
     if (!isSlackHost(url)) {
       throw new Error(
-        `Refusing to download from a non-Slack host: ${url}. get_file only downloads Slack-hosted files (it authenticates with the workspace token); use fetch_url for arbitrary web content.`
+        `Refusing to download from a non-Slack host: ${url}. get_slack_file only downloads Slack-hosted files (it authenticates with the workspace token); use fetch_url for arbitrary web content.`
       );
     }
 
