@@ -79,7 +79,7 @@ If unavailable because the user did not @mention you, use web search and say you
 
 <tool>
 <name>get_slack_file</name>
-<description>Download a Slack file (an earlier upload, snippet, image, canvas, or any type) into the sandbox by its Slack file id (e.g. F0123ABCD). For arbitrary web URLs, use fetch_url instead.</description>
+<description>Download a Slack file (an earlier upload, snippet, image, canvas, or any type) into the sandbox by its Slack file id (e.g. F0123ABCD).</description>
 <note>When saving images, ALWAYS preserve or provide a useful filename extension like .png, .jpg, .jpeg, or .webp so read_file can infer MIME type.</note>
 </tool>
 
