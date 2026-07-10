@@ -20,12 +20,9 @@ function throwIfAborted(signal?: AbortSignal): void {
   }
 }
 
-// The only URL get_slack_file ever fetches is the url_private(_download)
-// returned by Slack's files.info for a resolved file id — never a caller-
-// supplied URL — so the workspace bot token is only ever sent to Slack. This
-// stays as defense-in-depth: assert the resolved URL is Slack-owned before
-// attaching the token, so a spoofed/compromised files.info response can't
-// redirect the credential elsewhere.
+// The download url comes from Slack's files.info, so it is always Slack-hosted.
+// Assert it anyway before attaching the bot token, to defend against a spoofed
+// files.info response pointing the credential at another host.
 function isSlackHost(rawUrl: string): boolean {
   let host: string;
   try {
@@ -45,7 +42,7 @@ function isSlackHost(rawUrl: string): boolean {
 export const getSlackFileTool = createTool({
   id: 'get_slack_file',
   description:
-    'Download a Slack file (upload, snippet, image, canvas, any type) into the sandbox so you can read or process it. Takes a Slack file id (e.g. F0123ABCD), which you can get from a message attachment or a Slack file permalink. Not for arbitrary web URLs — use fetch_url for those. When downloading images, pass a filename with the correct extension (.png, .jpg, .jpeg, .webp).',
+    'Download a Slack file (upload, snippet, image, canvas, any type) into the sandbox so you can read or process it. Takes a Slack file id (e.g. F0123ABCD), which you can get from a message attachment or a Slack file permalink. Not for arbitrary web URLs; use fetch_url for those. When downloading images, pass a filename with the correct extension (.png, .jpg, .jpeg, .webp).',
   inputSchema: z.object({
     file: z
       .string()
