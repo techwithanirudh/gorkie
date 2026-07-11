@@ -47,6 +47,7 @@ async function main(): Promise<void> {
         'python3 -m pip install --no-cache-dir --break-system-packages --no-user pillow matplotlib numpy pandas requests agentmail gTTS SpeechRecognition pydub',
         'npm install -g agent-browser wrangler',
         'bash -lc "yes | agent-browser install --with-deps"',
+        'git config --system core.hooksPath /dev/null',
         `chown -R user:user ${config.workdir}`,
       ])
       .setUser('user')
