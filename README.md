@@ -64,8 +64,8 @@ See [TODO.md](./TODO.md) for the current roadmap and known open issues.
 - [Mastra][mastra], agent runtime + [channels][channels]
 - [Vercel Chat SDK][chat-sdk] with `@chat-adapter/slack` (via Mastra channels)
 - Model routing across multiple OpenRouter-compatible gateways (the
-  [Hack Club][hackclub] proxy, opencode.ai, and real [OpenRouter][openrouter])
-  with automatic per-gateway fallback
+  [Hack Club][hackclub] proxy, an optional dedicated inference gateway, and
+  real [OpenRouter][openrouter]) with automatic per-gateway fallback
 - [E2B][e2b] sandbox sessions
 - [Exa][exa] for web search and page fetching
 - [PostgreSQL][postgres] via `@mastra/pg`
@@ -123,7 +123,8 @@ $PGBIN/createdb -h 127.0.0.1 -p 5434 -U coder gorkie      # first time only
 | `HACKCLUB_API_KEY` | yes | Hack Club AI proxy key (`sk-hc-…`), a gateway rung for every model |
 | `OPENROUTER_API_KEY` | no | Real OpenRouter key (`sk-or-v1-…`), used as a fallback gateway |
 | `OPENROUTER_BASE_URL` | no | Defaults to real OpenRouter; override to point elsewhere |
-| `OPENCODE_API_KEY` | no | opencode.ai/zen gateway key, tried before the OpenRouter rungs |
+| `INFERENCE_API_KEY` | no | Optional dedicated inference gateway key, tried before the OpenRouter rungs |
+| `INFERENCE_BASE_URL` | no | Base URL for the dedicated inference gateway; required alongside `INFERENCE_API_KEY` |
 | `DATABASE_URL` | yes | Postgres connection string |
 | `E2B_API_KEY` | yes | E2B sandbox key (`e2b_…`) |
 | `EXA_API_KEY` | yes | Exa key, powers `search_web`/`fetch_url` |
