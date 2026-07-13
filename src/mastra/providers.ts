@@ -21,12 +21,13 @@ function inference(id: `${string}/${string}`): GatewayConfig[] {
 }
 
 export const orchestrator: ModelWithRetries[] = [
-  ...inference('openrouter/minimax/minimax-m3').map((model) => ({
+  ...inference('openrouter/z-ai/glm-5.2').map((model) => ({
     model,
     maxRetries: 3,
-    providerOptions: {
-      openrouter: { reasoningEffort: 'medium' },
-    },
+  })),
+  ...inference('openrouter/moonshotai/kimi-k2.6').map((model) => ({
+    model,
+    maxRetries: 3,
   })),
   ...gateways('openrouter/minimax/minimax-m3').map((model) => ({
     model,
@@ -38,7 +39,7 @@ export const orchestrator: ModelWithRetries[] = [
 ];
 
 export const summarizer: ModelWithRetries[] = [
-  ...inference('openrouter/google/gemini-3.1-flash-lite').map((model) => ({
+  ...inference('openrouter/deepseek/deepseek-v4-flash').map((model) => ({
     model,
     maxRetries: 3,
   })),
@@ -60,7 +61,7 @@ export const scout: ModelWithRetries[] = [
 ];
 
 export const explorer: ModelWithRetries[] = [
-  ...inference('openrouter/minimax/minimax-m3').map((model) => ({
+  ...inference('openrouter/moonshotai/kimi-k2.6').map((model) => ({
     model,
     maxRetries: 3,
   })),
