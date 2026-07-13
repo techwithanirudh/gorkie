@@ -1,7 +1,4 @@
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import type { LanguageModelV3 } from '@ai-sdk/provider';
 import type { ModelWithRetries } from '@mastra/core/agent';
-import { extractReasoningMiddleware, wrapLanguageModel } from 'ai';
 import { env } from '@/env';
 
 type GatewayConfig = ModelWithRetries['model'] & { id: `${string}/${string}` };
@@ -17,25 +14,21 @@ function gateways(id: `${string}/${string}`): GatewayConfig[] {
   ];
 }
 
-const opencodeProvider = createOpenAICompatible({
-  name: 'opencode-go',
-  baseURL: 'https://opencode.ai/zen/go/v1',
-  apiKey: env.OPENCODE_API_KEY,
-});
-
-function opencode(model: string): LanguageModelV3 {
-  // opencode-go emits reasoning wrapped in <think>...</think> tags inline with
-  // the assistant text. extractReasoningMiddleware strips those tags and exposes
-  // the content as the structured `reasoning` field, matching AI SDK's native
-  // reasoning support so Mastra's model loop can render reasoning separately
-  // instead of leaking raw tags into the final Slack message.
-  return wrapLanguageModel({
-    model: opencodeProvider.chatModel(model),
-    middleware: extractReasoningMiddleware({ tagName: 'think' }),
-  });
+function inference(id: `${string}/${string}`): GatewayConfig[] {
+  return env.INFERENCE_API_KEY && env.INFERENCE_BASE_URL
+    ? [{ id, apiKey: env.INFERENCE_API_KEY, url: env.INFERENCE_BASE_URL }]
+    : [];
 }
 
 export const orchestrator: ModelWithRetries[] = [
+  ...inference('openrouter/moonshotai/kimi-k2.6').map((model) => ({
+    model,
+    maxRetries: 3,
+  })),
+  ...inference('openrouter/deepseek/deepseek-v4-pro').map((model) => ({
+    model,
+    maxRetries: 3,
+  })),
   ...gateways('openrouter/minimax/minimax-m3').map((model) => ({
     model,
     maxRetries: 3,
@@ -43,31 +36,39 @@ export const orchestrator: ModelWithRetries[] = [
       openrouter: { reasoningEffort: 'medium' },
     },
   })),
-  { model: opencode('minimax-m3'), maxRetries: 3 },
 ];
 
 export const summarizer: ModelWithRetries[] = [
+  ...inference('openrouter/deepseek/deepseek-v4-flash').map((model) => ({
+    model,
+    maxRetries: 3,
+  })),
   ...gateways('openrouter/google/gemini-3.1-flash-lite').map((model) => ({
     model,
     maxRetries: 3,
   })),
-  { model: opencode('mimo-v2.5'), maxRetries: 3 },
 ];
 
 export const scout: ModelWithRetries[] = [
+  ...inference('openrouter/deepseek/deepseek-v4-flash').map((model) => ({
+    model,
+    maxRetries: 3,
+  })),
   ...gateways('openrouter/deepseek/deepseek-v4-flash').map((model) => ({
     model,
     maxRetries: 3,
   })),
-  { model: opencode('deepseek-v4-flash'), maxRetries: 3 },
 ];
 
 export const explorer: ModelWithRetries[] = [
+  ...inference('openrouter/moonshotai/kimi-k2.6').map((model) => ({
+    model,
+    maxRetries: 3,
+  })),
   ...gateways('openrouter/minimax/minimax-m3').map((model) => ({
     model,
     maxRetries: 3,
   })),
-  { model: opencode('minimax-m3'), maxRetries: 3 },
 ];
 
 export const images = {

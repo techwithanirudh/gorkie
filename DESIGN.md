@@ -42,11 +42,11 @@ Earlier iterations owned the Chat SDK manually (`new Chat(...)`, custom `run-tur
 
 A **fallback chain** of `moonshotai/kimi-k2.6` (`src/mastra/agents/gorkie.ts`), each entry `{ model: { id, apiKey, url }, maxRetries }`:
 
-1. **Hack Club** proxy (`https://ai.hackclub.com/proxy/v1`, `HACKCLUB_API_KEY`), primary.
-2. **OpenRouter** (`OPENROUTER_API_KEY` / `OPENROUTER_BASE_URL`): fallback. (Note: `.env` currently points this at Hack Club too; set a real `sk-or-…` key + base URL for a truly independent fallback.)
-3. **`opencode-go`** (`https://opencode.ai/zen/go/v1`, `OPENCODE_API_KEY`): independent fallback.
+1. **Dedicated inference gateway** (`INFERENCE_API_KEY` / `INFERENCE_BASE_URL`), tried first when both are set.
+2. **Hack Club** proxy (`https://ai.hackclub.com/proxy/v1`, `HACKCLUB_API_KEY`).
+3. **OpenRouter** (`OPENROUTER_API_KEY` / `OPENROUTER_BASE_URL`): fallback. (Note: `.env` currently points this at Hack Club too; set a real `sk-or-…` key + base URL for a truly independent fallback.)
 
-Hack Club/OpenRouter speak the OpenRouter-compatible API, so we use explicit `url` + `apiKey` (OpenAICompatible) rather than Mastra's gateway. Observational memory and the summarizer agent use the same pattern with `google/gemini-2.5-flash` (+ `deepseek-v4-flash` on `opencode-go`, which has no gemini).
+All three speak the OpenRouter-compatible API, so we use explicit `url` + `apiKey` (OpenAICompatible) rather than Mastra's gateway. Observational memory and the summarizer agent use the same pattern with `google/gemini-2.5-flash`.
 
 ---
 
