@@ -21,11 +21,11 @@ function inference(id: `${string}/${string}`): GatewayConfig[] {
 }
 
 export const orchestrator: ModelWithRetries[] = [
-  ...inference('openrouter/z-ai/glm-5.2').map((model) => ({
+  ...inference('openrouter/moonshotai/kimi-k2.6').map((model) => ({
     model,
     maxRetries: 3,
   })),
-  ...inference('openrouter/moonshotai/kimi-k2.6').map((model) => ({
+  ...inference('openrouter/deepseek/deepseek-v4-pro').map((model) => ({
     model,
     maxRetries: 3,
   })),
