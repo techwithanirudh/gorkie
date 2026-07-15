@@ -102,6 +102,8 @@ export const turns = {
         }
       }
 
+      const modelId = args.result.steps.at(-1)?.response?.modelId;
+
       await slack
         .postMessage(
           threadId,
@@ -113,6 +115,13 @@ export const turns = {
                   style: 'muted',
                 }
               ),
+              ...(modelId
+                ? [
+                    CardText(`\n_model: ${modelId}_`, {
+                      style: 'muted',
+                    }),
+                  ]
+                : []),
               ...(parts.length > 0
                 ? [
                     CardText(`\n_${parts.join(' · ')}_`, {
