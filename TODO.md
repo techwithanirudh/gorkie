@@ -177,6 +177,7 @@ Source of truth for outstanding work. Grouped by area. See [DESIGN.md](./DESIGN.
 ## Features
 
 - [ ] **Add more skills**: expand available skills after current skill loading is fixed.
+- [ ] **`leave_channel` blocklist**: refuse `leave_channel` for any channel whose id is in `LEAVE_CHANNEL_BLOCKLIST` (comma-separated Slack channel ids), so admin/control channels can't be left even when a user explicitly asks. Seed `#gorkie` (`C0A6C5F52BE`) on this deployment via the env var.
 - [ ] **Self-learning and auto-skill creation**: explore whether Gorkie can create reusable skills from repeated work without becoming too specific, surprising, or invasive.
 - [ ] **Multi-model support**: consider Gemini/GPT/Claude routing, gated by cost controls and explicit user choice.
 - [ ] **Website creation and deployment workflows**: support creating, previewing, and deploying websites for users.

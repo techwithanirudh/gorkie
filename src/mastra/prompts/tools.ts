@@ -153,7 +153,7 @@ Either way, tell the user to /invite @gorkie there.</note>
 <tool>
 <name>leave_channel</name>
 <description>Leave the current channel entirely.</description>
-<note>Use only when explicitly asked to leave the channel. Call it with no other text and no other tool calls in the same response, it ends the turn, like skip.</note>
+<note>Use only when explicitly asked to leave the channel. Call it with no other text and no other tool calls in the same response, it ends the turn, like skip. Refuses if the current channel is on the LEAVE_CHANNEL_BLOCKLIST env var.</note>
 </tool>
 
 <tool>
