@@ -1,9 +1,0 @@
-commit-msg:
-  commands:
-    commitlint:
-      run: bunx commitlint --edit {1}
-
-post-merge:
-  commands:
-    install:
-      run: bun install
