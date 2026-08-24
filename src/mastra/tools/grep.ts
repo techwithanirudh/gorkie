@@ -1,6 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { sh } from '../lib/shell';
+import { sh } from '../lib/utils';
 import { input, output } from '../types/tools/index';
 import { getSandbox } from '../workspace';
 

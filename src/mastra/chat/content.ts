@@ -1,3 +1,6 @@
+import { cardToSlackBlocks } from '@chat-adapter/slack/blocks';
+import { Card, Section } from 'chat';
+
 export const content = {
   starters: [
     {
@@ -23,34 +26,19 @@ export const content = {
   ],
   home: {
     type: 'home',
-    blocks: [
-      {
-        type: 'header',
-        text: { type: 'plain_text', text: "👋 I'm gorkie" },
-      },
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: "I don't just answer questions, I actually do the work: write code, dig through Slack, build files, whatever the task needs. Message me directly, or @mention me in any channel.",
-        },
-      },
-      { type: 'divider' },
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: '*What I can do*\n• Search the web and Slack, with sources\n• Write and run code in a secure sandbox\n• Build and upload files\n• Browse websites and capture screenshots\n• Create and manage recurring scheduled tasks\n• Read, create, and update Slack canvases',
-        },
-      },
-      { type: 'divider' },
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: '*How to start*\nOpen a direct message and just ask, or @mention me in a channel. In a thread, keep replying to steer me without starting over.',
-        },
-      },
-    ],
+    blocks: cardToSlackBlocks(
+      Card({
+        title: "I'm gorkie",
+        children: [
+          Section([
+            {
+              type: 'text',
+              content:
+                'I can search the web and Slack, write and run code, browse the web, manage scheduled tasks, and work with canvases and files.',
+            },
+          ]),
+        ],
+      })
+    ),
   },
 };

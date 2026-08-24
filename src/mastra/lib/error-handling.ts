@@ -1,7 +1,6 @@
 import {
   isBadRequestError,
   PrefillErrorHandler,
-  ProviderHistoryCompat,
   StreamErrorRetryProcessor,
 } from '@mastra/core/processors';
 
@@ -23,6 +22,12 @@ function isEconnresetError(error: unknown): boolean {
   return error instanceof Error && econnresetMessagePattern.test(error.message);
 }
 
+const rateLimitPattern = /temporarily rate-limited upstream/i;
+
+function isRateLimitError(error: unknown): boolean {
+  return error instanceof Error && rateLimitPattern.test(error.message);
+}
+
 export function defaultErrorProcessors() {
   return [
     new StreamErrorRetryProcessor({
@@ -40,9 +45,9 @@ export function defaultErrorProcessors() {
               econnresetRetryMaxDelayMs
             ),
         },
+        { match: isRateLimitError, maxRetries: 2, delayMs: 3000 },
       ],
     }),
     new PrefillErrorHandler(),
-    new ProviderHistoryCompat(),
   ];
 }

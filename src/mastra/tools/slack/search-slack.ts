@@ -7,6 +7,7 @@ import { chat } from '../../chat/instance';
 import { threadState } from '../../chat/state';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
+import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
 
 const identitySchema = z.enum(['requester', 'workspace']);
@@ -376,6 +377,49 @@ export const searchSlackTool = createTool({
       }),
     },
   },
-  execute: ({ query, cursor }, context) =>
-    search({ cursor, query, requestContext: context?.requestContext }),
+  execute: async ({ query, cursor }, context) => {
+    spendSlackCall(context?.requestContext);
+    const { threadId } = channelContext(context?.requestContext);
+    const thread = threadId ? chat().thread(threadId) : undefined;
+    const state = await threadState(thread);
+    const token = state?.searchToken;
+    if (!(thread && token)) {
+      throw new Error(
+        'No fresh Slack search token for this thread. Ask the user to mention the bot in a new message, then search again.'
+      );
+    }
+
+    let response: z.infer<typeof searchResponseSchema>;
+    try {
+      response = searchResponseSchema.parse(
+        await slack.webClient.apiCall('assistant.search.context', {
+          action_token: token,
+          content_types: ['messages'],
+          cursor,
+          include_context_messages: true,
+          limit: 10,
+          query,
+        })
+      );
+    } catch (error) {
+      const reason = String(error);
+      if (
+        reason.includes('invalid_action_token') ||
+        reason.includes('token_expired')
+      ) {
+        await thread.setState({ searchToken: undefined });
+        throw new Error(
+          'The Slack search token expired. Ask the user to mention the bot in a new message, then search again.',
+          { cause: error }
+        );
+      }
+      throw error;
+    }
+
+    const messages = response.results?.messages ?? [];
+    return {
+      messages,
+      nextCursor: response.response_metadata?.next_cursor || undefined,
+    };
+  },
 });

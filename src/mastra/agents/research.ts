@@ -1,18 +1,19 @@
 import { Agent } from '@mastra/core/agent';
-import { TokenLimiterProcessor } from '@mastra/core/processors';
+import {
+  ProviderHistoryCompat,
+  TokenLimiterProcessor,
+} from '@mastra/core/processors';
 import { InMemoryStore } from '@mastra/core/storage';
 import { Memory } from '@mastra/memory';
 import { agent as config } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
 import { sandbox } from '../processors/sandbox';
+import { workingModel } from '../processors/working-model';
 import * as research from '../prompts/agents/research';
 import { slackToolPrompt } from '../prompts/slack';
 import { scout } from '../providers';
-import {
-  readOnlySlackCodeMode,
-  readOnlySlackCodeModePrompt,
-} from '../tools/code-mode/slack';
+import { slackCodeMode, slackCodeModePrompt } from '../tools/code-mode/slack';
 import { fetchUrlTool } from '../tools/fetch-url';
 import { searchWebTool } from '../tools/search-web';
 import { slackTools } from '../tools/slack';
@@ -21,14 +22,13 @@ export const researchAgent = new Agent({
   id: 'research',
   name: 'Research',
   description: research.description,
-  instructions: [research.prompt, slackToolPrompt, readOnlySlackCodeModePrompt],
+  instructions: [research.prompt, slackToolPrompt, slackCodeModePrompt],
   model: scout,
-  backgroundTasks: { disabled: true },
   errorProcessors: defaultErrorProcessors(),
   maxProcessorRetries: 2,
   memory: new Memory({ storage: new InMemoryStore() }),
   tools: {
-    slack: readOnlySlackCodeMode.tool,
+    slack: slackCodeMode.tool,
     search_web: searchWebTool,
     fetch_url: fetchUrlTool,
     search_slack: slackTools.search_slack,
@@ -43,6 +43,7 @@ export const researchAgent = new Agent({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
     }),
+    new ProviderHistoryCompat(),
   ],
   defaultOptions: {
     modelSettings: {
@@ -53,5 +54,5 @@ export const researchAgent = new Agent({
     stopWhen: stepCountIs(config.maxSteps),
     autoResumeSuspendedTools: true,
   },
-  outputProcessors: [sandbox],
+  outputProcessors: [sandbox, workingModel('research')],
 });

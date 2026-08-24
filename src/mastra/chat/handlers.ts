@@ -80,7 +80,7 @@ export async function onMention(
     return;
   }
   if (!(await isUserAllowed(message.author.userId))) {
-    await offerOptIn(thread, message.author);
+    await offerOptIn({ thread, user: message.author });
     return;
   }
   if (slack.decodeThreadId(message.threadId).threadTs === message.id) {
@@ -132,7 +132,7 @@ export async function onDirectMessage(
     return;
   }
   if (!(await isUserAllowed(message.author.userId))) {
-    await offerOptIn(thread, message.author);
+    await offerOptIn({ thread, user: message.author });
     return;
   }
   if (await handleCommand({ message, thread })) {

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
+import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output, slackMessageSchema } from '../../types/tools/index';
 import {
   assertReadableChannel,
@@ -64,6 +65,8 @@ export const readConversationHistoryTool = createTool({
       currentThreadId: ctx.threadId,
     });
     await joinChannel(chId);
+
+    spendSlackCall(context?.requestContext);
 
     const result = tid
       ? await slack.fetchMessages(tid, { limit, cursor })

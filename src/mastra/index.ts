@@ -5,9 +5,7 @@ import {
   MastraPlatformExporter,
   MastraStorageExporter,
   Observability,
-  SensitiveDataFilter,
 } from '@mastra/observability';
-import { PostgresStore } from '@mastra/pg';
 import { env } from '@/env';
 import { exploreAgent as explore } from './agents/explore';
 import orchestrator from './agents/orchestrator';
@@ -15,6 +13,8 @@ import { researchAgent as research } from './agents/research';
 import { summarizer } from './agents/summarizer';
 import { registerEvents } from './chat/events';
 import { setChat } from './chat/instance';
+import { setMastra } from './chat/mastra-instance';
+import { createTables, postgresStore } from './db';
 import { buildAllowlist } from './lib/allowed-users';
 import { logger } from './lib/logger';
 
@@ -25,15 +25,10 @@ process.on('uncaughtException', (err: Error) => {
   logger.error('[process] uncaught exception', { err });
 });
 
+const isProduction = env.NODE_ENV === 'production';
+
 export const mastra = new Mastra({
   agents: { orchestrator, summarizer, research, explore },
-  backgroundTasks: {
-    enabled: true,
-    globalConcurrency: 6,
-    perAgentConcurrency: 4,
-    backpressure: 'queue',
-    defaultTimeoutMs: 900_000,
-  },
   schedules: {
     prepare: async ({ mastra: runtime, schedule }) => {
       const current = await runtime.schedules.get(schedule.id);
@@ -42,37 +37,37 @@ export const mastra = new Mastra({
       }
     },
   },
-  storage: new MastraCompositeStore({
-    id: 'composite-storage',
-    default: new PostgresStore({
-      id: 'main-storage',
-      connectionString: env.DATABASE_URL,
-    }),
-    domains: {
-      observability: await new DuckDBStore({
-        path: './observability.duckdb',
-      }).getStore('observability'),
-    },
-  }),
+  storage: isProduction
+    ? postgresStore
+    : new MastraCompositeStore({
+        id: 'composite-storage',
+        default: postgresStore,
+        domains: {
+          observability: await new DuckDBStore({
+            path: './observability.duckdb',
+          }).getStore('observability'),
+        },
+      }),
   observability: new Observability({
     configs: {
       default: {
         serviceName: 'orchestrator',
         exporters: [
-          new MastraStorageExporter(),
+          ...(isProduction ? [] : [new MastraStorageExporter()]),
           new MastraPlatformExporter({
             accessToken: env.MASTRA_PLATFORM_ACCESS_TOKEN,
             projectId: env.MASTRA_PROJECT_ID,
           }),
         ],
-        spanOutputProcessors: [new SensitiveDataFilter()],
       },
     },
   }),
   logger,
 });
 
+await createTables();
 await mastra.startWorkers();
+setMastra(mastra);
 
 orchestrator
   .getChannels()

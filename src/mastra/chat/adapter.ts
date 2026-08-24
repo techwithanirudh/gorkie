@@ -6,6 +6,9 @@ import {
 
 const mentionPattern = /<@([A-Z0-9_]+)(?:\|([^<>]+))?>/g;
 
+const MAX_USER_LOOKUPS = 4;
+const UNRESOLVED_TTL_MS = 60_000;
+
 interface Recipient {
   teamId: string;
   userId: string;
@@ -15,8 +18,9 @@ export class SlackAgentAdapter extends SlackAdapter {
   // A scheduled run wakes an idle thread with no live message, so Chat SDK
   // can't supply the recipient_user_id/team_id that Slack's native streaming
   // needs outside a DM, and tool cards get dropped. Remember it per thread from
-  // live messages so those runs reuse it. Postgres is the source of truth
-  // (survives restarts); the Map only throttles writes.
+  // live messages so those runs reuse it. Both layers are in-process:
+  // MastraStateAdapter keeps cache entries in memory, so neither survives a
+  // restart, and the thread re-learns its recipient from the next live message.
   private readonly recipients = new Map<string, Recipient>();
 
   private recipientKey(threadId: string): string {
@@ -102,6 +106,75 @@ export class SlackAgentAdapter extends SlackAdapter {
       recipientUserId: recipient.userId,
       recipientTeamId: recipient.teamId,
     });
+  }
+
+  async postBlocks({
+    blocks,
+    text,
+    threadId,
+  }: {
+    blocks: unknown[];
+    text: string;
+    threadId: string;
+  }): Promise<void> {
+    const { channel, threadTs } = this.decodeThreadId(threadId);
+    await this._client.chat.postMessage(
+      await this.withToken({ channel, thread_ts: threadTs, text, blocks })
+    );
+  }
+
+  // A page of messages is parsed under Promise.all and every author is looked
+  // up, so without this 200 messages from five people fire 200 users.info
+  // calls: the cache write lands after every concurrent read has missed.
+  private readonly userLookups = new Map<
+    string,
+    ReturnType<SlackAdapter['lookupUser']>
+  >();
+  private readonly unresolvedUntil = new Map<string, number>();
+  private activeLookups = 0;
+  private readonly waitingLookups: (() => void)[] = [];
+
+  protected override lookupUser(
+    ...args: Parameters<SlackAdapter['lookupUser']>
+  ): ReturnType<SlackAdapter['lookupUser']> {
+    const [userId] = args;
+    if ((this.unresolvedUntil.get(userId) ?? 0) > Date.now()) {
+      return Promise.resolve(null);
+    }
+    const inFlight = this.userLookups.get(userId);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const lookup = (async () => {
+      if (this.activeLookups >= MAX_USER_LOOKUPS) {
+        await new Promise<void>((resolve) => this.waitingLookups.push(resolve));
+      } else {
+        this.activeLookups++;
+      }
+      try {
+        const user = await super.lookupUser(userId);
+        if (user) {
+          this.unresolvedUntil.delete(userId);
+        } else {
+          this.unresolvedUntil.set(userId, Date.now() + UNRESOLVED_TTL_MS);
+        }
+        return user;
+      } finally {
+        this.userLookups.delete(userId);
+        // Hand the slot over rather than freeing it, or a caller arriving in
+        // between takes it and pushes past the cap.
+        const next = this.waitingLookups.shift();
+        if (next) {
+          next();
+        } else {
+          this.activeLookups--;
+        }
+      }
+    })();
+
+    this.userLookups.set(userId, lookup);
+    return lookup;
   }
 
   protected override async resolveInlineMentions(

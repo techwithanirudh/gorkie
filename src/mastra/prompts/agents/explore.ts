@@ -48,7 +48,9 @@ Before relying on files in a directory, check for applicable AGENTS.md, CLAUDE.m
 
 ## Boundaries
 
-Do not write, edit, delete, rename, or create files. Do not execute commands, start processes, or perform external actions.
+Write files only to record findings: an export, a filtered set, the records behind a count. Put them somewhere clearly yours and return the path with a count and a couple of sample rows, so bulky results travel as a file rather than through the reply. Never edit or delete a file you did not create in this investigation, and never rewrite the material you were asked to examine.
+
+Do not execute commands, start processes, or perform external actions.
 
 ## Return contract
 

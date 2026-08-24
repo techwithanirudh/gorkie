@@ -9,7 +9,7 @@ import { agent as config } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
 import { sandbox } from '../processors/sandbox';
-import { moveToolImages } from '../processors/tool-media';
+import { workingModel } from '../processors/working-model';
 import * as explore from '../prompts/agents/explore';
 import { explorer } from '../providers';
 import { fetchUrlTool } from '../tools/fetch-url';
@@ -23,7 +23,6 @@ export const exploreAgent = new Agent({
   description: explore.description,
   instructions: explore.prompt,
   model: explorer,
-  backgroundTasks: { disabled: true },
   errorProcessors: defaultErrorProcessors(),
   maxProcessorRetries: 2,
   memory: new Memory({ storage: new InMemoryStore() }),
@@ -38,13 +37,14 @@ export const exploreAgent = new Agent({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
     }),
-    new ProviderHistoryCompat({
-      additionalRules: [moveToolImages],
-    }),
+    new ProviderHistoryCompat(),
   ],
   defaultOptions: {
     activeTools: [
       'read_file',
+      'write_file',
+      'edit_file',
+      'delete_file',
       'list_files',
       'grep',
       'file_stat',
@@ -60,5 +60,5 @@ export const exploreAgent = new Agent({
     stopWhen: stepCountIs(config.maxSteps),
     autoResumeSuspendedTools: true,
   },
-  outputProcessors: [sandbox],
+  outputProcessors: [sandbox, workingModel('explore')],
 });

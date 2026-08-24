@@ -50,3 +50,11 @@ output.txt
 *.duckdb.wal
 
 *.log
+
+# Crash dumps
+/core
+/core.*
+
+# Screenshots dropped in the repo root
+/CleanShot*.png
+/trace-*.json

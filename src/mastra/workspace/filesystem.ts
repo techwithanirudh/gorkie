@@ -59,10 +59,6 @@ export class E2BFilesystem extends MastraFilesystem {
     );
   }
 
-  destroy(): Promise<void> {
-    return Promise.resolve();
-  }
-
   async readFile(
     inputPath: string,
     options?: ReadOptions

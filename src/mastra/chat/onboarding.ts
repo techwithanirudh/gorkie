@@ -21,18 +21,23 @@ const slackErrorSchema = z.looseObject({
     .optional(),
 });
 
-export async function offerOptIn(thread: Thread, user: Author): Promise<void> {
+export async function offerOptIn({
+  thread,
+  user,
+}: {
+  thread: Thread;
+  user: Author;
+}): Promise<void> {
   if (!env.OPT_IN_CHANNEL) {
     return;
   }
   try {
-    await thread.postEphemeral(
-      user,
+    await thread.post(
       Card({
         title: ':wave: first time meeting gorkie',
         children: [
           CardText(
-            `hi! i'm gorkie. before i can help, you need to accept the terms posted in <#${env.OPT_IN_CHANNEL}>.`
+            `hi <@${user.userId}>! i'm gorkie. before i can help, you need to accept the terms posted in <#${env.OPT_IN_CHANNEL}>.`
           ),
           CardText(
             "tap below to opt in, i'll add you to the terms channel and we can get started."
@@ -46,8 +51,7 @@ export async function offerOptIn(thread: Thread, user: Author): Promise<void> {
             }),
           ]),
         ],
-      }),
-      { fallbackToDM: true }
+      })
     );
   } catch (error) {
     logger.warn('[onboarding] failed to offer opt-in', {

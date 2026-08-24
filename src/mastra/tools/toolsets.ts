@@ -1,5 +1,6 @@
 import { canvasTools } from './canvas';
-import { slackCodeMode } from './code-mode/slack';
+import { workspaceCodeMode } from './code-mode/slack';
+import { submitFeedbackTool } from './feedback';
 import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
 import { grepTool } from './grep';
@@ -10,7 +11,7 @@ import { uploadEmojiTool } from './upload-emoji';
 import { waitTool } from './wait';
 
 export const orchestratorTools = {
-  slack: slackCodeMode.tool,
+  slack: workspaceCodeMode.tool,
   react: slackTools.react,
   search_slack: slackTools.search_slack,
   read_conversation_history: slackTools.read_conversation_history,
@@ -35,5 +36,6 @@ export const deferredTools = {
   list_threads: slackTools.list_threads,
   generate_image: generateImageTool,
   upload_emoji: uploadEmojiTool,
+  submit_feedback: submitFeedbackTool,
   ...canvasTools,
 };

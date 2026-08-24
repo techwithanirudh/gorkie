@@ -3,8 +3,7 @@ import { generateImage } from 'ai';
 import { z } from 'zod';
 import { hackclub, images } from '../../providers';
 import { input, output } from '../../types/tools/index';
-import { getSandbox } from '../../workspace';
-import { p } from '../../workspace/path';
+import { getSandbox, sandboxPath as p } from '../../workspace';
 import { editImages } from './edit';
 
 export const generateImageTool = createTool({

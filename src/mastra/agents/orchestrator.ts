@@ -11,20 +11,26 @@ import {
   onMention,
   onSubscribedMessage,
 } from '../chat/handlers';
-import { typingStatus } from '../chat/typing-status';
+import { status } from '../chat/status';
 import { agent as config } from '../config';
+import { listMCPServers } from '../db/queries/mcps';
+import { getInstructions } from '../db/queries/settings';
+import { channelContext } from '../lib/context';
 import { defaultErrorProcessors } from '../lib/error-handling';
+import { logger } from '../lib/logger';
 import { stepCountIs, toolCall } from '../lib/tools';
+import { userMCPTools } from '../mcp/user-servers';
 import { clearStatus } from '../processors/clear-status';
 import { delegatedTools } from '../processors/delegated-tools';
 import { sandbox } from '../processors/sandbox';
-import { moveToolImages } from '../processors/tool-media';
+import { turnFooter } from '../processors/turn-footer';
+import { workingModel } from '../processors/working-model';
 import { instructions } from '../prompts';
 import {
   orchestrator as orchestratorModel,
   summarizer as summarizerModel,
 } from '../providers';
-import { slackCodeModePrompt } from '../tools/code-mode/slack';
+import { workspaceCodeModePrompt } from '../tools/code-mode/slack';
 import { deferredTools, orchestratorTools } from '../tools/toolsets';
 import { workspace } from '../workspace';
 import { exploreAgent } from './explore';
@@ -33,10 +39,46 @@ import { researchAgent } from './research';
 const orchestrator = new Agent({
   id: config.id,
   name: 'Orchestrator',
-  instructions: ({ requestContext }) => [
-    ...instructions(requestContext),
-    { role: 'system', content: slackCodeModePrompt },
-  ],
+  instructions: async ({ requestContext }) => {
+    const messages = [
+      ...instructions(requestContext),
+      { role: 'system' as const, content: workspaceCodeModePrompt },
+    ];
+    const { userId } = channelContext(requestContext);
+    const userInstructions = userId
+      ? await getInstructions(userId).catch((error: unknown) => {
+          logger.debug('[orchestrator] failed to load user instructions', {
+            error,
+            userId,
+          });
+        })
+      : undefined;
+    if (userInstructions) {
+      messages.push({
+        role: 'system' as const,
+        content: `<user_instructions>\n${userInstructions}\n</user_instructions>`,
+      });
+    }
+    const mcpServers = userId
+      ? await listMCPServers(userId).catch((error: unknown) => {
+          logger.debug('[orchestrator] failed to load mcp server status', {
+            error,
+            userId,
+          });
+          return [];
+        })
+      : [];
+    const failedServers = mcpServers
+      .filter((server) => server.lastError)
+      .map((server) => server.name);
+    if (failedServers.length > 0) {
+      messages.push({
+        role: 'system' as const,
+        content: `<mcp_status>The user's MCP server(s) ${failedServers.join(', ')} failed to connect. If they ask about missing tools or the request calls for one of these servers, mention casually that it looks down and they may want to check it in App Home.</mcp_status>`,
+      });
+    }
+    return messages;
+  },
   model: orchestratorModel,
   errorProcessors: defaultErrorProcessors(),
   maxProcessorRetries: 2,
@@ -68,12 +110,20 @@ const orchestrator = new Agent({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
     }),
-    new ProviderHistoryCompat({
-      additionalRules: [moveToolImages],
-    }),
+    new ProviderHistoryCompat(),
   ],
-  outputProcessors: [delegatedTools, sandbox, clearStatus],
-  tools: orchestratorTools,
+  outputProcessors: [
+    delegatedTools,
+    sandbox,
+    clearStatus,
+    turnFooter,
+    workingModel(config.id),
+  ],
+  tools: async ({ requestContext }) => {
+    const { userId } = channelContext(requestContext);
+    const userTools = userId ? await userMCPTools(userId) : {};
+    return { ...orchestratorTools, ...userTools };
+  },
   agents: {
     research: researchAgent,
     explore: exploreAgent,
@@ -116,7 +166,7 @@ const orchestrator = new Agent({
         adapter: slack,
         streaming: true,
         toolDisplay: 'hidden',
-        typingStatus,
+        typingStatus: status,
         formatError: (error) =>
           `*Oops, something went wrong.*\n\n> ${error.message}`,
       },
