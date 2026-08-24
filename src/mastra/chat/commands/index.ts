@@ -1,10 +1,13 @@
 import type { Message, Thread } from 'chat';
 import type { CommandHandler } from '../../types';
 import { rawText, withoutLeadingMentions } from '../message';
+import { ban, unban } from './moderation';
 import { stop } from './stop';
 
 const commands: Record<string, CommandHandler> = {
+  ban,
   stop,
+  unban,
 };
 
 export async function handleCommand({
@@ -15,7 +18,7 @@ export async function handleCommand({
   thread: Thread;
 }): Promise<boolean> {
   const body = withoutLeadingMentions(rawText(message)).trim();
-  const match = body.match(/^!(\w+)\b/i);
+  const match = body.match(/^!(\w+)\b/i) ?? body.match(/^\/gorkie\s+(\w+)\b/i);
   const command = match?.[1] ? commands[match[1].toLowerCase()] : undefined;
   if (!command) {
     return false;

@@ -1,6 +1,7 @@
 import type { Message, Thread } from 'chat';
 import { z } from 'zod';
 import { isUserAllowed } from '../lib/allowed-users';
+import { isUserBanned } from '../lib/bans';
 import { logger } from '../lib/logger';
 import { attachments } from './attachments';
 import { slack } from './client';
@@ -75,10 +76,13 @@ export async function onMention(
   message: Message,
   defaultHandler: DefaultHandler
 ): Promise<void> {
-  await captureSearchToken({ raw: message.raw, thread });
   if (isFromBot(message)) {
     return;
   }
+  if (await isUserBanned(message.author.userId)) {
+    return;
+  }
+  await captureSearchToken({ raw: message.raw, thread });
   if (!(await isUserAllowed(message.author.userId))) {
     await offerOptIn({ thread, user: message.author });
     return;
@@ -97,10 +101,13 @@ export async function onSubscribedMessage(
   message: Message,
   defaultHandler: DefaultHandler
 ): Promise<void> {
-  await captureSearchToken({ raw: message.raw, thread });
   if (isFromBot(message) || isComment(message)) {
     return;
   }
+  if (await isUserBanned(message.author.userId)) {
+    return;
+  }
+  await captureSearchToken({ raw: message.raw, thread });
   const state = await threadState(thread);
   const isFollowingThread = state?.respondOnThreadMessages === true;
   if (!(isFollowingThread || message.isMention)) {
@@ -127,10 +134,13 @@ export async function onDirectMessage(
   message: Message,
   defaultHandler: DefaultHandler
 ): Promise<void> {
-  await captureSearchToken({ raw: message.raw, thread });
   if (isFromBot(message)) {
     return;
   }
+  if (await isUserBanned(message.author.userId)) {
+    return;
+  }
+  await captureSearchToken({ raw: message.raw, thread });
   if (!(await isUserAllowed(message.author.userId))) {
     await offerOptIn({ thread, user: message.author });
     return;
