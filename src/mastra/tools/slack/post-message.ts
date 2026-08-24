@@ -3,6 +3,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
+import { moveAsterisksAfterMarkdownLinks } from '../../chat/markdown';
 import { resolveTarget, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
 import { rawId } from '../../lib/ids';
@@ -77,7 +78,9 @@ Errors: channel_not_found usually means the bot isn't a member of that private c
       const sent = await slack.webClient.chat.postMessage({
         channel,
         ...(threadTs ? { thread_ts: threadTs } : {}),
-        ...markdownConverter.toSlackPayload({ markdown: message }),
+        ...markdownConverter.toSlackPayload({
+          markdown: moveAsterisksAfterMarkdownLinks(message),
+        }),
         ...(requesterUser?.avatarUrl
           ? { icon_url: requesterUser.avatarUrl }
           : {}),
