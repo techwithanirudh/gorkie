@@ -20,7 +20,6 @@ import { defaultErrorProcessors } from '../lib/error-handling';
 import { logger } from '../lib/logger';
 import { stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
-import { clearStatus } from '../processors/clear-status';
 import { delegatedTools } from '../processors/delegated-tools';
 import { sandbox } from '../processors/sandbox';
 import { turnFooter } from '../processors/turn-footer';
@@ -116,7 +115,6 @@ const orchestrator = new Agent({
   outputProcessors: [
     delegatedTools,
     sandbox,
-    clearStatus,
     turnFooter,
     workingModel(config.id),
   ],

@@ -11,7 +11,6 @@ const sandboxTools = new Set([
   'slack',
   'get_slack_file',
   'upload_file',
-  'grep',
   'github_checkout',
   'github_push_branch',
 ]);

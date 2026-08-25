@@ -1,8 +1,8 @@
-diff --git a/dist/agent-DSxJoGjY.js b/dist/agent-DSxJoGjY.js
-index 6c6adc5..a55ae14 100644
---- a/dist/agent-DSxJoGjY.js
-+++ b/dist/agent-DSxJoGjY.js
-@@ -19664,7 +19664,10 @@ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, to
+diff --git a/dist/agent-Bvx_IkTW.cjs b/dist/agent-Bvx_IkTW.cjs
+index 84c2a35..8b4e271 100644
+--- a/dist/agent-Bvx_IkTW.cjs
++++ b/dist/agent-Bvx_IkTW.cjs
+@@ -19425,7 +19425,10 @@ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, to
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -14,17 +14,7 @@ index 6c6adc5..a55ae14 100644
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -19677,7 +19680,8 @@ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, to
- 			continue;
- 		}
- 		if (chunk.type === "finish") {
--			await closeSession();
-+			// The session is closed once after the loop, so leaving it open here lets
-+			// a fallback escalation keep streaming into the same message.
- 			tracker.reset();
- 			continue;
- 		}
-@@ -20839,6 +20843,12 @@ var AgentChannels = class {
+@@ -20642,6 +20645,12 @@ var AgentChannels = class {
  						this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
  						return;
  					}
@@ -37,7 +27,7 @@ index 6c6adc5..a55ae14 100644
  					const displayName = toolName ? stripToolPrefix(toolName) : "tool";
  					const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
  					const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -21328,7 +21338,7 @@ var AgentChannels = class {
+@@ -21131,7 +21140,7 @@ var AgentChannels = class {
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -46,7 +36,7 @@ index 6c6adc5..a55ae14 100644
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -21390,14 +21400,17 @@ var AgentChannels = class {
+@@ -21193,14 +21202,17 @@ var AgentChannels = class {
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -66,7 +56,7 @@ index 6c6adc5..a55ae14 100644
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -25323,6 +25336,19 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25292,6 +25304,19 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -86,7 +76,7 @@ index 6c6adc5..a55ae14 100644
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -25343,7 +25369,11 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25312,7 +25337,11 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -99,7 +89,7 @@ index 6c6adc5..a55ae14 100644
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -25371,7 +25401,7 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25340,7 +25369,7 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -108,11 +98,11 @@ index 6c6adc5..a55ae14 100644
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
-diff --git a/dist/agent-NkjbehmN.cjs b/dist/agent-NkjbehmN.cjs
-index be24982..959562d 100644
---- a/dist/agent-NkjbehmN.cjs
-+++ b/dist/agent-NkjbehmN.cjs
-@@ -19666,7 +19666,10 @@ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, to
+diff --git a/dist/agent-mTyOZvpk.js b/dist/agent-mTyOZvpk.js
+index 82a6a64..aea455a 100644
+--- a/dist/agent-mTyOZvpk.js
++++ b/dist/agent-mTyOZvpk.js
+@@ -19423,7 +19423,10 @@ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, to
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -124,17 +114,7 @@ index be24982..959562d 100644
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -19679,7 +19682,8 @@ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, to
- 			continue;
- 		}
- 		if (chunk.type === "finish") {
--			await closeSession();
-+			// The session is closed once after the loop, so leaving it open here lets
-+			// a fallback escalation keep streaming into the same message.
- 			tracker.reset();
- 			continue;
- 		}
-@@ -20841,6 +20845,12 @@ var AgentChannels = class {
+@@ -20640,6 +20643,12 @@ var AgentChannels = class {
  						this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
  						return;
  					}
@@ -147,7 +127,7 @@ index be24982..959562d 100644
  					const displayName = toolName ? stripToolPrefix(toolName) : "tool";
  					const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
  					const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -21330,7 +21340,7 @@ var AgentChannels = class {
+@@ -21129,7 +21138,7 @@ var AgentChannels = class {
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -156,7 +136,7 @@ index be24982..959562d 100644
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -21392,14 +21402,17 @@ var AgentChannels = class {
+@@ -21191,14 +21200,17 @@ var AgentChannels = class {
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -176,7 +156,7 @@ index be24982..959562d 100644
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -25325,6 +25338,19 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25290,6 +25302,19 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -196,7 +176,7 @@ index be24982..959562d 100644
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -25345,7 +25371,11 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25310,7 +25335,11 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -209,7 +189,7 @@ index be24982..959562d 100644
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -25373,7 +25403,7 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25338,7 +25367,7 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,

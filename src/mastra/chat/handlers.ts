@@ -110,9 +110,7 @@ export async function onSubscribedMessage(
   if (!(isFollowingThread || message.isMention)) {
     return;
   }
-  // Onboarding was already offered on the first unauthorized mention
-  // (onMention); don't repeat the card for every subsequent message in a
-  // thread they still haven't opted into.
+  // onMention already offered onboarding; don't repeat the card every message.
   if (!(await isUserAllowed(message.author.userId))) {
     return;
   }

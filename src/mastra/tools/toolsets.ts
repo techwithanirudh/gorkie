@@ -3,7 +3,6 @@ import { workspaceCodeMode } from './code-mode/slack';
 import { submitFeedbackTool } from './feedback';
 import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
-import { grepTool } from './grep';
 import { scheduledTaskTools } from './scheduled-tasks';
 import { searchWebTool } from './search-web';
 import { slackTools } from './slack';
@@ -20,7 +19,6 @@ export const orchestratorTools = {
   get_permalink: slackTools.get_permalink,
   leave_thread: slackTools.leave_thread,
   summarize_thread: slackTools.summarize_thread,
-  grep: grepTool,
   search_web: searchWebTool,
   fetch_url: fetchUrlTool,
   get_slack_file: slackTools.get_slack_file,

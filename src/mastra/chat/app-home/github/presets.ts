@@ -41,9 +41,9 @@ export function presetRadio({
     id,
     label: 'When should Gorkie stop and ask?',
     initialOption: permission,
-    options: Object.entries(PRESETS).map(([value, entry]) => ({
-      label: entry.label,
-      description: entry.description,
+    options: (['all', 'write', 'never'] as const).map((value) => ({
+      label: PRESETS[value].label,
+      description: PRESETS[value].description,
       value,
     })),
   });

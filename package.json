@@ -22,9 +22,9 @@
     "@ai-sdk/provider-utils": "^5.0.26",
     "@chat-adapter/slack": "^4.35.0",
     "@github-tools/sdk": "^1.11.1",
-    "@mastra/core": "1.61.0",
+    "@mastra/core": "1.62.0-alpha.9",
     "@mastra/duckdb": "1.6.2",
-    "@mastra/e2b": "0.9.0",
+    "@mastra/e2b": "0.10.0-alpha.3",
     "@mastra/loggers": "1.2.0",
     "@mastra/mcp": "^1.17.0",
     "@mastra/memory": "^1.27.0",
@@ -62,7 +62,6 @@
     "node": ">=24.0.0"
   },
   "patchedDependencies": {
-    "@mastra/core@1.61.0": "patches/@mastra+core@1.61.0.patch",
-    "@mastra/e2b@0.9.0": "patches/@mastra+e2b@0.9.0.patch"
+    "@mastra/core@1.62.0-alpha.9": "patches/@mastra+core@1.62.0-alpha.9.patch"
   }
 }

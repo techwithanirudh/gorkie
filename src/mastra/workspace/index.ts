@@ -18,6 +18,7 @@ import {
   EXECUTE_COMMAND,
   FILE_STAT,
   GET_PROCESS_OUTPUT,
+  GREP,
   KILL_PROCESS,
   LIST_FILES,
   READ_FILE,
@@ -83,8 +84,7 @@ export const workspace: Workspace = new Workspace({
     [WORKSPACE_TOOLS.FILESYSTEM.DELETE]: { name: DELETE_FILE },
     [WORKSPACE_TOOLS.FILESYSTEM.FILE_STAT]: { name: FILE_STAT },
     [WORKSPACE_TOOLS.FILESYSTEM.MKDIR]: { enabled: false },
-    // The network-bound built-in grep hangs on large trees; use the ripgrep tool instead.
-    [WORKSPACE_TOOLS.FILESYSTEM.GREP]: { enabled: false },
+    [WORKSPACE_TOOLS.FILESYSTEM.GREP]: { name: GREP },
     [WORKSPACE_TOOLS.FILESYSTEM.AST_EDIT]: { enabled: false },
     [WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND]: { name: EXECUTE_COMMAND },
     [WORKSPACE_TOOLS.SANDBOX.GET_PROCESS_OUTPUT]: {

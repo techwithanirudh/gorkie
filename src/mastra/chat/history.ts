@@ -4,9 +4,6 @@ import { threadState } from './state';
 
 const MAX_MESSAGES = 10;
 
-// Mastra only backfills thread history on the first mention, so anything said
-// between two pings never reaches the model. This replaces that with a walk
-// back to the last message the model saw, on every turn.
 export async function withHistory({
   message,
   thread,
