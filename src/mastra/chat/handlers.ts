@@ -110,7 +110,6 @@ export async function onSubscribedMessage(
   if (!(isFollowingThread || message.isMention)) {
     return;
   }
-  // onMention already offered onboarding; don't repeat the card every message.
   if (!(await isUserAllowed(message.author.userId))) {
     return;
   }

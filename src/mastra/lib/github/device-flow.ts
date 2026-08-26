@@ -25,9 +25,6 @@ export async function startDeviceLogin(): Promise<DeviceLogin> {
   };
 }
 
-// The library throws on GitHub's in-band `{ error }` body, so the pending and
-// back-off signals arrive as failures rather than as results.
-
 const oauthErrorSchema = z.object({
   response: z.object({ data: z.object({ error: z.string() }) }),
 });
@@ -88,7 +85,3 @@ export async function awaitDeviceLogin({
   }
   return { error: 'expired_token' };
 }
-
-// Refresh tokens are single use, so two concurrent refreshes race: one wins and
-// the loser's token is already spent. Tools resolve a token on every call, so
-// that is a real overlap, not a corner case.

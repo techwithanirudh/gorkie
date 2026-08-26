@@ -32,9 +32,6 @@ export async function scheduledTasksBlocks(
     return blocks;
   }
 
-  // Slack's Home view caps out at 100 blocks total. Leave room for the
-  // header and trailing divider already counted here, plus one more slot
-  // for an overflow notice if not every task fits.
   const available = Math.max(0, maxBlocks - 2);
   const overflow = Math.max(0, tasks.length - available);
   const shown =

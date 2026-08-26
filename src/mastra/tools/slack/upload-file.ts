@@ -76,8 +76,6 @@ export const uploadFileTool = createTool({
       files: [{ data: Buffer.from(bytes), filename: name }],
     });
 
-    // The Chat SDK doesn't surface the Slack file id directly on Attachment,
-    // but the private download URL it does return embeds it in the path.
     const fileId = sent.attachments
       .map((attachment) => /(F[A-Z0-9]{6,})/.exec(attachment.url ?? '')?.[1])
       .find((id) => id !== undefined);

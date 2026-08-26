@@ -53,8 +53,6 @@ const permissionState = z.object({
   }),
 });
 
-// Rebuilding the view resets every input, so the permission already picked has
-// to be read back off the click that triggered the rebuild.
 export function selectedPermission(raw: unknown): string | undefined {
   const values = permissionState.safeParse(raw).data?.view.state.values ?? {};
   for (const block of Object.values(values)) {
@@ -102,9 +100,6 @@ export function configureView({
       },
       {
         type: 'input',
-        // Slack keeps an input's current value across views.update when the
-        // block_id is unchanged, ignoring initial_option, so it has to differ
-        // per state for the withdrawn "never ask" to actually clear.
         block_id: `${ids.permission}_${threads ? 'threads' : 'dm'}`,
         label: { type: 'plain_text', text: 'When should Gorkie stop and ask?' },
         element: {

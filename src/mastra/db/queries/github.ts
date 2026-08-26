@@ -46,9 +46,6 @@ export async function getGitHubCredential(
   return row ? toCredential(row) : undefined;
 }
 
-// One credential per person: connecting replaces whatever was there, so what
-// someone last connected is what Gorkie uses and there is no precedence rule to
-// explain.
 export async function setGitHubCredential({
   credential,
   userId,

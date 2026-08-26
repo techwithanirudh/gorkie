@@ -22,7 +22,6 @@ export async function createUserSettingsTable(): Promise<void> {
     )
     .execute();
 
-  // `createTable().ifNotExists()` is a no-op on an existing table, so later columns need this.
   await sql`
     alter table user_settings
       add column if not exists instructions text,

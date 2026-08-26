@@ -27,8 +27,6 @@ function modelSlug(entry: ModelWithRetries): string | undefined {
   }
 }
 
-// Tries whichever model actually answered last time first, instead of
-// re-discovering on every turn that the primary is rate-limited.
 async function preferLastWorking({
   agentKey,
   models,

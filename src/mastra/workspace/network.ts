@@ -3,11 +3,6 @@ import { env } from '@/env';
 
 type Rules = NonNullable<SandboxNetworkOpts['rules']>;
 
-/**
- * The sandbox's standing egress rules. Exported because `updateNetwork`
- * replaces egress configuration atomically and clears whatever it is not told
- * about, so anything adding a rule has to resend these alongside it.
- */
 export function baseRules(): Rules {
   const rules: Rules = {};
 

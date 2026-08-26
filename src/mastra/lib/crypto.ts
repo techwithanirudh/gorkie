@@ -27,9 +27,6 @@ export function encryptSecret(plaintext: string): string {
   );
 }
 
-// Rows written before encryption landed hold the raw token, so anything
-// without the version prefix is passed through and re-encrypted on its next
-// write.
 export function decryptSecret(stored: string): string {
   if (!stored.startsWith(PREFIX)) {
     throw new Error('Stored secret is not encrypted.');

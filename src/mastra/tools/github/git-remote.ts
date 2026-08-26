@@ -9,8 +9,6 @@ import { baseRules } from '../../workspace/network';
 const REPOSITORY_PATTERN =
   /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/;
 
-// Everything interpolated into a git command has to match this, so a shell
-// metacharacter can never reach the command line.
 const BRANCH_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9._/-]*[A-Za-z0-9])?$/;
 const PROTECTED_BRANCHES = new Set(['main', 'master']);
 
@@ -22,8 +20,6 @@ export function repoDir(repository: string): string {
   return `${sandboxConfig.workdir}/${repository.split('/')[1]}`;
 }
 
-// Git remote config inside the sandbox is model-writable, so `pushurl` could
-// redirect the brokered credential. Every command targets this literally.
 export function remoteUrl(repository: string): string {
   return `https://github.com/${repository}.git`;
 }
@@ -58,8 +54,6 @@ const commandError = z.object({
   }),
 });
 
-// e2b throws on a nonzero exit where eve's sandbox returns the result, so every
-// command goes through here and a failure is a value again.
 export async function run(
   sandbox: E2BSandbox,
   command: string,
@@ -80,8 +74,6 @@ export function failure(result: Result): string {
   return `git exited ${result.exitCode}: ${`${result.stderr || result.stdout}`.trim()}`;
 }
 
-// Git over HTTPS authenticates with Basic, not Bearer. The base rules ride
-// along because `updateNetwork` clears whatever it is not told about.
 function brokerRules(token: string): NonNullable<SandboxNetworkOpts['rules']> {
   const authorization = `Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`;
   return {
@@ -106,8 +98,6 @@ export async function withCredential<T>({
     throw new Error('GitHub is not connected. Ask them to sign in again.');
   }
   await sandbox.ensureRunning();
-  // The whole window retries, not just the command: a recreated sandbox starts
-  // on the base rules, so the credential has to be reapplied with it.
   return await sandbox.retryOnDead(async () => {
     await sandbox.e2b.updateNetwork({ rules: brokerRules(token) });
     try {

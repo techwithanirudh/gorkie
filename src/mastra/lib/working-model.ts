@@ -12,8 +12,6 @@ export function slugOf(modelId: string): string {
     : modelId;
 }
 
-// OpenCode answers a bare `mimo-v2.5` for `opencode-go/mimo-v2.5`, so put the
-// provider back before anything compares this against the configured list.
 function qualifiedSlug({
   modelId,
   modelProvider,

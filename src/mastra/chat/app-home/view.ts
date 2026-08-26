@@ -31,7 +31,6 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
     }),
     ...mcpServersBlocks(mcpServers),
   ];
-  // Slack's views.publish rejects a Home view with more than 100 blocks.
   const scheduled = await scheduledTasksBlocks(
     userId,
     100 - staticBlocks.length

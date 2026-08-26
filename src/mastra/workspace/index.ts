@@ -91,8 +91,6 @@ export const workspace: Workspace = new Workspace({
       name: GET_PROCESS_OUTPUT,
     },
     [WORKSPACE_TOOLS.SANDBOX.KILL_PROCESS]: { name: KILL_PROCESS },
-    // Registered unconditionally by createWorkspaceTools even though no LSP is
-    // configured here, so it would offer the model a tool that cannot work.
     [WORKSPACE_TOOLS.LSP.LSP_INSPECT]: { enabled: false },
   },
 });

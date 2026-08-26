@@ -182,7 +182,6 @@ const orchestrator = new Agent({
           `*Oops, something went wrong.*\n\n> ${error.message}`,
       },
     },
-    // History injection is ours (chat/history.ts): Mastra's fires once per thread.
     threadContext: { maxMessages: 0 },
     handlers: { onMention, onSubscribedMessage, onDirectMessage },
   },

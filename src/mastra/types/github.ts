@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-// Nothing on the curated GitHub surface deletes, so the loosest preset is "never".
 const GITHUB_PERMISSIONS = ['all', 'write', 'never'] as const;
 
 export type GitHubPermission = (typeof GITHUB_PERMISSIONS)[number];

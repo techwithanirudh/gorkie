@@ -1,6 +1,5 @@
 import { env } from '@/env';
 
-// server is the thing those tools replaced.
 export const GITHUB_SERVER_NAME = 'github';
 const HOSTED_GITHUB_MCP_URL = 'https://api.githubcopilot.com/mcp/';
 export function isGitHubUrl(url: string): boolean {

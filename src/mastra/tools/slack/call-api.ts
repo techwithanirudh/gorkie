@@ -119,8 +119,6 @@ Responses are unshaped and can be large, so the full JSON is always written to a
       });
       path = target;
     } catch {
-      // The spilled copy is best effort. Dropping it keeps the capped preview
-      // as the only thing that can reach the conversation, which is the point.
       path = undefined;
     }
 
