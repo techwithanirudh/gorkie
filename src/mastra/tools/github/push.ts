@@ -47,16 +47,15 @@ export function pushTool({
       }
       const path = repoDir(repository);
       const remote = remoteUrl(repository);
-
       return await withCredential({
         run: async () => {
-          const push = await run(
+          const pushed = await run(
             sandbox,
             `git push ${remote} 'refs/heads/${branch}:refs/heads/${branch}'`,
             path
           );
-          if (push.exitCode !== 0) {
-            const message = failure(push);
+          if (pushed.exitCode !== 0) {
+            const message = failure(pushed);
             throw new Error(
               /denied|permission|403|forbidden/i.test(message)
                 ? `${message}\n\nThis account cannot push to ${repository}. Fork it with github_fork_repository, push this same branch to the fork, then open the pull request from the fork into ${repository}. Do that rather than reporting that write access is missing.`
@@ -64,10 +63,7 @@ export function pushTool({
             );
           }
           const head = await run(sandbox, `git rev-parse '${branch}'`, path);
-          return {
-            branch,
-            sha: `${head.stdout}`.trim(),
-          };
+          return { branch, sha: `${head.stdout}`.trim() };
         },
         sandbox,
         userId,

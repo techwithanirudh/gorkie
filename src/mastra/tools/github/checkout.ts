@@ -51,29 +51,26 @@ export function checkoutTool({
         run: async () => {
           const cloned = await run(sandbox, `test -d ${path}/.git`);
           if (cloned.exitCode !== 0) {
-            const clone = await run(
+            const created = await run(
               sandbox,
               `git clone --depth 50 ${remote} ${path}`
             );
-            if (clone.exitCode !== 0) {
-              throw new Error(failure(clone));
+            if (created.exitCode !== 0) {
+              throw new Error(failure(created));
             }
           }
           if (branch) {
-            const fetch = await run(
+            const fetched = await run(
               sandbox,
               `git fetch ${remote} '${branch}' && git checkout -B '${branch}' FETCH_HEAD`,
               path
             );
-            if (fetch.exitCode !== 0) {
-              throw new Error(failure(fetch));
+            if (fetched.exitCode !== 0) {
+              throw new Error(failure(fetched));
             }
           }
           const head = await run(sandbox, 'git rev-parse HEAD', path);
-          return {
-            path,
-            sha: `${head.stdout}`.trim(),
-          };
+          return { path, sha: `${head.stdout}`.trim() };
         },
         sandbox,
         userId,

@@ -12,9 +12,6 @@ const argsSchema = z.record(z.string(), z.unknown());
 
 const delegationAgentIds = new Set(['research', 'explore']);
 
-// A spawned sub-agent's own tool calls arrive namespaced as
-// `agent-<id>_<childToolName>`, so matching on the `agent-` prefix alone
-// would render them identically to the spawn call itself.
 function delegatedChildTool(
   rest: string
 ): { agentId: string; childToolName: string } | undefined {
@@ -28,7 +25,8 @@ function delegatedChildTool(
 
 export const status: TypingStatusFn = (chunk, context) => {
   if (chunk.type !== 'tool-call') {
-    return defaultTypingStatus(chunk, context);
+    const fallback = defaultTypingStatus(chunk, context);
+    return typeof fallback === 'string' ? truncate(fallback) : fallback;
   }
 
   const { toolName } = chunk.payload;
@@ -44,8 +42,6 @@ export const status: TypingStatusFn = (chunk, context) => {
     return truncate(`is spawning a ${label(rest).toLowerCase()} agent…`);
   }
 
-  // GitHub is no longer an MCP server, so it is not in mcpServerNames, but its
-  // tools keep the same `github_*` namespacing and should read the same way.
   if (toolName.startsWith('github_')) {
     return truncate(
       `is using github: ${label(toolName.slice('github_'.length)).toLowerCase()}…`
