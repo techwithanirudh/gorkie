@@ -25,6 +25,7 @@ import { sandbox } from '../processors/sandbox';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
 import { instructions } from '../prompts';
+import { githubStatusPrompt } from '../prompts/github';
 import {
   orchestrator as orchestratorModel,
   summarizer as summarizerModel,
@@ -44,7 +45,11 @@ const orchestrator = new Agent({
       ...instructions(requestContext),
       { role: 'system' as const, content: workspaceCodeModePrompt },
     ];
-    const { userId } = channelContext(requestContext);
+    const { isDM, userId } = channelContext(requestContext);
+    const github = await githubStatusPrompt({ isDM: isDM === true, userId });
+    if (github) {
+      messages.push({ role: 'system' as const, content: github });
+    }
     const userInstructions = userId
       ? await getInstructions(userId).catch((error: unknown) => {
           logger.debug('[orchestrator] failed to load user instructions', {

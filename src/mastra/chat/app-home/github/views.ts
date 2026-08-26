@@ -6,10 +6,13 @@ import {
   type awaitDeviceLogin,
   type DeviceLogin,
   GITHUB_INSTALL_URL,
+  GITHUB_SETTINGS_URL,
   resolveGitHubLogin,
 } from '../../../lib/github';
 import { logger } from '../../../lib/logger';
+import type { GitHubPermission } from '../../../types';
 import { ids } from './ids';
+import { permissionOptions, scopeOptions } from './presets';
 
 export const polling = new Map<
   string,
@@ -23,10 +26,101 @@ export const polling = new Map<
 
 export type ConnectMethod = 'app' | 'pat';
 
+const text = (body: string) => ({
+  type: 'section' as const,
+  text: { type: 'mrkdwn' as const, text: body },
+});
+
 const viewAction = z.object({ view: z.object({ id: z.string() }) });
 
 export function viewIdOf(raw: unknown): string | undefined {
   return viewAction.safeParse(raw).data?.view.id;
+}
+
+const permissionState = z.object({
+  view: z.object({
+    state: z.object({
+      values: z.record(
+        z.string(),
+        z.record(
+          z.string(),
+          z.looseObject({
+            selected_option: z.object({ value: z.string() }).nullish(),
+          })
+        )
+      ),
+    }),
+  }),
+});
+
+// Rebuilding the view resets every input, so the permission already picked has
+// to be read back off the click that triggered the rebuild.
+export function selectedPermission(raw: unknown): string | undefined {
+  const values = permissionState.safeParse(raw).data?.view.state.values ?? {};
+  for (const block of Object.values(values)) {
+    const selected = block[ids.permission]?.selected_option?.value;
+    if (selected) {
+      return selected;
+    }
+  }
+}
+
+export function configureView({
+  pat,
+  permission,
+  threads,
+}: {
+  pat: boolean;
+  permission: GitHubPermission;
+  threads: boolean;
+}): ModalView {
+  const permissions = permissionOptions(threads);
+  const scopes = scopeOptions();
+  const selected =
+    permissions.find((o) => o.value === permission) ??
+    permissions.find((o) => o.value === 'write');
+  return {
+    type: 'modal',
+    callback_id: ids.configureModal,
+    title: { type: 'plain_text', text: 'Configure GitHub' },
+    submit: { type: 'plain_text', text: 'Save' },
+    close: { type: 'plain_text', text: 'Cancel' },
+    blocks: [
+      {
+        type: 'input',
+        block_id: ids.scope,
+        dispatch_action: true,
+        label: { type: 'plain_text', text: 'Where can Gorkie use GitHub?' },
+        element: {
+          type: 'radio_buttons',
+          action_id: ids.scope,
+          options: scopes,
+          initial_option: scopes.find(
+            (o) => o.value === (threads ? 'threads' : 'dm')
+          ),
+        },
+      },
+      {
+        type: 'input',
+        // Slack keeps an input's current value across views.update when the
+        // block_id is unchanged, ignoring initial_option, so it has to differ
+        // per state for the withdrawn "never ask" to actually clear.
+        block_id: `${ids.permission}_${threads ? 'threads' : 'dm'}`,
+        label: { type: 'plain_text', text: 'When should Gorkie stop and ask?' },
+        element: {
+          type: 'radio_buttons',
+          action_id: ids.permission,
+          options: permissions,
+          initial_option: selected,
+        },
+      },
+      text(
+        pat
+          ? 'Your token reaches everything its scopes allow, not a list of repositories. Disconnect to go back to the app.'
+          : `Gorkie reaches only the repositories you chose. <${GITHUB_SETTINGS_URL}|Change which ones> on GitHub.`
+      ),
+    ],
+  };
 }
 
 export function connectView({
@@ -38,10 +132,6 @@ export function connectView({
   method: ConnectMethod;
   warning?: string;
 }): ModalView {
-  const text = (body: string) => ({
-    type: 'section',
-    text: { type: 'mrkdwn', text: body },
-  });
   const app = device
     ? [
         text(

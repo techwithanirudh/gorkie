@@ -1,5 +1,5 @@
 import { createGithubTools } from '@github-tools/sdk';
-import { getGitHubPermission } from '../../db/queries/settings';
+import { getGitHubSettings } from '../../db/queries/settings';
 import { githubAccessToken } from '../../lib/github';
 import { logger } from '../../lib/logger';
 import { checkoutPolicy, POLICIES, pushPolicy } from './approval';
@@ -23,13 +23,18 @@ export async function githubTools({
   userId: string;
 }): Promise<Record<string, unknown>> {
   try {
-    const [connected, permission] = await Promise.all([
+    const [connected, settings] = await Promise.all([
       githubAccessToken(userId),
-      getGitHubPermission(userId),
+      getGitHubSettings(userId),
     ]);
     if (!connected) {
       return {};
     }
+    const direct = isDM || settings.threads;
+    // "Never ask" drops the approval card, the only thing binding an action to the
+    // person who asked for it. Fine alone in a DM, not in a thread others can steer.
+    const permission =
+      isDM || settings.permission !== 'never' ? settings.permission : 'write';
 
     const built = createGithubTools({
       token: async () => {
@@ -53,7 +58,7 @@ export async function githubTools({
             needsApproval: policy(permission),
             // A shared thread cannot act on one person's account, so the tool
             // hands back the DM to send instead of a result.
-            ...(isDM
+            ...(direct
               ? {}
               : {
                   execute: () => handoff({ channelId, threadId, userId }),
@@ -73,7 +78,7 @@ export async function githubTools({
       })
     );
 
-    if (!isDM) {
+    if (!direct) {
       return tools;
     }
     if (threadId) {

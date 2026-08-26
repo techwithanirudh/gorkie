@@ -1,17 +1,17 @@
-import { CardText, Modal } from 'chat';
 import {
   getGitHubCredential,
   removeGitHubCredential,
 } from '../../../db/queries/github';
 import {
-  getGitHubPermission,
-  setGitHubPermission,
+  getGitHubSettings,
+  setGitHubSettings,
 } from '../../../db/queries/settings';
-import { GITHUB_SETTINGS_URL } from '../../../lib/github';
+import { logger } from '../../../lib/logger';
+import { slack } from '../../client';
 import { chat } from '../../instance';
 import { ids } from './ids';
-import { decodePreset, presetRadio } from './presets';
-import { polling } from './views';
+import { decodePreset, decodeThreads } from './presets';
+import { configureView, polling, selectedPermission, viewIdOf } from './views';
 
 export function registerSettings({
   publishHome,
@@ -22,31 +22,48 @@ export function registerSettings({
 
   bot.onAction(ids.configure, async (event) => {
     const { userId } = event.user;
-    const [permission, credential] = await Promise.all([
-      getGitHubPermission(userId),
+    const [settings, credential] = await Promise.all([
+      getGitHubSettings(userId),
       getGitHubCredential(userId),
     ]);
-    const pat = credential?.kind === 'pat' ? credential : undefined;
-    await event.openModal(
-      Modal({
-        callbackId: ids.configureModal,
-        title: 'Configure GitHub',
-        submitLabel: 'Save',
-        children: [
-          presetRadio({ id: 'permission', permission }),
-          CardText(
-            pat
-              ? 'Your token reaches everything its scopes allow, not a list of repositories. Disconnect to go back to the app.'
-              : `Gorkie reaches only the repositories you chose. <${GITHUB_SETTINGS_URL}|Change which ones> on GitHub.`
-          ),
-        ],
-      })
-    );
+    await slack.webClient.views.open({
+      trigger_id: event.triggerId ?? '',
+      view: configureView({
+        pat: credential?.kind === 'pat',
+        permission: settings.permission,
+        threads: settings.threads,
+      }),
+    });
+  });
+
+  bot.onAction(ids.scope, async (event) => {
+    const viewId = viewIdOf(event.raw);
+    if (!viewId) {
+      return;
+    }
+    const threads = decodeThreads(event.value);
+    const credential = await getGitHubCredential(event.user.userId);
+    try {
+      await slack.webClient.views.update({
+        view_id: viewId,
+        view: configureView({
+          pat: credential?.kind === 'pat',
+          permission: decodePreset(selectedPermission(event.raw)),
+          threads,
+        }),
+      });
+    } catch (error) {
+      logger.warn('[github] could not switch the configure modal', {
+        error,
+        userId: event.user.userId,
+      });
+    }
   });
 
   bot.onModalSubmit(ids.configureModal, async (event) => {
-    await setGitHubPermission({
-      permission: decodePreset(event.values.permission),
+    await setGitHubSettings({
+      permission: decodePreset(`${event.values[ids.permission] ?? ''}`),
+      threads: decodeThreads(`${event.values[ids.scope] ?? ''}`),
       userId: event.user.userId,
     });
     await publishHome(event.user.userId);

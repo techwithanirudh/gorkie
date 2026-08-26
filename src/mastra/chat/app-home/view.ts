@@ -1,9 +1,6 @@
 import { getGitHubCredential } from '../../db/queries/github';
 import { listMCPServers } from '../../db/queries/mcps';
-import {
-  getGitHubPermission,
-  getInstructions,
-} from '../../db/queries/settings';
+import { getGitHubSettings, getInstructions } from '../../db/queries/settings';
 import { countInstallations } from '../../lib/github';
 import { slack } from '../client';
 import { content } from '../content';
@@ -13,13 +10,12 @@ import { mcpServersBlocks } from './mcp';
 import { scheduledTasksBlocks } from './scheduled-tasks';
 
 async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
-  const [instructions, mcpServers, credential, githubPermission] =
-    await Promise.all([
-      getInstructions(userId),
-      listMCPServers(userId),
-      getGitHubCredential(userId),
-      getGitHubPermission(userId),
-    ]);
+  const [instructions, mcpServers, credential, github] = await Promise.all([
+    getInstructions(userId),
+    listMCPServers(userId),
+    getGitHubCredential(userId),
+    getGitHubSettings(userId),
+  ]);
   const installations =
     credential?.kind === 'app' ? await countInstallations(credential.token) : 0;
 
@@ -30,7 +26,8 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
     ...githubBlocks({
       credential,
       installations,
-      permission: githubPermission,
+      permission: github.permission,
+      threads: github.threads,
     }),
     ...mcpServersBlocks(mcpServers),
   ];

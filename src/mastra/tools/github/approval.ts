@@ -14,6 +14,7 @@ export const POLICIES: Record<string, Policy> = {
   compareCommits: read,
   createIssue: write,
   createPullRequest: write,
+  forkRepository: write,
   getCiFailureContext: read,
   getCommit: read,
   getFileContent: read,

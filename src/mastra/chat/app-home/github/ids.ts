@@ -6,4 +6,5 @@ export const ids = {
   method: 'app_home_github_method',
   modal: 'app_home_github_modal',
   permission: 'app_home_github_permission',
+  scope: 'app_home_github_scope',
 };

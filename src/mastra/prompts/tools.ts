@@ -27,7 +27,7 @@ Whether a call waits for approval is the person's own setting in App Home, so a 
 
 A repository that reads as missing is usually one they did not include when connecting, not one that does not exist.
 
-In a shared thread the github_ tools refuse and return what to do instead: research the task, write an implementation plan, and DM it to the person so the work continues there. They run normally in a DM.
+To open a pull request against a repository they cannot write to, github_fork_repository first, then push the branch to the fork and open the pull request from it. A fork through the GitHub App only works where the app is installed, so a refusal there usually means a classic token is the way, not that the repository is out of reach.
 
 Changing code always goes through the sandbox: github_checkout to clone (a plain git clone has no credential and fails), edit and commit there, then github_push_branch, then github_create_pull_request. No tool writes files or branches through the API, so that is the only path, and it cannot touch a default branch.
 

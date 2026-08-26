@@ -32,24 +32,30 @@ export async function setInstructions({
     .execute();
 }
 
-export async function getGitHubPermission(
-  userId: string
-): Promise<GitHubPermission> {
-  const row = await db
-    .selectFrom('user_settings')
-    .select('github_permission')
-    .where('user_id', '=', rawId(userId))
-    .executeTakeFirst();
-  return githubPermissionSchema.parse(row?.github_permission);
+export interface GitHubSettings {
+  permission: GitHubPermission;
+  threads: boolean;
 }
 
-export async function setGitHubPermission({
+export async function getGitHubSettings(
+  userId: string
+): Promise<GitHubSettings> {
+  const row = await db
+    .selectFrom('user_settings')
+    .select(['github_permission', 'github_threads'])
+    .where('user_id', '=', rawId(userId))
+    .executeTakeFirst();
+  return {
+    permission: githubPermissionSchema.parse(row?.github_permission),
+    threads: row?.github_threads === true,
+  };
+}
+
+export async function setGitHubSettings({
   permission,
+  threads,
   userId,
-}: {
-  permission: GitHubPermission;
-  userId: string;
-}): Promise<void> {
+}: GitHubSettings & { userId: string }): Promise<void> {
   const id = rawId(userId);
   const now = new Date();
   await db
@@ -57,13 +63,16 @@ export async function setGitHubPermission({
     .values({
       instructions: null,
       github_permission: permission,
+      github_threads: threads,
       updated_at: now,
       user_id: id,
     })
     .onConflict((oc) =>
-      oc
-        .column('user_id')
-        .doUpdateSet({ github_permission: permission, updated_at: now })
+      oc.column('user_id').doUpdateSet({
+        github_permission: permission,
+        github_threads: threads,
+        updated_at: now,
+      })
     )
     .execute();
 }

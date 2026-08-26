@@ -29,13 +29,18 @@ export function pushTool({
         .string()
         .refine(isRepository, { message: 'Expected "owner/repo".' })
         .describe('Target repository, as "owner/repo".'),
-      branch: z.string().min(1).describe('Local branch to push.'),
+      branch: z
+        .string()
+        .min(1)
+        .superRefine((value, ctx) => {
+          const refusal = validateBranch(value);
+          if (refusal) {
+            ctx.addIssue({ code: 'custom', message: refusal });
+          }
+        })
+        .describe('Local branch to push.'),
     }),
     execute: async ({ repository, branch }, context) => {
-      const refusal = validateBranch(branch);
-      if (refusal) {
-        throw new Error(refusal);
-      }
       const sandbox = await getSandbox(context.requestContext);
       if (!sandbox) {
         throw new Error('No sandbox available.');
@@ -51,7 +56,12 @@ export function pushTool({
             path
           );
           if (push.exitCode !== 0) {
-            throw new Error(failure(push));
+            const message = failure(push);
+            throw new Error(
+              /denied|permission|403|forbidden/i.test(message)
+                ? `${message}\n\nThis account cannot push to ${repository}. Fork it with github_fork_repository, push this same branch to the fork, then open the pull request from the fork into ${repository}. Do that rather than reporting that write access is missing.`
+                : message
+            );
           }
           const head = await run(sandbox, `git rev-parse '${branch}'`, path);
           return {
