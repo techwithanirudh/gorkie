@@ -3,6 +3,10 @@ import { memoryThread } from '../../lib/memory';
 import type { CommandHandler } from '../../types';
 
 export const stop: CommandHandler = async ({ message, thread }) => {
+  // Mark first: RFC i requires every later message in this thread to be
+  // ignored even if aborting the current run below fails.
+  await thread.setState({ stopped: true });
+
   const { default: orchestrator } = await import('../../agents/orchestrator');
   const threadMemory = await memoryThread({
     agent: orchestrator,
@@ -37,22 +41,7 @@ export const stop: CommandHandler = async ({ message, thread }) => {
     }
   })();
 
-  if (!(scope && (activeRunId || backgroundTasks.length > 0))) {
-    await thread
-      .postEphemeral(message.author, 'Nothing to stop right now.', {
-        fallbackToDM: false,
-      })
-      .catch((error: unknown) => {
-        logger.warn('[commands] Failed to post stop feedback', {
-          error,
-          threadId: thread.id,
-          userId: message.author.userId,
-        });
-      });
-    return;
-  }
-
-  if (activeRunId) {
+  if (scope && activeRunId) {
     orchestrator.abortThreadStream(scope);
   }
   if (manager) {

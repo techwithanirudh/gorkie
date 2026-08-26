@@ -5,7 +5,7 @@ import { logger } from '../lib/logger';
 import { attachments } from './attachments';
 import { slack } from './client';
 import { handleCommand } from './commands';
-import { rawText, withoutLeadingMentions } from './message';
+import { blockedByAgentGuidelines } from './guardrails';
 import { offerOptIn } from './onboarding';
 import { threadState } from './state';
 
@@ -35,15 +35,6 @@ function isFromBot(message: Message): boolean {
     message.author.userId === 'USLACKBOT' ||
     message.author.isMe === true
   );
-}
-
-function isComment(message: Message): boolean {
-  for (const line of rawText(message).split('\n')) {
-    if (withoutLeadingMentions(line).trimStart().startsWith('##')) {
-      return true;
-    }
-  }
-  return false;
 }
 
 async function runTurn({
@@ -79,6 +70,15 @@ export async function onMention(
   if (isFromBot(message)) {
     return;
   }
+  if (
+    await blockedByAgentGuidelines({
+      botUserId: slack.botUserId,
+      message,
+      thread,
+    })
+  ) {
+    return;
+  }
   if (!(await isUserAllowed(message.author.userId))) {
     await offerOptIn({ thread, user: message.author });
     return;
@@ -98,7 +98,16 @@ export async function onSubscribedMessage(
   defaultHandler: DefaultHandler
 ): Promise<void> {
   await captureSearchToken({ raw: message.raw, thread });
-  if (isFromBot(message) || isComment(message)) {
+  if (isFromBot(message)) {
+    return;
+  }
+  if (
+    await blockedByAgentGuidelines({
+      botUserId: slack.botUserId,
+      message,
+      thread,
+    })
+  ) {
     return;
   }
   const state = await threadState(thread);
@@ -129,6 +138,15 @@ export async function onDirectMessage(
 ): Promise<void> {
   await captureSearchToken({ raw: message.raw, thread });
   if (isFromBot(message)) {
+    return;
+  }
+  if (
+    await blockedByAgentGuidelines({
+      botUserId: slack.botUserId,
+      message,
+      thread,
+    })
+  ) {
     return;
   }
   if (!(await isUserAllowed(message.author.userId))) {
