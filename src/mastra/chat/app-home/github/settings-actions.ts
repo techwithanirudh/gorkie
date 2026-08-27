@@ -3,6 +3,7 @@ import {
   removeGitHubCredential,
 } from '../../../db/queries/github';
 import {
+  clearGitHubSettings,
   getGitHubSettings,
   setGitHubSettings,
 } from '../../../db/queries/settings';
@@ -26,14 +27,21 @@ export function registerSettings({
       getGitHubSettings(userId),
       getGitHubCredential(userId),
     ]);
-    await slack.webClient.views.open({
-      trigger_id: event.triggerId ?? '',
-      view: configureView({
-        pat: credential?.kind === 'pat',
-        permission: settings.permission,
-        threads: settings.threads,
-      }),
-    });
+    try {
+      await slack.webClient.views.open({
+        trigger_id: event.triggerId ?? '',
+        view: configureView({
+          pat: credential?.kind === 'pat',
+          permission: settings.permission,
+          threads: settings.threads,
+        }),
+      });
+    } catch (error) {
+      logger.warn('[github] could not open the configure modal', {
+        error,
+        userId,
+      });
+    }
   });
 
   bot.onAction(ids.scope, async (event) => {
@@ -72,6 +80,9 @@ export function registerSettings({
   bot.onAction(ids.disconnect, async (event) => {
     polling.get(event.user.userId)?.controller.abort();
     await removeGitHubCredential(event.user.userId);
+    // Reconnecting can be a different account, which never agreed to whatever
+    // the last one allowed.
+    await clearGitHubSettings(event.user.userId);
     await publishHome(event.user.userId);
   });
 }

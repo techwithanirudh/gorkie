@@ -12,22 +12,26 @@ export async function githubStatusPrompt({
   if (!userId) {
     return;
   }
-  const [credential, settings] = await Promise.all([
-    getGitHubCredential(userId),
-    getGitHubSettings(userId),
-  ]).catch((error: unknown) => {
-    logger.debug('[prompt] could not read the GitHub connection', {
+  let credential: Awaited<ReturnType<typeof getGitHubCredential>>;
+  let settings: Awaited<ReturnType<typeof getGitHubSettings>>;
+  try {
+    [credential, settings] = await Promise.all([
+      getGitHubCredential(userId),
+      getGitHubSettings(userId),
+    ]);
+  } catch (error) {
+    logger.warn('[prompt] could not read the GitHub connection', {
       error,
       userId,
     });
-    return [];
-  });
+    return '<github_status>\nWhether GitHub is connected could not be checked just now, and the github_ tools are missing for the same reason. Say the connection could not be checked and that they should try again shortly. Do not tell them to connect: they may already be.\n</github_status>';
+  }
   if (!credential) {
     return '<github_status>\nGitHub is not connected for the person asking, so no github_ tool can run. Point them at Home in App Home to sign in.\n</github_status>';
   }
 
   const where =
-    isDM || settings?.threads
+    isDM || settings.threads
       ? undefined
       : 'This is a shared thread, so every github_ tool refuses and hands back a DM to send instead. Call the one you wanted anyway and follow what it returns: research the task, write an implementation plan, DM it to them, and continue the work there.';
 

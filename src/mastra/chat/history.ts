@@ -3,6 +3,7 @@ import { parseMarkdown, stringifyMarkdown } from 'chat';
 import { threadState } from './state';
 
 const MAX_MESSAGES = 10;
+const MAX_SCANNED = 200;
 
 export async function withHistory({
   message,
@@ -17,10 +18,12 @@ export async function withHistory({
 
   const state = await threadState(thread);
   const lines: string[] = [];
+  let scanned = 0;
   for await (const previous of thread.messages) {
-    if (previous.id === state?.lastSeenMessage) {
+    if (previous.id === state?.lastSeenMessage || scanned >= MAX_SCANNED) {
       break;
     }
+    scanned++;
     if (previous.id !== message.id && !previous.author.isMe) {
       const mention = thread.mentionUser(previous.author.userId);
       const author = previous.author.fullName || previous.author.userName;

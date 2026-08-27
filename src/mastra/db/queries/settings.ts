@@ -76,3 +76,15 @@ export async function setGitHubSettings({
     )
     .execute();
 }
+
+export async function clearGitHubSettings(userId: string): Promise<void> {
+  await db
+    .updateTable('user_settings')
+    .set({
+      github_permission: null,
+      github_threads: null,
+      updated_at: new Date(),
+    })
+    .where('user_id', '=', rawId(userId))
+    .execute();
+}

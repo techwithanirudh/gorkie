@@ -81,7 +81,9 @@ export async function githubTools({
     }
     if (direct && threadId) {
       tools.github_checkout = checkoutTool({
-        approval: checkoutPolicy(permission),
+        // A clone lands in a sandbox the whole thread can read, and the setting
+        // that allowed this was agreed to long before the clone happens.
+        approval: !isDM || checkoutPolicy(permission),
         userId,
       });
       tools.github_push_branch = pushTool({
@@ -91,7 +93,7 @@ export async function githubTools({
     }
     return tools;
   } catch (error) {
-    logger.debug('[github] failed to build tools', { error, userId });
+    logger.warn('[github] failed to build tools', { error, userId });
     return {};
   }
 }

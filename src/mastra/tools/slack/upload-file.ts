@@ -6,6 +6,8 @@ import { input, output } from '../../types/tools/index';
 import { getSandbox } from '../../workspace';
 import { assertCanPostTo, joinChannel } from './utils';
 
+const MAX_UPLOAD_BYTES = 100_000_000;
+
 export const uploadFileTool = createTool({
   id: 'upload_file',
   description:
@@ -51,6 +53,14 @@ export const uploadFileTool = createTool({
     }
     await sandbox.ensureRunning();
 
+    const stat = await sandbox.retryOnDead(() =>
+      sandbox.e2b.files.getInfo(path)
+    );
+    if (stat.size > MAX_UPLOAD_BYTES) {
+      throw new Error(
+        `${path} is ${Math.round(stat.size / 1_000_000)}MB, over the ${MAX_UPLOAD_BYTES / 1_000_000}MB upload limit.`
+      );
+    }
     const bytes = await sandbox.retryOnDead(() =>
       sandbox.e2b.files.read(path, { format: 'bytes' })
     );

@@ -13,7 +13,10 @@ const BRANCH_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9._/-]*[A-Za-z0-9])?$/;
 const PROTECTED_BRANCHES = new Set(['main', 'master']);
 
 export function isRepository(value: string): boolean {
-  return REPOSITORY_PATTERN.test(value);
+  // `.` and `..` match the name pattern and would resolve repoDir outside the
+  // checkout root, so they are excluded the way git excludes them.
+  const [, name] = value.split('/');
+  return REPOSITORY_PATTERN.test(value) && name !== '.' && name !== '..';
 }
 
 export function repoDir(repository: string): string {
