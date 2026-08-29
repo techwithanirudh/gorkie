@@ -22,7 +22,11 @@ export async function withHistory({
   let scanned = 0;
   let comments = 0;
   for await (const previous of thread.messages) {
-    if (previous.id === state?.lastSeenMessage || scanned >= MAX_SCANNED) {
+    if (
+      previous.id === state?.lastSeenMessage ||
+      scanned >= MAX_SCANNED ||
+      comments + lines.length >= MAX_MESSAGES
+    ) {
       break;
     }
     scanned++;
@@ -37,12 +41,23 @@ export async function withHistory({
       const text = previous.formatted
         ? stringifyMarkdown(previous.formatted).trim()
         : previous.text;
+      // An image-only post carries no text, so without this the line reads as
+      // if the person said nothing. get_slack_file takes the id or the url.
+      const files =
+        previous.attachments.length > 0
+          ? ` [${previous.attachments.length} attachment${previous.attachments.length === 1 ? '' : 's'}: ${previous.attachments
+              .map((file) => {
+                const url = file.url ?? file.fetchMetadata?.url;
+                const id = url?.match(/\bF[A-Z0-9]{6,}\b/)?.[0];
+                return [file.name ?? file.type, id ?? url]
+                  .filter(Boolean)
+                  .join(' ');
+              })
+              .join(', ')}]`
+          : '';
       lines.push(
-        `[${author} (${mention})${bot}] (msg:${previous.id}): ${text}`
+        `[${author} (${mention})${bot}] (msg:${previous.id}): ${text}${files}`
       );
-    }
-    if (lines.length >= MAX_MESSAGES) {
-      break;
     }
   }
 
