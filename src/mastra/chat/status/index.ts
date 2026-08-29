@@ -4,7 +4,7 @@ import {
 } from '@mastra/core/channels';
 import { z } from 'zod';
 import { label } from '../../lib/label';
-import { mcpServerNames } from '../../mcp/user-servers';
+import { serverNamesFor } from '../../mcp/user-servers';
 import { truncate } from './format';
 import { statuses } from './statuses';
 
@@ -24,6 +24,11 @@ function delegatedChildTool(
 }
 
 export const status: TypingStatusFn = (chunk, context) => {
+  // Slack caps a status at 50 characters and the built-in approval text is 28
+  // plus the tool name, which the longer github_ names overflow.
+  if (chunk.type === 'tool-call-approval') {
+    return truncate(`is asking about ${label(chunk.payload.toolName)}…`);
+  }
   if (chunk.type !== 'tool-call') {
     const fallback = defaultTypingStatus(chunk, context);
     return typeof fallback === 'string' ? truncate(fallback) : fallback;
@@ -48,7 +53,7 @@ export const status: TypingStatusFn = (chunk, context) => {
     );
   }
 
-  for (const server of mcpServerNames) {
+  for (const server of serverNamesFor(context.threadId)) {
     const prefix = `${server}_`;
     if (toolName.startsWith(prefix)) {
       return truncate(
