@@ -6,7 +6,7 @@ import { attachments } from './attachments';
 import { slack } from './client';
 import { handleCommand } from './commands';
 import { withHistory } from './history';
-import { rawText, withoutLeadingMentions } from './message';
+import { isComment } from './message';
 import { offerOptIn } from './onboarding';
 import { threadState } from './state';
 
@@ -36,15 +36,6 @@ function isFromBot(message: Message): boolean {
     message.author.userId === 'USLACKBOT' ||
     message.author.isMe === true
   );
-}
-
-function isComment(message: Message): boolean {
-  for (const line of rawText(message).split('\n')) {
-    if (withoutLeadingMentions(line).trimStart().startsWith('##')) {
-      return true;
-    }
-  }
-  return false;
 }
 
 async function runTurn({
