@@ -5,7 +5,8 @@ import { logger } from '../lib/logger';
 import { attachments } from './attachments';
 import { slack } from './client';
 import { handleCommand } from './commands';
-import { rawText, withoutLeadingMentions } from './message';
+import { stop } from './commands/stop';
+import { isStopCommand, messageShouldBeExcluded } from './message-policy';
 import { offerOptIn } from './onboarding';
 import { threadState } from './state';
 
@@ -37,15 +38,6 @@ function isFromBot(message: Message): boolean {
   );
 }
 
-function isComment(message: Message): boolean {
-  for (const line of rawText(message).split('\n')) {
-    if (withoutLeadingMentions(line).trimStart().startsWith('##')) {
-      return true;
-    }
-  }
-  return false;
-}
-
 async function runTurn({
   defaultHandler,
   message,
@@ -75,8 +67,14 @@ export async function onMention(
   message: Message,
   defaultHandler: DefaultHandler
 ): Promise<void> {
+  if (messageShouldBeExcluded(message, slack.botUserId)) {
+    return;
+  }
   await captureSearchToken({ raw: message.raw, thread });
   if (isFromBot(message)) {
+    return;
+  }
+  if ((await threadState(thread))?.stopped) {
     return;
   }
   if (!(await isUserAllowed(message.author.userId))) {
@@ -85,6 +83,12 @@ export async function onMention(
   }
   if (slack.decodeThreadId(message.threadId).threadTs === message.id) {
     await thread.setState({ respondOnThreadMessages: true });
+  }
+  const isStop = isStopCommand(message.raw, slack.userName, slack.botUserId);
+  if (isStop) {
+    await thread.setState({ stopped: true, respondOnThreadMessages: false });
+    await stop({ message, thread });
+    return;
   }
   if (await handleCommand({ message, thread })) {
     return;
@@ -97,11 +101,17 @@ export async function onSubscribedMessage(
   message: Message,
   defaultHandler: DefaultHandler
 ): Promise<void> {
+  if (messageShouldBeExcluded(message, slack.botUserId)) {
+    return;
+  }
   await captureSearchToken({ raw: message.raw, thread });
-  if (isFromBot(message) || isComment(message)) {
+  if (isFromBot(message)) {
     return;
   }
   const state = await threadState(thread);
+  if (state?.stopped) {
+    return;
+  }
   const isFollowingThread = state?.respondOnThreadMessages === true;
   if (!(isFollowingThread || message.isMention)) {
     return;
@@ -110,6 +120,12 @@ export async function onSubscribedMessage(
   // (onMention); don't repeat the card for every subsequent message in a
   // thread they still haven't opted into.
   if (!(await isUserAllowed(message.author.userId))) {
+    return;
+  }
+  const isStop = isStopCommand(message.raw, slack.userName, slack.botUserId);
+  if (isStop) {
+    await thread.setState({ stopped: true, respondOnThreadMessages: false });
+    await stop({ message, thread });
     return;
   }
   if (await handleCommand({ message, thread })) {
@@ -127,12 +143,24 @@ export async function onDirectMessage(
   message: Message,
   defaultHandler: DefaultHandler
 ): Promise<void> {
+  if (messageShouldBeExcluded(message, slack.botUserId)) {
+    return;
+  }
   await captureSearchToken({ raw: message.raw, thread });
   if (isFromBot(message)) {
     return;
   }
+  if ((await threadState(thread))?.stopped) {
+    return;
+  }
   if (!(await isUserAllowed(message.author.userId))) {
     await offerOptIn({ thread, user: message.author });
+    return;
+  }
+  const isStop = isStopCommand(message.raw, slack.userName, slack.botUserId);
+  if (isStop) {
+    await thread.setState({ stopped: true, respondOnThreadMessages: false });
+    await stop({ message, thread });
     return;
   }
   if (await handleCommand({ message, thread })) {

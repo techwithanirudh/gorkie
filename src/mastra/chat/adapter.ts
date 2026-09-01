@@ -1,4 +1,6 @@
 import { SlackAdapter } from '@chat-adapter/slack';
+import type { FetchOptions, FetchResult, Message } from 'chat';
+import { isPingGroupOnly, shouldIgnoreMessage } from './message-policy';
 
 const mentionPattern = /<@([A-Z0-9_]+)(?:\|([^<>]+))?>/g;
 
@@ -19,6 +21,13 @@ export class SlackAgentAdapter extends SlackAdapter {
   // restart, and the thread re-learns its recipient from the next live message.
   private readonly recipients = new Map<string, Recipient>();
 
+  private shouldIgnoreRaw(raw: unknown): boolean {
+    return (
+      shouldIgnoreMessage(raw, this.botUserId) ||
+      isPingGroupOnly(raw, this.botUserId)
+    );
+  }
+
   private recipientKey(threadId: string): string {
     return `stream-recipient:${threadId}`;
   }
@@ -27,6 +36,9 @@ export class SlackAgentAdapter extends SlackAdapter {
     ...args: Parameters<SlackAdapter['handleMessageEvent']>
   ): ReturnType<SlackAdapter['handleMessageEvent']> {
     const [event] = args;
+    if (this.shouldIgnoreRaw(event)) {
+      return;
+    }
     const { chat } = this;
     const userId = event.user;
     const teamId = event.team_id ?? event.team;
@@ -59,6 +71,19 @@ export class SlackAgentAdapter extends SlackAdapter {
       }
     }
     return super.handleMessageEvent(...args);
+  }
+
+  override async fetchMessages(
+    threadId: string,
+    options?: FetchOptions
+  ): Promise<FetchResult<unknown>> {
+    const result = await super.fetchMessages(threadId, options);
+    return {
+      ...result,
+      messages: result.messages.filter(
+        (message: Message) => !this.shouldIgnoreRaw(message.raw)
+      ),
+    };
   }
 
   override async stream(
