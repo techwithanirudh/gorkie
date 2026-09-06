@@ -56,6 +56,10 @@ export const exploreAgent = new Agent({
       maxRetries: 5,
       reasoning: 'medium',
       topP: 0.95,
+      // See orchestrator.ts: without this, a delegated explore turn can
+      // stall on a stuck provider stream or a hanging tool call (e.g.
+      // fetch_url on a slow page) with no reply and no trace ever recorded.
+      timeout: { stepMs: 180_000 },
     },
     stopWhen: stepCountIs(config.maxSteps),
     autoResumeSuspendedTools: true,
