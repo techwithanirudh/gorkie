@@ -56,7 +56,9 @@ const orchestrator = new Agent({
     if (userInstructions) {
       messages.push({
         role: 'system' as const,
-        content: `<user_instructions>\n${userInstructions}\n</user_instructions>`,
+        content: `<user_instructions>
+${userInstructions}
+</user_instructions>`,
       });
     }
     const mcpServers = userId
@@ -88,6 +90,11 @@ const orchestrator = new Agent({
       maxRetries: 5,
       topP: 0.95,
       reasoning: 'medium',
+      // A provider that opens a stream and then stalls (no further chunks,
+      // no error) otherwise hangs the turn indefinitely: no reply, and no
+      // trace is ever recorded since the step never completes. This lets
+      // Mastra escalate to the next fallback model instead. See TODO.md.
+      timeout: { stepMs: 180_000 },
     },
     delegation: {
       messageFilter: ({ messages }) =>
@@ -168,7 +175,9 @@ const orchestrator = new Agent({
         toolDisplay: 'hidden',
         typingStatus: status,
         formatError: (error) =>
-          `*Oops, something went wrong.*\n\n> ${error.message}`,
+          `*Oops, something went wrong.*
+
+> ${error.message}`,
       },
     },
     threadContext: { maxMessages: 10 },
