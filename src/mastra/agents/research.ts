@@ -50,6 +50,10 @@ export const researchAgent = new Agent({
       maxOutputTokens: 16_384,
       maxRetries: 5,
       reasoning: 'medium',
+      // See orchestrator.ts: without this, a delegated research turn can
+      // stall on a stuck provider stream or a hanging tool call (e.g.
+      // fetch_url on a slow page) with no reply and no trace ever recorded.
+      timeout: { stepMs: 180_000 },
     },
     stopWhen: stepCountIs(config.maxSteps),
     autoResumeSuspendedTools: true,
