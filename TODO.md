@@ -15,6 +15,7 @@ Keep this file limited to unresolved work that belongs in the reusable template.
 
 ## Known issues
 
+- [x] Replace the unsupported `ox-alpha-free` model fallback with `omen-alpha`.
 - [x] Harden the PR #13 Slack search user-token fallback (public-channel pin, scope verification, live-message gate, identity-pinned cursors, `searchedAs` provenance). Pushed to PR #13 as `8cf2273`; still needs a live Slack run to confirm the scope check and the expiry-to-fallback path.
 - [ ] Live-test the Slack output changes: click a thumbs up and a thumbs down on a turn footer and confirm both record against the right trace, since the click payload shape was never confirmed against a real click. Same turn also exercises the footer's elapsed time and the suggested prompts now coming from adapter config.
 - [ ] Live-test the `1.61.0` upgrade: reproduce a Luna rate-limit in Slack and confirm the fallback escalates silently, with a real error still surfacing once both models are exhausted. Extra reason to retest on 1.61: it refactored the response-message-id rotation (`rotateResponseMessageId` now seals the prior message via `messageList`) that the fallback-escalation hunk depends on.

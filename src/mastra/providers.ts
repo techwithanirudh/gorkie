@@ -52,7 +52,7 @@ async function preferLastWorking({
 const orchestratorModels: ModelWithRetries[] = [
   { model: hackclub('openai/gpt-5.6-luna'), maxRetries: 3 },
   { model: opencode('deepseek-v4-flash-vision-exp'), maxRetries: 3 },
-  { model: opencode('ox-alpha-free'), maxRetries: 3 },
+  { model: opencode('omen-alpha'), maxRetries: 3 },
 ];
 
 export const orchestrator = () =>
@@ -66,7 +66,7 @@ export const summarizer: ModelWithRetries[] = [
 const scoutModels: ModelWithRetries[] = [
   { model: hackclub('openai/gpt-5.6-luna'), maxRetries: 3 },
   { model: opencode('deepseek-v4-flash-vision-exp'), maxRetries: 3 },
-  { model: opencode('ox-alpha-free'), maxRetries: 3 },
+  { model: opencode('omen-alpha'), maxRetries: 3 },
 ];
 
 export const scout = () =>
@@ -76,7 +76,7 @@ const explorerModels: ModelWithRetries[] = [
   { model: hackclub('openai/gpt-5.6-luna'), maxRetries: 3 },
   { model: opencode('muse-spark-1.2-contributor'), maxRetries: 3 },
 
-  { model: opencode('ox-alpha-free'), maxRetries: 3 },
+  { model: opencode('omen-alpha'), maxRetries: 3 },
 ];
 
 export const explorer = () =>
