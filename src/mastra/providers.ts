@@ -1,6 +1,7 @@
 import type { ModelWithRetries } from '@mastra/core/agent';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { env } from '@/env';
+import { channelContext } from './lib/context';
 import { recallModel, sameModel, slugOf } from './lib/working-model';
 
 export const hackclub = createOpenRouter({
@@ -8,8 +9,15 @@ export const hackclub = createOpenRouter({
   baseURL: 'https://ai.hackclub.com/proxy/v1',
 });
 
-function opencode(modelId: string) {
-  return `opencode-go/${modelId}` as const;
+function opencode(modelId: string, fallbackSession: string): ModelWithRetries {
+  return {
+    model: `opencode-go/${modelId}` as const,
+    headers: ({ requestContext }) => ({
+      'user-agent': 'gorkie/1.0',
+      'x-opencode-session':
+        channelContext(requestContext).threadId ?? `gorkie:${fallbackSession}`,
+    }),
+  };
 }
 
 function modelSlug(entry: ModelWithRetries): string | undefined {
@@ -48,10 +56,16 @@ async function preferLastWorking({
 }
 
 const orchestratorModels: ModelWithRetries[] = [
-  { model: opencode('glm-5.3-flash'), maxRetries: 3 },
+  { ...opencode('glm-5.3-flash', 'orchestrator'), maxRetries: 3 },
   { model: hackclub('openai/gpt-5.6-luna'), maxRetries: 3 },
-  { model: opencode('deepseek-v4-flash-vision-exp'), maxRetries: 3 },
-  { model: opencode('muse-spark-1.3-contributor'), maxRetries: 3 },
+  {
+    ...opencode('deepseek-v4-flash-vision-exp', 'orchestrator'),
+    maxRetries: 3,
+  },
+  {
+    ...opencode('muse-spark-1.3-contributor', 'orchestrator'),
+    maxRetries: 3,
+  },
 ];
 
 export const orchestrator = () =>
@@ -59,13 +73,16 @@ export const orchestrator = () =>
 
 export const summarizer: ModelWithRetries[] = [
   { model: hackclub('google/gemini-3.5-flash-lite'), maxRetries: 3 },
-  { model: opencode('mimo-v2.5'), maxRetries: 3 },
+  { ...opencode('mimo-v2.5', 'summarizer'), maxRetries: 3 },
 ];
 
 const scoutModels: ModelWithRetries[] = [
   { model: hackclub('openai/gpt-5.6-luna'), maxRetries: 3 },
-  { model: opencode('deepseek-v4-flash-vision-exp'), maxRetries: 3 },
-  { model: opencode('muse-spark-1.3-contributor'), maxRetries: 3 },
+  {
+    ...opencode('deepseek-v4-flash-vision-exp', 'research'),
+    maxRetries: 3,
+  },
+  { ...opencode('muse-spark-1.3-contributor', 'research'), maxRetries: 3 },
 ];
 
 export const scout = () =>
@@ -73,8 +90,11 @@ export const scout = () =>
 
 const explorerModels: ModelWithRetries[] = [
   { model: hackclub('openai/gpt-5.6-luna'), maxRetries: 3 },
-  { model: opencode('deepseek-v4-flash-vision-exp'), maxRetries: 3 },
-  { model: opencode('muse-spark-1.3-contributor'), maxRetries: 3 },
+  {
+    ...opencode('deepseek-v4-flash-vision-exp', 'explore'),
+    maxRetries: 3,
+  },
+  { ...opencode('muse-spark-1.3-contributor', 'explore'), maxRetries: 3 },
 ];
 
 export const explorer = () =>

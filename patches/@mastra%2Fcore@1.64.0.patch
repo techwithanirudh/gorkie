@@ -1,8 +1,11 @@
-diff --git a/dist/agent-Bvx_IkTW.cjs b/dist/agent-Bvx_IkTW.cjs
-index 84c2a35..8b4e271 100644
---- a/dist/agent-Bvx_IkTW.cjs
-+++ b/dist/agent-Bvx_IkTW.cjs
-@@ -19425,7 +19425,10 @@ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, to
+diff --git a/node_modules/@mastra/core/.bun-tag-57ce9077f8c7a0cf b/.bun-tag-57ce9077f8c7a0cf
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/dist/agent-Dp3vcrIx.cjs b/dist/agent-Dp3vcrIx.cjs
+index 766f2d4f6741c31fd66a2e5ad79d5317ea7c1eb9..742d7f042cf322a90c8aad101c54f000cc692b75 100644
+--- a/dist/agent-Dp3vcrIx.cjs
++++ b/dist/agent-Dp3vcrIx.cjs
+@@ -19505,7 +19505,10 @@ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, to
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -14,7 +17,7 @@ index 84c2a35..8b4e271 100644
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -20642,6 +20645,12 @@ var AgentChannels = class {
+@@ -20736,6 +20739,12 @@ var AgentChannels = class {
  						this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
  						return;
  					}
@@ -27,7 +30,7 @@ index 84c2a35..8b4e271 100644
  					const displayName = toolName ? stripToolPrefix(toolName) : "tool";
  					const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
  					const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -21131,7 +21140,7 @@ var AgentChannels = class {
+@@ -21225,7 +21234,7 @@ var AgentChannels = class {
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -36,7 +39,7 @@ index 84c2a35..8b4e271 100644
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -21193,14 +21202,17 @@ var AgentChannels = class {
+@@ -21287,14 +21296,17 @@ var AgentChannels = class {
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -56,7 +59,7 @@ index 84c2a35..8b4e271 100644
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -25292,6 +25304,19 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25399,6 +25411,19 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -76,7 +79,7 @@ index 84c2a35..8b4e271 100644
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -25312,7 +25337,11 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25419,7 +25444,11 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -89,7 +92,7 @@ index 84c2a35..8b4e271 100644
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -25340,7 +25369,7 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25447,7 +25476,7 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -98,11 +101,11 @@ index 84c2a35..8b4e271 100644
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
-diff --git a/dist/agent-mTyOZvpk.js b/dist/agent-mTyOZvpk.js
-index 82a6a64..aea455a 100644
---- a/dist/agent-mTyOZvpk.js
-+++ b/dist/agent-mTyOZvpk.js
-@@ -19423,7 +19423,10 @@ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, to
+diff --git a/dist/agent-DsRUDsS_.js b/dist/agent-DsRUDsS_.js
+index fc4889177d6cd7396474f3f326a241bb6c88a8b4..ad043c7cd78bcbc8069825b6c9f12b918ab47f0f 100644
+--- a/dist/agent-DsRUDsS_.js
++++ b/dist/agent-DsRUDsS_.js
+@@ -19503,7 +19503,10 @@ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, to
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -114,7 +117,7 @@ index 82a6a64..aea455a 100644
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -20640,6 +20643,12 @@ var AgentChannels = class {
+@@ -20734,6 +20737,12 @@ var AgentChannels = class {
  						this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
  						return;
  					}
@@ -127,7 +130,7 @@ index 82a6a64..aea455a 100644
  					const displayName = toolName ? stripToolPrefix(toolName) : "tool";
  					const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
  					const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -21129,7 +21138,7 @@ var AgentChannels = class {
+@@ -21223,7 +21232,7 @@ var AgentChannels = class {
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -136,7 +139,7 @@ index 82a6a64..aea455a 100644
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -21191,14 +21200,17 @@ var AgentChannels = class {
+@@ -21285,14 +21294,17 @@ var AgentChannels = class {
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -156,7 +159,7 @@ index 82a6a64..aea455a 100644
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -25290,6 +25302,19 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25397,6 +25409,19 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -176,7 +179,7 @@ index 82a6a64..aea455a 100644
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -25310,7 +25335,11 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25417,7 +25442,11 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -189,7 +192,7 @@ index 82a6a64..aea455a 100644
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -25338,7 +25367,7 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25445,7 +25474,7 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
