@@ -25,7 +25,6 @@ export async function githubApi({
   }
   return {
     data: await response.json().catch(() => null),
-    // Classic tokens report their scopes here; a fine-grained one sends nothing.
     scopes: (response.headers.get('x-oauth-scopes') ?? '')
       .split(',')
       .map((scope) => scope.trim())

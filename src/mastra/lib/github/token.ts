@@ -44,8 +44,6 @@ async function refreshAccount({
     return refreshed.token;
   } catch (error) {
     logger.warn('[github] token refresh failed', { error, userId });
-    // Only disconnect if nobody refreshed in the meantime. Wiping blindly would
-    // throw away a working credential another call just wrote.
     const current = await getGitHubCredential(userId);
     if (current && current.refreshToken !== spent) {
       return current.token;

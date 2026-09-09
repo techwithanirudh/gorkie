@@ -20,12 +20,12 @@ import { defaultErrorProcessors } from '../lib/error-handling';
 import { logger } from '../lib/logger';
 import { stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
-import { clearStatus } from '../processors/clear-status';
 import { delegatedTools } from '../processors/delegated-tools';
 import { sandbox } from '../processors/sandbox';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
 import { instructions } from '../prompts';
+import { githubStatusPrompt } from '../prompts/github';
 import {
   orchestrator as orchestratorModel,
   summarizer as summarizerModel,
@@ -45,7 +45,11 @@ const orchestrator = new Agent({
       ...instructions(requestContext),
       { role: 'system' as const, content: workspaceCodeModePrompt },
     ];
-    const { userId } = channelContext(requestContext);
+    const { isDM, userId } = channelContext(requestContext);
+    const github = await githubStatusPrompt({ isDM: isDM === true, userId });
+    if (github) {
+      messages.push({ role: 'system' as const, content: github });
+    }
     const userInstructions = userId
       ? await getInstructions(userId).catch((error: unknown) => {
           logger.debug('[orchestrator] failed to load user instructions', {
@@ -116,7 +120,6 @@ const orchestrator = new Agent({
   outputProcessors: [
     delegatedTools,
     sandbox,
-    clearStatus,
     turnFooter,
     workingModel(config.id),
   ],
@@ -179,7 +182,6 @@ const orchestrator = new Agent({
           `*Oops, something went wrong.*\n\n> ${error.message}`,
       },
     },
-    // History injection is ours (chat/history.ts): Mastra's fires once per thread.
     threadContext: { maxMessages: 0 },
     handlers: { onMention, onSubscribedMessage, onDirectMessage },
   },

@@ -52,7 +52,7 @@ export async function findMCPConnectionError({
     });
   } finally {
     await probe.disconnect().catch(() => {
-      // best-effort cleanup of the throwaway probe client
+      // Best effort: the probe client is thrown away either way.
     });
   }
 }

@@ -11,8 +11,6 @@ import { assertCanPostTo, joinChannel } from './utils';
 
 const markdownConverter = new SlackFormatConverter();
 
-// The adapter's `userName` is a generic default and the bot's handle is an
-// internal slug, so neither is what people call it. The profile display name is.
 let cachedBotName: string | undefined;
 
 async function botDisplayName(botUserId: string | undefined): Promise<string> {
@@ -89,9 +87,6 @@ Errors: channel_not_found usually means the bot isn't a member of that private c
         : null;
       const requester = requesterUser?.userName ?? ctx.userName;
       const bot = await botDisplayName(ctx.botUserId);
-      // A user target is always the requester DMing themselves (see
-      // assertCanPostTo), so crediting them is redundant there: the post keeps
-      // Gorkie's own name and avatar rather than wearing theirs.
       const credited = Boolean(requester) && target.type !== 'user';
       const username = credited ? `${requester} [${bot}]` : bot;
       const sent = await slack.webClient.chat.postMessage({

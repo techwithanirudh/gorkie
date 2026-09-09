@@ -7,7 +7,6 @@ function unwrap(raw: string): string {
     const parsed = mastraErrorSchema.safeParse(JSON.parse(raw));
     return parsed.success ? parsed.data.message : raw;
   } catch {
-    // Not JSON, so the raw string is already the message.
     return raw;
   }
 }
@@ -36,8 +35,6 @@ export function cleanMCPErrorMessage({
   }
   message = parts.join(': ');
 
-  // Servers often answer with a raw OAuth error body, which reads worse than
-  // the description inside it.
   const brace = message.indexOf('{');
   if (brace !== -1) {
     const described = unwrapOAuth(message.slice(brace));

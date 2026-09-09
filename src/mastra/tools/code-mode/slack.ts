@@ -8,7 +8,6 @@ import { codeModePrompt } from '../../prompts/features/code-mode';
 import { codeModeToolNames, getSandbox } from '../../workspace';
 import { workspaceTools } from '../../workspace/tools';
 import { canvasTools } from '../canvas';
-import { grepTool } from '../grep';
 import { slackTools } from '../slack';
 
 const transport = new E2BCodeModeTransport();
@@ -38,7 +37,6 @@ async function getSandboxTools(
     ...Object.fromEntries(
       Object.entries(tools).filter(([name]) => codeModeToolNames.has(name))
     ),
-    grep: grepTool,
   };
 }
 

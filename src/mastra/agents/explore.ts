@@ -13,7 +13,6 @@ import { workingModel } from '../processors/working-model';
 import * as explore from '../prompts/agents/explore';
 import { explorer } from '../providers';
 import { fetchUrlTool } from '../tools/fetch-url';
-import { grepTool } from '../tools/grep';
 import { searchWebTool } from '../tools/search-web';
 import { workspace } from '../workspace';
 
@@ -28,7 +27,6 @@ export const exploreAgent = new Agent({
   memory: new Memory({ storage: new InMemoryStore() }),
   workspace,
   tools: {
-    grep: grepTool,
     search_web: searchWebTool,
     fetch_url: fetchUrlTool,
   },

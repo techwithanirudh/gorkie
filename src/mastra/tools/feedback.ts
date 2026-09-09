@@ -37,9 +37,6 @@ export const submitFeedbackTool = createTool({
       throw new Error('No current user to attribute this feedback to.');
     }
 
-    // Taken off the live span so the feedback lands on this run's trace. Any
-    // correlationContext also skips addFeedback's storage lookup, which holds
-    // nothing in prod because traces export to Platform only.
     const correlationContext =
       context.tracingContext?.currentSpan?.getCorrelationContext?.();
     if (!correlationContext) {

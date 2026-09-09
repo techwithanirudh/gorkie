@@ -54,8 +54,6 @@ export async function upsertMCPServer({
 }): Promise<'ok' | 'limit-reached'> {
   const id = rawId(userId);
   return await db.transaction().execute(async (trx) => {
-    // Serialize per user so two concurrent submits can't both observe room
-    // under maxServers and both insert, pushing the count past it.
     await sql`select pg_advisory_xact_lock(hashtext(${id}))`.execute(trx);
     const existing = await trx
       .selectFrom('mcp_servers')

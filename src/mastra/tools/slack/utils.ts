@@ -34,8 +34,6 @@ export function assertCanPostTo({
   target: Target;
   ctx: ChannelContext;
 }): void {
-  // Channels are open: gorkie posts wherever it can join. A DM is not, because
-  // a DM from gorkie reads as something the recipient asked for.
   if (
     target.type === 'user' &&
     (!ctx.userId || rawId(target.id) !== rawId(ctx.userId))
@@ -52,7 +50,7 @@ export async function joinChannel(channelId: string): Promise<void> {
       channel: rawId(channelId),
     });
   } catch {
-    // Joining is best effort. The subsequent read reports inaccessible channels.
+    // Best effort: the subsequent read reports inaccessible channels.
   }
 }
 

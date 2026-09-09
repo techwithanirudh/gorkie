@@ -1,4 +1,4 @@
-import { RadioSelect } from 'chat';
+import type { PlainTextOption } from '@slack/web-api';
 import { type GitHubPermission, githubPermissionSchema } from '../../../types';
 
 const PRESETS = {
@@ -30,21 +30,41 @@ export function decodePreset(value: string | undefined): GitHubPermission {
   return githubPermissionSchema.parse(value);
 }
 
-export function presetRadio({
-  id,
-  permission,
-}: {
-  id: string;
-  permission: GitHubPermission;
-}) {
-  return RadioSelect({
-    id,
-    label: 'When should Gorkie stop and ask?',
-    initialOption: permission,
-    options: Object.entries(PRESETS).map(([value, entry]) => ({
-      label: entry.label,
-      description: entry.description,
-      value,
-    })),
-  });
+export function decodeThreads(value: string | undefined): boolean {
+  return value === 'threads';
+}
+
+export function permissionOptions(threads: boolean): PlainTextOption[] {
+  const order = threads
+    ? (['all', 'write'] as const)
+    : (['all', 'write', 'never'] as const);
+  return order.map((value) => ({
+    text: { type: 'plain_text', text: PRESETS[value].label },
+    description: { type: 'plain_text', text: PRESETS[value].description },
+    value,
+  }));
+}
+
+export function scopeOptions(): PlainTextOption[] {
+  return [
+    {
+      text: { type: 'plain_text', text: 'Only in a DM with you' },
+      description: {
+        type: 'plain_text',
+        text: 'In a shared thread Gorkie writes up the task and DMs it to you instead.',
+      },
+      value: 'dm',
+    },
+    {
+      text: {
+        type: 'plain_text',
+        text: 'Anywhere, including shared threads (dangerous)',
+      },
+      description: {
+        type: 'plain_text',
+        text: 'Anyone in the thread can steer the work, and checked-out code stays readable there for as long as the thread lives.',
+      },
+      value: 'threads',
+    },
+  ];
 }

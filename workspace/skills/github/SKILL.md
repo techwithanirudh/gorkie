@@ -1,84 +1,69 @@
 ---
 name: github
-description: Connect a person's own GitHub account to Gorkie, or work out why GitHub is failing for them. Use when someone asks how to connect, sign in to, or link GitHub, when they ask why GitHub tools are missing, or when a GitHub call fails on authentication or permissions.
+description: Take a change through GitHub end to end, or sort out a GitHub account. Use when someone asks for a pull request, asks you to fix CI or address review comments, asks how to connect or sign in to GitHub, asks why GitHub tools are missing, or when a GitHub call fails on authentication or permissions.
 ---
 
-# GitHub setup
+# GitHub
 
-Connecting happens in Gorkie's **Home** tab. There is no token to create and nothing to paste, so never ask anyone for one.
+A change is not delivered when the pull request opens. It is delivered when the checks are **green** and every review comment has an answer.
 
-## Sending someone to connect
+## 1. Agree the base branch
 
-Everyone installs on their own account, so both steps apply to each person.
+The branch a pull request merges into is not always `main`. Ask which one they want, or take it from what they already said. `github_get_repository` returns `defaultBranch`, which is the fallback when nobody has said otherwise, not a decision. Someone working on a feature branch usually wants the pull request aimed at that branch.
 
-1. Click **Gorkie** in the Slack sidebar, then open the **Home** tab.
-2. Click **Sign in with GitHub**. Both steps below then appear in the modal that opens.
-3. **Choose repositories**: the modal links straight to the install page. This decides what Gorkie can reach. "Only select repositories" is the narrow choice.
-4. **Prove who they are**: open <https://github.com/login/device>, enter the code shown, approve. The Home tab updates on its own.
+## 2. Work in the sandbox
 
-The code lasts about 15 minutes. If it runs out, click **Sign in with GitHub** again for a new one.
+`github_checkout`, then edit and commit on a feature branch. Never `main` or `master`: `github_push_branch` refuses both, so a change committed on a default branch has to be moved before it can go anywhere.
 
-Signing in on its own grants no access to any code. That is the confusing case, because Gorkie can still search public repositories, so it looks connected while every write fails. The Home tab says "Not installed on any repositories, so Gorkie cannot reach your code" when this has happened, next to a **Choose repositories** button. Anyone reporting that Gorkie cannot see their repo, or sees too many, is asking about step 3.
+## 3. Run what CI runs, before pushing
 
-Once connected, **Manage repositories** links to <https://github.com/settings/installations>, where they add or remove repositories at any time.
+Read `.github/workflows/` and run those exact commands, not an approximation of them. The lockfile names the package manager; `package.json` scripts and any `Makefile` name the tasks.
 
-## What they are granting
+If the toolchain is missing, install it with `execute_command` and carry on. The sandbox is yours to set up.
 
-Gorkie signs in as a GitHub App, so the app fixes its own permissions and the person connecting cannot set them wrong. What they choose is which repositories, at step 3.
+Give up on running them locally only when installing genuinely fails: no network, a private registry, a toolchain too large for the sandbox. Then say which checks you could not run and why, and let the repository's CI be the runner instead. Never call a change verified because the tooling was absent.
 
-Their access is the narrowest of three things: the repos they picked, what the app is allowed to do, and what their own account can already do. Gorkie can never reach something they could not reach themselves.
+**Done when** every check you can run locally passes, or you have named the ones you could not run and why.
 
-Picking "All repositories" at step 3 hands over every repo on the account, which is almost never what someone means.
+## 4. Push, and fork if refused
 
-## After connecting
+Push to the original repository first. There is no way to check access beforehand: `github_get_repository` does not report permissions, so the push attempt is the check. Then `github_create_pull_request` into the base branch from step 1, and report the URL from the result.
 
-Gorkie acts as them. Their name is on every issue, comment, and pull request it opens. Different people in one thread can be connected as different accounts, so act on behalf of whoever made the current request, not whoever spoke first.
+A push rejected as forbidden means write access is missing, not that the work is lost. The commit is still in the sandbox.
 
-GitHub tools do not run in a shared thread at all: they refuse and hand back a DM to send instead, because a thread is shared and the account is one person's. The work continues in that DM. Whether a call waits for approval is that person's own setting, chosen per connection under **Configure** in the Home tab. GitHub has its own setting, and so does each MCP server they have added. The default asks before writing or deleting; the alternatives are asking for every call, or asking only before deleting. Someone who finds the prompts tiring should change that setting rather than be talked out of caring.
+- **On a classic token**: `github_fork_repository`, then `github_push_branch` again with the fork's full name as `repository`, then open the pull request from the fork's branch. The checkout is reused, because its directory is named after the repository rather than its owner, so nothing is recloned and the commit is unchanged.
+- **On the GitHub App**: there is no fork tool, because an installation token can only fork where the app is installed. Say the App cannot reach a repository somebody else owns, then offer both ways forward: add a classic token in the Home tab, or open the pull request themselves from `https://github.com/OWNER/REPO/compare/BASE...FORK_OWNER:BRANCH?expand=1`. A person is not installation-bounded.
 
-Whatever the setting, say what you are about to do before a call that changes anything, so an approval prompt is never the first they hear of it, and so that someone who has turned prompts down still knows what happened.
+**Done when** the pull request exists and you have quoted its URL from a tool result.
 
-Approving is a prompt, not a limit. What Gorkie can reach at all comes from the repositories they installed it on, and from branch protection on GitHub. If someone asks to be stopped from touching a branch, that is a GitHub rule, not something an approval setting can guarantee.
+## 5. Drive it green
 
-## Getting work out of the sandbox and into a repo
+`github_list_check_runs` for the state, `github_get_ci_failure_context` for a failing one. Fix the cause in the sandbox, commit, push the same branch again, and look again.
 
-Every code change takes the same route, however small. No tool writes files or branches through GitHub's API, so the sandbox is the only way in:
+Checks take minutes. Use `wait` between looks rather than polling in a tight loop, and say what you are waiting on.
 
-1. `github_checkout` to clone the repository into the sandbox. A plain `git clone` will not work: the sandbox holds no GitHub credentials, so only this tool can reach a private repository.
-2. Build and test there as normal, and commit on a feature branch.
-3. `github_push_branch` with the repository and the branch.
-4. `github_create_pull_request`, and report the URL it returns.
+Read the failure before changing anything. A test that fails on your change and a test that was already broken on the base branch want opposite responses, and `github_get_ci_failure_context` shows you which.
 
-One route rather than two is deliberate. `github_push_branch` refuses `main` and `master`, and it is the only door onto a repository, so nothing gorkie does can land on a default branch without a pull request someone merges.
+**Done when** every check is green, or a named check is failing for a cause outside this change and you have said which check and why.
 
-Both tools borrow their credential at the sandbox firewall for the length of one git command, so the token never reaches the filesystem and nothing lands in `.git/config`.
+## 6. Answer every comment
 
-A plain `git clone`, `git fetch`, or `git push` run outside these two tools will fail, and the failure reads like a network problem rather than a missing credential.
+`github_get_pull_request_context` for the review state, `github_list_pull_request_reviews` and `github_list_issue_comments` for what people wrote.
 
-Never claim a branch, commit, or pull request exists without a tool result showing it.
+Every comment gets one of two responses: a commit that addresses it, or a reply with `github_add_pull_request_comment` explaining why not. Silence is not a response. There is no tool that resolves a review thread, so say what you changed and let the reviewer resolve it.
 
-## Personal tokens
+A comment that asks for something out of scope still gets a reply agreeing or declining, not silence.
 
-Someone may add a classic personal access token under **Add token** in the Home tab. It exists for one reason: a GitHub App only reaches repositories it was installed on, so it cannot fork or open a pull request against a repository somebody else owns. A token is not installation-bounded, so it can.
+**Done when** every comment has a commit or a reply against it, and any new commits have gone back through step 5.
 
-While a token is set it replaces the app for every repository, and the Home tab says so. Only `public_repo` tokens are accepted; anything carrying `repo` is refused, because that scope reaches every private repository the person can see.
+## Reference
 
-If a fork or a cross-repository pull request fails on permissions and they have no token set, that is the reason. Say so plainly, and offer the alternative: they can open the pull request themselves from a compare link, since a person is not installation-bounded either.
+Connecting, tokens, and the Home tab settings: [references/connecting.md](references/connecting.md).
 
-## When GitHub does not work
-
-**No GitHub tools at all** means nobody has connected in this thread. Send them to the Home tab. Do not report GitHub as broken or unsupported.
-
-**A 401** means their sign-in lapsed and could not be renewed. Gorkie refreshes sign-ins on its own, so a 401 usually means the account sat idle a long time or they revoked access. They reconnect the same way.
-
-**A 404 on a repo that exists** usually means the repo was not in the list they picked. GitHub reports that as "not found" rather than "forbidden". Send them to <https://github.com/settings/installations> to add it.
-
-**A 403 on a write** is a rule on GitHub's side rather than a missing permission: branch protection, required reviews on a merge, SAML enforcement, or an org that has not approved the app. Name the actual cause instead of telling them to reconnect.
-
-Quote the real error rather than guessing between these.
+Reading a specific failure, 401, 403, 404, or a dead sandbox: [references/failures.md](references/failures.md).
 
 ## Never
 
 - Ask for, repeat, or write down a token or a device code.
 - Suggest adding GitHub as a custom MCP server. It has its own section, and the MCP form rejects it.
-- Claim GitHub is connected, or that an action succeeded, without a tool result showing it.
+- Claim GitHub is connected, or that a branch, commit, pull request, or green check exists, without a tool result showing it.

@@ -1,12 +1,11 @@
 import type { Message, Thread } from 'chat';
 import { parseMarkdown, stringifyMarkdown } from 'chat';
+import { isComment } from './message';
 import { threadState } from './state';
 
 const MAX_MESSAGES = 10;
+const MAX_SCANNED = 200;
 
-// Mastra only backfills thread history on the first mention, so anything said
-// between two pings never reaches the model. This replaces that with a walk
-// back to the last message the model saw, on every turn.
 export async function withHistory({
   message,
   thread,
@@ -20,9 +19,16 @@ export async function withHistory({
 
   const state = await threadState(thread);
   const lines: string[] = [];
+  let scanned = 0;
+  let comments = 0;
   for await (const previous of thread.messages) {
-    if (previous.id === state?.lastSeenMessage) {
+    if (previous.id === state?.lastSeenMessage || scanned >= MAX_SCANNED) {
       break;
+    }
+    scanned++;
+    if (isComment(previous)) {
+      comments++;
+      continue;
     }
     if (previous.id !== message.id && !previous.author.isMe) {
       const mention = thread.mentionUser(previous.author.userId);
@@ -41,13 +47,22 @@ export async function withHistory({
   }
 
   await thread.setState({ lastSeenMessage: message.id });
-  if (lines.length === 0) {
+  if (lines.length === 0 && comments === 0) {
     return message;
   }
 
   const text = [
-    '[Recent messages in this thread, oldest first, that you have not seen yet]',
-    ...lines.reverse(),
+    ...(lines.length > 0
+      ? [
+          '[Recent messages in this thread, oldest first, that you have not seen yet]',
+          ...lines.reverse(),
+        ]
+      : []),
+    ...(comments > 0
+      ? [
+          `[${comments} ${comments === 1 ? 'message' : 'messages'} starting with ## were left out. They are side comments nobody addressed to you, so act on them only if asked. Read them with read_conversation_history and includeComments if you need them.]`,
+        ]
+      : []),
     '',
     message.text,
   ].join('\n');

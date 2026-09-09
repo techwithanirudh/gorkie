@@ -1,5 +1,6 @@
 import { createGithubTools } from '@github-tools/sdk';
-import { getGitHubPermission } from '../../db/queries/settings';
+import { getGitHubCredential } from '../../db/queries/github';
+import { getGitHubSettings } from '../../db/queries/settings';
 import { githubAccessToken } from '../../lib/github';
 import { logger } from '../../lib/logger';
 import { checkoutPolicy, POLICIES, pushPolicy } from './approval';
@@ -7,8 +8,23 @@ import { checkoutTool } from './checkout';
 import { pushTool } from './push';
 import { handoff } from './utils';
 
-function toolName(name: string): string {
-  return `github_${name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()}`;
+interface BuiltTool {
+  toModelOutput?: (args: {
+    input: unknown;
+    output: unknown;
+    toolCallId: string;
+  }) => unknown;
+}
+
+function modelOutput(tool: BuiltTool) {
+  const format = tool.toModelOutput;
+  if (!format) {
+    return;
+  }
+  return (result: unknown) =>
+    result === undefined
+      ? result
+      : format({ input: undefined, output: result, toolCallId: '' });
 }
 
 export async function githubTools({
@@ -23,15 +39,19 @@ export async function githubTools({
   userId: string;
 }): Promise<Record<string, unknown>> {
   try {
-    const [connected, permission] = await Promise.all([
-      githubAccessToken(userId),
-      getGitHubPermission(userId),
+    const [credential, settings] = await Promise.all([
+      getGitHubCredential(userId),
+      getGitHubSettings(userId),
     ]);
-    if (!connected) {
+    if (!credential) {
       return {};
     }
 
-    const built = createGithubTools({
+    const direct = isDM || settings.threads;
+    const permission =
+      isDM || settings.permission !== 'never' ? settings.permission : 'write';
+
+    const built: Record<string, BuiltTool> = createGithubTools({
       token: async () => {
         const fresh = await githubAccessToken(userId);
         if (!fresh) {
@@ -43,42 +63,27 @@ export async function githubTools({
       },
     });
 
-    const tools: Record<string, unknown> = Object.fromEntries(
-      Object.entries(POLICIES).map(([name, policy]) => {
-        const tool = built[name as keyof typeof built];
-        return [
-          toolName(name),
-          {
-            ...tool,
-            needsApproval: policy(permission),
-            // A shared thread cannot act on one person's account, so the tool
-            // hands back the DM to send instead of a result.
-            ...(isDM
-              ? {}
-              : {
-                  execute: () => handoff({ channelId, threadId, userId }),
-                }),
-            toModelOutput: tool.toModelOutput
-              ? (result: unknown) =>
-                  result === undefined
-                    ? result
-                    : tool.toModelOutput?.({
-                        input: undefined,
-                        output: result,
-                        toolCallId: '',
-                      })
-              : undefined,
-          },
-        ];
-      })
-    );
-
-    if (!isDM) {
-      return tools;
+    const tools: Record<string, unknown> = {};
+    for (const [name, policy] of Object.entries(POLICIES)) {
+      const tool = built[name];
+      if (!tool || (name === 'forkRepository' && credential.kind !== 'pat')) {
+        continue;
+      }
+      const id = `github_${name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()}`;
+      tools[id] = {
+        ...tool,
+        needsApproval: policy(permission),
+        toModelOutput: modelOutput(tool),
+        ...(direct
+          ? {}
+          : { execute: () => handoff({ channelId, threadId, userId }) }),
+      };
     }
-    if (threadId) {
+    if (direct && threadId) {
       tools.github_checkout = checkoutTool({
-        approval: checkoutPolicy(permission),
+        // A clone lands in a sandbox the whole thread can read, and the setting
+        // that allowed this was agreed to long before the clone happens.
+        approval: !isDM || checkoutPolicy(permission),
         userId,
       });
       tools.github_push_branch = pushTool({
@@ -88,7 +93,7 @@ export async function githubTools({
     }
     return tools;
   } catch (error) {
-    logger.debug('[github] failed to build tools', { error, userId });
+    logger.warn('[github] failed to build tools', { error, userId });
     return {};
   }
 }

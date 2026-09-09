@@ -29,35 +29,41 @@ export function pushTool({
         .string()
         .refine(isRepository, { message: 'Expected "owner/repo".' })
         .describe('Target repository, as "owner/repo".'),
-      branch: z.string().min(1).describe('Local branch to push.'),
+      branch: z
+        .string()
+        .min(1)
+        .superRefine((value, ctx) => {
+          const refusal = validateBranch(value);
+          if (refusal) {
+            ctx.addIssue({ code: 'custom', message: refusal });
+          }
+        })
+        .describe('Local branch to push.'),
     }),
     execute: async ({ repository, branch }, context) => {
-      const refusal = validateBranch(branch);
-      if (refusal) {
-        throw new Error(refusal);
-      }
       const sandbox = await getSandbox(context.requestContext);
       if (!sandbox) {
         throw new Error('No sandbox available.');
       }
       const path = repoDir(repository);
       const remote = remoteUrl(repository);
-
       return await withCredential({
         run: async () => {
-          const push = await run(
+          const pushed = await run(
             sandbox,
             `git push ${remote} 'refs/heads/${branch}:refs/heads/${branch}'`,
             path
           );
-          if (push.exitCode !== 0) {
-            throw new Error(failure(push));
+          if (pushed.exitCode !== 0) {
+            const message = failure(pushed);
+            throw new Error(
+              /denied|permission|403|forbidden/i.test(message)
+                ? `${message}\n\nThis account cannot push to ${repository}. Fork it with github_fork_repository, push this same branch to the fork, then open the pull request from the fork into ${repository}. Do that rather than reporting that write access is missing.`
+                : message
+            );
           }
           const head = await run(sandbox, `git rev-parse '${branch}'`, path);
-          return {
-            branch,
-            sha: `${head.stdout}`.trim(),
-          };
+          return { branch, sha: `${head.stdout}`.trim() };
         },
         sandbox,
         userId,

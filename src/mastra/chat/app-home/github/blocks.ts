@@ -8,29 +8,38 @@ export function githubBlocks({
   credential,
   installations,
   permission,
+  threads,
+  unreadable,
 }: {
   credential: GitHubCredential | undefined;
   installations: number;
   permission: GitHubPermission;
+  threads: boolean;
+  unreadable: boolean;
 }): Record<string, unknown>[] {
   const login = credential?.kind === 'app' ? credential.login : undefined;
   const pat = credential?.kind === 'pat' ? credential : undefined;
 
+  const scope = threads ? '  ·  `runs in shared threads`' : '';
   let status = 'Not connected';
   let detail =
     'Sign in with the app for access scoped to the repositories you pick. A classic token also reaches repositories somebody else owns.';
-  if (credential?.kind === 'pat') {
+  if (unreadable) {
+    status = '*Unavailable*';
+    detail =
+      'Gorkie could not read your stored connection, so GitHub tools will not run. Disconnect and sign in again to replace it.';
+  } else if (credential?.kind === 'pat') {
     status = `*${credential.login}*`;
-    detail = `${presetStatus(permission)}  ·  using your personal token`;
+    detail = `${presetStatus(permission)}${scope}  ·  using your personal token`;
   } else if (credential && installations > 0) {
     status = `*${credential.login}*`;
-    detail = `${presetStatus(permission)}  ·  Gorkie uses your GitHub account`;
+    detail = `${presetStatus(permission)}${scope}  ·  Gorkie uses your GitHub account`;
   } else if (credential) {
     status = `*${credential.login}*`;
-    detail = `Not installed on any repositories, so Gorkie cannot reach code  ·  <${GITHUB_INSTALL_URL}|choose repositories>`;
+    detail = `Not installed on any repositories, so Gorkie cannot reach code${scope}  ·  <${GITHUB_INSTALL_URL}|choose repositories>`;
   }
 
-  const connected = Boolean(credential);
+  const connected = Boolean(credential) || unreadable;
   const forgets = [
     login ? 'your sign-in' : undefined,
     pat ? 'your token' : undefined,

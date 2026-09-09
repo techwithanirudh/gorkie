@@ -26,7 +26,6 @@ export function presetStatus(permission: ToolPermission): string {
   return PRESETS[permission].status;
 }
 
-// One radio serves every server, so the server name rides along in the value.
 export function decodePreset(value: string | undefined): {
   permission: ToolPermission;
   scope: string | undefined;
@@ -50,9 +49,9 @@ export function presetRadio({
     id,
     label: 'When should Gorkie stop and ask?',
     initialOption: `${scope} ${permission}`,
-    options: Object.entries(PRESETS).map(([value, entry]) => ({
-      label: entry.label,
-      description: entry.description,
+    options: (['all', 'write', 'delete'] as const).map((value) => ({
+      label: PRESETS[value].label,
+      description: PRESETS[value].description,
       value: `${scope} ${value}`,
     })),
   });

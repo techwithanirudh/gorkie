@@ -38,7 +38,6 @@ async function main(): Promise<void> {
         { noInstallRecommends: true }
       )
       .runCmd([
-        // Empty hooksPath so cloned repos' hooks (lefthook, husky) never run.
         'mkdir -p /etc/git/disabled-hooks',
         'git config --system core.hooksPath /etc/git/disabled-hooks',
         'if command -v fdfind >/dev/null 2>&1; then ln -sf "$(command -v fdfind)" /usr/local/bin/fd; fi',
@@ -58,8 +57,6 @@ async function main(): Promise<void> {
         'npm install -g agent-browser wrangler',
         'bash -lc "yes | agent-browser install --with-deps"',
         'python3 -m pip install --no-cache-dir --break-system-packages --no-user cloakbrowser',
-        // Wrap agent-browser: its stealth env vars are resolved dynamically, not
-        // static, so they can't be baked into the template's own env.
         'mv /usr/local/bin/agent-browser /usr/local/bin/agent-browser-real',
         'python3 -c "from cloakbrowser.download import ensure_binary; ensure_binary()"',
         `chown -R user:user ${config.workdir}`,

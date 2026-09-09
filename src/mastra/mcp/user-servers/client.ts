@@ -97,8 +97,6 @@ export function resolveClient({
   const entry = { key, promise };
   clients.set(userId, entry);
 
-  // A failed build shouldn't poison the cache: drop it so the next call
-  // retries instead of replaying the same rejection forever.
   promise.catch(() => {
     if (clients.get(userId) === entry) {
       clients.delete(userId);
