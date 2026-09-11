@@ -24,7 +24,6 @@ function codeTools(mcp: Awaited<ReturnType<typeof mcpTools>>) {
     get_permalink: slackTools.get_permalink,
     get_slack_file: slackTools.get_slack_file,
     summarize_thread: slackTools.summarize_thread,
-    call_slack_api: slackTools.call_slack_api,
     list_canvases: canvasTools.list_canvases,
     read_canvas: canvasTools.read_canvas,
     lookup_canvas_sections: canvasTools.lookup_canvas_sections,

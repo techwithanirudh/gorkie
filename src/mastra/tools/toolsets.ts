@@ -15,7 +15,6 @@ export async function orchestratorTools() {
     react: slackTools.react,
     search_slack: slackTools.search_slack,
     read_conversation_history: slackTools.read_conversation_history,
-    call_slack_api: slackTools.call_slack_api,
     get_user: slackTools.get_user,
     get_permalink: slackTools.get_permalink,
     leave_thread: slackTools.leave_thread,

@@ -61,7 +61,7 @@
     "cspell": "^10.0.1",
     "drizzle-kit": "^0.31.10",
     "lefthook": "^2.1.10",
-    "mastra": "^1.25.1",
+    "mastra": "^1.27.3",
     "typescript": "^6.0.3",
     "ultracite": "7.9.4"
   },
