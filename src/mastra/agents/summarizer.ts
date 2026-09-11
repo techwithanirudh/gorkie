@@ -2,6 +2,7 @@ import { Agent } from '@mastra/core/agent';
 import { ProviderHistoryCompat } from '@mastra/core/processors';
 import { agent as config } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
+import { moveToolImages } from '../processors/tool-media';
 import { summarizer as summarizerModel } from '../providers';
 
 export const summarizer = new Agent({
@@ -18,7 +19,9 @@ Open with one or two sentences covering the topic and current state. Follow with
 Preserve names, owners, dates, links, constraints, rationale, disagreements, and unresolved alternatives. Attribute claims when speakers disagree. Clearly distinguish discussion, proposals, tentative agreement, and final decisions. Never invent an owner, deadline, decision, or consensus. Do not replace concrete facts with generic phrases such as "the team discussed options." Output only the summary, with no preamble.`,
   model: summarizerModel,
   errorProcessors: defaultErrorProcessors(),
-  inputProcessors: [new ProviderHistoryCompat()],
+  inputProcessors: [
+    new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
+  ],
   maxProcessorRetries: 2,
   defaultOptions: {
     modelSettings: { maxOutputTokens: config.maxTokens.output },

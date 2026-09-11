@@ -1,13 +1,16 @@
-import { createGithubTools, GITHUB_WRITE_TOOLS } from '@github-tools/sdk';
+import {
+  createGithubTools,
+  GITHUB_WRITE_TOOLS,
+  type GithubToolName,
+} from '@github-tools/sdk';
 import type { RequestContext } from '@mastra/core/request-context';
 import { githubAccess, githubAccessToken } from '../../lib/github';
 import { logger } from '../../lib/logger';
 import { asksBefore } from '../../types';
-import { checkoutTool } from './checkout';
-import { pushTool } from './push';
-import { handoff } from './utils';
+import { checkoutTool, pushTool } from './git';
+import { handoff } from './handoff';
 
-const EXPOSED = [
+const EXPOSED: GithubToolName[] = [
   'addAssignees',
   'addIssueComment',
   'addLabels',
@@ -43,27 +46,6 @@ const EXPOSED = [
   'updatePullRequest',
 ];
 
-const WRITES = new Set<string>(Object.values(GITHUB_WRITE_TOOLS));
-
-interface BuiltTool {
-  toModelOutput?: (args: {
-    input: unknown;
-    output: unknown;
-    toolCallId: string;
-  }) => unknown;
-}
-
-function modelOutput(tool: BuiltTool) {
-  const format = tool.toModelOutput;
-  if (!format) {
-    return;
-  }
-  return (result: unknown) =>
-    result === undefined
-      ? result
-      : format({ input: undefined, output: result, toolCallId: '' });
-}
-
 export async function githubTools({
   channelId,
   isDM,
@@ -84,7 +66,7 @@ export async function githubTools({
     }
     const { credential, direct, level } = access;
 
-    const built: Record<string, BuiltTool> = createGithubTools({
+    const built = createGithubTools({
       token: async () => {
         const fresh = await githubAccessToken(userId);
         if (!fresh) {
@@ -98,18 +80,26 @@ export async function githubTools({
 
     const tools: Record<string, unknown> = {};
     for (const name of EXPOSED) {
-      const tool = built[name];
-      if (!tool || (name === 'forkRepository' && credential.kind !== 'pat')) {
+      // An app structurally cannot fork a repository it is not installed on.
+      if (name === 'forkRepository' && credential.kind !== 'pat') {
         continue;
       }
+      const tool = built[name];
+      // The SDK's formatter is AI SDK shaped; Mastra hands it the result alone.
+      const format = tool.toModelOutput;
       const id = `github_${name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()}`;
       tools[id] = {
         ...tool,
         needsApproval: asksBefore({
-          kind: WRITES.has(name) ? 'write' : 'read',
+          kind: name in GITHUB_WRITE_TOOLS ? 'write' : 'read',
           level,
         }),
-        toModelOutput: modelOutput(tool),
+        ...(format && {
+          toModelOutput: (result: unknown) =>
+            result === undefined
+              ? result
+              : format({ input: undefined, output: result, toolCallId: '' }),
+        }),
         ...(direct
           ? {}
           : { execute: () => handoff({ channelId, threadId, userId }) }),

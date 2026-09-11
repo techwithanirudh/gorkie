@@ -9,6 +9,7 @@ import { agent as config } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
 import { sandbox } from '../processors/sandbox';
+import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
 import * as research from '../prompts/agents/research';
 import { slackToolPrompt } from '../prompts/slack';
@@ -47,7 +48,7 @@ export const researchAgent = new Agent({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
     }),
-    new ProviderHistoryCompat(),
+    new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
   ],
   defaultOptions: {
     modelSettings: {

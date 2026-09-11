@@ -1,7 +1,7 @@
 import type { ModelWithRetries } from '@mastra/core/agent';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { env } from '@/env';
-import { recallModel, sameModel, slugOf } from './lib/working-model';
+import { recallModel, slugOf } from './lib/working-model';
 
 export const hackclub = createOpenRouter({
   apiKey: env.HACKCLUB_API_KEY,
@@ -42,7 +42,11 @@ async function preferLastWorking({
   const rest: ModelWithRetries[] = [];
   for (const entry of models) {
     const slug = modelSlug(entry);
-    (slug && sameModel(slug, lastGoodSlug) ? matches : rest).push(entry);
+    const same =
+      slug === lastGoodSlug ||
+      slug?.endsWith(`/${lastGoodSlug}`) ||
+      lastGoodSlug.endsWith(`/${slug}`);
+    (slug && same ? matches : rest).push(entry);
   }
   return matches.length ? [...matches, ...rest] : models;
 }

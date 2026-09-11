@@ -2,8 +2,8 @@ import type { GitHubCredential } from '../../../db/queries/github';
 import { GITHUB_INSTALL_URL } from '../../../lib/github';
 import type { GitHubPermission } from '../../../types';
 import type { HomeSection } from '../limit';
+import { PRESETS } from '../presets';
 import { ids } from './ids';
-import { presetStatus } from './presets';
 
 export function githubBlocks({
   credential,
@@ -18,7 +18,6 @@ export function githubBlocks({
   threads: boolean;
   unreadable: boolean;
 }): HomeSection {
-  const login = credential?.kind === 'app' ? credential.login : undefined;
   const pat = credential?.kind === 'pat' ? credential : undefined;
 
   const scope = threads ? '  ·  `runs in shared threads`' : '';
@@ -31,32 +30,20 @@ export function githubBlocks({
       'Gorkie could not read your stored connection, so GitHub tools will not run. Disconnect and sign in again to replace it.';
   } else if (credential?.kind === 'pat') {
     status = `*${credential.login}*`;
-    detail = `${presetStatus(permission)}${scope}  ·  using your personal token`;
+    detail = `${PRESETS[permission].status}${scope}  ·  using your personal token`;
   } else if (credential && installations > 0) {
     status = `*${credential.login}*`;
-    detail = `${presetStatus(permission)}${scope}  ·  Gorkie uses your GitHub account`;
+    detail = `${PRESETS[permission].status}${scope}  ·  Gorkie uses your GitHub account`;
   } else if (credential) {
     status = `*${credential.login}*`;
     detail = `Not installed on any repositories, so Gorkie cannot reach code${scope}  ·  <${GITHUB_INSTALL_URL}|choose repositories>`;
   }
 
   const connected = Boolean(credential) || unreadable;
-  const forgets = [
-    login ? 'your sign-in' : undefined,
-    pat ? 'your token' : undefined,
-  ]
-    .filter(Boolean)
-    .join(' and ');
-  const afterwards = [
-    login
-      ? "The app stays installed on your repositories until you remove it in GitHub's settings."
-      : undefined,
-    pat
-      ? 'The token itself keeps working until you delete it on GitHub.'
-      : undefined,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const forgets = pat ? 'your token' : 'your sign-in';
+  const afterwards = pat
+    ? 'The token itself keeps working until you delete it on GitHub.'
+    : "The app stays installed on your repositories until you remove it in GitHub's settings.";
 
   return {
     fixed: [

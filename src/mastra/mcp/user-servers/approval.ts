@@ -1,10 +1,9 @@
 import { z } from 'zod';
 import { asksBefore, type ToolKind, type ToolPermission } from '../../types';
 
-export const annotationCoverage = new Map<
-  string,
-  { annotated: number; total: number }
->();
+// `${userId}:${server}` for servers that expose tools but annotate none of
+// them, which is the only thing the Home tab asks about.
+export const unlabelledServers = new Set<string>();
 
 export function approvalFor(permission: ToolPermission) {
   return ({
@@ -28,7 +27,7 @@ export function approvalFor(permission: ToolPermission) {
   };
 }
 
-const annotatedTool = z.object({
+export const annotatedTool = z.object({
   mcp: z
     .object({
       annotations: z
@@ -37,7 +36,3 @@ const annotatedTool = z.object({
     })
     .optional(),
 });
-
-export function readOnlyHintOf(tool: unknown): boolean | undefined {
-  return annotatedTool.safeParse(tool).data?.mcp?.annotations?.readOnlyHint;
-}

@@ -5,7 +5,7 @@ import { channelContext } from '../../lib/context';
 import { parseSlackId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, optionalCursor, output } from '../../types/tools/index';
-import { getSandbox, sandboxPath as p } from '../../workspace';
+import { sandboxPath as p, requireSandbox } from '../../workspace';
 import { assertReadableChannel, joinChannel } from './utils';
 
 const readMethod =
@@ -104,10 +104,7 @@ Responses are unshaped and can be large, so the full JSON is always written to a
       if (!context?.requestContext) {
         throw new Error('No workspace context.');
       }
-      const sandbox = await getSandbox(context.requestContext);
-      if (!sandbox) {
-        throw new Error('No sandbox available.');
-      }
+      const sandbox = await requireSandbox(context.requestContext);
       await sandbox.ensureRunning();
       const target = p('slack-api', `${method}-${Date.now()}.json`);
       await sandbox.retryOnDead(async () => {

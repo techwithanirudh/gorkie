@@ -31,6 +31,18 @@ export function usedSandbox(requestContext: RequestContext): boolean {
   return reached.has(requestContext);
 }
 
+// Seven call sites wanted a sandbox and threw the same refusal when it was
+// missing; they share this one instead.
+export async function requireSandbox(
+  requestContext: RequestContext
+): Promise<E2BSandbox> {
+  const sandbox = await getSandbox(requestContext);
+  if (!sandbox) {
+    throw new Error('No sandbox available.');
+  }
+  return sandbox;
+}
+
 export async function getSandbox(
   requestContext: RequestContext
 ): Promise<E2BSandbox | undefined> {

@@ -1,17 +1,17 @@
+import { Modal, TextInput } from 'chat';
 import {
   listMCPServers,
   removeMCPServer,
   setMCPServerPermission,
   upsertMCPServer,
 } from '../../../db/queries/mcps';
-import { GITHUB_SERVER_NAME, isGitHubUrl } from '../../../lib/github';
 import { findMCPUrlError } from '../../../mcp/security';
 import { findMCPConnectionError } from '../../../mcp/user-servers';
 import { mcpServerSchema } from '../../../types';
 import { chat } from '../../instance';
 import { ids, MAX_SERVERS } from './ids';
 import { decodePreset } from './presets';
-import { addServerModal, configureModal } from './views';
+import { configureModal } from './views';
 
 type PublishHome = (userId: string) => Promise<void>;
 
@@ -71,8 +71,8 @@ async function addServer({
     return { action: 'errors' as const, errors };
   }
 
-  const isGitHub = isGitHubUrl(parsed.data.url);
-  if (isGitHub || parsed.data.name.toLowerCase() === GITHUB_SERVER_NAME) {
+  const isGitHub = new URL(parsed.data.url).host === 'api.githubcopilot.com';
+  if (isGitHub || parsed.data.name.toLowerCase() === 'github') {
     const message =
       'GitHub has its own section above. Use Sign in with GitHub instead.';
     return {
@@ -117,7 +117,33 @@ export function registerMCPServers({
     if (servers.length >= MAX_SERVERS) {
       return;
     }
-    await event.openModal(addServerModal());
+    await event.openModal(
+      Modal({
+        callbackId: ids.modal,
+        title: 'Add MCP Server',
+        submitLabel: 'Add',
+        children: [
+          TextInput({
+            id: 'name',
+            label: 'Name',
+            placeholder: 'notion',
+            maxLength: 60,
+          }),
+          TextInput({
+            id: 'url',
+            label: 'Server URL',
+            placeholder: 'https://mcp.example.com/mcp',
+            maxLength: 500,
+          }),
+          TextInput({
+            id: 'token',
+            label: 'Access token',
+            optional: true,
+            maxLength: 2000,
+          }),
+        ],
+      })
+    );
   });
 
   bot.onAction((event) =>

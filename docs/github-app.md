@@ -53,9 +53,24 @@ Set only these; leave everything else "No access".
 | Issues | Read and write |
 | Pull requests | Read and write |
 | Metadata | Read-only (mandatory, auto-selected) |
+| Actions | Read-only |
+| Checks | Read-only |
+| Commit statuses | Read-only |
 
-Optional, only if wanted: Actions (Read and write) for workflow runs,
-Commit statuses (Read-only), Discussions, Projects.
+Write access is narrower than the table looks. Of the 33 GitHub tools, none
+needs Contents write: their exact requirement, derived from the SDK's own
+per-tool scope catalog, is `contents:read`, `metadata:read`,
+`pull_requests:read`, `pull_requests:write`, `issues:read`, `issues:write`,
+`actions:read`, `checks:read`, `statuses:read`. Contents write is here for one
+reason only, `github_push_branch`, which pushes commits and cannot work
+without it. Drop Contents to Read-only if you do not want gorkie pushing
+branches, and everything else keeps working.
+
+Actions write is deliberately absent. Nothing triggers, cancels or reruns a
+workflow: CI mutation is excluded from the tool surface on purpose, so
+granting it adds risk and buys nothing. Checks and Commit statuses are needed
+read-only because `github_get_ci_failure_context` and the check-run tools read
+them. Discussions and Projects are not used at all.
 
 Do NOT grant Administration, or anything under Organization permissions,
 unless specifically asked.

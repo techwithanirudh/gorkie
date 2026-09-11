@@ -1,7 +1,7 @@
 import type { MCPServerConfig } from '../../../types';
 import type { HomeSection } from '../limit';
+import { PRESETS } from '../presets';
 import { ids } from './ids';
-import { presetStatus } from './presets';
 
 export function mcpServersBlocks(
   servers: (MCPServerConfig & { lastError?: string })[]
@@ -50,7 +50,7 @@ export function mcpServersBlocks(
         elements: [
           {
             type: 'mrkdwn',
-            text: `${presetStatus(server.permission)}  \u00b7  \`${server.url}\``,
+            text: `${PRESETS[server.permission].status}  \u00b7  \`${server.url}\``,
           },
         ],
       },

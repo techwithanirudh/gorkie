@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { resolveTarget, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
 import { input, output } from '../../types/tools/index';
-import { getSandbox } from '../../workspace';
+import { requireSandbox } from '../../workspace';
 import { assertCanPostTo, joinChannel } from './utils';
 
 const MAX_UPLOAD_BYTES = 100_000_000;
@@ -47,10 +47,7 @@ export const uploadFileTool = createTool({
     if (!context?.requestContext) {
       throw new Error('No workspace context.');
     }
-    const sandbox = await getSandbox(context.requestContext);
-    if (!sandbox) {
-      throw new Error('No sandbox available.');
-    }
+    const sandbox = await requireSandbox(context.requestContext);
     await sandbox.ensureRunning();
 
     const stat = await sandbox.retryOnDead(() =>

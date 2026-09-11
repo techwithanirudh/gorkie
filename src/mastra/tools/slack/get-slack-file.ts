@@ -5,7 +5,7 @@ import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { sh } from '../../lib/utils';
 import { input, output } from '../../types/tools/index';
-import { getSandbox, sandboxPath as p } from '../../workspace';
+import { sandboxPath as p, requireSandbox } from '../../workspace';
 
 function formatBytes(value: number): string {
   if (value < 1024 * 1024) {
@@ -50,10 +50,7 @@ export const getSlackFileTool = createTool({
     if (!context?.requestContext) {
       throw new Error('No workspace context.');
     }
-    const sandbox = await getSandbox(context.requestContext);
-    if (!sandbox) {
-      throw new Error('No sandbox available.');
-    }
+    const sandbox = await requireSandbox(context.requestContext);
     await sandbox.ensureRunning();
 
     const fileId = /(F[A-Z0-9]{6,})/.exec(file)?.[1];

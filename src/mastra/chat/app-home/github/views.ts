@@ -6,13 +6,29 @@ import {
   type awaitDeviceLogin,
   type DeviceLogin,
   GITHUB_INSTALL_URL,
-  GITHUB_SETTINGS_URL,
   githubUser,
+  levelsFor,
 } from '../../../lib/github';
 import { logger } from '../../../lib/logger';
 import type { GitHubPermission } from '../../../types';
+import { PRESETS } from '../presets';
 import { ids } from './ids';
-import { permissionOptions, scopeOptions } from './presets';
+
+function option({
+  description,
+  label,
+  value,
+}: {
+  description: string;
+  label: string;
+  value: string;
+}): PlainTextOption {
+  return {
+    text: { type: 'plain_text', text: label },
+    description: { type: 'plain_text', text: description },
+    value,
+  };
+}
 
 export const polling = new Map<
   string,
@@ -81,8 +97,23 @@ export function configureView({
   permission: GitHubPermission;
   threads: boolean;
 }): ModalView {
-  const permissions = permissionOptions(threads);
-  const scopes = scopeOptions();
+  const permissions = levelsFor(threads).map((value) =>
+    option({ ...PRESETS[value], value })
+  );
+  const scopes = [
+    option({
+      description:
+        'In a shared thread Gorkie writes up the task and DMs it to you instead.',
+      label: 'Only in a DM with you',
+      value: 'dm',
+    }),
+    option({
+      description:
+        'Anyone in the thread can steer the work, and checked-out code stays readable there for as long as the thread lives.',
+      label: 'Anywhere, including shared threads (dangerous)',
+      value: 'threads',
+    }),
+  ];
   const selected =
     permissions.find((o) => o.value === permission) ??
     permissions.find((o) => o.value === 'write');
@@ -121,7 +152,7 @@ export function configureView({
       text(
         pat
           ? 'Your token reaches everything its scopes allow, not a list of repositories. Disconnect to go back to the app.'
-          : `Gorkie reaches only the repositories you chose. <${GITHUB_SETTINGS_URL}|Change which ones> on GitHub.`
+          : 'Gorkie reaches only the repositories you chose. <https://github.com/settings/installations|Change which ones> on GitHub.'
       ),
     ],
   };
@@ -171,22 +202,16 @@ export function connectView({
     },
   ];
   const options: PlainTextOption[] = [
-    {
-      text: { type: 'plain_text', text: 'GitHub App' },
-      description: {
-        type: 'plain_text',
-        text: 'Scoped to the repositories you pick, and expires.',
-      },
+    option({
+      description: 'Scoped to the repositories you pick, and expires.',
+      label: 'GitHub App',
       value: 'app',
-    },
-    {
-      text: { type: 'plain_text', text: 'Classic token' },
-      description: {
-        type: 'plain_text',
-        text: 'Also reaches repositories somebody else owns.',
-      },
+    }),
+    option({
+      description: 'Also reaches repositories somebody else owns.',
+      label: 'Classic token',
       value: 'pat',
-    },
+    }),
   ];
   return {
     type: 'modal',

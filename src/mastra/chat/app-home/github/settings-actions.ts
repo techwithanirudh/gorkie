@@ -8,10 +8,10 @@ import {
   setGitHubSettings,
 } from '../../../db/queries/settings';
 import { logger } from '../../../lib/logger';
+import { githubPermissionSchema } from '../../../types';
 import { slack } from '../../client';
 import { chat } from '../../instance';
 import { ids } from './ids';
-import { decodePreset, decodeThreads } from './presets';
 import { configureView, polling, selectedPermission, viewOf } from './views';
 
 export function registerSettings({
@@ -49,7 +49,7 @@ export function registerSettings({
     if (!view) {
       return;
     }
-    const threads = decodeThreads(event.value);
+    const threads = event.value === 'threads';
     const credential = await getGitHubCredential(event.user.userId);
     try {
       await slack.webClient.views.update({
@@ -57,7 +57,9 @@ export function registerSettings({
         view_id: view.id,
         view: configureView({
           pat: credential?.kind === 'pat',
-          permission: decodePreset(selectedPermission(event.raw)),
+          permission: githubPermissionSchema.parse(
+            selectedPermission(event.raw)
+          ),
           threads,
         }),
       });
@@ -71,8 +73,8 @@ export function registerSettings({
 
   bot.onModalSubmit(ids.configureModal, async (event) => {
     await setGitHubSettings({
-      permission: decodePreset(`${event.values[ids.permission] ?? ''}`),
-      threads: decodeThreads(`${event.values[ids.scope] ?? ''}`),
+      permission: githubPermissionSchema.parse(event.values[ids.permission]),
+      threads: event.values[ids.scope] === 'threads',
       userId: event.user.userId,
     });
     await publishHome(event.user.userId);

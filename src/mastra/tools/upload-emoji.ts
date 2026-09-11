@@ -2,7 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { env } from '@/env';
 import { input, output } from '../types/tools/index';
-import { getSandbox } from '../workspace';
+import { requireSandbox } from '../workspace';
 
 const EMOJI_PROXY_URL =
   'https://hackclub-slack-emoji-proxy.vercel.app/api/emoji';
@@ -64,10 +64,7 @@ export const uploadEmojiTool = createTool({
       if (!context?.requestContext) {
         throw new Error('No workspace context.');
       }
-      const sandbox = await getSandbox(context.requestContext);
-      if (!sandbox) {
-        throw new Error('No sandbox available.');
-      }
+      const sandbox = await requireSandbox(context.requestContext);
       // Turn end pauses the sandbox, and `retryOnDead` cannot recover a paused
       // one: it throws `SandboxNotReadyError`, which matches no branch of
       // `isSandboxDeadError`.

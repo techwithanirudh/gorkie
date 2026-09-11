@@ -58,3 +58,6 @@ output.txt
 # Screenshots dropped in the repo root
 /CleanShot*.png
 /trace-*.json
+
+# Holds the Context7 API key
+.mcp.json

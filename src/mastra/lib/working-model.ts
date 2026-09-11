@@ -24,14 +24,6 @@ function qualifiedSlug({
     : slugOf(modelId);
 }
 
-export function sameModel(entrySlug: string, recalled: string): boolean {
-  return (
-    entrySlug === recalled ||
-    entrySlug.endsWith(`/${recalled}`) ||
-    recalled.endsWith(`/${entrySlug}`)
-  );
-}
-
 export async function recallModel(
   agentKey: string
 ): Promise<string | undefined> {

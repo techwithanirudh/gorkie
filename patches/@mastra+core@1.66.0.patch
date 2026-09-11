@@ -1,8 +1,6 @@
-diff --git a/dist/agent-Bvx_IkTW.cjs b/dist/agent-Bvx_IkTW.cjs
-index 84c2a35..8b4e271 100644
---- a/dist/agent-Bvx_IkTW.cjs
-+++ b/dist/agent-Bvx_IkTW.cjs
-@@ -19425,7 +19425,10 @@ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, to
+--- a/dist/agent-CEHR0Wd8.js
++++ b/dist/agent-CEHR0Wd8.js
+@@ -19590,7 +19590,10 @@
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -14,20 +12,20 @@ index 84c2a35..8b4e271 100644
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -20642,6 +20645,12 @@ var AgentChannels = class {
- 						this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
- 						return;
- 					}
-+					const approvalRequesterId = stashed?.requesterId;
-+					const actingUserId = event.user?.userId;
-+					if (approvalRequesterId && actingUserId && approvalRequesterId !== actingUserId) {
-+						this.log("info", `Ignoring tool approval action from ${actingUserId}: only ${approvalRequesterId} may answer toolCallId=${toolCallId}`);
-+						return;
-+					}
- 					const displayName = toolName ? stripToolPrefix(toolName) : "tool";
- 					const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
- 					const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -21131,7 +21140,7 @@ var AgentChannels = class {
+@@ -20823,6 +20826,12 @@
+ 							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
+ 							return;
+ 						}
++						const approvalRequesterId = stashed?.requesterId;
++						const actingUserId = event.user?.userId;
++						if (approvalRequesterId && actingUserId && approvalRequesterId !== actingUserId) {
++							this.log("info", `Ignoring tool approval action from ${actingUserId}: only ${approvalRequesterId} may answer toolCallId=${toolCallId}`);
++							return;
++						}
+ 						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
+ 						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
+ 						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
+@@ -21315,7 +21324,7 @@
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -36,7 +34,7 @@ index 84c2a35..8b4e271 100644
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -21193,14 +21202,17 @@ var AgentChannels = class {
+@@ -21377,14 +21386,17 @@
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -56,17 +54,14 @@ index 84c2a35..8b4e271 100644
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -25292,6 +25304,19 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25626,6 +25638,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
 +				} else if (activeFallbackModelIndex + 1 < models.length) {
 +					// Stock only advances the fallback index when the model call throws.
 +					// An error delivered as an in-band stream chunk returns normally, so
-+					// without this the remaining models are never tried. Escalate inside
-+					// the retry path (isContinued) rather than throwing, so the response
-+					// message id rotates and the next model doesn't stream into the
-+					// message the failed one already wrote into.
++					// without this the remaining models are never tried.
 +					apiErrorRetryResult = { retry: true, advanceFallbackModel: true };
 +					runState.setState({
 +						hasErrored: false,
@@ -76,7 +71,7 @@ index 84c2a35..8b4e271 100644
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -25312,7 +25337,11 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25646,7 +25668,11 @@
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -89,7 +84,7 @@ index 84c2a35..8b4e271 100644
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -25340,7 +25369,7 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25674,7 +25700,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -98,11 +93,9 @@ index 84c2a35..8b4e271 100644
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
-diff --git a/dist/agent-mTyOZvpk.js b/dist/agent-mTyOZvpk.js
-index 82a6a64..aea455a 100644
---- a/dist/agent-mTyOZvpk.js
-+++ b/dist/agent-mTyOZvpk.js
-@@ -19423,7 +19423,10 @@ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, to
+--- a/dist/agent-BMi0F5ou.cjs
++++ b/dist/agent-BMi0F5ou.cjs
+@@ -19592,7 +19592,10 @@
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -114,20 +107,20 @@ index 82a6a64..aea455a 100644
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -20640,6 +20643,12 @@ var AgentChannels = class {
- 						this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
- 						return;
- 					}
-+					const approvalRequesterId = stashed?.requesterId;
-+					const actingUserId = event.user?.userId;
-+					if (approvalRequesterId && actingUserId && approvalRequesterId !== actingUserId) {
-+						this.log("info", `Ignoring tool approval action from ${actingUserId}: only ${approvalRequesterId} may answer toolCallId=${toolCallId}`);
-+						return;
-+					}
- 					const displayName = toolName ? stripToolPrefix(toolName) : "tool";
- 					const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
- 					const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -21129,7 +21138,7 @@ var AgentChannels = class {
+@@ -20825,6 +20828,12 @@
+ 							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
+ 							return;
+ 						}
++						const approvalRequesterId = stashed?.requesterId;
++						const actingUserId = event.user?.userId;
++						if (approvalRequesterId && actingUserId && approvalRequesterId !== actingUserId) {
++							this.log("info", `Ignoring tool approval action from ${actingUserId}: only ${approvalRequesterId} may answer toolCallId=${toolCallId}`);
++							return;
++						}
+ 						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
+ 						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
+ 						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
+@@ -21317,7 +21326,7 @@
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -136,7 +129,7 @@ index 82a6a64..aea455a 100644
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -21191,14 +21200,17 @@ var AgentChannels = class {
+@@ -21379,14 +21388,17 @@
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -156,17 +149,14 @@ index 82a6a64..aea455a 100644
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -25290,6 +25302,19 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25628,6 +25640,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
 +				} else if (activeFallbackModelIndex + 1 < models.length) {
 +					// Stock only advances the fallback index when the model call throws.
 +					// An error delivered as an in-band stream chunk returns normally, so
-+					// without this the remaining models are never tried. Escalate inside
-+					// the retry path (isContinued) rather than throwing, so the response
-+					// message id rotates and the next model doesn't stream into the
-+					// message the failed one already wrote into.
++					// without this the remaining models are never tried.
 +					apiErrorRetryResult = { retry: true, advanceFallbackModel: true };
 +					runState.setState({
 +						hasErrored: false,
@@ -176,7 +166,7 @@ index 82a6a64..aea455a 100644
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -25310,7 +25335,11 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25648,7 +25670,11 @@
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -189,7 +179,7 @@ index 82a6a64..aea455a 100644
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -25338,7 +25367,7 @@ function createLLMExecutionStep({ models, _internal, messageId: messageIdPassed,
+@@ -25676,7 +25702,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,

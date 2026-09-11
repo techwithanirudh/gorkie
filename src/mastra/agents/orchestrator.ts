@@ -22,6 +22,7 @@ import { stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
 import { delegatedTools } from '../processors/delegated-tools';
 import { sandbox } from '../processors/sandbox';
+import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
 import { instructions } from '../prompts';
@@ -119,7 +120,7 @@ const orchestrator = new Agent({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
     }),
-    new ProviderHistoryCompat(),
+    new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
   ],
   outputProcessors: [
     delegatedTools,

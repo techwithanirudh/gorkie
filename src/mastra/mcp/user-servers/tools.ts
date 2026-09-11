@@ -1,7 +1,7 @@
 import { listMCPServers, setMCPServerError } from '../../db/queries/mcps';
 import { logger } from '../../lib/logger';
 import { cleanMCPErrorMessage } from '../errors';
-import { annotationCoverage, readOnlyHintOf } from './approval';
+import { annotatedTool, unlabelledServers } from './approval';
 import { dropClient, mcpServerNames, resolveClient } from './client';
 
 export async function userMCPTools({
@@ -23,26 +23,21 @@ export async function userMCPTools({
     const client = await resolveClient({ servers, userId });
     const { tools, errors } = await client.listToolsWithErrors();
 
-    const counts = new Map<string, { annotated: number; total: number }>();
-    for (const [id, tool] of Object.entries(tools)) {
-      const server = servers.find((entry) =>
-        id.startsWith(`${entry.name}_`)
-      )?.name;
-      if (!server) {
-        continue;
-      }
-      const seen = counts.get(server) ?? { annotated: 0, total: 0 };
-      seen.total += 1;
-      if (readOnlyHintOf(tool) !== undefined) {
-        seen.annotated += 1;
-      }
-      counts.set(server, seen);
-    }
     for (const server of servers) {
-      annotationCoverage.set(
-        `${userId}:${server.name}`,
-        counts.get(server.name) ?? { annotated: 0, total: 0 }
+      const own = Object.keys(tools).filter((id) =>
+        id.startsWith(`${server.name}_`)
       );
+      const labelled = own.some(
+        (id) =>
+          annotatedTool.safeParse(tools[id]).data?.mcp?.annotations
+            ?.readOnlyHint !== undefined
+      );
+      const key = `${userId}:${server.name}`;
+      if (own.length > 0 && !labelled) {
+        unlabelledServers.add(key);
+      } else {
+        unlabelledServers.delete(key);
+      }
     }
 
     await Promise.all(

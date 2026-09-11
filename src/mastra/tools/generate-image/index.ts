@@ -3,7 +3,7 @@ import { generateImage } from 'ai';
 import { z } from 'zod';
 import { hackclub, images } from '../../providers';
 import { input, output } from '../../types/tools/index';
-import { getSandbox, sandboxPath as p } from '../../workspace';
+import { sandboxPath as p, requireSandbox } from '../../workspace';
 import { editImages } from './edit';
 
 export const generateImageTool = createTool({
@@ -48,10 +48,7 @@ export const generateImageTool = createTool({
     if (!context?.requestContext) {
       throw new Error('No workspace context.');
     }
-    const sandbox = await getSandbox(context.requestContext);
-    if (!sandbox) {
-      throw new Error('No sandbox available.');
-    }
+    const sandbox = await requireSandbox(context.requestContext);
     await sandbox.ensureRunning();
 
     const generated =
