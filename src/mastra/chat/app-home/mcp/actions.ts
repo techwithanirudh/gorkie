@@ -42,7 +42,7 @@ async function openServerAction({
     (entry) => entry.name === name
   );
   if (server) {
-    await openModal(configureModal(server));
+    await openModal(configureModal({ server, userId }));
   }
 }
 

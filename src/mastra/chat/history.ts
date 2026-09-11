@@ -42,7 +42,7 @@ export async function withHistory({
         ? stringifyMarkdown(previous.formatted).trim()
         : previous.text;
       // An image-only post carries no text, so without this the line reads as
-      // if the person said nothing. get_slack_file takes the id or the url.
+      // if the person said nothing.
       const files =
         previous.attachments.length > 0
           ? ` [${previous.attachments.length} attachment${previous.attachments.length === 1 ? '' : 's'}: ${previous.attachments

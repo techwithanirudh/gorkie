@@ -68,6 +68,10 @@ export const uploadEmojiTool = createTool({
       if (!sandbox) {
         throw new Error('No sandbox available.');
       }
+      // Turn end pauses the sandbox, and `retryOnDead` cannot recover a paused
+      // one: it throws `SandboxNotReadyError`, which matches no branch of
+      // `isSandboxDeadError`.
+      await sandbox.ensureRunning();
       const bytes = await sandbox.retryOnDead(() =>
         sandbox.e2b.files.read(path, { format: 'bytes' })
       );

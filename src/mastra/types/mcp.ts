@@ -1,6 +1,11 @@
 import { z } from 'zod';
+import type { ApprovalLevel } from './approval';
 
-const TOOL_PERMISSIONS = ['all', 'write', 'delete'] as const;
+const TOOL_PERMISSIONS = [
+  'all',
+  'write',
+  'delete',
+] as const satisfies readonly ApprovalLevel[];
 
 export type ToolPermission = (typeof TOOL_PERMISSIONS)[number];
 

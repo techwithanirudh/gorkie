@@ -4,9 +4,10 @@ import { input } from '../../types/tools/index';
 import { getSandbox } from '../../workspace';
 import {
   failure,
-  isRepository,
+  parseRepository,
   remoteUrl,
   repoDir,
+  repositorySchema,
   run,
   validateBranch,
   withCredential,
@@ -25,10 +26,9 @@ export function pushTool({
       'Push a committed branch of a sandbox checkout to GitHub. The branch must already exist locally with the work committed; main and master are refused. Use this rather than github_create_or_update_file when a change spans more than a couple of files, then open the pull request with github_create_pull_request.',
     requireApproval: approval,
     inputSchema: input({
-      repository: z
-        .string()
-        .refine(isRepository, { message: 'Expected "owner/repo".' })
-        .describe('Target repository, as "owner/repo".'),
+      repository: repositorySchema.describe(
+        'Target repository, as "owner/repo".'
+      ),
       branch: z
         .string()
         .min(1)
@@ -45,8 +45,9 @@ export function pushTool({
       if (!sandbox) {
         throw new Error('No sandbox available.');
       }
-      const path = repoDir(repository);
-      const remote = remoteUrl(repository);
+      const repo = parseRepository(repository);
+      const path = repoDir(repo);
+      const remote = remoteUrl(repo);
       return await withCredential({
         run: async () => {
           const pushed = await run(

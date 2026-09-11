@@ -1,4 +1,5 @@
 import type { PlainTextOption } from '@slack/web-api';
+import { levelsFor } from '../../../lib/github';
 import { type GitHubPermission, githubPermissionSchema } from '../../../types';
 
 const PRESETS = {
@@ -35,10 +36,7 @@ export function decodeThreads(value: string | undefined): boolean {
 }
 
 export function permissionOptions(threads: boolean): PlainTextOption[] {
-  const order = threads
-    ? (['all', 'write'] as const)
-    : (['all', 'write', 'never'] as const);
-  return order.map((value) => ({
+  return levelsFor(threads).map((value) => ({
     text: { type: 'plain_text', text: PRESETS[value].label },
     description: { type: 'plain_text', text: PRESETS[value].description },
     value,

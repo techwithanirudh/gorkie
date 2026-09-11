@@ -1,6 +1,7 @@
 import type { GitHubCredential } from '../../../db/queries/github';
 import { GITHUB_INSTALL_URL } from '../../../lib/github';
 import type { GitHubPermission } from '../../../types';
+import type { HomeSection } from '../limit';
 import { ids } from './ids';
 import { presetStatus } from './presets';
 
@@ -16,7 +17,7 @@ export function githubBlocks({
   permission: GitHubPermission;
   threads: boolean;
   unreadable: boolean;
-}): Record<string, unknown>[] {
+}): HomeSection {
   const login = credential?.kind === 'app' ? credential.login : undefined;
   const pat = credential?.kind === 'pat' ? credential : undefined;
 
@@ -57,54 +58,56 @@ export function githubBlocks({
     .filter(Boolean)
     .join(' ');
 
-  return [
-    {
-      type: 'section',
-      text: { type: 'mrkdwn', text: `*GitHub*\n${status}` },
-    },
-    {
-      type: 'context',
-      elements: [{ type: 'mrkdwn', text: detail }],
-    },
-    {
-      type: 'actions',
-      elements: connected
-        ? [
-            {
-              type: 'button',
-              text: { type: 'plain_text', text: 'Reconnect' },
-              action_id: ids.connect,
-            },
-            {
-              type: 'button',
-              text: { type: 'plain_text', text: 'Configure' },
-              action_id: ids.configure,
-            },
-            {
-              type: 'button',
-              text: { type: 'plain_text', text: 'Disconnect' },
-              action_id: ids.disconnect,
-              style: 'danger',
-              confirm: {
-                title: { type: 'plain_text', text: 'Disconnect GitHub?' },
-                text: {
-                  type: 'mrkdwn',
-                  text: `Gorkie forgets ${forgets} and stops using GitHub. ${afterwards}`,
-                },
-                confirm: { type: 'plain_text', text: 'Disconnect' },
-                deny: { type: 'plain_text', text: 'Cancel' },
+  return {
+    fixed: [
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: `*GitHub*\n${status}` },
+      },
+      {
+        type: 'context',
+        elements: [{ type: 'mrkdwn', text: detail }],
+      },
+      {
+        type: 'actions',
+        elements: connected
+          ? [
+              {
+                type: 'button',
+                text: { type: 'plain_text', text: 'Reconnect' },
+                action_id: ids.connect,
               },
-            },
-          ]
-        : [
-            {
-              type: 'button',
-              text: { type: 'plain_text', text: 'Connect GitHub' },
-              action_id: ids.connect,
-              style: 'primary',
-            },
-          ],
-    },
-    { type: 'divider' },
-  ];
+              {
+                type: 'button',
+                text: { type: 'plain_text', text: 'Configure' },
+                action_id: ids.configure,
+              },
+              {
+                type: 'button',
+                text: { type: 'plain_text', text: 'Disconnect' },
+                action_id: ids.disconnect,
+                style: 'danger',
+                confirm: {
+                  title: { type: 'plain_text', text: 'Disconnect GitHub?' },
+                  text: {
+                    type: 'mrkdwn',
+                    text: `Gorkie forgets ${forgets} and stops using GitHub. ${afterwards}`,
+                  },
+                  confirm: { type: 'plain_text', text: 'Disconnect' },
+                  deny: { type: 'plain_text', text: 'Cancel' },
+                },
+              },
+            ]
+          : [
+              {
+                type: 'button',
+                text: { type: 'plain_text', text: 'Connect GitHub' },
+                action_id: ids.connect,
+                style: 'primary',
+              },
+            ],
+      },
+    ],
+    trailing: [{ type: 'divider' }],
+  };
 }

@@ -32,7 +32,7 @@ export async function setInstructions({
     .execute();
 }
 
-export interface GitHubSettings {
+interface GitHubSettings {
   permission: GitHubPermission;
   threads: boolean;
 }

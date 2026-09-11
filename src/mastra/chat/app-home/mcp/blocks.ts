@@ -1,10 +1,11 @@
 import type { MCPServerConfig } from '../../../types';
+import type { HomeSection } from '../limit';
 import { ids } from './ids';
 import { presetStatus } from './presets';
 
 export function mcpServersBlocks(
   servers: (MCPServerConfig & { lastError?: string })[]
-): Record<string, unknown>[] {
+): HomeSection {
   const header = {
     type: 'section',
     text: {
@@ -19,24 +20,26 @@ export function mcpServersBlocks(
   };
 
   if (servers.length === 0) {
-    return [
-      header,
-      {
-        type: 'context',
-        elements: [
-          {
-            type: 'mrkdwn',
-            text: 'None yet. Add one to give Gorkie extra tools, just for you.',
-          },
-        ],
-      },
-      { type: 'divider' },
-    ];
+    return {
+      fixed: [
+        header,
+        {
+          type: 'context',
+          elements: [
+            {
+              type: 'mrkdwn',
+              text: 'None yet. Add one to give Gorkie extra tools, just for you.',
+            },
+          ],
+        },
+      ],
+      trailing: [{ type: 'divider' }],
+    };
   }
 
-  return [
-    header,
-    ...servers.flatMap((server, index) => [
+  return {
+    fixed: [header],
+    rows: servers.map((server, index) => [
       ...(index > 0 ? [{ type: 'divider' }] : []),
       {
         type: 'section',
@@ -47,7 +50,7 @@ export function mcpServersBlocks(
         elements: [
           {
             type: 'mrkdwn',
-            text: `${presetStatus(server.permission)}  ·  \`${server.url}\``,
+            text: `${presetStatus(server.permission)}  \u00b7  \`${server.url}\``,
           },
         ],
       },
@@ -88,6 +91,13 @@ export function mcpServersBlocks(
         ],
       },
     ]),
-    { type: 'divider' },
-  ];
+    overflow: (dropped) => ({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `_\u2026and ${dropped} more server${dropped === 1 ? '' : 's'}, hidden because the Home tab is full._`,
+      },
+    }),
+    trailing: [{ type: 'divider' }],
+  };
 }

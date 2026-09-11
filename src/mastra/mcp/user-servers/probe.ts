@@ -2,6 +2,7 @@ import { MCPClient } from '@mastra/mcp';
 import { logger } from '../../lib/logger';
 import type { MCPServerConfig } from '../../types';
 import { cleanMCPErrorMessage } from '../errors';
+import { serverConnection } from './client';
 
 export async function findMCPConnectionError({
   userId,
@@ -16,15 +17,7 @@ export async function findMCPConnectionError({
     servers: {
       [server.name]: {
         connectTimeout: 2000,
-        url,
-        allowedHosts: [url.host],
-        ...(server.token
-          ? {
-              requestInit: {
-                headers: { Authorization: `Bearer ${server.token}` },
-              },
-            }
-          : {}),
+        ...serverConnection({ server, url }),
       },
     },
   });

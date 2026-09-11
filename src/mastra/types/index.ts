@@ -1,3 +1,4 @@
+export * from './approval';
 export * from './channel';
 export * from './command';
 export * from './github';

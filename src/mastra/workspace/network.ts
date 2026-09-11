@@ -18,7 +18,3 @@ export function baseRules(): Rules {
 
   return rules;
 }
-
-export function network(): SandboxNetworkOpts {
-  return { rules: baseRules() };
-}

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ToolPermission } from '../../types';
+import { asksBefore, type ToolKind, type ToolPermission } from '../../types';
 
 export const annotationCoverage = new Map<
   string,
@@ -14,17 +14,17 @@ export function approvalFor(permission: ToolPermission) {
     annotations?: { destructiveHint?: boolean; readOnlyHint?: boolean };
     toolName: string;
   }): boolean => {
-    if (permission === 'all') {
-      return true;
-    }
-    const deletes =
+    let kind: ToolKind = 'write';
+    if (
       annotations?.destructiveHint === true ||
       toolName.startsWith('delete_') ||
-      toolName.startsWith('remove_');
-    if (permission === 'delete') {
-      return deletes;
+      toolName.startsWith('remove_')
+    ) {
+      kind = 'delete';
+    } else if (annotations?.readOnlyHint === true) {
+      kind = 'read';
     }
-    return deletes || annotations?.readOnlyHint !== true;
+    return asksBefore({ kind, level: permission });
   };
 }
 

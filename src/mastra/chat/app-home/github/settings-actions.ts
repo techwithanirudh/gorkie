@@ -12,7 +12,7 @@ import { slack } from '../../client';
 import { chat } from '../../instance';
 import { ids } from './ids';
 import { decodePreset, decodeThreads } from './presets';
-import { configureView, polling, selectedPermission, viewIdOf } from './views';
+import { configureView, polling, selectedPermission, viewOf } from './views';
 
 export function registerSettings({
   publishHome,
@@ -45,15 +45,16 @@ export function registerSettings({
   });
 
   bot.onAction(ids.scope, async (event) => {
-    const viewId = viewIdOf(event.raw);
-    if (!viewId) {
+    const view = viewOf(event.raw);
+    if (!view) {
       return;
     }
     const threads = decodeThreads(event.value);
     const credential = await getGitHubCredential(event.user.userId);
     try {
       await slack.webClient.views.update({
-        view_id: viewId,
+        hash: view.hash,
+        view_id: view.id,
         view: configureView({
           pat: credential?.kind === 'pat',
           permission: decodePreset(selectedPermission(event.raw)),

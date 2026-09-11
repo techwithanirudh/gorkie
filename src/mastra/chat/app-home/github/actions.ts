@@ -19,7 +19,8 @@ import {
   connectView,
   failedModal,
   polling,
-  viewIdOf,
+  type ViewTarget,
+  viewOf,
 } from './views';
 
 type PublishHome = (userId: string) => Promise<void>;
@@ -109,11 +110,11 @@ async function openConnect({
 async function switchMethod({
   method,
   userId,
-  viewId,
+  view,
 }: {
   method: ConnectMethod;
   userId: string;
-  viewId: string;
+  view: ViewTarget;
 }): Promise<void> {
   const pending = polling.get(userId);
   if (pending) {
@@ -121,7 +122,8 @@ async function switchMethod({
   }
   try {
     await slack.webClient.views.update({
-      view_id: viewId,
+      hash: view.hash,
+      view_id: view.id,
       view: connectView({
         device: pending?.device,
         method,
@@ -171,10 +173,10 @@ async function saveToken({
 
 async function finishDeviceLogin({
   userId,
-  viewId,
+  view,
 }: {
   userId: string;
-  viewId: string;
+  view: ViewTarget;
 }) {
   const account = await getGitHubCredential(userId);
   if (account) {
@@ -187,7 +189,8 @@ async function finishDeviceLogin({
     return { action: 'update' as const, modal: failedModal('interrupted') };
   }
   await slack.webClient.views.update({
-    view_id: viewId,
+    hash: view.hash,
+    view_id: view.id,
     view: connectView({
       device: pending.device,
       method: pending.method,
@@ -214,8 +217,10 @@ export function registerConnect({
 
   bot.onAction(ids.method, async (event) => {
     const { userId } = event.user;
-    const viewId = viewIdOf(event.raw) ?? polling.get(userId)?.viewId;
-    if (!viewId) {
+    const stale = polling.get(userId)?.viewId;
+    // The remembered id carries no hash, so that update stays unguarded.
+    const view = viewOf(event.raw) ?? (stale ? { id: stale } : undefined);
+    if (!view) {
       logger.warn('[github] a connect modal switched with no view id', {
         userId,
       });
@@ -224,7 +229,7 @@ export function registerConnect({
     await switchMethod({
       method: event.value === 'pat' ? 'pat' : 'app',
       userId,
-      viewId,
+      view,
     });
   });
 
@@ -238,6 +243,9 @@ export function registerConnect({
         userId,
       });
     }
-    return await finishDeviceLogin({ userId, viewId: event.viewId });
+    return await finishDeviceLogin({
+      userId,
+      view: viewOf(event.raw) ?? { id: event.viewId },
+    });
   });
 }

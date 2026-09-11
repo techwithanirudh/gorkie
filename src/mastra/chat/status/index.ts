@@ -4,7 +4,7 @@ import {
 } from '@mastra/core/channels';
 import { z } from 'zod';
 import { label } from '../../lib/label';
-import { serverNamesFor } from '../../mcp/user-servers';
+import { mcpServerNames } from '../../mcp/user-servers';
 import { truncate } from './format';
 import { statuses } from './statuses';
 
@@ -53,7 +53,7 @@ export const status: TypingStatusFn = (chunk, context) => {
     );
   }
 
-  for (const server of serverNamesFor(context.threadId)) {
+  for (const server of mcpServerNames.get(context.threadId) ?? []) {
     const prefix = `${server}_`;
     if (toolName.startsWith(prefix)) {
       return truncate(

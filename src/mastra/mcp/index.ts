@@ -11,4 +11,11 @@ const client = new MCPClient({
 });
 client.__setLogger(logger);
 
-export const mcpTools = await client.listTools();
+let listed: ReturnType<MCPClient['listTools']> | undefined;
+
+// Listing reaches the server, so it waits until something actually wants the
+// tools rather than firing on import.
+export function mcpTools(): ReturnType<MCPClient['listTools']> {
+  listed ??= client.listTools();
+  return listed;
+}

@@ -4,9 +4,10 @@ import { input } from '../../types/tools/index';
 import { getSandbox } from '../../workspace';
 import {
   failure,
-  isRepository,
+  parseRepository,
   remoteUrl,
   repoDir,
+  repositorySchema,
   run,
   validateBranch,
   withCredential,
@@ -25,10 +26,9 @@ export function checkoutTool({
       'Clone a repository into the sandbox and check out a branch, so you can build, test, and edit across many files. Required before github_push_branch: the sandbox holds no GitHub credentials, so a plain git clone fails. Safe to run again.',
     requireApproval: approval,
     inputSchema: input({
-      repository: z
-        .string()
-        .refine(isRepository, { message: 'Expected "owner/repo".' })
-        .describe('Repository to check out, as "owner/repo".'),
+      repository: repositorySchema.describe(
+        'Repository to check out, as "owner/repo".'
+      ),
       branch: z
         .string()
         .optional()
@@ -45,8 +45,9 @@ export function checkoutTool({
       if (!sandbox) {
         throw new Error('No sandbox available.');
       }
-      const path = repoDir(repository);
-      const remote = remoteUrl(repository);
+      const repo = parseRepository(repository);
+      const path = repoDir(repo);
+      const remote = remoteUrl(repo);
       return await withCredential({
         run: async () => {
           const cloned = await run(sandbox, `test -d ${path}/.git`);

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { sandbox as sandboxConfig } from '../../config';
 import { githubAccessToken } from '../../lib/github';
 import { logger } from '../../lib/logger';
+import type { Repository } from '../../types';
 import { baseRules } from '../../workspace/network';
 
 const REPOSITORY_PATTERN =
@@ -12,19 +13,24 @@ const REPOSITORY_PATTERN =
 const BRANCH_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9._/-]*[A-Za-z0-9])?$/;
 const PROTECTED_BRANCHES = new Set(['main', 'master']);
 
-export function isRepository(value: string): boolean {
+export const repositorySchema = z.string().refine((value) => {
   // `.` and `..` match the name pattern and would resolve repoDir outside the
   // checkout root, so they are excluded the way git excludes them.
   const [, name] = value.split('/');
   return REPOSITORY_PATTERN.test(value) && name !== '.' && name !== '..';
+}, 'Expected "owner/repo".');
+
+export function parseRepository(value: string): Repository {
+  const [owner, name] = repositorySchema.parse(value).split('/');
+  return { name, owner };
 }
 
-export function repoDir(repository: string): string {
-  return `${sandboxConfig.workdir}/${repository.split('/')[1]}`;
+export function repoDir(repository: Repository): string {
+  return `${sandboxConfig.workdir}/${repository.name}`;
 }
 
-export function remoteUrl(repository: string): string {
-  return `https://github.com/${repository}.git`;
+export function remoteUrl(repository: Repository): string {
+  return `https://github.com/${repository.owner}/${repository.name}.git`;
 }
 
 export function validateBranch(branch: string): string | undefined {

@@ -1,12 +1,49 @@
-import { createGithubTools } from '@github-tools/sdk';
-import { getGitHubCredential } from '../../db/queries/github';
-import { getGitHubSettings } from '../../db/queries/settings';
-import { githubAccessToken } from '../../lib/github';
+import { createGithubTools, GITHUB_WRITE_TOOLS } from '@github-tools/sdk';
+import type { RequestContext } from '@mastra/core/request-context';
+import { githubAccess, githubAccessToken } from '../../lib/github';
 import { logger } from '../../lib/logger';
-import { checkoutPolicy, POLICIES, pushPolicy } from './approval';
+import { asksBefore } from '../../types';
 import { checkoutTool } from './checkout';
 import { pushTool } from './push';
 import { handoff } from './utils';
+
+const EXPOSED = [
+  'addAssignees',
+  'addIssueComment',
+  'addLabels',
+  'addPullRequestComment',
+  'closeIssue',
+  'compareCommits',
+  'createIssue',
+  'createPullRequest',
+  'forkRepository',
+  'getCiFailureContext',
+  'getCommit',
+  'getFileContent',
+  'getIssueContext',
+  'getPullRequestContext',
+  'getRepository',
+  'getRepositoryTree',
+  'listBranches',
+  'listCheckRuns',
+  'listCommits',
+  'listIssueComments',
+  'listIssues',
+  'listLabels',
+  'listPullRequestFiles',
+  'listPullRequestReviews',
+  'listPullRequests',
+  'removeAssignees',
+  'removeLabel',
+  'requestReviewers',
+  'searchCode',
+  'searchIssues',
+  'searchRepositories',
+  'updateIssue',
+  'updatePullRequest',
+];
+
+const WRITES = new Set<string>(Object.values(GITHUB_WRITE_TOOLS));
 
 interface BuiltTool {
   toModelOutput?: (args: {
@@ -30,26 +67,22 @@ function modelOutput(tool: BuiltTool) {
 export async function githubTools({
   channelId,
   isDM,
+  requestContext,
   threadId,
   userId,
 }: {
   channelId: string | undefined;
   isDM: boolean;
+  requestContext?: RequestContext;
   threadId: string | undefined;
   userId: string;
 }): Promise<Record<string, unknown>> {
   try {
-    const [credential, settings] = await Promise.all([
-      getGitHubCredential(userId),
-      getGitHubSettings(userId),
-    ]);
-    if (!credential) {
+    const access = await githubAccess({ isDM, requestContext, userId });
+    if (access.state !== 'connected') {
       return {};
     }
-
-    const direct = isDM || settings.threads;
-    const permission =
-      isDM || settings.permission !== 'never' ? settings.permission : 'write';
+    const { credential, direct, level } = access;
 
     const built: Record<string, BuiltTool> = createGithubTools({
       token: async () => {
@@ -64,7 +97,7 @@ export async function githubTools({
     });
 
     const tools: Record<string, unknown> = {};
-    for (const [name, policy] of Object.entries(POLICIES)) {
+    for (const name of EXPOSED) {
       const tool = built[name];
       if (!tool || (name === 'forkRepository' && credential.kind !== 'pat')) {
         continue;
@@ -72,7 +105,10 @@ export async function githubTools({
       const id = `github_${name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()}`;
       tools[id] = {
         ...tool,
-        needsApproval: policy(permission),
+        needsApproval: asksBefore({
+          kind: WRITES.has(name) ? 'write' : 'read',
+          level,
+        }),
         toModelOutput: modelOutput(tool),
         ...(direct
           ? {}
@@ -81,13 +117,11 @@ export async function githubTools({
     }
     if (direct && threadId) {
       tools.github_checkout = checkoutTool({
-        // A clone lands in a sandbox the whole thread can read, and the setting
-        // that allowed this was agreed to long before the clone happens.
-        approval: !isDM || checkoutPolicy(permission),
+        approval: !isDM || asksBefore({ kind: 'read', level }),
         userId,
       });
       tools.github_push_branch = pushTool({
-        approval: pushPolicy(permission),
+        approval: asksBefore({ kind: 'write', level }),
         userId,
       });
     }

@@ -5,7 +5,7 @@ import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import { resolveTarget, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
-import { rawId } from '../../lib/ids';
+import { parseSlackId, rawId, threadIdOf } from '../../lib/ids';
 import { input, output } from '../../types/tools/index';
 import { assertCanPostTo, joinChannel } from './utils';
 
@@ -34,8 +34,11 @@ async function resolveChannelAndThread(resolved: {
   id: string;
 }): Promise<{ channel: string; threadTs?: string }> {
   if (resolved.type === 'thread') {
-    const { channel, threadTs } = slack.decodeThreadId(resolved.id);
-    return { channel, threadTs };
+    const { channel, ts } = parseSlackId(resolved.id);
+    if (!channel) {
+      throw new Error(`${resolved.id} is not a Slack thread id.`);
+    }
+    return { channel, threadTs: ts };
   }
   if (resolved.type === 'channel') {
     return { channel: rawId(resolved.id) };
@@ -103,9 +106,7 @@ Errors: channel_not_found usually means the bot isn't a member of that private c
       }
       return {
         messageId: sent.ts,
-        threadId: threadTs
-          ? slack.encodeThreadId({ channel, threadTs })
-          : undefined,
+        threadId: threadTs ? threadIdOf({ channel, ts: threadTs }) : undefined,
       };
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);

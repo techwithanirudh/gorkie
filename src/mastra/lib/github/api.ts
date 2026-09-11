@@ -1,40 +1,37 @@
+import { request } from '@octokit/request';
 import { z } from 'zod';
 
-export async function githubApi({
+async function githubApi({
   path,
   token,
 }: {
   path: string;
   token: string;
 }): Promise<{ data: unknown; scopes: string[] } | { error: string }> {
-  let response: Response;
   try {
-    response = await fetch(`https://api.github.com${path}`, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${token}`,
-        'User-Agent': 'gorkie',
-      },
-      signal: AbortSignal.timeout(10_000),
+    const response = await request(`GET ${path}`, {
+      headers: { authorization: `Bearer ${token}`, 'user-agent': 'gorkie' },
+      request: { signal: AbortSignal.timeout(10_000) },
     });
-  } catch {
-    return { error: "Couldn't reach GitHub." };
+    return {
+      data: response.data,
+      scopes: (response.headers['x-oauth-scopes'] ?? '')
+        .split(',')
+        .map((scope) => scope.trim())
+        .filter(Boolean),
+    };
+  } catch (error) {
+    const status = z.object({ status: z.number() }).safeParse(error)
+      .data?.status;
+    return {
+      error: status ? `GitHub returned ${status}.` : "Couldn't reach GitHub.",
+    };
   }
-  if (!response.ok) {
-    return { error: `GitHub returned ${response.status}.` };
-  }
-  return {
-    data: await response.json().catch(() => null),
-    scopes: (response.headers.get('x-oauth-scopes') ?? '')
-      .split(',')
-      .map((scope) => scope.trim())
-      .filter(Boolean),
-  };
 }
 
-export async function resolveGitHubLogin(
+export async function githubUser(
   token: string
-): Promise<{ login: string } | { error: string }> {
+): Promise<{ login: string; scopes: string[] } | { error: string }> {
   const body = await githubApi({ path: '/user', token });
   if ('error' in body) {
     return body;
@@ -42,7 +39,7 @@ export async function resolveGitHubLogin(
   const login = z.object({ login: z.string().min(1) }).safeParse(body.data)
     .data?.login;
   return login
-    ? { login }
+    ? { login, scopes: body.scopes }
     : { error: "GitHub didn't return an account for that token." };
 }
 

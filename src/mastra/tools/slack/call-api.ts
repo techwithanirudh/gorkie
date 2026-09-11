@@ -2,6 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
+import { parseSlackId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, optionalCursor, output } from '../../types/tools/index';
 import { getSandbox, sandboxPath as p } from '../../workspace';
@@ -10,7 +11,6 @@ import { assertReadableChannel, joinChannel } from './utils';
 const readMethod =
   /^[a-z][\w.]*\.(accessLogs|all|billableInfo|context|conversations|counts|files|get|getPresence|history|identity|info|integrationLogs|list|lookup|lookupByEmail|members|messages|replies|test)$/;
 
-const encodedId = /^slack:([A-Z0-9]+)(?::(\d{10}\.\d{6}))?$/;
 const timestampParam = /^(ts|thread_ts|oldest|latest)$/;
 
 const responseSchema = z.looseObject({
@@ -26,14 +26,11 @@ const previewLimit = 16_384;
 function slackParams(params: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(params).map(([key, value]) => {
-      const encoded = typeof value === 'string' ? value.match(encodedId) : null;
-      if (!encoded) {
+      if (typeof value !== 'string' || !value.startsWith('slack:')) {
         return [key, value];
       }
-      return [
-        key,
-        timestampParam.test(key) ? (encoded[2] ?? value) : encoded[1],
-      ];
+      const { channel, ts } = parseSlackId(value);
+      return [key, (timestampParam.test(key) ? ts : channel) ?? value];
     })
   );
 }

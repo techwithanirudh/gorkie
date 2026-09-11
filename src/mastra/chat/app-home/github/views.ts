@@ -7,7 +7,7 @@ import {
   type DeviceLogin,
   GITHUB_INSTALL_URL,
   GITHUB_SETTINGS_URL,
-  resolveGitHubLogin,
+  githubUser,
 } from '../../../lib/github';
 import { logger } from '../../../lib/logger';
 import type { GitHubPermission } from '../../../types';
@@ -31,10 +31,19 @@ const text = (body: string) => ({
   text: { type: 'mrkdwn' as const, text: body },
 });
 
-const viewAction = z.object({ view: z.object({ id: z.string() }) });
+const viewAction = z.object({
+  view: z.object({ hash: z.string().optional(), id: z.string() }),
+});
 
-export function viewIdOf(raw: unknown): string | undefined {
-  return viewAction.safeParse(raw).data?.view.id;
+export interface ViewTarget {
+  hash?: string;
+  id: string;
+}
+
+// Slack rejects an update carrying a stale hash, which is what stops a
+// concurrent action's render from being clobbered.
+export function viewOf(raw: unknown): ViewTarget | undefined {
+  return viewAction.safeParse(raw).data?.view;
 }
 
 const permissionState = z.object({
@@ -253,7 +262,7 @@ export async function completeLogin({
     });
     return;
   }
-  const resolved = await resolveGitHubLogin(login.token);
+  const resolved = await githubUser(login.token);
   if ('error' in resolved) {
     logger.warn('[github] authorized but could not read the account', {
       error: resolved.error,

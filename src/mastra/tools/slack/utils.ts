@@ -2,7 +2,7 @@ import type { Message } from 'chat';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import type { Target } from '../../chat/target';
-import { chatChannelId, rawId } from '../../lib/ids';
+import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
 import type { ChannelContext } from '../../types';
 
 export async function assertReadableChannel({
@@ -61,26 +61,7 @@ export function slackThreadId({
   channelId?: string;
   threadId: string;
 }): string {
-  let channel = channelId ? rawId(channelId) : undefined;
-  let timestamp = threadId;
-
-  if (threadId.startsWith('slack:')) {
-    ({ channel, threadTs: timestamp } = slack.decodeThreadId(threadId));
-  } else {
-    const permalink = threadId.match(/\/archives\/([CDG][A-Z0-9]+)\/p(\d+)/);
-    channel = permalink?.[1] ?? channel;
-    timestamp = permalink?.[2] ?? timestamp;
-  }
-
-  const compact = timestamp.replace('.', '');
-  if (!(channel && /^\d{16}$/.test(compact))) {
-    return threadId;
-  }
-
-  return slack.encodeThreadId({
-    channel,
-    threadTs: `${compact.slice(0, 10)}.${compact.slice(10)}`,
-  });
+  return threadIdOf(parseSlackId(threadId, { channel: channelId })) ?? threadId;
 }
 
 export function formatMessage(message: Message) {

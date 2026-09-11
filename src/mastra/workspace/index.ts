@@ -25,11 +25,21 @@ import {
   WRITE_FILE,
 } from './tool-names';
 
+const reached = new WeakSet<RequestContext>();
+
+export function usedSandbox(requestContext: RequestContext): boolean {
+  return reached.has(requestContext);
+}
+
 export async function getSandbox(
   requestContext: RequestContext
 ): Promise<E2BSandbox | undefined> {
   const sandbox = await workspace.resolveSandbox({ requestContext });
-  return sandbox instanceof E2BSandbox ? sandbox : undefined;
+  if (!(sandbox instanceof E2BSandbox)) {
+    return;
+  }
+  reached.add(requestContext);
+  return sandbox;
 }
 
 export { sandboxPath } from './path';

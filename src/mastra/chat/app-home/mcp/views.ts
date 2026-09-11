@@ -4,8 +4,14 @@ import type { MCPServerConfig } from '../../../types';
 import { ids } from './ids';
 import { presetRadio } from './presets';
 
-export function configureModal(server: MCPServerConfig) {
-  const coverage = annotationCoverage.get(server.name);
+export function configureModal({
+  server,
+  userId,
+}: {
+  server: MCPServerConfig;
+  userId: string;
+}) {
+  const coverage = annotationCoverage.get(`${userId}:${server.name}`);
   const unlabelled =
     coverage !== undefined && coverage.total > 0 && coverage.annotated === 0;
   return Modal({

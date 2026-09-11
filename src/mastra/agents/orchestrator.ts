@@ -43,10 +43,14 @@ const orchestrator = new Agent({
   instructions: async ({ requestContext }) => {
     const messages = [
       ...instructions(requestContext),
-      { role: 'system' as const, content: workspaceCodeModePrompt },
+      { role: 'system' as const, content: await workspaceCodeModePrompt() },
     ];
     const { isDM, userId } = channelContext(requestContext);
-    const github = await githubStatusPrompt({ isDM: isDM === true, userId });
+    const github = await githubStatusPrompt({
+      isDM: isDM === true,
+      requestContext,
+      userId,
+    });
     if (github) {
       messages.push({ role: 'system' as const, content: github });
     }
@@ -126,14 +130,21 @@ const orchestrator = new Agent({
   tools: async ({ requestContext }) => {
     const { channelId, isDM, threadId, userId } =
       channelContext(requestContext);
+    const base = await orchestratorTools();
     if (!userId) {
-      return orchestratorTools;
+      return base;
     }
     const [userTools, github] = await Promise.all([
-      userMCPTools(userId),
-      githubTools({ channelId, isDM: isDM === true, threadId, userId }),
+      userMCPTools({ threadId, userId }),
+      githubTools({
+        channelId,
+        isDM: isDM === true,
+        requestContext,
+        threadId,
+        userId,
+      }),
     ]);
-    return { ...orchestratorTools, ...github, ...userTools };
+    return { ...base, ...github, ...userTools };
   },
   agents: {
     research: researchAgent,

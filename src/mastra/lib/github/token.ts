@@ -1,5 +1,4 @@
 import { refreshToken } from '@octokit/oauth-methods';
-import { z } from 'zod';
 import { env } from '@/env';
 import {
   type GitHubCredential,
@@ -8,7 +7,7 @@ import {
   setGitHubCredential,
 } from '../../db/queries/github';
 import { logger } from '../logger';
-import { githubApi } from './api';
+import { githubUser } from './api';
 import { toAccount } from './device-flow';
 
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -82,26 +81,20 @@ export async function githubAccessToken(
   return started;
 }
 
-const patUserSchema = z.object({ login: z.string() });
-
 export async function verifyGitHubPat(
   token: string
 ): Promise<
   { login: string; scopes: string[]; token: string } | { error: string }
 > {
-  const body = await githubApi({ path: '/user', token });
-  if ('error' in body) {
+  const user = await githubUser(token);
+  if ('error' in user) {
     return { error: 'GitHub rejected that token.' };
   }
-  const login = patUserSchema.safeParse(body.data).data?.login;
-  if (!login) {
-    return { error: 'GitHub returned an account this could not read.' };
-  }
-  if (body.scopes.length === 0) {
+  if (user.scopes.length === 0) {
     return {
       error:
         'That looks like a fine-grained token. Those only reach your own repositories, which the GitHub App already covers. Use a classic token with `public_repo`.',
     };
   }
-  return { login, scopes: body.scopes, token };
+  return { login: user.login, scopes: user.scopes, token };
 }
