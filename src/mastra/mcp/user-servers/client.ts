@@ -101,8 +101,6 @@ export function resolveClient({
   userId: string;
   servers: MCPServerConfig[];
 }): Promise<MCPClient> {
-  // Tokens are hashed, never stringified, so a bearer token cannot become a
-  // map key; the sort keeps it stable when rows come back reordered.
   const key = servers
     .map((server) =>
       [

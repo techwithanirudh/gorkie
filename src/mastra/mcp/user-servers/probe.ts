@@ -44,8 +44,10 @@ export async function findMCPConnectionError({
       raw: error instanceof Error ? error.message : String(error),
     });
   } finally {
-    await probe.disconnect().catch(() => {
-      // Best effort: the probe client is thrown away either way.
-    });
+    await probe
+      .disconnect()
+      .catch((error: unknown) =>
+        logger.debug('[mcp] probe disconnect failed', { error })
+      );
   }
 }

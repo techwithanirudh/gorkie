@@ -5,6 +5,7 @@ import {
   text,
   timestamp,
 } from 'drizzle-orm/pg-core';
+import type { GitHubPermission, ToolPermission } from '../types';
 
 export const githubCredentials = pgTable('github_credentials', {
   userId: text('user_id').primaryKey(),
@@ -26,7 +27,7 @@ export const mcpServers = pgTable(
     name: text('name').notNull(),
     url: text('url').notNull(),
     token: text('token'),
-    permission: text('permission'),
+    permission: text('permission').$type<ToolPermission>(),
     lastError: text('last_error'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
@@ -40,7 +41,7 @@ export const mcpServers = pgTable(
 export const userSettings = pgTable('user_settings', {
   userId: text('user_id').primaryKey(),
   instructions: text('instructions'),
-  githubPermission: text('github_permission'),
+  githubPermission: text('github_permission').$type<GitHubPermission>(),
   githubThreads: boolean('github_threads'),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()

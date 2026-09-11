@@ -7,8 +7,9 @@ import type { RequestContext } from '@mastra/core/request-context';
 import { githubAccess, githubAccessToken } from '../../lib/github';
 import { logger } from '../../lib/logger';
 import { asksBefore } from '../../types';
-import { checkoutTool, pushTool } from './git';
+import { checkoutTool } from './checkout';
 import { handoff } from './handoff';
+import { pushTool } from './push';
 
 const EXPOSED: GithubToolName[] = [
   'addAssignees',

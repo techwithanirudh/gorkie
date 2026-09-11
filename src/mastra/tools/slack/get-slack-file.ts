@@ -3,7 +3,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
-import { sh } from '../../lib/utils';
+import { shellQuote } from '../../lib/utils';
 import { input, output } from '../../types/tools/index';
 import { sandboxPath as p, requireSandbox } from '../../workspace';
 
@@ -51,7 +51,6 @@ export const getSlackFileTool = createTool({
       throw new Error('No workspace context.');
     }
     const sandbox = await requireSandbox(context.requestContext);
-    await sandbox.ensureRunning();
 
     const fileId = /(F[A-Z0-9]{6,})/.exec(file)?.[1];
     if (!fileId) {
@@ -118,7 +117,7 @@ export const getSlackFileTool = createTool({
     const mergeDownload = async () => {
       const result = await sandbox.retryOnDead(() =>
         sandbox.e2b.commands.run(
-          `cat ${sh(partPath)} ${sh(nextPath)} > ${sh(mergePath)} && mv ${sh(mergePath)} ${sh(partPath)} && rm -f ${sh(nextPath)}`
+          `cat ${shellQuote(partPath)} ${shellQuote(nextPath)} > ${shellQuote(mergePath)} && mv ${shellQuote(mergePath)} ${shellQuote(partPath)} && rm -f ${shellQuote(nextPath)}`
         )
       );
       if (result.exitCode !== 0) {
@@ -167,7 +166,9 @@ export const getSlackFileTool = createTool({
 
     if (expectedSize === 0) {
       await sandbox.retryOnDead(() =>
-        sandbox.e2b.commands.run(`rm -f ${sh(path)} && : > ${sh(path)}`)
+        sandbox.e2b.commands.run(
+          `rm -f ${shellQuote(path)} && : > ${shellQuote(path)}`
+        )
       );
       return formatResult(expectedSize);
     }

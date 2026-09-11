@@ -1,5 +1,5 @@
 import { CardText, Modal } from 'chat';
-import { unlabelledServers } from '../../../mcp/user-servers';
+import { coverageKey, unlabelledServers } from '../../../mcp/user-servers';
 import type { MCPServerConfig } from '../../../types';
 import { ids } from './ids';
 import { presetRadio } from './presets';
@@ -11,7 +11,9 @@ export function configureModal({
   server: MCPServerConfig;
   userId: string;
 }) {
-  const unlabelled = unlabelledServers.has(`${userId}:${server.name}`);
+  const unlabelled = unlabelledServers.has(
+    coverageKey({ serverName: server.name, userId })
+  );
   return Modal({
     callbackId: ids.configureModal,
     title: `Configure ${server.name}`.slice(0, 24),

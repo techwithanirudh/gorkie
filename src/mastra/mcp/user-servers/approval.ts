@@ -1,9 +1,15 @@
 import { z } from 'zod';
 import { asksBefore, type ToolKind, type ToolPermission } from '../../types';
 
-// `${userId}:${server}` for servers that expose tools but annotate none of
-// them, which is the only thing the Home tab asks about.
 export const unlabelledServers = new Set<string>();
+
+export const coverageKey = ({
+  serverName,
+  userId,
+}: {
+  serverName: string;
+  userId: string;
+}): string => `${userId}:${serverName}`;
 
 export function approvalFor(permission: ToolPermission) {
   return ({

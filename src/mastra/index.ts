@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { Mastra } from '@mastra/core/mastra';
 import { MastraCompositeStore } from '@mastra/core/storage';
 import { DuckDBStore } from '@mastra/duckdb';
@@ -43,8 +44,11 @@ export const mastra = new Mastra({
         id: 'composite-storage',
         default: postgresStore,
         domains: {
+          // Anchored to the repo root, not cwd: a bare relative path lands
+          // under `src/mastra/public/`, which `mastra build` copies as a
+          // static asset, and the file reaches gigabytes.
           observability: await new DuckDBStore({
-            path: './observability.duckdb',
+            path: join(env.MASTRA_PROJECT_ROOT, 'observability.duckdb'),
           }).getStore('observability'),
         },
       }),

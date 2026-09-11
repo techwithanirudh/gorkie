@@ -30,5 +30,4 @@ function readCommit(): Commit | undefined {
   };
 }
 
-// The checkout cannot change under a running process, so read it once.
 export const commit = readCommit();

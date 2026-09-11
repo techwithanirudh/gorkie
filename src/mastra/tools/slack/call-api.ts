@@ -105,7 +105,6 @@ Responses are unshaped and can be large, so the full JSON is always written to a
         throw new Error('No workspace context.');
       }
       const sandbox = await requireSandbox(context.requestContext);
-      await sandbox.ensureRunning();
       const target = p('slack-api', `${method}-${Date.now()}.json`);
       await sandbox.retryOnDead(async () => {
         await sandbox.e2b.files.makeDir(p('slack-api'));

@@ -3,6 +3,7 @@ import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import type { Target } from '../../chat/target';
 import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
+import { logger } from '../../lib/logger';
 import type { ChannelContext } from '../../types';
 
 export async function assertReadableChannel({
@@ -49,8 +50,8 @@ export async function joinChannel(channelId: string): Promise<void> {
     await slack.webClient.conversations.join({
       channel: rawId(channelId),
     });
-  } catch {
-    // Best effort: the subsequent read reports inaccessible channels.
+  } catch (error) {
+    logger.debug('[slack] could not join the channel', { channelId, error });
   }
 }
 

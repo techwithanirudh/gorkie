@@ -1,7 +1,7 @@
 import { listMCPServers, setMCPServerError } from '../../db/queries/mcps';
 import { logger } from '../../lib/logger';
 import { cleanMCPErrorMessage } from '../errors';
-import { annotatedTool, unlabelledServers } from './approval';
+import { annotatedTool, coverageKey, unlabelledServers } from './approval';
 import { dropClient, mcpServerNames, resolveClient } from './client';
 
 export async function userMCPTools({
@@ -32,7 +32,7 @@ export async function userMCPTools({
           annotatedTool.safeParse(tools[id]).data?.mcp?.annotations
             ?.readOnlyHint !== undefined
       );
-      const key = `${userId}:${server.name}`;
+      const key = coverageKey({ serverName: server.name, userId });
       if (own.length > 0 && !labelled) {
         unlabelledServers.add(key);
       } else {

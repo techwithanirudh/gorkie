@@ -49,7 +49,6 @@ export const generateImageTool = createTool({
       throw new Error('No workspace context.');
     }
     const sandbox = await requireSandbox(context.requestContext);
-    await sandbox.ensureRunning();
 
     const generated =
       referenceImages && referenceImages.length > 0

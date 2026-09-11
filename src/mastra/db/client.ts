@@ -8,6 +8,4 @@ export const postgresStore = new PostgresStore({
   connectionString: env.DATABASE_URL,
 });
 
-// Shares the store's pool rather than opening a second one, so connection
-// limits stay a single budget.
 export const db = drizzle(postgresStore.pool, { schema });

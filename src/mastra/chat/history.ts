@@ -41,8 +41,6 @@ export async function withHistory({
       const text = previous.formatted
         ? stringifyMarkdown(previous.formatted).trim()
         : previous.text;
-      // An image-only post carries no text, so without this the line reads as
-      // if the person said nothing.
       const files =
         previous.attachments.length > 0
           ? ` [${previous.attachments.length} attachment${previous.attachments.length === 1 ? '' : 's'}: ${previous.attachments

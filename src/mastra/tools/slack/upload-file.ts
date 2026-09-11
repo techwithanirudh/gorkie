@@ -48,7 +48,6 @@ export const uploadFileTool = createTool({
       throw new Error('No workspace context.');
     }
     const sandbox = await requireSandbox(context.requestContext);
-    await sandbox.ensureRunning();
 
     const stat = await sandbox.retryOnDead(() =>
       sandbox.e2b.files.getInfo(path)

@@ -13,26 +13,38 @@ Load the `mastra` skill BEFORE any Mastra work, and read the embedded docs/sourc
 
 If a person asks how to set up the project, load the `wizard` skill and generate a wizard tailored to their needs (services to configure, where state lives, optional integrations, whether to commit the script).
 
-## TODO
+## TODO and IMPLEMENTED
 
-`TODO.md` is the source of truth for outstanding requests so nothing is forgotten.
+Two files, and the split matters. `TODO.md` is only what is left. `IMPLEMENTED.md`
+is what is finished, and it is where the reasoning lives.
 
-- When the user asks for anything, small or large, add it to `TODO.md` immediately, in the right group.
-- Tick an item the moment it's done, then remove ticked items once the user has had a chance to see they're done.
-- Before saying you're finished, re-read `TODO.md` and confirm nothing asked is left unlogged.
+- When the user asks for anything, small or large, add it to `TODO.md`
+  immediately, in the right group.
+- Tick an item the moment it is done. Once the user has seen it is done, move
+  the whole entry to `IMPLEMENTED.md` under a `## YYYY-MM-DD` heading, newest
+  first, tagged with the `TODO.md` section it came from.
+- Never summarise on the way across. The detail is the point: what was tried,
+  what the file and line references were, what turned out to be wrong, and what
+  was deliberately not done. A one-line "done" entry is worth nothing later.
+- Record the things that did not work too. An item that was built and reverted,
+  or a premise that turned out false, belongs in `IMPLEMENTED.md` saying so,
+  because the next person will otherwise propose it again.
+- Before saying you are finished, re-read `TODO.md` and confirm nothing asked
+  is left unlogged.
 
 ## Mental Model
 
 One Mastra `Agent` (`orchestrator`) serves Slack through Mastra's built-in
-`channels`. Channels owns Socket Mode, streaming, live tool widgets, typing
+`channels`, delegating to `research` and `explore` for scoped subagent work.
+Channels owns Socket Mode, streaming, live tool widgets, typing
 status, thread-history backfill, and `MastraStateAdapter`.
 
 The agent brain runs on the host. Code execution runs in a per-thread **E2B** sandbox (isolated cloud Linux VM). Model keys, Slack tokens, and DB credentials live on the host and never enter the sandbox.
 
 Storage is **Postgres** for agent memory and channel state. Long-term memory uses
 thread-scoped **Observational Memory**.
-Observability traces are stored in a local DuckDB file (`observability.duckdb`
-at the repo root, wired via `MastraStorageExporter` on a `MastraCompositeStore`
+Observability traces are stored in a local DuckDB file (`observability.duckdb`,
+anchored to `env.MASTRA_PROJECT_ROOT` rather than cwd, wired via `MastraStorageExporter` on a `MastraCompositeStore`
 domain override in `src/mastra/index.ts`) and, since `MASTRA_PLATFORM_ACCESS_TOKEN`
 and `MASTRA_PROJECT_ID` are required, also exported to Mastra Platform via
 `MastraPlatformExporter`. DuckDB is single-writer, so a running `mastra

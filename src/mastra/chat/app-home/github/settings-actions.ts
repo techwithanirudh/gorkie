@@ -11,8 +11,9 @@ import { logger } from '../../../lib/logger';
 import { githubPermissionSchema } from '../../../types';
 import { slack } from '../../client';
 import { chat } from '../../instance';
+import { polling } from './actions';
 import { ids } from './ids';
-import { configureView, polling, selectedPermission, viewOf } from './views';
+import { configureView, selectedPermission, viewOf } from './views';
 
 export function registerSettings({
   publishHome,
@@ -58,7 +59,10 @@ export function registerSettings({
         view: configureView({
           pat: credential?.kind === 'pat',
           permission: githubPermissionSchema.parse(
-            selectedPermission(event.raw)
+            selectedPermission({
+              raw: event.raw,
+              renderedScope: threads ? 'dm' : 'threads',
+            })
           ),
           threads,
         }),

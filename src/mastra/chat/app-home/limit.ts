@@ -1,5 +1,3 @@
-// Slack renders at most 100 blocks in a home view and silently drops the rest.
-
 const MAX_HOME_BLOCKS = 100;
 
 type Block = Record<string, unknown>;
@@ -11,47 +9,39 @@ export interface HomeSection {
   trailing?: Block[];
 }
 
-function allowances(sections: HomeSection[], budget: number): number[] {
-  const taken = sections.map(() => 0);
-  let left = budget;
-  let placed = true;
-  while (left > 0 && placed) {
-    placed = false;
-    for (const [index, section] of sections.entries()) {
-      const row = section.rows?.[taken[index] ?? 0];
+export function fitHome(sections: HomeSection[]): Block[] {
+  const paged = sections.filter((section) => section.rows?.length);
+  const alwaysShown = sections.reduce(
+    (total, section) =>
+      total + section.fixed.length + (section.trailing?.length ?? 0),
+    0
+  );
+  let left = MAX_HOME_BLOCKS - alwaysShown - paged.length;
+
+  const shown = new Map<HomeSection, number>();
+  for (let dealt = true; dealt; ) {
+    dealt = false;
+    for (const section of paged) {
+      const taken = shown.get(section) ?? 0;
+      const row = section.rows?.[taken];
       if (!row || row.length > left) {
         continue;
       }
-      taken[index] = (taken[index] ?? 0) + 1;
+      shown.set(section, taken + 1);
       left -= row.length;
-      placed = true;
+      dealt = true;
     }
   }
-  return taken;
-}
-
-export function fitHome(sections: HomeSection[]): Block[] {
-  const withRows = sections.filter((section) => section.rows?.length);
-  const reserved = sections.reduce(
-    (total, section) =>
-      total + section.fixed.length + (section.trailing ?? []).length,
-    0
-  );
-  // Every section reserves room for an overflow note it may not need.
-  const taken = allowances(
-    withRows,
-    MAX_HOME_BLOCKS - reserved - withRows.length
-  );
 
   return sections.flatMap((section) => {
     const rows = section.rows ?? [];
-    const shown = section.rows?.length
-      ? (taken[withRows.indexOf(section)] ?? 0)
+    const taken = paged.includes(section)
+      ? (shown.get(section) ?? 0)
       : rows.length;
-    const dropped = rows.length - shown;
+    const dropped = rows.length - taken;
     return [
       ...section.fixed,
-      ...rows.slice(0, shown).flat(),
+      ...rows.slice(0, taken).flat(),
       ...(dropped > 0 && section.overflow ? [section.overflow(dropped)] : []),
       ...(section.trailing ?? []),
     ];

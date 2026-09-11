@@ -6,6 +6,15 @@ interface MediaPart {
   type: 'media';
 }
 
+// Every gateway gorkie routes through is OpenAI-compatible, and none of them
+// understand `media` parts inside tool-result content: they JSON-stringify the
+// whole part as text, so the model never sees the image. Relocating it into a
+// synthetic user message works everywhere, because user-message `file` parts
+// are handled by every provider.
+//
+// Scoped to `image/*` on purpose. The OpenAI-compatible user-message converter
+// throws `UnsupportedFunctionalityError` for other media types such as PDF,
+// which would crash the turn rather than merely not working. Widen with care.
 export const moveToolImages: CompatRule = {
   name: 'move-tool-images',
   applyToPrompt({ prompt }) {

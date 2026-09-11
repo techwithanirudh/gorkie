@@ -5,6 +5,7 @@ import {
 import {
   awaitDeviceLogin,
   type DeviceLogin,
+  githubUser,
   startDeviceLogin,
   verifyGitHubPat,
 } from '../../../lib/github';
@@ -14,14 +15,51 @@ import { chat } from '../../instance';
 import { ids } from './ids';
 import {
   type ConnectMethod,
-  completeLogin,
   connectedModal,
   connectView,
   failedModal,
-  polling,
   type ViewTarget,
   viewOf,
 } from './views';
+
+export const polling = new Map<
+  string,
+  {
+    controller: AbortController;
+    device: DeviceLogin;
+    method: ConnectMethod;
+    viewId: string | undefined;
+  }
+>();
+
+export async function completeLogin({
+  login,
+  userId,
+}: {
+  login: Awaited<ReturnType<typeof awaitDeviceLogin>>;
+  userId: string;
+}): Promise<string | undefined> {
+  if ('error' in login) {
+    logger.info('[github] device login did not complete', {
+      reason: login.error,
+      userId,
+    });
+    return;
+  }
+  const resolved = await githubUser(login.token);
+  if ('error' in resolved) {
+    logger.warn('[github] authorized but could not read the account', {
+      error: resolved.error,
+      userId,
+    });
+    return;
+  }
+  await setGitHubCredential({
+    credential: { ...login, kind: 'app', login: resolved.login, scopes: [] },
+    userId,
+  });
+  return resolved.login;
+}
 
 type PublishHome = (userId: string) => Promise<void>;
 
