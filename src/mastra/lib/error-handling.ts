@@ -16,7 +16,6 @@ function messageOf(error: unknown): string {
   return '';
 }
 
-// No retry can fix these, so spending the budget just delays the fallback.
 const terminalPattern =
   /is not supported|unknown model|model[_ ]not[_ ]found|insufficient credits|no endpoints found/i;
 

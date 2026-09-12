@@ -10,6 +10,6 @@ export async function createTables(): Promise<void> {
   // the bundle from `.mastra/output/`, which does not contain `drizzle/`, so a
   // bare relative path fails with "Can't find meta/_journal.json file".
   await migrate(db, {
-    migrationsFolder: join(env.MASTRA_PROJECT_ROOT, 'drizzle'),
+    migrationsFolder: join(env.PROJECT_ROOT, 'drizzle'),
   });
 }

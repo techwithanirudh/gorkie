@@ -109,7 +109,15 @@ export const uploadFileTool = createTool({
     const body = await sandbox.retryOnDead(() =>
       sandbox.e2b.files.read(path, { format: 'stream' })
     );
-    const sent = await fetch(created.upload_url, { body, method: 'POST' });
+    // `duplex: 'half'` is mandatory for a stream body on Node's undici and is
+    // missing from the DOM `RequestInit` type. Bun tolerates its absence,
+    // which is why this only failed once it ran under `mastra dev`.
+    const streamed: RequestInit & { duplex: 'half' } = {
+      body,
+      duplex: 'half',
+      method: 'POST',
+    };
+    const sent = await fetch(created.upload_url, streamed);
     if (!sent.ok) {
       throw new Error(`Upload to Slack failed with ${sent.status}.`);
     }

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { env } from '@/env';
 import type { Names } from './types';
 
-const CACHE = join(env.MASTRA_PROJECT_ROOT, '.issues/traces/_names.json');
+const CACHE = join(env.PROJECT_ROOT, '.issues/traces/_names.json');
 
 const cached = z
   .object({

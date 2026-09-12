@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { env } from '@/env';
 import type { Run, Span } from './types';
 
-const ROOT = env.MASTRA_PROJECT_ROOT;
+const ROOT = env.PROJECT_ROOT;
 const INDEX = join(ROOT, '.issues/traces/_runs.json');
 const PROJECT = env.MASTRA_PROJECT_ID_PROD ?? env.MASTRA_PROJECT_ID;
 const TOKEN =

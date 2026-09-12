@@ -108,8 +108,6 @@ type CodeModeInstance = Awaited<ReturnType<typeof createCodeModeInstance>>;
 
 const instances = new Map<string, Promise<CodeModeInstance>>();
 
-// Both instances reach the MCP server while they are built, so each one waits
-// for its first caller instead of running on import.
 function codeMode(workspaceAccess: boolean): Promise<CodeModeInstance> {
   const key = workspaceAccess ? 'workspace' : 'slack';
   const existing = instances.get(key);
