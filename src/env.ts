@@ -25,6 +25,12 @@ export const env = createEnv({
     MASTRA_PLATFORM_ACCESS_TOKEN: z.string().min(1),
     MASTRA_PROJECT_ID: z.string().min(1),
 
+    // The production project, used by tooling that reads real traffic.
+    // `scripts/traces.ts` prefers these and falls back to the pair above.
+    MASTRA_PLATFORM_ACCESS_TOKEN_PROD: z.string().optional(),
+    MASTRA_PROJECT_ID_PROD: z.string().optional(),
+    MASTRA_ORG_ID: z.string().optional(),
+
     E2B_API_KEY: z.string().min(1),
 
     CREDENTIALS_KEY: z.string().min(1),

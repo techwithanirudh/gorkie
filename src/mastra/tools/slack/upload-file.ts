@@ -1,12 +1,34 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { resolveTarget, targetSchema } from '../../chat/target';
+import { slack } from '../../chat/client';
+import { type Target, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
+import { parseSlackId, rawId } from '../../lib/ids';
 import { input, output } from '../../types/tools/index';
 import { requireSandbox } from '../../workspace';
 import { assertCanPostTo, joinChannel } from './utils';
 
-const MAX_UPLOAD_BYTES = 100_000_000;
+// Slack's own per-file ceiling. The body is streamed rather than buffered,
+// so the number no longer has to fit in the process's memory budget.
+const MAX_UPLOAD_BYTES = 1_000_000_000;
+
+// `getUploadURLExternal` and `completeUploadExternal` want raw Slack ids, not
+// the prefixed thread ids the rest of the codebase passes around.
+async function slackDestination(
+  target: Target
+): Promise<{ channel: string; threadTs: string | undefined }> {
+  if (target.type === 'user') {
+    const dm = await slack.webClient.conversations.open({
+      users: rawId(target.id),
+    });
+    return { channel: dm.channel?.id ?? '', threadTs: undefined };
+  }
+  if (target.type === 'thread') {
+    const { channel, ts } = parseSlackId(target.id);
+    return { channel: channel ?? '', threadTs: ts };
+  }
+  return { channel: rawId(target.id), threadTs: undefined };
+}
 
 export const uploadFileTool = createTool({
   id: 'upload_file',
@@ -57,9 +79,6 @@ export const uploadFileTool = createTool({
         `${path} is ${Math.round(stat.size / 1_000_000)}MB, over the ${MAX_UPLOAD_BYTES / 1_000_000}MB upload limit.`
       );
     }
-    const bytes = await sandbox.retryOnDead(() =>
-      sandbox.e2b.files.read(path, { format: 'bytes' })
-    );
     const name = filename ?? path.split('/').pop() ?? 'file';
 
     const ctx = channelContext(context.requestContext);
@@ -75,16 +94,32 @@ export const uploadFileTool = createTool({
     if (resolved.type !== 'user') {
       await joinChannel(resolved.id);
     }
-    const destination = await resolveTarget(resolved);
+    const destination = await slackDestination(resolved);
 
-    const sent = await destination.post({
-      markdown: comment ?? '',
-      files: [{ data: Buffer.from(bytes), filename: name }],
+    // Streamed straight from the sandbox to Slack's upload URL. Reading the
+    // file into a Buffer first put the whole thing in the process's heap,
+    // which is what OOM-killed the service on 2026-09-12.
+    const created = await slack.webClient.files.getUploadURLExternal({
+      filename: name,
+      length: stat.size,
     });
-
-    const fileId = sent.attachments
-      .map((attachment) => /(F[A-Z0-9]{6,})/.exec(attachment.url ?? '')?.[1])
-      .find((id) => id !== undefined);
+    if (!(created.upload_url && created.file_id)) {
+      throw new Error('Slack did not return an upload URL.');
+    }
+    const body = await sandbox.retryOnDead(() =>
+      sandbox.e2b.files.read(path, { format: 'stream' })
+    );
+    const sent = await fetch(created.upload_url, { body, method: 'POST' });
+    if (!sent.ok) {
+      throw new Error(`Upload to Slack failed with ${sent.status}.`);
+    }
+    await slack.webClient.files.completeUploadExternal({
+      channel_id: destination.channel,
+      files: [{ id: created.file_id, title: name }],
+      initial_comment: comment,
+      thread_ts: destination.threadTs,
+    });
+    const fileId = created.file_id;
 
     return {
       filename: name,
