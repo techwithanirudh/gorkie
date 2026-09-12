@@ -25,12 +25,9 @@ export const env = createEnv({
 
     DATABASE_URL: z.url(),
 
-    MASTRA_PLATFORM_ACCESS_TOKEN: z.string().min(1),
-    MASTRA_PROJECT_ID: z.string().min(1),
-
-    MASTRA_PLATFORM_ACCESS_TOKEN_PROD: z.string().optional(),
-    MASTRA_PROJECT_ID_PROD: z.string().optional(),
-    MASTRA_ORG_ID: z.string().optional(),
+    LANGFUSE_BASE_URL: z.string().default('https://cloud.langfuse.com'),
+    LANGFUSE_PUBLIC_KEY: z.string().optional(),
+    LANGFUSE_SECRET_KEY: z.string().optional(),
 
     E2B_API_KEY: z.string().min(1),
 

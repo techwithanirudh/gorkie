@@ -3,11 +3,8 @@ import { Mastra } from '@mastra/core/mastra';
 import { SpanType } from '@mastra/core/observability';
 import { MastraCompositeStore } from '@mastra/core/storage';
 import { DuckDBStore } from '@mastra/duckdb';
-import {
-  MastraPlatformExporter,
-  MastraStorageExporter,
-  Observability,
-} from '@mastra/observability';
+import { LangfuseExporter } from '@mastra/langfuse';
+import { MastraStorageExporter, Observability } from '@mastra/observability';
 import { env } from '@/env';
 import { exploreAgent as explore } from './agents/explore';
 import orchestrator from './agents/orchestrator';
@@ -19,6 +16,8 @@ import { setMastra } from './chat/mastra-instance';
 import { createTables, postgresStore } from './db';
 import { buildAllowlist } from './lib/allowed-users';
 import { logger } from './lib/logger';
+import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
+import { slackIdentity } from './observability/slack-identity';
 
 process.on('unhandledRejection', (err: unknown) => {
   logger.error('[process] unhandled rejection', { err });
@@ -80,11 +79,22 @@ export const mastra = new Mastra({
         serviceName: 'orchestrator',
         exporters: [
           ...(isProduction ? [] : [new MastraStorageExporter()]),
-          new MastraPlatformExporter({
-            accessToken: env.MASTRA_PLATFORM_ACCESS_TOKEN,
-            projectId: env.MASTRA_PROJECT_ID,
-          }),
+          ...(env.LANGFUSE_PUBLIC_KEY && env.LANGFUSE_SECRET_KEY
+            ? [
+                new LangfuseFeedbackExporter(),
+                new LangfuseExporter({
+                  baseUrl: env.LANGFUSE_BASE_URL,
+                  // Without this, `bun dev` traces land on top of production
+                  // in the same project.
+                  environment: env.NODE_ENV,
+                  publicKey: env.LANGFUSE_PUBLIC_KEY,
+                  realtime: !isProduction,
+                  secretKey: env.LANGFUSE_SECRET_KEY,
+                }),
+              ]
+            : []),
         ],
+        spanOutputProcessors: [slackIdentity],
       },
     },
   }),

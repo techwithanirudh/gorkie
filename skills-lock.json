@@ -79,6 +79,12 @@
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "2449db6ab1ded9581f69fcc56c1f64818112d05e271fd4c5da23c6523f9d3d9d"
     },
+    "langfuse": {
+      "source": "langfuse/skills",
+      "sourceType": "github",
+      "skillPath": "skills/langfuse/SKILL.md",
+      "computedHash": "edf3a6ec935b6956629b94156a8fc310fcb0723eef849ff5ae9ad3dc1831d530"
+    },
     "mastra": {
       "source": "mastra-ai/skills",
       "sourceType": "github",

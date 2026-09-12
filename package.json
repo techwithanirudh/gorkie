@@ -18,7 +18,6 @@
     "postbuild": "bun run scripts/postbuild.ts && cd .mastra/output && bun install",
     "prepare": "lefthook install",
     "start": "mastra start",
-    "traces": "bun run scripts/trace-viewer/index.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
