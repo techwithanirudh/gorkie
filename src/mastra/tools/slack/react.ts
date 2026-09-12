@@ -2,8 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
-import { rawId } from '../../lib/ids';
-import { parseSlackMessageUrl } from '../../lib/slack-message';
+import { chatChannelId, parseSlackId } from '../../lib/ids';
 import { input, output } from '../../types/tools/index';
 
 export const reactTool = createTool({
@@ -46,12 +45,9 @@ export const reactTool = createTool({
     context
   ) => {
     const ctx = channelContext(context?.requestContext);
-    const target = url
-      ? parseSlackMessageUrl(url)
-      : {
-          channel: rawId(channelId ?? ctx.channelId ?? ''),
-          ts: messageId ?? ctx.messageId,
-        };
+    const target = parseSlackId(url ?? messageId ?? ctx.messageId, {
+      channel: channelId ?? ctx.channelId,
+    });
     if (!target.channel) {
       throw new Error('No channel available for react.');
     }
@@ -69,7 +65,7 @@ export const reactTool = createTool({
       await slack.webClient.reactions.remove(request);
       return {
         action,
-        channelId: `slack:${target.channel}`,
+        channelId: chatChannelId(target.channel),
         messageId: target.ts,
         emoji,
       };
@@ -78,7 +74,7 @@ export const reactTool = createTool({
     await slack.webClient.reactions.add(request);
     return {
       action,
-      channelId: `slack:${target.channel}`,
+      channelId: chatChannelId(target.channel),
       messageId: target.ts,
       emoji,
     };

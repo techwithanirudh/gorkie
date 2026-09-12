@@ -12,9 +12,7 @@ export function slugOf(modelId: string): string {
     : modelId;
 }
 
-// OpenCode answers a bare `mimo-v2.5` for `opencode-go/mimo-v2.5`, so put the
-// provider back before anything compares this against the configured list.
-export function qualifiedSlug({
+function qualifiedSlug({
   modelId,
   modelProvider,
 }: {
@@ -24,14 +22,6 @@ export function qualifiedSlug({
   return modelProvider && !modelId.startsWith(`${modelProvider}/`)
     ? slugOf(`${modelProvider}/${modelId}`)
     : slugOf(modelId);
-}
-
-export function sameModel(entrySlug: string, recalled: string): boolean {
-  return (
-    entrySlug === recalled ||
-    entrySlug.endsWith(`/${recalled}`) ||
-    recalled.endsWith(`/${entrySlug}`)
-  );
 }
 
 export async function recallModel(

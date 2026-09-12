@@ -4,6 +4,7 @@ import {
 } from '@mastra/core/channels';
 import { z } from 'zod';
 import { label } from '../../lib/label';
+import { mcpServerNames } from '../../mcp/user-servers';
 import { truncate } from './format';
 import { statuses } from './statuses';
 
@@ -11,9 +12,6 @@ const argsSchema = z.record(z.string(), z.unknown());
 
 const delegationAgentIds = new Set(['research', 'explore']);
 
-// A spawned sub-agent's own tool calls arrive namespaced as
-// `agent-<id>_<childToolName>`, so matching on the `agent-` prefix alone
-// would render them identically to the spawn call itself.
 function delegatedChildTool(
   rest: string
 ): { agentId: string; childToolName: string } | undefined {
@@ -26,8 +24,14 @@ function delegatedChildTool(
 }
 
 export const status: TypingStatusFn = (chunk, context) => {
+  // Slack caps a status at 50 characters and the built-in approval text is 28
+  // plus the tool name, which the longer github_ names overflow.
+  if (chunk.type === 'tool-call-approval') {
+    return truncate(`is asking about ${label(chunk.payload.toolName)}…`);
+  }
   if (chunk.type !== 'tool-call') {
-    return defaultTypingStatus(chunk, context);
+    const fallback = defaultTypingStatus(chunk, context);
+    return typeof fallback === 'string' ? truncate(fallback) : fallback;
   }
 
   const { toolName } = chunk.payload;
@@ -41,6 +45,21 @@ export const status: TypingStatusFn = (chunk, context) => {
       );
     }
     return truncate(`is spawning a ${label(rest).toLowerCase()} agent…`);
+  }
+
+  if (toolName.startsWith('github_')) {
+    return truncate(
+      `is using github: ${label(toolName.slice('github_'.length)).toLowerCase()}…`
+    );
+  }
+
+  for (const server of mcpServerNames.get(context.threadId) ?? []) {
+    const prefix = `${server}_`;
+    if (toolName.startsWith(prefix)) {
+      return truncate(
+        `is using ${server}: ${label(toolName.slice(prefix.length)).toLowerCase()}…`
+      );
+    }
   }
 
   const args = argsSchema.safeParse(chunk.payload.args).data ?? {};

@@ -8,27 +8,27 @@ import { codeModePrompt } from '../../prompts/features/code-mode';
 import { codeModeToolNames, getSandbox } from '../../workspace';
 import { workspaceTools } from '../../workspace/tools';
 import { canvasTools } from '../canvas';
-import { grepTool } from '../grep';
 import { slackTools } from '../slack';
 
 const transport = new E2BCodeModeTransport();
 
-const slackCodeTools = {
-  ...mcpTools,
-  search_slack: slackTools.search_slack,
-  read_conversation_history: slackTools.read_conversation_history,
-  list_threads: slackTools.list_threads,
-  get_user: slackTools.get_user,
-  get_channel_info: slackTools.get_channel_info,
-  list_channels: slackTools.list_channels,
-  get_permalink: slackTools.get_permalink,
-  get_slack_file: slackTools.get_slack_file,
-  summarize_thread: slackTools.summarize_thread,
-  call_slack_api: slackTools.call_slack_api,
-  list_canvases: canvasTools.list_canvases,
-  read_canvas: canvasTools.read_canvas,
-  lookup_canvas_sections: canvasTools.lookup_canvas_sections,
-};
+function codeTools(mcp: Awaited<ReturnType<typeof mcpTools>>) {
+  return {
+    ...mcp,
+    search_slack: slackTools.search_slack,
+    read_conversation_history: slackTools.read_conversation_history,
+    list_threads: slackTools.list_threads,
+    get_user: slackTools.get_user,
+    get_channel_info: slackTools.get_channel_info,
+    list_channels: slackTools.list_channels,
+    get_permalink: slackTools.get_permalink,
+    get_slack_file: slackTools.get_slack_file,
+    summarize_thread: slackTools.summarize_thread,
+    list_canvases: canvasTools.list_canvases,
+    read_canvas: canvasTools.read_canvas,
+    lookup_canvas_sections: canvasTools.lookup_canvas_sections,
+  };
+}
 
 async function getSandboxTools(
   requestContext?: RequestContext
@@ -38,7 +38,6 @@ async function getSandboxTools(
     ...Object.fromEntries(
       Object.entries(tools).filter(([name]) => codeModeToolNames.has(name))
     ),
-    grep: grepTool,
   };
 }
 
@@ -63,10 +62,15 @@ async function createCodeModeInstance({
 }: {
   workspaceAccess: boolean;
 }) {
+  const slackCodeTools = codeTools(await mcpTools());
   const tools = workspaceAccess
     ? { ...slackCodeTools, ...(await getSandboxTools()) }
     : slackCodeTools;
-  const modeConfig = { id: 'slack', timeout: sandboxConfig.timeout, tools };
+  const modeConfig = {
+    id: 'slack',
+    timeout: sandboxConfig.timeout,
+    tools,
+  };
   const mode = createCodeMode(modeConfig, transport);
 
   mode.tool.execute = async (input, context) => {
@@ -100,18 +104,39 @@ async function createCodeModeInstance({
   return mode;
 }
 
-export const workspaceCodeMode = await createCodeModeInstance({
-  workspaceAccess: true,
-});
-export const workspaceCodeModePrompt = codeModePrompt({
-  instructions: workspaceCodeMode.instructions,
-  files: true,
-});
+type CodeModeInstance = Awaited<ReturnType<typeof createCodeModeInstance>>;
 
-export const slackCodeMode = await createCodeModeInstance({
-  workspaceAccess: false,
-});
-export const slackCodeModePrompt = codeModePrompt({
-  instructions: slackCodeMode.instructions,
-  files: false,
-});
+const instances = new Map<string, Promise<CodeModeInstance>>();
+
+function codeMode(workspaceAccess: boolean): Promise<CodeModeInstance> {
+  const key = workspaceAccess ? 'workspace' : 'slack';
+  const existing = instances.get(key);
+  if (existing) {
+    return existing;
+  }
+  const started = createCodeModeInstance({ workspaceAccess });
+  instances.set(key, started);
+  return started;
+}
+
+export function workspaceCodeMode(): Promise<CodeModeInstance> {
+  return codeMode(true);
+}
+
+export function slackCodeMode(): Promise<CodeModeInstance> {
+  return codeMode(false);
+}
+
+export async function workspaceCodeModePrompt(): Promise<string> {
+  return codeModePrompt({
+    instructions: (await workspaceCodeMode()).instructions,
+    files: true,
+  });
+}
+
+export async function slackCodeModePrompt(): Promise<string> {
+  return codeModePrompt({
+    instructions: (await slackCodeMode()).instructions,
+    files: false,
+  });
+}

@@ -1,412 +1,602 @@
-# Upstream Mastra issues
+# Issues
 
-Workarounds this repo carries that a native Mastra fix would delete. Each entry
-records what we do, the gap that forces it, and what the upstream fix looks like.
+Findings from reading 4337 production traces (2026-08-13 to 2026-09-12, 13 GB)
+pulled from Mastra Platform, cross-referenced against the GitHub issue tracker.
+Written 2026-09-12.
 
-Verified against `@mastra/core@1.59.0`, `@mastra/e2b@0.8.2`, `@mastra/mcp@1.16.0`
-as vendored in `node_modules/`.
+Severity is what the user experienced: **breaks** means the turn died,
+**degrades** means it completed with a worse answer, **cosmetic** means latency
+or log noise only.
 
-> **Partially updated.** `@mastra/core` is now `1.60.1-alpha.0` and the patch has
-> been rebased onto it. Verified against upstream `main` source (not a local
-> `node_modules` tree, which may already be patched):
->
-> - 1.1 media token counting: **fixed upstream** (`estimateMediaTokens` in
->   `packages/core/src/processors/processors/token-limiter.ts`). Our hunk can go.
-> - 1.2 `isContinued` on `step-finish`: **not fixed upstream**. Still needed.
->   Filed as [#21884](https://github.com/mastra-ai/mastra/issues/21884), together
->   with the `finish` close (1.3), since `output-processor.ts` documents both as
->   wrong.
-> - 1.4 fallback-model escalation: **not fixed upstream**. Still needed.
->
-> An earlier revision of this file claimed 1.2 and 1.4 were fixed. That was read
-> off a patched `node_modules` and was wrong.
+## How the corpus breaks down
 
-## 1. Patched `@mastra/core`
+4337 traces, of which 2287 carry a Slack thread id and 2043 are standalone
+processor or background runs. 769 distinct Slack threads. Only **141 traces
+carry any error at all**, and most of that is infrastructure rather than code:
 
-`patches/@mastra+core@1.60.1-alpha.0.patch` carries two behavioural fixes, applied to
-`dist/agent-*.{js,cjs}`. `scripts/postbuild.ts`
-exists only to copy `patches/` and `patchedDependencies` into `.mastra/output`
-so a built server keeps them.
+| count | error | verdict |
+| ----- | ----- | ------- |
+| 81 | Insufficient credits (OpenRouter) | billing |
+| 27 | Internal server error | provider |
+| 19 | Model `ox-alpha-free` is not supported | see A3 |
+| 16 | Too Many Requests | provider |
+| 11 | Service Unavailable | provider |
 
-### 1.1 `TokenLimiterProcessor` counts base64 media as text
+Stripping those leaves 20 traces holding real defects, below.
 
-`TokenLimiterProcessor` runs `JSON.stringify` over `file` parts and over tool
-results shaped `{ data, mediaType }`, so a single screenshot's base64 payload is
-counted character by character. Input trimming then evicts real conversation to
-make room for a token count that does not exist.
+## A. Application defects found in traces
 
-Patch: estimate from decoded byte size, clamped to 200-4000 tokens, with the
-765/258 flat fallbacks for image and non-image parts.
+### A1. A 1.3 MB screenshot read with `read_file` blows the context window
 
-Native fix: token accounting that understands multimodal parts instead of
-stringifying them. Tracked locally in `TODO.md` as the "temporary Mastra media
-token-count patch".
+**Breaks the turn. Live in this tree.**
 
-### 1.2 Channels streaming driver finalizes a Slack message mid-retry
+Traces `8a472b2fe83921b89283883dd8a1a341`,
+`1e089aa8eca6f947e8848b7d0912c830`, `4ba7eceae7f72507745c09b9ba9465a5`: the
+same thread, three consecutive attempts, 1,245,113 / 1,245,166 / 1,245,281
+tokens against a 1,048,576 window. All three 400'd.
 
-`runStreamingDriver` calls `closeSession()` on every `step-finish` when
-`toolDisplay !== 'grouped'`, ignoring `stepResult.isContinued`. A retry or a
-fallback-model escalation is a continued step, so the Slack message is finalized
-before the retry's output arrives. It also closed again on `finish`.
+A 1,293,665 byte PNG becomes ~1,724,900 base64 characters and the gateway
+tokenizes it as text. Four things line up to let it through:
 
-Patch: skip the close when `isContinued === true`, drop the `finish` close.
-`ChatChannelOutputProcessor` already performs the same `isContinued` check on
-the same chunk type, so the driver is simply inconsistent with it.
+1. `src/mastra/prompts/tools.ts:34` tells the model to read images by calling
+   `read_file` with only the path, so this route is prescribed.
+2. `src/mastra/workspace/index.ts:98` sets no `maxMediaBytes`, so Mastra's
+   default of 10 MB applies and the image is inlined whole.
+3. `TokenLimiterProcessor` cannot see it. `estimateMediaTokens` returns a flat
+   `TOKENS_PER_IMAGE = 765` for anything `image/*`, a 1600x undercount, so the
+   limiter trims nothing.
+4. `moveToolImages` (`src/mastra/processors/tool-media.ts:18-77`) then lifts
+   the base64 into a user `file` part, and it runs at
+   `src/mastra/agents/orchestrator.ts:123`, after the limiter at `:119`. Even a
+   correct limiter would be bypassed.
 
-Native fix: honour `isContinued` in the driver.
+Fix: set `maxMediaBytes` on the `read_file` entry at
+`src/mastra/workspace/index.ts:98`. Over the cap Mastra already returns a
+metadata string naming the limit instead of the bytes, so the model is told
+rather than the turn dying. Also move the media relocation before the limiter.
 
-### 1.3 Fallback models only escalate on failure-to-start
+### A2. A text-only model is handed an image
 
-When a model errors after its own retries are exhausted, `createLLMExecutionStep`
-throws instead of advancing to the next entry in the `models` array. The rest of
-the fallback list never gets a turn. This applies both to the synchronous throw
-path and to errors that surface after streaming has begun. Separately, the
-processor retry count carried over into the next model rather than resetting.
+**Breaks the turn. Live, and the risk has moved.**
 
-Patch: advance `activeFallbackModelIndex` on error when a next model exists, and
-reset `processorRetryCount` to 0 on a model switch.
+Traces `0c004474e5b36ebdd120d38cb85ca703`,
+`85497ac2a46a51bdc8508b69483c920c`, `23a172808c69acf07c10247cc9b3270f`: one
+thread, three attempts in 90 seconds, all dead. The user attached a screenshot
+and got nothing.
 
-Impact here: `src/mastra/providers.ts` configures a fallback per agent
-(`openai/gpt-5.6-luna` then `opencode-go/deepseek-v4-flash`). Without the patch
-the second entry is close to dead weight.
+This confirms the open item in `TODO.md` about image handling. The turn first
+tried `openai/gpt-5.6-luna`, which failed for an unrelated reason, then fell
+through to `opencode-go/deepseek-v4-flash`, which rejected the image.
 
-Native fix: treat "model errored" and "model failed to start" identically for
-fallback escalation, and give each model its own retry budget.
+Two of that item's three claims are confirmed: nothing checks vision capability
+before sending a file part, and `provider-registry.json` lists the opencode-go
+models as a bare string array with no capability metadata, carrying both
+`deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` with nothing to tell
+them apart. The third claim, that `preferLastWorking` can pin a turn to a
+text-only route, is plausible but not provable from these traces: it emits no
+span. What the traces do show is fallback ordering causing the same damage.
 
-### 1.4 Terminal error chunks bypass output processors
+The correction: the exact model in these traces is no longer configured.
+`src/mastra/providers.ts:62-73` now starts the chain with
+`opencode-go/glm-5.3-flash`, whose vision capability is equally unverifiable
+from the registry. An image turn today hits that before it ever reaches the
+`-vision-exp` entry.
 
-`MastraModelOutput` withholds raw error chunks from output processors so that a
-retryable failure never renders. But the terminal deferred-error chunk and the
-`workflowLoopStream` failure path both `safeEnqueue` straight to the controller,
-so nothing renders them either. An exhausted fallback fails silently: no reply
-in Slack, no error card.
+Fix: have the chain take the turn's modality and filter. A hardcoded vision set
+next to the chain is honest given the registry carries nothing.
 
-Patch: route both through `outputWriter`, and let `error` /
-`finish(reason: 'error')` chunks reach the processors in the `trip-wire`
-transform.
+### A3. `ox-alpha-free` is not a real model
 
-Native fix: one code path where the terminal error is always processor-visible.
+**Broke turns, caused 34 minute runs. Fixed on `github-setup`, live on `main`.**
 
-### 1.5 `tryRepairJson` cannot recover concatenated tool-call JSON
+Traces `68f9423dcacbc8c30e2633fedc5a735f`,
+`82527692c635372b23ddf2796e617903`, `61cc3efaab679398e715986827b47724`,
+`f213138f374bcf9ad938a98dae09df17`. This is GitHub issue 34.
 
-Not yet patched, logged in `TODO.md`. `openai/gpt-5.6-luna` occasionally streams
-two complete tool calls' JSON glued together under one tool-call id.
-`tryRepairJson` only handles single-object malformations (missing quotes,
-trailing commas), so args come back `undefined`, the call fails validation, and
-the resulting broken history message can trigger a `400` from whichever provider
-gets the next request. Same class as the upstream-documented Kimi/K2 issue
-(`mastra-ai/mastra#11078`).
+The model does not exist on the OpenCode Go endpoint, and the gateway does not
+answer with a clean 404. It returns whatever its upstream router produces:
+`[1210] Invalid API parameter`, `[1261] Prompt exceeds max length`, "Content
+Exists Risk". In `61cc3ef` that repeated 52 times across 34 minutes.
 
-Native fix: detect a `}{` boundary at brace depth 0 outside strings and keep the
-first balanced object.
+`src/mastra/providers.ts` on this branch no longer lists it;
+`origin/main` still carries it in all three chains.
 
-## 2. Workspace and sandbox
+A second defect made it expensive. The terminal-error pattern in
+`src/mastra/lib/error-handling.ts:20` catches `is not supported` but not
+`[1210]` or `[1261]`, so those fall to the catch-all retry and burn two
+attempts per step on errors no retry can fix.
 
-### 2.1 No E2B filesystem provider
+### A4. `read_file` prepends a header and silently truncates, and code mode JSON-parses it
 
-Filed as [#21875](https://github.com/mastra-ai/mastra/issues/21875). Still
-absent in `@mastra/e2b@0.9.0`.
+**Degrades silently. Live in this tree.**
 
-`@mastra/e2b` exports `E2BSandbox` and `E2BCodeModeTransport` but no
-`MastraFilesystem`. `src/mastra/workspace/filesystem.ts` is a 527-line
-hand-written `E2BFilesystem`: path resolution, read/write/edit, stat, list,
-copy, remove, mime lookup, and the full `@mastra/core/workspace` error taxonomy
-(`FileNotFoundError`, `IsDirectoryError`, `StaleFileError`, and the rest) mapped
-from E2B's own errors.
+Trace `8627dcb7e9b14cd5621a68e33fa5c525` carries both JSON errors. The agent
+wrote `JSON.parse(await external_read_file(...))` and got
+`Unexpected token '/', "/home/user"...`, diagnosed the header, stripped it,
+retried, and then got `Bad control character in string literal at position
+6206`.
 
-Native fix: ship `E2BFilesystem` in `@mastra/e2b` the way `LocalFilesystem`
-ships in core.
+Two causes. Mastra's `read_file` always prepends a `path (N bytes)` header and
+`showLineNumbers: false` does not suppress it. And
+`src/mastra/workspace/index.ts:98` sets no `maxOutputTokens`, so the default of
+2000 applies: a 2,455,190 byte file came back as ~6.2 KB with the cut landing
+inside a JSON string literal.
 
-### 2.2 Built-in workspace grep hangs on large trees
+`src/mastra/prompts/features/code-mode.ts:10` actively steers into this, telling
+the model it can write a JSON export and read it back later. That round trip is
+broken today for any file over ~6 KB.
 
-`src/mastra/workspace/index.ts:85-86` disables `WORKSPACE_TOOLS.FILESYSTEM.GREP`
-with the note that the network-bound implementation hangs, and
-`src/mastra/tools/grep.ts` replaces it with 203 lines shelling out to `rg --json`
-inside the sandbox and reassembling the output.
+Fix: set an explicit `maxOutputTokens`, and document in the code-mode prompt
+that `external_read_file` returns a header plus possibly-truncated content and
+must never be `JSON.parse`d. Structured data should be read in the sandbox with
+`node:fs/promises`, which that prompt already documents as the escape hatch.
 
-Native fix: run grep in the sandbox when one is present, rather than pulling
-file contents across the network.
+### A5. The Slack search token expires mid-turn, and the failure multiplies
 
-Filed upstream: [mastra-ai/mastra#21877](https://github.com/mastra-ai/mastra/issues/21877).
+**Degrades. Live in this tree.**
 
-### 2.3 Workspace tools silently shadow the agent's own `tools:`
+Traces `bee3fb459e9bd5b79a75a19f6335b2ee`,
+`39f0d37a55a7b4fc4d89f4dc28560605`, `b418c7bb48e4b0d4362415937190ac03`,
+`716d7e2d157e42d244055e3642f07b8a`.
 
-In the agent bundle the request-resolved tool map spreads `assignedTools` first
-and `workspaceTools` later. A tool defined in the agent's `tools:` config under
-the same name as a workspace tool is overwritten with no warning.
+Slack's `action_token` lives about two minutes. `captureSearchToken`
+(`src/mastra/chat/handlers.ts:19-31`) stores the bare string with no capture
+time, and `src/mastra/tools/slack/search-slack.ts:113-118` treats presence as
+validity. So any search issued more than two minutes after the mention fails,
+and delegation to `research` necessarily happens later in the turn, making
+delegated search structurally the most likely to expire.
 
-This blocked giving `execute_command` a model-authored title for the typing
-status. A wrapper was built and reverted: the only way to own the name is to
-rename the built-in through the workspace tools config, and the renamed tool
-stays visible to the model anyway, since the agent's `tools:` config cannot
-remove a workspace tool from the list either. Not worth the duplicate tool.
+In `bee3fb459` one code-mode program fired fifteen `search_slack` calls over
+four minutes and every one came back expired: nothing told call 2 that call 1
+had already proven the token dead.
 
-Native fix: let the agent's explicit `tools:` win, or at minimum warn on
-collision.
+Fix: store a capture timestamp alongside the token and treat anything older
+than ~110 seconds as absent, which takes the existing "no fresh token" branch
+that already tells the model what to do. Memoize the expiry per request context
+so a fan-out fails once.
 
-### 2.4 No sandbox lifecycle hook
+### A6. `read_canvas` had a false-positive guard, and now has no guard
 
-`src/mastra/processors/sandbox.ts` piggybacks on output processors to run E2B
-lifecycle: `processOutputStep` extends the sandbox timeout when the step used a
-sandbox-touching tool, `processOutputResult` pauses it at turn end. The
-"sandbox-touching" test is a hardcoded name set (`workspaceToolNames` plus
-`slack`, `get_slack_file`, `upload_file`, `grep`) that has to be kept in sync by
-hand.
+**Was degrading, now a permissions hole. Shape changed.**
 
-Native fix: `Workspace`-level turn-start/turn-end hooks, so keepalive and pause
-are not the agent's problem and the tool set does not need restating.
+Trace `d8620f5e0c1f7e78cf3a03d9deb961e6`: `external_read_canvas` refused canvas
+`F0BSTBWRCBU` as belonging to "another private conversation", while a parallel
+`get_channel_info` on `C0BSTBWRCBU` succeeded in the same program. Note the
+suffixes: the refused canvas is the channel canvas of the channel the
+conversation was in. A canvas id can never equal a channel id, so a guard built
+on that comparison rejects every canvas including the current one.
 
-## 3. Code mode
+That exact error string exists in no commit on any ref in this repo, so the
+deployed bot is not this working tree. Two other signs agree: a stack trace
+pointing at `/root/gorkie/.mastra/output/`, and traces running a model that
+appears in no ref at that date.
 
-### 3.1 `createCodeMode` takes a static tools map
+`src/mastra/tools/canvas/read.ts:27-47` at HEAD has **no visibility guard at
+all** and will read a canvas from any private conversation the bot has been in.
+The false positive is gone and a hole is in its place. Worth a decision.
 
-`CodeModeConfig.tools` is read once in `createCodeModeTool` (`indexToolsById`),
-so there is no per-request tool resolution, unlike `Agent.tools` which accepts a
-`({ requestContext }) => tools` function.
+### A7. Not a gorkie bug: OpenPGP in the sandbox
 
-`src/mastra/tools/code-mode/slack.ts` therefore overrides `mode.tool.execute`
-and rebuilds the code mode instance on every call, just to get per-request
-tools. It has to: `createWorkspaceTools` bakes a read-before-write tracker and
-write lock into each tool set, and sharing those across threads would let one
-thread's sandbox satisfy or stale-fail another thread's writes.
+**Cosmetic.** Trace `4c326f42a19301aa3a831913ff452031`. There is no OpenPGP
+dependency anywhere in gorkie. The user asked whether code mode could PGP
+encrypt, the agent `npm install`ed `openpgp` inside the E2B sandbox and imported
+it by absolute path into `dist/openpgp.mjs`, which resolved to a string rather
+than the module. `getPrimarySelfSignature is not a function` is the symptom. The
+agent spent eight minutes debugging its own throwaway code and reported the
+failure honestly.
 
-Native fix: accept `tools` as a function of the request context, the same shape
-`Agent` already accepts. That deletes the `execute` override entirely.
+Worth one line in the code-mode prompt: import sandbox-installed packages by
+bare specifier, not by absolute path into `dist/`.
 
-### 3.2 Code mode does not resolve a resolver-backed sandbox
+### A8. Not a bug: transport errors
 
-Filed as [#21886](https://github.com/mastra-ai/mastra/issues/21886).
+**Cosmetic.** `94b4bcd3ff7d29fcacc046771f8d2f4e`,
+`fb428949e7fafbc8e080b4cc4d2e96a8`, `120d6c3b1056579510b7550a5d9e299a`. All
+three surface only on retry-processor spans, all three root runs finished with
+`finishReason: 'stop'`. The retry policy handled them correctly. They are
+distinguishable from real failures by the root span carrying no error.
 
-`createCodeModeTool` reads `config.sandbox ?? ctx?.workspace?.sandbox`, and the
-`Workspace.sandbox` getter returns only `this._sandbox`, which stays undefined
-when the sandbox was supplied as a resolver. Every workspace tool avoids this by
-going through `resolveEffectiveWorkspace`, which calls `workspace.resolveSandbox`
-and returns a proxy; code mode never calls it. So the sandbox half is *not*
-fine, and is the second reason the `execute` override cannot be deleted.
+### A9. `glm-5.3-flash` replies with raw `<annotation>` markup
 
-### 3.3 Generated instructions ignore `config.id`
+**Breaks the turn. Live, and this model is now first in the fallback chain.**
 
-Filed as [#21885](https://github.com/mastra-ai/mastra/issues/21885).
+Trace `6566dcdebfd3411901a830c0325a51a2`. The user said "there". The entire
+reply was:
 
-`USAGE_CONTRACT` is a module constant naming the tool `execute_typescript`, and
-`createCodeModeInstructions` never reads `config.id`. A tool created with
-`id: 'slack'` is described to the model as `execute_typescript`, so
-`src/mastra/prompts/features/code-mode.ts` has to run
-`instructions.replaceAll('execute_typescript', 'slack')`. The same string also
-hardcodes "Do not rely on filesystem, network, or process access", which is
-wrong once code mode holds workspace file tools, forcing the `<files>` section
-to explicitly override it.
-
-## 4. Channels
-
-### 4.1 `ChannelContext` has no memory thread id
-
-`ChannelContext` (`@mastra/core/channels`) carries platform ids only: `threadId`,
-`channelId`, `messageId`, `userId`. Nothing maps back to the memory thread the
-run is actually writing to.
-
-So `src/mastra/lib/memory.ts` reverse-looks-up the memory thread on every call:
-
-```ts
-memory.listThreads({ filter: { metadata: { channel_externalThreadId } }, perPage: 1 })
+```
+<annotation>Respond to latest message</annotation><annotation>Respond to latest message</annotation>
 ```
 
-and throws a user-facing "Send another message and try again" when the thread
-does not exist yet. Everything that needs a memory scope depends on this:
-`tools/wait.ts`, `tools/scheduled-tasks/create.ts`, and `chat/commands/stop.ts`.
-The metadata key `channel_externalThreadId` is an undocumented internal.
+Two inference steps on `opencode-go/glm-5.3-flash`, the first finishing
+`other` and the second `stop`, each emitting that tag and no tool calls. The
+run completed successfully as far as every span is concerned.
 
-Native fix: put `memoryThreadId` and `resourceId` on `ChannelContext`.
+The string "Respond to latest message" appears nowhere in `src/`, nowhere in
+`@mastra/core`, and in no prompt. The model is emitting its own internal
+scaffolding as visible output.
 
-### 4.2 `ChannelContext`'s required fields are not guaranteed (WITHDRAWN, not an upstream issue)
+This is the same class as the reopened issue 4, where `<think>` blocks leaked
+into Slack, and it has the same cause: an inline-reasoning model on an
+unwrapped transport with no output guard. `grep -rn "extractReasoning\|wrapLanguageModel" src/`
+still returns nothing. A guard that strips model-internal tags before the
+render processor would cover both, and `glm-5.3-flash` being first in the
+chain at `src/mastra/providers.ts:62-73` makes it the common path, not an edge
+case.
 
-Original claim: `platform`, `eventType` and `userId` are declared required but
-absent on some runs, forcing the `Partial<>` re-type in
-`src/mastra/types/channel.ts`.
+## E. The silent-failure class: turns that never reach Slack
 
-That is wrong. `buildEventContext` in `@mastra/core` populates all three
-unconditionally on every path that sets the `channel` key. The real situation is
-that the whole `channel` key is absent when an agent is invoked outside channels
-(`summarizer.generate()` from `summarize_thread`, and the `research` / `explore`
-sub-agents). `channelContext()` returning `{}` covers that, and the `Partial<>`
-is our own defensive typing, not an upstream defect.
+Investigated against the thread linked from issue 35
+(`D0BGJGU5108:1789170614.666169`).
 
-Nothing to file.
+**The linked trace is not the failure.** `2e7ec2bacc767b725194d64ed0512ffe` is
+a clean, complete, delivered turn: 19 spans, `finishReason: stop`, the render
+processor handled all 165 chunks. **The turn that actually stopped has no
+trace at all.**
 
-### 4.3 Slack assistant status is not cleared when a turn posts nothing
+Verified 2026-09-12 against a freshly synced index of all 4374 runs, not the
+downloaded corpus:
 
-Channels owns the typing-status lifecycle, but Slack only auto-clears the status
-on a posted message, not when streaming stops. A turn that ends without posting,
-for example right after the `wait` tool, leaves a stale "is waiting..." pinned to
-the thread. `src/mastra/processors/clear-status.ts` is an output processor that
-exists purely to call `setAssistantStatus(channel, threadTs, '')`.
+| time (UTC) | event |
+| ---------- | ----- |
+| 09-11 23:56:25 | last run in this thread starts |
+| 09-11 **23:57:04** | that run **ends cleanly**, 39 seconds, `status: success` |
+| 09-11 23:57:44 | a new run begins posting to Slack |
+| 09-11 23:57 to **09-12 00:22:40** | **44 Slack messages** over 25 minutes, sandbox work, wrangler deploys |
+| | then nothing, for **7 hours 1 minute** |
+| 09-12 07:23:49 | the user asks "what hPpene d" |
 
-Native fix: clear the status on turn end in the channels adapter. Upstream's
-`withTypingStatus` docblock already documents the Slack auto-clear semantics and
-mitigates the streaming case via `typingGate`; the uncovered case is a run that
-ends without posting at all.
+**No trace exists for any of those 25 minutes.** The index holds nothing
+between 23:57:04 and the next run at 02:10:49, which belongs to a different
+user. So the run was alive, productive, and posting to Slack for 25 minutes,
+then stopped dead without completing, without raising an error, and without
+exporting anything.
 
-Filed upstream: [mastra-ai/mastra#21880](https://github.com/mastra-ai/mastra/issues/21880).
+The reason it is undebuggable is structural: **the platform trace list only
+returns traces whose root span completed.** A run that never finishes never
+exports, so it is absent from the UI, absent from the API, and absent from any
+download. That is issue 31.
 
-### 4.4 Typing status cannot reuse a tool's declared display transform
+Two corrections to an earlier reading of this incident. The last activity was
+**00:22:40, not 00:01:52**, so the run worked for 25 minutes rather than
+stalling almost immediately. And the replies **did** reach Slack during that
+window, so "the reply never reaches Slack" is the wrong description of this
+particular failure: the run stopped mid-work after delivering plenty.
 
-`TypingStatusFn` receives the raw chunk and a context, not the tool's
-`transform.display` output. Tools already declare display metadata for the
-`input-available` phase, but the typing status cannot read it.
+Ruled out: a host restart. The corpus-wide gap around the incident is 134
+minutes, and the corpus contains ten overnight gaps between 357 and 689
+minutes, so a quiet stretch at midnight UTC is ordinary traffic, not an outage.
 
-Result: `src/mastra/chat/status/statuses.ts` is a 185-line lookup table keyed by
-tool name, hand-maintained in parallel with the tool definitions, drifting from
-them, and structurally unable to cover MCP or otherwise dynamically registered
-tools. `TODO.md` still lists one known hole: code-mode `slack` shows a flat "is
-working in Slack...", and `execute_command` shows the raw shell command, since
-a wrapper adding a model-authored title was reverted as not worth a duplicate
-visible tool.
+### This means `TODO.md` conflates two different bugs
 
-Native fix: let a tool declare its in-progress label next to its other display
-transforms, and have `defaultTypingStatus` use it.
+The TODO describes a turn that finishes with `finishReason: 'stop'` and real
+usage but never posts. Issue 31 describes a hang with no reply and no trace.
+They are not the same, and fixing one will not fix the other.
 
-### 4.5 Delegated sub-agent tool chunks collide
+Counts across 2367 root agent runs:
 
-Tool chunks emitted by a delegated sub-agent carry the child's own `toolCallId`
-and `toolName`, so distinct cards merge in the transcript.
-`src/mastra/processors/delegated-tools.ts` re-namespaces them to
-`parentId::childId` and `parentTool_childTool`.
+| class | rule | count |
+| ----- | ---- | ----- |
+| hang, no trace | user message referenced in later history but no trace exists | 18 genuinely dropped in DMs |
+| run threw, nothing posted | root `agent_run.output === null` | 58 |
+| clean finish, no render span | no `chat-channel-render` for that run | 162 of 2367 (6.8%) |
+| clean finish, zero text in a DM | silence is only sanctioned in channels | 3 |
 
-The rename then has to be undone for display:
-`src/mastra/chat/status/index.ts:17-26` parses the `agent-<id>_<childTool>`
-prefix back apart against a hardcoded `delegationAgentIds` set, because matching
-on `agent-` alone would render a child's tool call identically to the spawn call.
+The discriminating signal for the third class: runs whose `requestContext`
+lacks `__mastra_chat_channel_render`, which is the `wait`-resume and
+scheduled-task wake path, are unrendered **56% of the time (15 of 27)** versus
+**3.8% (86 of 2277)** for normal inbound turns.
 
-Native fix: namespace delegated tool ids at the source and expose the parent
-and child names as structured fields rather than a joined string.
+### Likely causes, in order
 
-### 4.6 Native Slack streaming drops tool cards on scheduled wakes
+1. **No execution time budget on any agent.** `src/mastra/agents/orchestrator.ts:96-101`,
+   `research.ts:54-58` and `explore.ts:53-58` set `maxOutputTokens`, `maxRetries`,
+   `topP` and `reasoning`, and no `timeout`. Mastra documents
+   `timeout.{totalMs,stepMs,firstChunkMs}` and states that without it no time
+   limit applies, and that `stepMs` "covers both establishing the stream and
+   consuming it, so a provider that opens a stream and then stalls is also
+   caught", advancing to the next fallback on timeout. Without it a stalled
+   provider emits no error, so neither `maxRetries: 5` nor the four-model
+   ladder ever engages. With `maxSteps: 1000` (`src/mastra/config.ts:10`) the
+   run has no upper bound at all.
+2. **Unbounded Exa calls.** `src/mastra/tools/fetch-url.ts:31-37` and
+   `src/mastra/tools/search-web.ts:35-40` call Exa with no timeout and no
+   `AbortSignal`. Issue 31 names `fetch_url`; `search_web` has the same shape.
+3. **The wake path can resolve no render target.** Mastra's
+   `resolveRenderContext` takes a fast path from
+   `requestContext.__mastra_chat_channel_render`, else rebuilds from the
+   thread, else passes through untouched with no post and no error.
+   `src/mastra/tools/wait.ts:69-73` hands the wake path a serialized context
+   that arrives without the render key. This is the same defect as the
+   "streaming breaks on scheduled task tools" item and issue 35's "scheduled
+   task is broken". Unproven for current code: there are no wake-path runs in
+   the corpus after 2026-09-09, so the channels upgrade may have changed it.
+4. **Every Slack write in the render driver fails silently.** Five separate
+   sites in Mastra's render driver log at `warn`/`debug`/`error` and swallow,
+   including a `driverPromise.catch(() => {})`. With `toolDisplay: 'hidden'`
+   (`orchestrator.ts:191`) that path runs at every tool call. No trace-visible
+   instance was found, so this is a surface rather than a proven cause.
+5. **A thrown run says nothing.** `formatError` (`orchestrator.ts:193-194`)
+   renders `error` chunks through the driver, but an exception escaping the run
+   bypasses it entirely.
 
-Slack's native streaming needs `recipient_user_id` / `recipient_team_id` outside
-a DM. A scheduled run wakes an idle thread with no live message, so Chat SDK has
-nothing to supply, and tool cards get dropped.
+### Issue 30 is not the same bug
 
-`src/mastra/chat/adapter.ts` subclasses `SlackAdapter` to intercept
-`handleMessageEvent`, remember the last recipient per thread in Postgres via the
-state adapter (with an in-memory 10k-entry LRU to throttle writes), and inject it
-back in an overridden `stream()`.
+No evidence links observational memory to either failure. Its `memory: observe`
+spans run detached from the input processor that spawns them, so they do not
+block a step. Issue 30 is real but is an efficiency problem, sharing only the
+environment (no time budget, `maxSteps: 1000`) with the hang.
 
-Native fix: persist the recipient per thread in the Slack adapter itself, since
-it already sees every message event.
+## B. Trace size
 
-Wrong repo for this list: `SlackAdapter` ships in `@chat-adapter/slack`, which is
-[`vercel/chat`](https://github.com/vercel/chat), not Mastra. File there if at all.
+**13.03 GB over 31 days, 0.42 GB/day.** Median trace 909 KB, p99 48.9 MB,
+largest 248 MB. The top 60 traces are 1.4% of the count and **34% of the
+bytes**.
 
-### 4.7 Mid-thread mention on a subscribed thread skips history backfill
+The cause is duplication, not history growth. **66% of spans in the largest
+traces carry a full copy of `input.messages`**, averaging 424 copies per trace.
+Multiplication factor, stored bytes over unique content:
 
-`src/mastra/chat/handlers.ts:118-121` calls `thread.unsubscribe()` before running
-a one-off mid-thread mention, purely to force history backfill on a thread
-Mastra has already marked subscribed. Unsubscribing as a way to request a
-backfill is a side effect, not an API.
+| field | top 30 | corpus |
+| ----- | ------ | ------ |
+| `input.messages` | x20.2 | x9.0 |
+| `input.systemMessages` | x91.3 | x7.6 |
+| `input.tools` | x150.4 | x12.7 |
+| whole trace | x6.26 | x2.98 |
 
-Native fix: an explicit "backfill history for this turn" option on the handler
-or on `threadContext`.
+`processor_run` spans are **73% of all bytes** corpus-wide and are 98.5%
+`input`. The worst are `tool-search`, `token-limiter`, `chat-channel-context`,
+`skills-processor`, `workspace-instructions-processor` and
+`observational-memory`, each re-serializing the whole conversation. The `llm:`
+spans are only 1.2%.
 
-## 5. Models and providers
+A second offender: **`requestContext` is 16.4% of the corpus** and is pure
+accident. `requestContext.__mastra_chat_channel_render` serializes the live
+Slack `WebClient` and adapter as ~130 KB of `"[Function]"` strings per span,
+with `chatThread._adapter` alone being a back-reference to the whole adapter.
+Zero diagnostic value.
 
-### 5.1 No signal for which fallback model actually answered
+This is a runtime cost, not just storage: `deepClean` deep-copies the payload,
+so a single Slack reply can deep-copy and re-serialize 237 MB on the host while
+the user waits.
 
-With a `ModelWithRetries[]` fallback array, every turn rediscovers from scratch
-that the primary is rate-limited, paying the full retry ladder each time.
+**`includeInternalSpans: false` is the wrong lever and saves nothing.** It
+already defaults to false, and `PROCESSOR_RUN` is never classified as internal,
+so the flag can never drop it.
 
-Two pieces of this repo exist only to work around that:
-`src/mastra/processors/working-model.ts` reads
-`result.steps.at(-1)?.response?.modelId` in `processOutputResult` and persists it
-with a 30 minute TTL, and `preferLastWorking()` in `src/mastra/providers.ts`
-reorders the fallback array so the last known-good model is tried first.
+The lever is `customSpanFormatter`, which `BaseExporter` applies before export.
+Dropping the entire `input` on `processor_run` spans plus `requestContext`
+saves **86.2%**, taking 13.03 GB to 1.80 GB and the 237 MB trace to ~16 MB,
+while keeping every span and its timing. Preferred over excluding processor
+spans entirely, which buys 3.5 points more but destroys the retry-loop evidence
+that explains the giant traces in the first place.
 
-The processor also carries a note that `processOutputStep` cannot be used here:
-it runs before the finished step is appended to `steps`, so it sees only prior
-steps and nothing at all on a single-step turn.
+A giant trace is a long sandbox coding session plus a reasoning model plus
+provider errors driving retry loops: median 602 spans and 664 seconds against
+18 spans and 8 seconds for a median trace, and 11 of the top 30 carry errors
+against 0 of 40 median ones. Delegation is not a driver.
 
-Native fix: track per-model health in the fallback resolver, with a configurable
-cooldown, and prefer the healthy model without the caller reordering the array.
+## C. GitHub issues
 
-Caveat found while auditing: `chat().getState()` resolves to
-`MastraStateAdapter`, whose `get`/`set` are an in-process `Map`, so the
-working-model cache does not survive a restart and is not shared between
-instances. The 30 minute TTL is bounded by process lifetime.
+| # | state | title | trace evidence |
+| - | ----- | ----- | -------------- |
+| 35 | open | two issues (sandbox parity, background tasks, tool display, scheduled tasks, upload fallback) | comment links a thread that stopped midway, trace `2e7ec2bacc767b725194d64ed0512ffe` |
+| 34 | open | stale opencode model ids break fallback recovery | A3, confirmed in 4 traces |
+| 31 | open | agent turn hangs with no reply and no trace when a tool call stalls | under investigation |
+| 30 | open | observational memory does not buffer during long active agent runs | related to B, that processor is a top-6 byte offender |
+| 25 | open | Implement thread-scoped GitHub task handoff | no trace evidence |
+| 23 | open | add per-user limiting | no trace evidence |
+| 6 | open | Hello from gorkie dev | not a defect |
+| 4 | closed | Orchestrator emits raw `<think>` blocks | reopened in `TODO.md`: the guard was removed a third time and no longer exists in `src/` |
 
-### 5.3 Fallback models never advance on a mid-stream error
+## D. Two cheap fixes that cut across several of these
 
-Filed as [#21876](https://github.com/mastra-ai/mastra/issues/21876).
+1. Set `maxMediaBytes` and `maxOutputTokens` on the single `read_file` entry at
+   `src/mastra/workspace/index.ts:98`. That addresses A1 and A4.
+2. Widen the terminal-error pattern at `src/mastra/lib/error-handling.ts:20` to
+   include prompt-too-long, invalid-parameter and text-only-model refusals.
+   That stops A2 and A3 burning retries on errors no retry can fix.
 
-`executeStreamWithFallbackModels` advances the model index only in its `catch`,
-so an error delivered as an in-band stream chunk (the callback returns normally
-with `hasErrored` set) marks the loop done and skips every remaining model. The
-in-place retry path does not cover it either: once `canRetryError` is false
-there is no branch that moves to the next model. This is what the
-`advanceFallbackModel` hunk in our patch adds.
+## F. Known limits of the trace viewer
 
-### 5.2 Tool-result images are not provider-portable
+- **Private channels show as raw ids.** The bot token resolves public channels
+  and users, but `conversations.info` returns `channel_not_found` for private
+  ones (`C0B9M2S2LSU`, `C0A3B4HV28Z`, `C0BSJB44668` and others), and the
+  traces do not carry the name anywhere either. Fixing it means adding
+  `groups:read` to the Slack app scopes, which is a Slack app config change,
+  not a code one. DMs hit the same wall (`im:read`) and are worked around by
+  naming them after the participant recorded in the trace.
+- **The viewer reads downloaded files, not the API.** Warm start is 0.08s
+  against 3 to 30 seconds per trace live. The cost is staleness.
+- **A hung run can never appear.** The platform trace list only returns traces
+  whose root span completed, so the failure class in section E is structurally
+  absent from any download.
 
-Providers reject media inside tool results. `src/mastra/processors/tool-media.ts`
-is a `ProviderHistoryCompat` `CompatRule` (`moveToolImages`) that strips image
-parts out of tool results, leaves a text stub behind, and re-attaches them as a
-following user message.
+## G. The watchdog kills turns, and trace bloat is why
 
-It is registered on both `orchestrator` and `explore` via
-`new ProviderHistoryCompat({ additionalRules: [moveToolImages] })`.
+Diagnosed 2026-09-12 by reading the production host directly. This is the root
+cause of section E and it is not a hang.
 
-Native fix: ship this as a built-in `ProviderHistoryCompat` rule. It is a generic
-provider-compat concern, not an application concern.
+### The sequence
 
-## 6. Schedules
-
-### 6.1 No one-shot schedule
-
-`schedules` is cron-only (`ScheduleTriggerInfo.kind` is `'cron' | 'manual'`).
-The `wait` tool needs a single delayed wake-up, so
-`src/mastra/tools/wait.ts:52-58` synthesizes a one-shot from a `Date`:
-
-```ts
-const cron = `${s} ${m} ${h} ${date} ${month} *`
+```
+23:57:49  [chat] turn started                          (pid 476413)
+00:02:59  gorkie-monitor.service runs
+00:03:07  "health check failed (2/2)" -> systemctl restart gorkie.service
+          90 seconds pass. The app logs nothing. It never handles SIGTERM.
+00:04:37  systemd: "State 'stop-sigterm' timed out. Killing."  SIGKILL
+00:04:38  service restarts, online 00:04:45
+00:05-00:30  zero turns started. The thread gets no reply.
+07:23:49  the user asks "what hPpene d"
 ```
 
-which still repeats annually. Three more pieces exist to contain that: an
-explicit guard for `getUTCFullYear() > 9999`, a `metadata: { kind: 'wait' }` tag
-plus a sweep of already-fired wait rows at the top of every `execute`, and a
-`schedules.prepare` hook in `src/mastra/index.ts:39-46` that deletes any `wait`
-schedule as it fires.
+`/usr/local/bin/gorkie-monitor.sh` curls `127.0.0.1:4111` with `--max-time 8`
+and restarts the service after two consecutive misses. The turn was five
+minutes into sandbox-heavy work, the event loop stopped answering inside that
+8 second budget, and the watchdog shot it.
 
-Native fix: a `runAt: Date` one-shot schedule that deletes itself after firing.
+That single fact explains every symptom at once. **No trace**, because the
+exporter buffers spans in memory and SIGKILL never flushes. **No error**,
+because SIGKILL cannot report. **No reply**, because the turn died mid-flight.
+**No resume**, because the restarted process has no record that a turn was
+running.
 
-## 7. MCP
+### This is routine, not exceptional
 
-### 7.1 No per-user or dynamic server support in `MCPClient`
+**406 watchdog restarts since 2026-08-13**, twelve of them in the four days to
+09-12. Every one destroys whatever turns were in flight and loses their traces.
 
-`MCPClient` takes a static server map at construction. Gorkie lets each user
-register their own servers from App Home, so `src/mastra/mcp/user-servers.ts`
-hand-rolls the whole dynamic layer: a per-user client cache keyed on
-`JSON.stringify(servers)`, disconnect of the stale client on config change,
-eviction of a rejected build promise so a failure does not poison the cache
-forever, and `dropClient` when a user removes their last server.
+The host has **1966 MB of RAM with 1365 MB already in swap**. gorkie alone
+holds about 1 GB RSS, half the machine. systemd recorded `1G memory peak, 1G
+memory swap peak` for the killed unit. The monitor script's own comment says
+it was written after an Aug 17 outage where the process wedged
+"swap-thrashing under memory pressure", so the watchdog was always treating a
+symptom.
 
-Native fix: a keyed client registry, or `servers` accepted as a function of the
-request context.
+### Why the trace payloads are the memory
 
-### 7.2 Connection errors require a throwaway probe client
+`deepClean` runs in the **span constructor**, not at export
+(`node_modules/@mastra/observability/dist/index.js:2897-2900`):
 
-There is no "can I reach this server" call, so
-`findMCPConnectionError()` constructs an entire second `MCPClient`, calls
-`listToolsWithErrors()`, and disconnects it, just to validate a URL and token at
-registration time.
+```js
+this.attributes = deepClean(options.attributes, this.deepCleanOptions) || {};
+if (options.requestContext && options.requestContext.size() > 0)
+  this.requestContext = deepClean(options.requestContext, this.deepCleanOptions);
+if (this.isEvent) this.output = deepClean(this.prepareSpanOutput(options.output), this.deepCleanOptions);
+else this.input = deepClean(options.input, this.deepCleanOptions);
+```
 
-Native fix: a `probe`/`testConnection` method on `MCPClient`.
+So the moment a processor span is created, the whole `input` (the full message
+array) is deep-copied and then **held on the span object for the lifetime of
+the span**. With 66.6% of spans being `processor_run`, each re-serializing the
+conversation, a long turn allocates and retains hundreds of copies. That is
+synchronous work on the event loop and resident memory that cannot be
+collected until the trace ends.
 
-### 7.3 `listToolsWithErrors` returns unusable error strings
+### The correction: `customSpanFormatter` does not fix this
 
-`src/mastra/mcp/errors.ts` exists to make those errors showable to a user. Each
-one arrives as either a raw string or a JSON-encoded `{ message }`, with a stack
-trace appended after the first line, and prefixed with
-`Failed to connect to MCP server <name>: ` even though the caller already knows
-the server name. The helper unwraps the JSON, keeps line one, strips the prefix,
-and truncates to 300 characters.
+Earlier notes in this file recommended `customSpanFormatter` over
+`excludeSpanTypes`, on the reasoning that it keeps the spans and drops only
+the payload. **For storage and bandwidth that is right. For memory it is
+wrong, and memory is what kills the bot.**
 
-Native fix: return a structured error (code, message, cause) instead of a
-pre-formatted string with a stack trace in it.
+`customSpanFormatter` is applied in `BaseExporter.exportTracingEvent`
+(`index.js:4488-4526`), which runs at **export** time. By then the constructor
+has already deep-copied the payload and the span has been holding it for the
+whole turn. The formatter shrinks what leaves the process; it cannot unspend
+the allocation.
+
+`excludeSpanTypes` is checked in the constructor and short-circuits before any
+of it (`index.js:2875, 2894-2896`):
+
+```js
+this.isExcluded = this.alwaysExcluded
+  || observabilityConfig.excludeSpanTypes?.includes(this.type) === true
+  || this.isInternal && !observabilityConfig.includeInternalSpans;
+...
+if (this.isExcluded) {
+  this.attributes = {};
+  return;                 // never reaches the deepClean calls below
+}
+```
+
+Mastra's own doc comment on `isExcluded` states the intent plainly: skipping
+"avoids both the deepClean cost and holding references to large payloads for
+the lifetime of the span."
+
+### The fix
+
+```ts
+import { SpanType } from '@mastra/core/observability';
+
+new Observability({
+  configs: {
+    default: {
+      serviceName: 'orchestrator',
+      excludeSpanTypes: [SpanType.PROCESSOR_RUN],
+      exporters: [ ... ],
+    },
+  },
+})
+```
+
+`SpanType.PROCESSOR_RUN` is the string `processor_run`. Measured against this
+corpus it removes **66.6% of spans**, which is both the memory and the billed
+event count (126k/month becomes ~42k). The price is losing per-processor
+latency data and the `stream-error-retry-processor` evidence that helped
+explain the giant traces.
+
+Two things this does **not** fix, which need their own work:
+
+1. **No SIGTERM handler.** systemd allows 90 seconds (`TimeoutStopUSec=1min
+   30s`, `KillSignal=15`) and the app used none of it. That window is enough
+   to flush the observability exporter, so the trace survives, and to post
+   "restarting, your turn was interrupted" into in-flight threads. This alone
+   converts a silent seven hour void into a visible message.
+2. **The health check lies.** `--max-time 8` against a process doing
+   legitimate heavy work is a false positive generator. A dedicated health
+   route answered off the hot path, or a longer timeout with a higher
+   threshold, would stop the watchdog firing on healthy long turns.
+
+Also note: adding `timeout` to the agents, recommended earlier as the fix for
+section E, would **not** have prevented this incident. It guards a stalled
+provider, not SIGKILL from a watchdog. It remains worth doing for the class of
+hang it does cover.
+
+### Applied in production 2026-09-12
+
+Three changes on the host, all reversible, none requiring a restart:
+
+- `systemctl set-property gorkie.service MemoryHigh=1400M` (was `1G`).
+  `MemoryCurrent` was `1073340416`, sitting exactly on the old 1 GB line, so
+  the kernel was continuously reclaiming the unit's pages into swap. That
+  forced reclaim, not a shortage of swap, is what produced the 9 million major
+  page faults. Swap itself was never the constraint: 5886 MB total with 4499 MB
+  free, so adding swap would only have widened the target for eviction.
+- `THRESHOLD=2` to `5` in `/usr/local/bin/gorkie-monitor.sh`, taking the grace
+  window from about 2 minutes to about 5. 487 stalls recovered on their own
+  against 406 that escalated, so over half of all restarts were killing a
+  process that was going to come back by itself.
+- `--max-time 8` to `20` in the same script. 8 seconds is inside normal noise
+  on a box whose I/O pressure sat at 43%.
+
+Backups: `/root/memory.conf.bak.20260912`,
+`/root/gorkie-monitor.sh.bak.20260912`.
+
+Measured immediately after: `/proc/pressure/io` went from `full avg10=42.81`
+to `full avg10=0.38`, with `avg60=17.63` and `avg300=37.08` showing the decay
+from the old state. Resident swap stays at ~1344 MB because pages already
+evicted are only faulted back when touched; what stopped is new eviction.
+
+Still outstanding: the SIGTERM handler, deploying `excludeSpanTypes`, and
+heartbeat-based stall detection. Note also that the 406 restarts are not
+evenly spread: 342 of them fall on 2026-09-08 and 09, a crash loop restarting
+every two minutes, which is a different failure from the healthy-but-stalled
+case. The steady state is one to four a day.
+
+### Second confirmed instance: the 9709 study-PDF thread
+
+2026-09-07, Slack thread `C0A6C5F52BE:1788772979.535359`. Same signature, so
+this is a pattern rather than a one-off.
+
+```
+09:24:06Z (14:54 IST)  [chat] turn started, "download all the PDFs"
+09:27:03Z              health check failed (1/2)
+09:28:03Z              health check failed (2/2) -> restart
+09:29:33Z              "final-sigterm timed out. Killing." -> SIGKILL
+09:29:33Z              service restarted
+...70 minutes of nothing while the user waits and complains...
+10:36:59Z (16:06 IST)  a NEW turn runs for 113s and delivers the zip
+```
+
+The turn was killed five and a half minutes in, and left no trace. Its last
+words before the SIGKILL were the 2:56 PM note about switching to a
+dependency-free extractor. The user waited an hour, prompted again, and a
+fresh turn did the work in under two minutes.
+
+This also explains the apology in that thread. The restarted process reported
+"done in 1 minute 50 seconds" because from its point of view that is all the
+work took. It had no record that an earlier attempt had ever run.
+
+One difference from the 09-11 incident: this one reports `final-sigterm`
+rather than `stop-sigterm`, so it survived the main stop phase and hung in
+final cleanup. Same missing SIGTERM handler, same outcome.

@@ -5,7 +5,8 @@ import { logger } from '../lib/logger';
 import { attachments } from './attachments';
 import { slack } from './client';
 import { handleCommand } from './commands';
-import { rawText, withoutLeadingMentions } from './message';
+import { withHistory } from './history';
+import { isComment } from './message';
 import { offerOptIn } from './onboarding';
 import { threadState } from './state';
 
@@ -37,15 +38,6 @@ function isFromBot(message: Message): boolean {
   );
 }
 
-function isComment(message: Message): boolean {
-  for (const line of rawText(message).split('\n')) {
-    if (withoutLeadingMentions(line).trimStart().startsWith('##')) {
-      return true;
-    }
-  }
-  return false;
-}
-
 async function runTurn({
   defaultHandler,
   message,
@@ -67,7 +59,10 @@ async function runTurn({
     text: message.text,
   });
 
-  await defaultHandler(thread, attachments(message));
+  await defaultHandler(
+    thread,
+    await withHistory({ message: attachments(message), thread })
+  );
 }
 
 export async function onMention(
@@ -106,18 +101,11 @@ export async function onSubscribedMessage(
   if (!(isFollowingThread || message.isMention)) {
     return;
   }
-  // Onboarding was already offered on the first unauthorized mention
-  // (onMention); don't repeat the card for every subsequent message in a
-  // thread they still haven't opted into.
   if (!(await isUserAllowed(message.author.userId))) {
     return;
   }
   if (await handleCommand({ message, thread })) {
     return;
-  }
-  if (!isFollowingThread) {
-    // Force history backfill for one-off mid-thread mentions that Mastra already marked subscribed.
-    await thread.unsubscribe().catch(() => undefined);
   }
   await runTurn({ defaultHandler, message, thread });
 }

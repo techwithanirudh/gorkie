@@ -9,11 +9,11 @@ import { agent as config } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
 import { sandbox } from '../processors/sandbox';
+import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
 import * as explore from '../prompts/agents/explore';
 import { explorer } from '../providers';
 import { fetchUrlTool } from '../tools/fetch-url';
-import { grepTool } from '../tools/grep';
 import { searchWebTool } from '../tools/search-web';
 import { workspace } from '../workspace';
 
@@ -28,7 +28,6 @@ export const exploreAgent = new Agent({
   memory: new Memory({ storage: new InMemoryStore() }),
   workspace,
   tools: {
-    grep: grepTool,
     search_web: searchWebTool,
     fetch_url: fetchUrlTool,
   },
@@ -37,7 +36,7 @@ export const exploreAgent = new Agent({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
     }),
-    new ProviderHistoryCompat(),
+    new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
   ],
   defaultOptions: {
     activeTools: [

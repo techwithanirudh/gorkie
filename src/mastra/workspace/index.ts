@@ -18,17 +18,42 @@ import {
   EXECUTE_COMMAND,
   FILE_STAT,
   GET_PROCESS_OUTPUT,
+  GREP,
   KILL_PROCESS,
   LIST_FILES,
   READ_FILE,
   WRITE_FILE,
 } from './tool-names';
 
+const reached = new WeakSet<RequestContext>();
+
+export function usedSandbox(requestContext: RequestContext): boolean {
+  return reached.has(requestContext);
+}
+
+export async function requireSandbox(
+  requestContext: RequestContext
+): Promise<E2BSandbox> {
+  const sandbox = await getSandbox(requestContext);
+  if (!sandbox) {
+    throw new Error('No sandbox available.');
+  }
+  // Turn end pauses the sandbox but leaves it cached, so anything resolved on
+  // a later turn is paused. `retryOnDead` cannot recover that: a paused
+  // sandbox throws `SandboxNotReadyError`, which matches no dead-error branch.
+  await sandbox.ensureRunning();
+  return sandbox;
+}
+
 export async function getSandbox(
   requestContext: RequestContext
 ): Promise<E2BSandbox | undefined> {
   const sandbox = await workspace.resolveSandbox({ requestContext });
-  return sandbox instanceof E2BSandbox ? sandbox : undefined;
+  if (!(sandbox instanceof E2BSandbox)) {
+    return;
+  }
+  reached.add(requestContext);
+  return sandbox;
 }
 
 export { sandboxPath } from './path';
@@ -83,16 +108,13 @@ export const workspace: Workspace = new Workspace({
     [WORKSPACE_TOOLS.FILESYSTEM.DELETE]: { name: DELETE_FILE },
     [WORKSPACE_TOOLS.FILESYSTEM.FILE_STAT]: { name: FILE_STAT },
     [WORKSPACE_TOOLS.FILESYSTEM.MKDIR]: { enabled: false },
-    // The network-bound built-in grep hangs on large trees; use the ripgrep tool instead.
-    [WORKSPACE_TOOLS.FILESYSTEM.GREP]: { enabled: false },
+    [WORKSPACE_TOOLS.FILESYSTEM.GREP]: { name: GREP },
     [WORKSPACE_TOOLS.FILESYSTEM.AST_EDIT]: { enabled: false },
     [WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND]: { name: EXECUTE_COMMAND },
     [WORKSPACE_TOOLS.SANDBOX.GET_PROCESS_OUTPUT]: {
       name: GET_PROCESS_OUTPUT,
     },
     [WORKSPACE_TOOLS.SANDBOX.KILL_PROCESS]: { name: KILL_PROCESS },
-    // Registered unconditionally by createWorkspaceTools even though no LSP is
-    // configured here, so it would offer the model a tool that cannot work.
     [WORKSPACE_TOOLS.LSP.LSP_INSPECT]: { enabled: false },
   },
 });

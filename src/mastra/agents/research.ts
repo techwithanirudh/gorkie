@@ -9,6 +9,7 @@ import { agent as config } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
 import { sandbox } from '../processors/sandbox';
+import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
 import * as research from '../prompts/agents/research';
 import { slackToolPrompt } from '../prompts/slack';
@@ -22,13 +23,17 @@ export const researchAgent = new Agent({
   id: 'research',
   name: 'Research',
   description: research.description,
-  instructions: [research.prompt, slackToolPrompt, slackCodeModePrompt],
+  instructions: async () => [
+    research.prompt,
+    slackToolPrompt,
+    await slackCodeModePrompt(),
+  ],
   model: scout,
   errorProcessors: defaultErrorProcessors(),
   maxProcessorRetries: 2,
   memory: new Memory({ storage: new InMemoryStore() }),
-  tools: {
-    slack: slackCodeMode.tool,
+  tools: async () => ({
+    slack: (await slackCodeMode()).tool,
     search_web: searchWebTool,
     fetch_url: fetchUrlTool,
     search_slack: slackTools.search_slack,
@@ -37,13 +42,13 @@ export const researchAgent = new Agent({
     get_channel_info: slackTools.get_channel_info,
     get_permalink: slackTools.get_permalink,
     summarize_thread: slackTools.summarize_thread,
-  },
+  }),
   inputProcessors: [
     new TokenLimiterProcessor({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
     }),
-    new ProviderHistoryCompat(),
+    new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
   ],
   defaultOptions: {
     modelSettings: {

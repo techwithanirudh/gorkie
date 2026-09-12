@@ -20,17 +20,19 @@ import { defaultErrorProcessors } from '../lib/error-handling';
 import { logger } from '../lib/logger';
 import { stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
-import { clearStatus } from '../processors/clear-status';
 import { delegatedTools } from '../processors/delegated-tools';
 import { sandbox } from '../processors/sandbox';
+import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
 import { instructions } from '../prompts';
+import { githubStatusPrompt } from '../prompts/github';
 import {
   orchestrator as orchestratorModel,
   summarizer as summarizerModel,
 } from '../providers';
 import { workspaceCodeModePrompt } from '../tools/code-mode/slack';
+import { githubTools } from '../tools/github';
 import { deferredTools, orchestratorTools } from '../tools/toolsets';
 import { workspace } from '../workspace';
 import { exploreAgent } from './explore';
@@ -42,9 +44,17 @@ const orchestrator = new Agent({
   instructions: async ({ requestContext }) => {
     const messages = [
       ...instructions(requestContext),
-      { role: 'system' as const, content: workspaceCodeModePrompt },
+      { role: 'system' as const, content: await workspaceCodeModePrompt() },
     ];
-    const { userId } = channelContext(requestContext);
+    const { isDM, userId } = channelContext(requestContext);
+    const github = await githubStatusPrompt({
+      isDM: isDM === true,
+      requestContext,
+      userId,
+    });
+    if (github) {
+      messages.push({ role: 'system' as const, content: github });
+    }
     const userInstructions = userId
       ? await getInstructions(userId).catch((error: unknown) => {
           logger.debug('[orchestrator] failed to load user instructions', {
@@ -110,19 +120,32 @@ const orchestrator = new Agent({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
     }),
-    new ProviderHistoryCompat(),
+    new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
   ],
   outputProcessors: [
     delegatedTools,
     sandbox,
-    clearStatus,
     turnFooter,
     workingModel(config.id),
   ],
   tools: async ({ requestContext }) => {
-    const { userId } = channelContext(requestContext);
-    const userTools = userId ? await userMCPTools(userId) : {};
-    return { ...orchestratorTools, ...userTools };
+    const { channelId, isDM, threadId, userId } =
+      channelContext(requestContext);
+    const base = await orchestratorTools();
+    if (!userId) {
+      return base;
+    }
+    const [userTools, github] = await Promise.all([
+      userMCPTools({ threadId, userId }),
+      githubTools({
+        channelId,
+        isDM: isDM === true,
+        requestContext,
+        threadId,
+        userId,
+      }),
+    ]);
+    return { ...base, ...github, ...userTools };
   },
   agents: {
     research: researchAgent,
@@ -171,7 +194,7 @@ const orchestrator = new Agent({
           `*Oops, something went wrong.*\n\n> ${error.message}`,
       },
     },
-    threadContext: { maxMessages: 10 },
+    threadContext: { maxMessages: 0 },
     handlers: { onMention, onSubscribedMessage, onDirectMessage },
   },
 });

@@ -1,0 +1,190 @@
+--- a/dist/agent-CEHR0Wd8.js
++++ b/dist/agent-CEHR0Wd8.js
+@@ -19590,7 +19590,10 @@
+ 			continue;
+ 		}
+ 		if (chunk.type === "step-finish") {
+-			if (toolDisplay !== "grouped") await closeSession();
++			// A continued step (retry, in-place or fallback-model escalation) means the
++			// run is still alive: closing here would finalize the message early.
++			const stepIsContinued = chunk.payload?.stepResult?.isContinued === true;
++			if (toolDisplay !== "grouped" && !stepIsContinued) await closeSession();
+ 			continue;
+ 		}
+ 		if (chunk.type === "file") {
+@@ -20823,6 +20826,12 @@
+ 							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
+ 							return;
+ 						}
++						const approvalRequesterId = stashed?.requesterId;
++						const actingUserId = event.user?.userId;
++						if (approvalRequesterId && actingUserId && approvalRequesterId !== actingUserId) {
++							this.log("info", `Ignoring tool approval action from ${actingUserId}: only ${approvalRequesterId} may answer toolCallId=${toolCallId}`);
++							return;
++						}
+ 						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
+ 						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
+ 						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
+@@ -21315,7 +21324,7 @@
+ 			actor: message.author
+ 		});
+ 		requestContext.set("channel", channelContext);
+-		const renderContext = this._buildRenderContext(chatThread, platform);
++		const renderContext = this._buildRenderContext(chatThread, platform, void 0, message.author?.userId);
+ 		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
+ 		chatThread.subscribe().catch((err) => {
+ 			this.log("debug", "chatThread.subscribe failed", err);
+@@ -21377,14 +21386,17 @@
+ 	*
+ 	* @internal Used by `processChatMessage` and the approve/decline paths.
+ 	*/
+-	_buildRenderContext(chatThread, platform, approvalContext) {
++	_buildRenderContext(chatThread, platform, approvalContext, requesterId) {
+ 		const adapter = this.adapters[platform];
+ 		const adapterConfig = this.adapterConfigs[platform];
+ 		const streaming = this.resolveStreaming(adapterConfig?.streaming);
+ 		const { resolved: toolDisplay, fn: toolDisplayFn } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, streaming.enabled, adapterConfig?.cards, adapterConfig?.formatToolCall);
+ 		const typingGate = { active: false };
+ 		const onApprovalPosted = (toolCallId, record) => {
+-			this.pendingApprovalCards.set(toolCallId, record);
++			this.pendingApprovalCards.set(toolCallId, requesterId ? {
++				...record,
++				requesterId
++			} : record);
+ 		};
+ 		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
+ 		const takePendingApproval = (id) => {
+@@ -25626,6 +25638,16 @@
+ 						apiError: void 0,
+ 						deferredErrorChunk: void 0
+ 					});
++				} else if (activeFallbackModelIndex + 1 < models.length) {
++					// Stock only advances the fallback index when the model call throws.
++					// An error delivered as an in-band stream chunk returns normally, so
++					// without this the remaining models are never tried.
++					apiErrorRetryResult = { retry: true, advanceFallbackModel: true };
++					runState.setState({
++						hasErrored: false,
++						apiError: void 0,
++						deferredErrorChunk: void 0
++					});
+ 				}
+ 			}
+ 			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
+@@ -25646,7 +25668,11 @@
+ 				cleanupProviderToolSpans(true);
+ 				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
+ 				const steps = inputData.output?.steps || [];
+-				const nextProcessorRetryCount = currentProcessorRetryCount + 1;
++				const advancingFallbackModel = apiErrorRetryResult.advanceFallbackModel === true;
++				const nextFallbackModelIndex = advancingFallbackModel ? activeFallbackModelIndex + 1 : activeFallbackModelIndex;
++				// A model switch gets its own retry budget instead of inheriting the
++				// exhausted count from the model it is replacing.
++				const nextProcessorRetryCount = advancingFallbackModel ? 0 : currentProcessorRetryCount + 1;
+ 				const messages = {
+ 					all: messageList.get.all.aiV5.model(),
+ 					user: messageList.get.input.aiV5.model(),
+@@ -25674,7 +25700,7 @@
+ 					},
+ 					messages,
+ 					processorRetryCount: nextProcessorRetryCount,
+-					...activeFallbackModelIndex > 0 ? { fallbackModelIndex: activeFallbackModelIndex } : {}
++					...nextFallbackModelIndex > 0 ? { fallbackModelIndex: nextFallbackModelIndex } : {}
+ 				};
+ 			}
+ 			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
+--- a/dist/agent-BMi0F5ou.cjs
++++ b/dist/agent-BMi0F5ou.cjs
+@@ -19592,7 +19592,10 @@
+ 			continue;
+ 		}
+ 		if (chunk.type === "step-finish") {
+-			if (toolDisplay !== "grouped") await closeSession();
++			// A continued step (retry, in-place or fallback-model escalation) means the
++			// run is still alive: closing here would finalize the message early.
++			const stepIsContinued = chunk.payload?.stepResult?.isContinued === true;
++			if (toolDisplay !== "grouped" && !stepIsContinued) await closeSession();
+ 			continue;
+ 		}
+ 		if (chunk.type === "file") {
+@@ -20825,6 +20828,12 @@
+ 							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
+ 							return;
+ 						}
++						const approvalRequesterId = stashed?.requesterId;
++						const actingUserId = event.user?.userId;
++						if (approvalRequesterId && actingUserId && approvalRequesterId !== actingUserId) {
++							this.log("info", `Ignoring tool approval action from ${actingUserId}: only ${approvalRequesterId} may answer toolCallId=${toolCallId}`);
++							return;
++						}
+ 						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
+ 						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
+ 						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
+@@ -21317,7 +21326,7 @@
+ 			actor: message.author
+ 		});
+ 		requestContext.set("channel", channelContext);
+-		const renderContext = this._buildRenderContext(chatThread, platform);
++		const renderContext = this._buildRenderContext(chatThread, platform, void 0, message.author?.userId);
+ 		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
+ 		chatThread.subscribe().catch((err) => {
+ 			this.log("debug", "chatThread.subscribe failed", err);
+@@ -21379,14 +21388,17 @@
+ 	*
+ 	* @internal Used by `processChatMessage` and the approve/decline paths.
+ 	*/
+-	_buildRenderContext(chatThread, platform, approvalContext) {
++	_buildRenderContext(chatThread, platform, approvalContext, requesterId) {
+ 		const adapter = this.adapters[platform];
+ 		const adapterConfig = this.adapterConfigs[platform];
+ 		const streaming = this.resolveStreaming(adapterConfig?.streaming);
+ 		const { resolved: toolDisplay, fn: toolDisplayFn } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, streaming.enabled, adapterConfig?.cards, adapterConfig?.formatToolCall);
+ 		const typingGate = { active: false };
+ 		const onApprovalPosted = (toolCallId, record) => {
+-			this.pendingApprovalCards.set(toolCallId, record);
++			this.pendingApprovalCards.set(toolCallId, requesterId ? {
++				...record,
++				requesterId
++			} : record);
+ 		};
+ 		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
+ 		const takePendingApproval = (id) => {
+@@ -25628,6 +25640,16 @@
+ 						apiError: void 0,
+ 						deferredErrorChunk: void 0
+ 					});
++				} else if (activeFallbackModelIndex + 1 < models.length) {
++					// Stock only advances the fallback index when the model call throws.
++					// An error delivered as an in-band stream chunk returns normally, so
++					// without this the remaining models are never tried.
++					apiErrorRetryResult = { retry: true, advanceFallbackModel: true };
++					runState.setState({
++						hasErrored: false,
++						apiError: void 0,
++						deferredErrorChunk: void 0
++					});
+ 				}
+ 			}
+ 			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
+@@ -25648,7 +25670,11 @@
+ 				cleanupProviderToolSpans(true);
+ 				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
+ 				const steps = inputData.output?.steps || [];
+-				const nextProcessorRetryCount = currentProcessorRetryCount + 1;
++				const advancingFallbackModel = apiErrorRetryResult.advanceFallbackModel === true;
++				const nextFallbackModelIndex = advancingFallbackModel ? activeFallbackModelIndex + 1 : activeFallbackModelIndex;
++				// A model switch gets its own retry budget instead of inheriting the
++				// exhausted count from the model it is replacing.
++				const nextProcessorRetryCount = advancingFallbackModel ? 0 : currentProcessorRetryCount + 1;
+ 				const messages = {
+ 					all: messageList.get.all.aiV5.model(),
+ 					user: messageList.get.input.aiV5.model(),
+@@ -25676,7 +25702,7 @@
+ 					},
+ 					messages,
+ 					processorRetryCount: nextProcessorRetryCount,
+-					...activeFallbackModelIndex > 0 ? { fallbackModelIndex: activeFallbackModelIndex } : {}
++					...nextFallbackModelIndex > 0 ? { fallbackModelIndex: nextFallbackModelIndex } : {}
+ 				};
+ 			}
+ 			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {

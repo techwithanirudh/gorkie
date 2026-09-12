@@ -1,7 +1,8 @@
 import { logger } from '../../lib/logger';
 import { chat } from '../instance';
-import { registerCustomInstructions } from './custom-instructions';
-import { registerMCPServers } from './mcp-servers';
+import { registerGitHub } from './github';
+import { registerCustomInstructions } from './instructions';
+import { registerMCPServers } from './mcp';
 import { registerScheduledTasks } from './scheduled-tasks';
 import { publishHome } from './view';
 
@@ -12,6 +13,7 @@ export function registerAppHome(): void {
     )
   );
   registerCustomInstructions({ publishHome });
+  registerGitHub({ publishHome });
   registerMCPServers({ publishHome });
   registerScheduledTasks({ publishHome });
 }

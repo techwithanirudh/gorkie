@@ -17,6 +17,7 @@
     "ignoreUnknown": true,
     "includes": [
       "!node_modules",
+      "!drizzle",
       "!**/dist",
       "!**/.mastra",
       "!workspace",

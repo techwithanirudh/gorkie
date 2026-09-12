@@ -7,10 +7,14 @@ function unwrap(raw: string): string {
     const parsed = mastraErrorSchema.safeParse(JSON.parse(raw));
     return parsed.success ? parsed.data.message : raw;
   } catch {
-    // Not JSON, so the raw string is already the message.
     return raw;
   }
 }
+
+const oauthBody = z.object({
+  error_description: z.string().optional(),
+  error: z.string().optional(),
+});
 
 export function cleanMCPErrorMessage({
   serverName,
@@ -19,14 +23,37 @@ export function cleanMCPErrorMessage({
   serverName: string;
   raw: string;
 }): string {
-  // Everything after the first line is a stack trace.
-  const firstLine = unwrap(raw).split('\n')[0]?.trim() ?? raw;
+  const [firstLine] = unwrap(raw).split('\n');
+  let message = (firstLine ?? raw)
+    .replace(`Failed to connect to MCP server ${serverName}: `, '')
+    .replace('Error POSTing to endpoint: ', '')
+    .trim();
 
-  // The server name is already shown alongside this message in the UI.
-  const prefix = `Failed to connect to MCP server ${serverName}: `;
-  const message = firstLine.startsWith(prefix)
-    ? firstLine.slice(prefix.length)
-    : firstLine;
+  const parts = message.split(': ');
+  while (parts.length > 1 && parts[0]?.endsWith('Error')) {
+    parts.shift();
+  }
+  message = parts.join(': ');
 
-  return message.length > 300 ? `${message.slice(0, 300)}…` : message;
+  const brace = message.indexOf('{');
+  if (brace !== -1) {
+    const described = unwrapOAuth(message.slice(brace));
+    if (described) {
+      message = described;
+    }
+  }
+
+  const sentence = message.charAt(0).toUpperCase() + message.slice(1);
+  return sentence.length > 200 ? `${sentence.slice(0, 200)}…` : sentence;
+}
+
+function unwrapOAuth(body: string): string | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return;
+  }
+  const fields = oauthBody.safeParse(parsed).data;
+  return fields?.error_description ?? fields?.error;
 }

@@ -1,11 +1,10 @@
+import { join } from 'node:path';
 import { Mastra } from '@mastra/core/mastra';
+import { SpanType } from '@mastra/core/observability';
 import { MastraCompositeStore } from '@mastra/core/storage';
 import { DuckDBStore } from '@mastra/duckdb';
-import {
-  MastraPlatformExporter,
-  MastraStorageExporter,
-  Observability,
-} from '@mastra/observability';
+import { LangfuseExporter } from '@mastra/langfuse';
+import { MastraStorageExporter, Observability } from '@mastra/observability';
 import { env } from '@/env';
 import { exploreAgent as explore } from './agents/explore';
 import orchestrator from './agents/orchestrator';
@@ -17,6 +16,8 @@ import { setMastra } from './chat/mastra-instance';
 import { createTables, postgresStore } from './db';
 import { buildAllowlist } from './lib/allowed-users';
 import { logger } from './lib/logger';
+import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
+import { slackIdentity } from './observability/slack-identity';
 
 process.on('unhandledRejection', (err: unknown) => {
   logger.error('[process] unhandled rejection', { err });
@@ -43,22 +44,57 @@ export const mastra = new Mastra({
         id: 'composite-storage',
         default: postgresStore,
         domains: {
+          // Anchored to the repo root, not cwd: a bare relative path lands
+          // under `src/mastra/public/`, which `mastra build` copies as a
+          // static asset, and the file reaches gigabytes.
           observability: await new DuckDBStore({
-            path: './observability.duckdb',
+            path: join(env.PROJECT_ROOT, 'observability.duckdb'),
           }).getStore('observability'),
         },
       }),
   observability: new Observability({
     configs: {
       default: {
+        // Dropped in the span constructor, before `deepClean` copies the
+        // payload and before the span holds a reference to it for the rest of
+        // the trace. `customSpanFormatter` cannot substitute: it runs at
+        // export, long after the allocation it would need to prevent.
+        //
+        // A run is readable from `agent_run`, `model_inference` and
+        // `tool_call` alone. `processor_run` is two thirds of all spans and
+        // each one re-records the entire message array, so keeping them costs
+        // a copy of the conversation per processor per step, on a 2GB host
+        // that OOM-killed itself on 2026-09-12. `model_generation` and
+        // `model_step` are brackets around `model_inference` and carry no
+        // content of their own, and `mapping` is step-to-step plumbing.
+        // Together the four are 80% of spans. What this gives up is
+        // per-processor latency and the retry-processor spans that explained
+        // the largest traces.
+        excludeSpanTypes: [
+          SpanType.MAPPING,
+          SpanType.MODEL_GENERATION,
+          SpanType.MODEL_STEP,
+          SpanType.PROCESSOR_RUN,
+        ],
         serviceName: 'orchestrator',
         exporters: [
           ...(isProduction ? [] : [new MastraStorageExporter()]),
-          new MastraPlatformExporter({
-            accessToken: env.MASTRA_PLATFORM_ACCESS_TOKEN,
-            projectId: env.MASTRA_PROJECT_ID,
-          }),
+          ...(env.LANGFUSE_PUBLIC_KEY && env.LANGFUSE_SECRET_KEY
+            ? [
+                new LangfuseFeedbackExporter(),
+                new LangfuseExporter({
+                  baseUrl: env.LANGFUSE_BASE_URL,
+                  // Without this, `bun dev` traces land on top of production
+                  // in the same project.
+                  environment: env.NODE_ENV,
+                  publicKey: env.LANGFUSE_PUBLIC_KEY,
+                  realtime: !isProduction,
+                  secretKey: env.LANGFUSE_SECRET_KEY,
+                }),
+              ]
+            : []),
         ],
+        spanOutputProcessors: [slackIdentity],
       },
     },
   }),
