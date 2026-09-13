@@ -9,7 +9,6 @@ import {
 } from '@mastra/core/workspace';
 import { E2BSandbox } from '@mastra/e2b';
 import { sandbox as config } from '../config';
-import { threadHasBackgroundTask } from '../lib/background-tasks';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
 import { E2BFilesystem } from './filesystem';
@@ -75,11 +74,6 @@ export async function pauseSandbox(
     return;
   }
   const { threadId } = channelContext(requestContext);
-  // Don't freeze the box out from under a background job actively running on
-  // this thread; run_background keeps it alive itself and finishes on its own.
-  if (threadId && (await threadHasBackgroundTask(threadId))) {
-    return;
-  }
   try {
     const sandbox = await getSandbox(requestContext);
     await sandbox?.retryOnDead(() => sandbox.e2b.pause());

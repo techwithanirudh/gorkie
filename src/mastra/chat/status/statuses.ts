@@ -128,12 +128,6 @@ export const statuses: Record<string, (args: Args) => string> = {
       : 'is reading a file…';
   },
   resume_scheduled_task: () => 'is resuming a scheduled task…',
-  run_background: (args) => {
-    const reason = str(args, 'reason');
-    return reason
-      ? fit('is starting a background job: ', reason, '…')
-      : 'is starting a background job…';
-  },
   search_slack: (args) => {
     const query = str(args, 'query');
     return query
