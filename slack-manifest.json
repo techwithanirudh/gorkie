@@ -59,7 +59,8 @@
         "users.profile:read",
         "users:read",
         "users:read.email"
-      ]
+      ],
+      "user": ["search:read.public"]
     },
     "pkce_enabled": false
   },

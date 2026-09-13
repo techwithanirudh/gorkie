@@ -5,7 +5,6 @@ import type { ThreadState } from '../types';
 const threadStateSchema = z.looseObject({
   lastSeenMessage: z.string().optional(),
   respondOnThreadMessages: z.boolean().optional(),
-  searchToken: z.string().optional(),
 });
 
 export async function threadState(

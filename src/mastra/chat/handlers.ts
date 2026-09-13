@@ -1,5 +1,4 @@
 import type { Message, Thread } from 'chat';
-import { z } from 'zod';
 import { isUserAllowed } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
 import { attachments } from './attachments';
@@ -11,24 +10,6 @@ import { offerOptIn } from './onboarding';
 import { threadState } from './state';
 
 type DefaultHandler = (thread: Thread, message: Message) => Promise<void>;
-
-const actionTokenSchema = z.looseObject({
-  action_token: z.string().min(1).optional(),
-});
-
-async function captureSearchToken({
-  raw,
-  thread,
-}: {
-  raw: unknown;
-  thread: Thread;
-}): Promise<void> {
-  const parsed = actionTokenSchema.safeParse(raw);
-  const searchToken = parsed.success ? parsed.data.action_token : undefined;
-  if (searchToken) {
-    await thread.setState({ searchToken });
-  }
-}
 
 function isFromBot(message: Message): boolean {
   return (
@@ -70,7 +51,6 @@ export async function onMention(
   message: Message,
   defaultHandler: DefaultHandler
 ): Promise<void> {
-  await captureSearchToken({ raw: message.raw, thread });
   if (isFromBot(message)) {
     return;
   }
@@ -92,7 +72,6 @@ export async function onSubscribedMessage(
   message: Message,
   defaultHandler: DefaultHandler
 ): Promise<void> {
-  await captureSearchToken({ raw: message.raw, thread });
   if (isFromBot(message) || isComment(message)) {
     return;
   }
@@ -115,7 +94,6 @@ export async function onDirectMessage(
   message: Message,
   defaultHandler: DefaultHandler
 ): Promise<void> {
-  await captureSearchToken({ raw: message.raw, thread });
   if (isFromBot(message)) {
     return;
   }

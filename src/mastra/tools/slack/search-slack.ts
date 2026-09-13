@@ -3,13 +3,10 @@ import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
-import { threadState } from '../../chat/state';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
-
-const identitySchema = z.enum(['requester', 'workspace']);
 
 const contextMessageSchema = z
   .looseObject({
@@ -81,15 +78,10 @@ const slackErrorSchema = z.looseObject({
 
 type SearchResponse = z.infer<typeof searchResponseSchema>;
 
-let verifiedFallbackToken: string | undefined;
+let verifiedToken: string | undefined;
 
-/**
- * Verify that the configured fallback search token is scoped to public
- * channels only, refusing to run a workspace search with a token that can
- * read DMs or private channels. Checks once per process and token.
- */
-async function assertPublicOnlyFallback(token: string): Promise<void> {
-  if (verifiedFallbackToken === token) {
+async function assertPublicOnly(token: string): Promise<void> {
+  if (verifiedToken === token) {
     return;
   }
   const auth = authTestSchema.parse(
@@ -98,7 +90,7 @@ async function assertPublicOnlyFallback(token: string): Promise<void> {
   const scopes = auth.response_metadata?.scopes;
   if (!scopes) {
     throw new Error(
-      'Slack did not report the scopes on SLACK_SEARCH_USER_TOKEN, so gorkie cannot confirm it is limited to public channels. Workspace search is disabled until it can.'
+      'Slack did not report the scopes on SLACK_USER_TOKEN, so gorkie cannot confirm it is limited to public channels. Workspace search is disabled until it can.'
     );
   }
   const overreach = scopes.filter((scope) =>
@@ -108,35 +100,28 @@ async function assertPublicOnlyFallback(token: string): Promise<void> {
   );
   if (overreach.length > 0) {
     throw new Error(
-      `SLACK_SEARCH_USER_TOKEN grants ${overreach.join(', ')}, which can read DMs and private channels. Reissue it with search:read.public only.`
+      `SLACK_USER_TOKEN grants ${overreach.join(', ')}, which can read DMs and private channels. Reissue it with search:read.public only.`
     );
   }
   if (!scopes.includes('search:read.public')) {
     throw new Error(
-      'SLACK_SEARCH_USER_TOKEN is missing search:read.public, so workspace search would only fail later. Reissue it with search:read.public.'
+      'SLACK_USER_TOKEN is missing search:read.public, so workspace search would only fail later. Reissue it with search:read.public.'
     );
   }
-  verifiedFallbackToken = token;
+  verifiedToken = token;
 }
 
-/**
- * Run one assistant.search.context call against Slack, pinned to public
- * channels and message content, and return the parsed response page.
- */
 async function runSearch({
-  actionToken,
   cursor,
   query,
   token,
 }: {
-  actionToken?: string;
   cursor?: string;
   query: string;
   token: string;
 }): Promise<SearchResponse> {
   return searchResponseSchema.parse(
     await slack.webClient.apiCall('assistant.search.context', {
-      action_token: actionToken,
       // Slack reads these as comma-separated strings. WebClient JSON-encodes an
       // array, which Slack then ignores, and an ignored channel_types silently
       // reopens DMs and private channels to whatever the token can reach.
@@ -151,18 +136,11 @@ async function runSearch({
   );
 }
 
-/**
- * Reduce a raw search page to messages in channels gorkie can confirm are
- * workspace-visible right now, trim context text, and stamp the next cursor
- * with the identity that produced the page.
- */
 async function toOutput({
   response,
-  searchedAs,
   threadId,
 }: {
   response: SearchResponse;
-  searchedAs: z.infer<typeof identitySchema>;
   threadId?: string;
 }) {
   const messages = response.results?.messages ?? [];
@@ -234,51 +212,14 @@ async function toOutput({
         },
       ];
     }),
-    nextCursor: response.response_metadata?.next_cursor
-      ? `${searchedAs}:${response.response_metadata.next_cursor}`
-      : undefined,
-    searchedAs,
+    nextCursor: response.response_metadata?.next_cursor,
   };
-}
-
-/**
- * Search through the workspace-wide public identity. Requires a live message
- * in the thread (the borrowed identity never runs on scheduled or unattended
- * turns) and a fallback token that passes the public-scope check.
- */
-async function workspaceSearch({
-  cursor,
-  messageId,
-  query,
-  threadId,
-  token,
-}: {
-  cursor?: string;
-  messageId?: string;
-  query: string;
-  threadId?: string;
-  token: string;
-}) {
-  // The workspace token searches as a real person, so it only runs while a
-  // live message puts someone in the turn. Scheduled and App Home runs must
-  // never borrow that identity.
-  if (!messageId) {
-    throw new Error(
-      'Slack search needs a live message in this thread. gorkie does not borrow the workspace search identity on scheduled or unattended runs. Ask the user to mention the bot, then search again.'
-    );
-  }
-  await assertPublicOnlyFallback(token);
-  return toOutput({
-    response: await runSearch({ cursor, query, token }),
-    searchedAs: 'workspace',
-    threadId,
-  });
 }
 
 export const searchSlackTool = createTool({
   id: 'search_slack',
   description:
-    'Run one Slack message search for past conversations, decisions, links, people, or internal references. Use Slack search syntax to narrow by keywords, names, channels, senders, or dates. Public channels only: DMs, private channels, and Slack Connect conversations are never searched. This returns one result page with short surrounding context. Use Slack code mode when the task needs multiple queries, exhaustive pagination, filtering, aggregation, or full conversation reads. Search normally runs as the person who mentioned the bot, and falls back to a workspace-wide public search when that token expires, so it needs a live message in the thread either way.',
+    'Run one Slack message search for past conversations, decisions, links, people, or internal references. Use Slack search syntax to narrow by keywords, names, channels, senders, or dates. Public channels only: DMs, private channels, and Slack Connect conversations are never searched. This returns one result page with short surrounding context. Use Slack code mode when the task needs multiple queries, exhaustive pagination, filtering, aggregation, or full conversation reads. Search runs as the workspace-wide public identity, so it needs a live message in the thread and never runs on scheduled or unattended turns.',
   inputSchema: input({
     query: z
       .string()
@@ -306,9 +247,6 @@ export const searchSlackTool = createTool({
       })
     ),
     nextCursor: z.string().optional(),
-    searchedAs: identitySchema.describe(
-      'Whose view produced these results: the person who mentioned the bot, or the workspace-wide public search identity.'
-    ),
   }),
   transform: {
     display: {
@@ -317,94 +255,19 @@ export const searchSlackTool = createTool({
       }),
     },
   },
-  /**
-   * Run the search as the person who mentioned the bot while their search
-   * token is live, keeping pagination pinned to the identity that issued the
-   * cursor and falling back to the workspace identity when the token expires.
-   */
   execute: async ({ query, cursor }, context) => {
     spendSlackCall(context?.requestContext);
     const { messageId, threadId } = channelContext(context?.requestContext);
-    const thread = threadId ? chat().thread(threadId) : undefined;
-    const actionToken = (await threadState(thread))?.searchToken;
-    const fallbackToken = env.SLACK_SEARCH_USER_TOKEN;
-
-    const separator = cursor ? cursor.indexOf(':') : -1;
-    const pinned = cursor
-      ? identitySchema.safeParse(
-          separator > 0 ? cursor.slice(0, separator) : ''
-        )
-      : undefined;
-    if (cursor && !pinned?.success) {
+    if (!messageId) {
       throw new Error(
-        'That cursor did not come from search_slack. Run the search again without a cursor.'
+        'Slack search needs a live message in this thread. gorkie does not run the workspace search identity on scheduled or unattended runs. Ask the user to mention the bot, then search again.'
       );
     }
-    // A cursor is only meaningful to the identity that issued it, so pagination
-    // stays pinned to that identity instead of silently resuming as someone else.
-    const identity = pinned?.success ? pinned.data : undefined;
-    const slackCursor = cursor?.slice(separator + 1);
-
-    if (identity === 'workspace') {
-      return workspaceSearch({
-        cursor: slackCursor,
-        messageId,
-        query,
-        threadId,
-        token: fallbackToken,
-      });
-    }
-
-    if (!(thread && actionToken)) {
-      if (identity) {
-        throw new Error(
-          'The Slack search token behind that result page expired. Run the search again without a cursor.'
-        );
-      }
-      return workspaceSearch({
-        messageId,
-        query,
-        threadId,
-        token: fallbackToken,
-      });
-    }
-
-    try {
-      return await toOutput({
-        response: await runSearch({
-          actionToken,
-          cursor: slackCursor,
-          query,
-          token: env.SLACK_BOT_TOKEN,
-        }),
-        searchedAs: 'requester',
-        threadId,
-      });
-    } catch (error) {
-      const parsed = slackErrorSchema.safeParse(error);
-      const code = parsed.success ? parsed.data.data?.error : undefined;
-      const reason = String(error);
-      const tokenFailure =
-        code === 'invalid_action_token' ||
-        code === 'token_expired' ||
-        reason.includes('invalid_action_token') ||
-        reason.includes('token_expired');
-      if (!tokenFailure) {
-        throw error;
-      }
-      await thread.setState({ searchToken: undefined });
-      if (cursor) {
-        throw new Error(
-          'The Slack search token expired part way through this result set. Run the search again without a cursor.',
-          { cause: error }
-        );
-      }
-      return workspaceSearch({
-        messageId,
-        query,
-        threadId,
-        token: fallbackToken,
-      });
-    }
+    const token = env.SLACK_USER_TOKEN;
+    await assertPublicOnly(token);
+    return toOutput({
+      response: await runSearch({ cursor, query, token }),
+      threadId,
+    });
   },
 });

@@ -104,7 +104,7 @@ local database named `gorkie`. Mastra creates its tables on first run.
 |---|---|---|
 | `SLACK_BOT_TOKEN` | yes | Bot User OAuth token (`xoxb-…`) |
 | `SLACK_APP_TOKEN` | yes | App-level token with `connections:write` (`xapp-…`) |
-| `SLACK_SEARCH_USER_TOKEN` | yes | Slack user token, not the bot token, used for public-channel search after the bot's ephemeral search token expires. Mint it with `search:read.public` only; gorkie verifies the granted scopes on first use and refuses the token if it also carries `search:read.im`, `search:read.mpim`, or `search:read.private` |
+| `SLACK_USER_TOKEN` | yes | Slack user token, not the bot token, used for public-channel search. Mint it with `search:read.public` only; gorkie verifies the granted scopes on first use and refuses the token if it also carries `search:read.im`, `search:read.mpim`, or `search:read.private`. See [docs/slack-search.md](docs/slack-search.md) |
 | `OPT_IN_CHANNEL` | no | Slack channel id gating access to members only (opt-in allowlist); unset means everyone is allowed |
 | `HACKCLUB_API_KEY` | yes | Hack Club AI proxy key, tried for every model |
 | `OPENCODE_API_KEY` | yes | opencode.ai/zen gateway key, tried alongside Hack Club |
