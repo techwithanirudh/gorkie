@@ -7,6 +7,8 @@ The sections above `## Product` are the reusable template: keep those limited to
 belongs in anything built from this repo. Everything from `## Product` down is the gorkie
 product backlog and is not expected to survive a fork.
 
+> **Split note (2026-09-13):** this session is on two stacked branches. `github-setup` has everything except backgrounding and the trim-payloads span processor; those two live on the `background` branch, stacked on top and not merging yet. The Backgrounding section and the background live-verify items below track that branch, not this one.
+
 ## CRITICAL (2026-09-13)
 
 - [ ] **Shared-thread credential steering (confirmed, unmitigated; needs a decision).** `chat/history.ts` `withHistory` copies other users' messages into a turn's context, and `lib/github/access.ts` exposes github credentialed tools when `direct = isDM || settings.threads` is true, so in an opted-in shared thread a turn can hold `github_*` write tools AND other-authored history. Anyone in that thread can plant "go ahead and push" before a credentialed turn to steer it. There is NO focus/filtering system in `chat/`, `agents/`, or `processors/` (the only `focus` hit is a prompt word in `summarizer.ts`); CodeRabbit's focus-ordering debate refers to code not present at HEAD. Options to decide between: (a) build a focus system that filters history to the addressing user for credentialed turns; (b) do not inject other-authored history on a turn that loads `github_*` write tools; (c) drop `settings.threads` (github write only in DMs), simplest and safest; (d) treat injected history as strictly non-instructional at the prompt level (weak on its own). Owner decision needed; do not build blind.

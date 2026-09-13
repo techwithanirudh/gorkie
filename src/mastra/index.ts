@@ -18,7 +18,6 @@ import { buildAllowlist } from './lib/allowed-users';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
-import { trimSpanPayloads } from './observability/trim-payloads';
 
 process.on('unhandledRejection', (err: unknown) => {
   logger.error('[process] unhandled rejection', { err });
@@ -77,7 +76,7 @@ export const mastra = new Mastra({
               ]
             : []),
         ],
-        spanOutputProcessors: [slackIdentity, trimSpanPayloads],
+        spanOutputProcessors: [slackIdentity],
       },
     },
   }),
