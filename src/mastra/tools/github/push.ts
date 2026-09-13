@@ -1,9 +1,10 @@
 import { createTool } from '@mastra/core/tools';
 import { sandbox as sandboxConfig } from '../../config';
 import { sh } from '../../lib/utils';
+import { branchSchema, repositorySchema } from '../../types';
 import { input } from '../../types/tools/index';
 import { requireSandbox } from '../../workspace';
-import { branchSchema, git, repositorySchema, withCredential } from './git';
+import { git, withCredential } from './git';
 
 export const pushTool = ({
   approval,

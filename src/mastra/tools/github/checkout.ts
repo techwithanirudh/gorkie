@@ -4,9 +4,10 @@ import { channelContext } from '../../lib/context';
 import { githubAccess, githubAccessToken } from '../../lib/github';
 import { repoAccess } from '../../lib/github/api';
 import { sh } from '../../lib/utils';
+import { branchSchema, repositorySchema } from '../../types';
 import { input } from '../../types/tools/index';
 import { requireSandbox } from '../../workspace';
-import { branchSchema, git, repositorySchema, withCredential } from './git';
+import { git, withCredential } from './git';
 
 export const checkoutTool = ({
   approval,

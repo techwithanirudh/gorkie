@@ -11,7 +11,28 @@ export type GitHubPermission = (typeof GITHUB_PERMISSIONS)[number];
 
 export const githubPermissionSchema = z.enum(GITHUB_PERMISSIONS).catch('all');
 
-export interface Repository {
-  name: string;
-  owner: string;
-}
+export const repositorySchema = z
+  .string()
+  .regex(
+    /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/,
+    'Expected "owner/repo".'
+  )
+  .refine(
+    (value) => !['.', '..'].includes(value.split('/')[1]),
+    'Expected "owner/repo".'
+  );
+
+export const branchSchema = z
+  .string()
+  .regex(
+    /^[A-Za-z0-9](?:[A-Za-z0-9._/-]*[A-Za-z0-9])?$/,
+    'Not a valid branch name.'
+  )
+  .refine(
+    (value) => !(value.includes('..') || value.includes('//')),
+    'Not a valid branch name.'
+  )
+  .refine(
+    (value) => !(value.startsWith('refs/') || value === 'HEAD'),
+    'Pass the branch name without a refs/ prefix.'
+  );

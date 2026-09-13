@@ -1,36 +1,9 @@
 import type { E2BSandbox } from '@mastra/e2b';
 import { CommandExitError } from 'e2b';
-import { z } from 'zod';
 import { sandbox as sandboxConfig } from '../../config';
 import { githubAccessToken } from '../../lib/github';
 import { logger } from '../../lib/logger';
 import { baseRules } from '../../workspace/network';
-
-export const repositorySchema = z
-  .string()
-  .regex(
-    /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/,
-    'Expected "owner/repo".'
-  )
-  .refine(
-    (value) => !['.', '..'].includes(value.split('/')[1]),
-    'Expected "owner/repo".'
-  );
-
-export const branchSchema = z
-  .string()
-  .regex(
-    /^[A-Za-z0-9](?:[A-Za-z0-9._/-]*[A-Za-z0-9])?$/,
-    'Not a valid branch name.'
-  )
-  .refine(
-    (value) => !(value.includes('..') || value.includes('//')),
-    'Not a valid branch name.'
-  )
-  .refine(
-    (value) => !(value.startsWith('refs/') || value === 'HEAD'),
-    'Pass the branch name without a refs/ prefix.'
-  );
 
 export const git = async ({
   command,
