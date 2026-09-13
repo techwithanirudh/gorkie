@@ -1,8 +1,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
-import { threadState } from '../../chat/state';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
@@ -10,6 +10,7 @@ import { input, output } from '../../types/tools/index';
 
 const contextMessageSchema = z
   .looseObject({
+    channel_id: z.string().optional(),
     text: z.string().optional(),
     ts: z.string().optional(),
     user_id: z.string().optional(),
@@ -18,6 +19,9 @@ const contextMessageSchema = z
     text: message.text ?? '',
     ts: message.ts,
     userId: message.user_id,
+    channelId: message.channel_id
+      ? chatChannelId(message.channel_id)
+      : undefined,
   }));
 
 const searchResponseSchema = z.looseObject({
@@ -52,12 +56,8 @@ const searchResponseSchema = z.looseObject({
                 : undefined,
               channelName: message.channel_name,
               text: (message.content ?? '').slice(0, 1200),
-              before: (message.context_messages?.before ?? [])
-                .slice(-3)
-                .map((item) => item.text.slice(0, 400)),
-              after: (message.context_messages?.after ?? [])
-                .slice(0, 3)
-                .map((item) => item.text.slice(0, 400)),
+              before: (message.context_messages?.before ?? []).slice(-3),
+              after: (message.context_messages?.after ?? []).slice(0, 3),
               permalink: message.permalink,
             }))
         )
@@ -66,10 +66,160 @@ const searchResponseSchema = z.looseObject({
     .optional(),
 });
 
+const authTestSchema = z.looseObject({
+  response_metadata: z
+    .looseObject({ scopes: z.array(z.string()).optional() })
+    .optional(),
+});
+
+const slackErrorSchema = z.looseObject({
+  data: z.looseObject({ error: z.string().optional() }).optional(),
+});
+
+type SearchResponse = z.infer<typeof searchResponseSchema>;
+
+let verifiedToken: string | undefined;
+
+async function assertPublicOnly(token: string): Promise<void> {
+  if (verifiedToken === token) {
+    return;
+  }
+  const auth = authTestSchema.parse(
+    await slack.webClient.apiCall('auth.test', { token })
+  );
+  const scopes = auth.response_metadata?.scopes;
+  if (!scopes) {
+    throw new Error(
+      'Slack did not report the scopes on SLACK_USER_TOKEN, so gorkie cannot confirm it is limited to public channels. Workspace search is disabled until it can.'
+    );
+  }
+  const overreach = scopes.filter((scope) =>
+    ['search:read.im', 'search:read.mpim', 'search:read.private'].includes(
+      scope
+    )
+  );
+  if (overreach.length > 0) {
+    throw new Error(
+      `SLACK_USER_TOKEN grants ${overreach.join(', ')}, which can read DMs and private channels. Reissue it with search:read.public only.`
+    );
+  }
+  if (!scopes.includes('search:read.public')) {
+    throw new Error(
+      'SLACK_USER_TOKEN is missing search:read.public, so workspace search would only fail later. Reissue it with search:read.public.'
+    );
+  }
+  verifiedToken = token;
+}
+
+async function runSearch({
+  cursor,
+  query,
+  token,
+}: {
+  cursor?: string;
+  query: string;
+  token: string;
+}): Promise<SearchResponse> {
+  return searchResponseSchema.parse(
+    await slack.webClient.apiCall('assistant.search.context', {
+      // Slack reads these as comma-separated strings. WebClient JSON-encodes an
+      // array, which Slack then ignores, and an ignored channel_types silently
+      // reopens DMs and private channels to whatever the token can reach.
+      channel_types: 'public_channel',
+      content_types: 'messages',
+      cursor,
+      include_context_messages: true,
+      limit: 10,
+      query,
+      token,
+    })
+  );
+}
+
+async function toOutput({
+  response,
+  threadId,
+}: {
+  response: SearchResponse;
+  threadId?: string;
+}) {
+  const messages = response.results?.messages ?? [];
+  const channelIds = new Set<string>();
+  for (const message of messages) {
+    if (message.channelId) {
+      channelIds.add(message.channelId);
+    }
+    for (const item of [...message.before, ...message.after]) {
+      const channelId = item.channelId ?? message.channelId;
+      if (channelId) {
+        channelIds.add(channelId);
+      }
+    }
+  }
+
+  const lookupVisibility = async (channelId: string) => {
+    if (threadId && channelId === chatChannelId(threadId)) {
+      return channelId;
+    }
+    try {
+      const metadata = await chat().channel(channelId).fetchMetadata();
+      return metadata.channelVisibility === 'workspace' ? channelId : undefined;
+    } catch (error) {
+      // A channel gorkie cannot look up is not readable. Anything else, a
+      // rate limit above all, has to fail the search instead of quietly
+      // shrinking it into a confident "nothing found".
+      const parsed = slackErrorSchema.safeParse(error);
+      if (parsed.success && parsed.data.data?.error === 'channel_not_found') {
+        return;
+      }
+      throw error;
+    }
+  };
+  // Bounded in small batches: one unbounded Promise.all can fire enough
+  // parallel fetchMetadata calls to trip Slack rate limits. No caching, on
+  // purpose - visibility is the privacy gate for these results, and a stale
+  // "workspace" entry would leak a channel that later went private.
+  const visibilityBatchSize = 4;
+  const ids = [...channelIds];
+  const resolved: Array<string | undefined> = [];
+  for (let index = 0; index < ids.length; index += visibilityBatchSize) {
+    resolved.push(
+      // biome-ignore lint/performance/noAwaitInLoops: batches are sequential on purpose - that is what bounds the concurrency.
+      ...(await Promise.all(
+        ids.slice(index, index + visibilityBatchSize).map(lookupVisibility)
+      ))
+    );
+  }
+  const readable = new Set(
+    resolved.filter((channelId) => channelId !== undefined)
+  );
+
+  return {
+    messages: messages.flatMap((message) => {
+      const { channelId } = message;
+      if (!(channelId && readable.has(channelId))) {
+        return [];
+      }
+      const contextText = (items: typeof message.before) =>
+        items
+          .filter((item) => readable.has(item.channelId ?? channelId))
+          .map((item) => item.text.slice(0, 400));
+      return [
+        {
+          ...message,
+          before: contextText(message.before),
+          after: contextText(message.after),
+        },
+      ];
+    }),
+    nextCursor: response.response_metadata?.next_cursor,
+  };
+}
+
 export const searchSlackTool = createTool({
   id: 'search_slack',
   description:
-    'Run one Slack message search for past conversations, decisions, links, people, or internal references. Use Slack search syntax to narrow by keywords, names, channels, senders, or dates. The search token expires roughly two minutes into the turn, so run all needed Slack searches early and batch them before other work. This returns one result page with short surrounding context. Use Slack code mode when the task needs multiple queries, exhaustive pagination, filtering, aggregation, or full conversation reads. Search requires a fresh token from an @mention.',
+    'Run one Slack message search for past conversations, decisions, links, people, or internal references. Use Slack search syntax to narrow by keywords, names, channels, senders, or dates. Public channels only: DMs, private channels, and Slack Connect conversations are never searched. This returns one result page with short surrounding context. Use Slack code mode when the task needs multiple queries, exhaustive pagination, filtering, aggregation, or full conversation reads. Search runs as the workspace-wide public identity, so it needs a live message in the thread and never runs on scheduled or unattended turns.',
   inputSchema: input({
     query: z
       .string()
@@ -81,7 +231,7 @@ export const searchSlackTool = createTool({
     cursor: z
       .string()
       .optional()
-      .describe('Cursor from a previous result page.'),
+      .describe('Cursor from a previous result page, passed back unchanged.'),
   }),
   outputSchema: output({
     messages: z.array(
@@ -100,54 +250,24 @@ export const searchSlackTool = createTool({
   }),
   transform: {
     display: {
-      output: ({ input, output }) => ({
-        summary: `Found ${output?.messages.length ?? 0} Slack messages for "${input?.query ?? ''}"`,
+      output: ({ input: args, output: result }) => ({
+        summary: `Found ${result?.messages.length ?? 0} Slack messages for "${args?.query ?? ''}"`,
       }),
     },
   },
   execute: async ({ query, cursor }, context) => {
     spendSlackCall(context?.requestContext);
-    const { threadId } = channelContext(context?.requestContext);
-    const thread = threadId ? chat().thread(threadId) : undefined;
-    const state = await threadState(thread);
-    const token = state?.searchToken;
-    if (!(thread && token)) {
+    const { messageId, threadId } = channelContext(context?.requestContext);
+    if (!messageId) {
       throw new Error(
-        'No fresh Slack search token for this thread. Ask the user to mention the bot in a new message, then search again.'
+        'Slack search needs a live message in this thread. gorkie does not run the workspace search identity on scheduled or unattended runs. Ask the user to mention the bot, then search again.'
       );
     }
-
-    let response: z.infer<typeof searchResponseSchema>;
-    try {
-      response = searchResponseSchema.parse(
-        await slack.webClient.apiCall('assistant.search.context', {
-          action_token: token,
-          content_types: ['messages'],
-          cursor,
-          include_context_messages: true,
-          limit: 10,
-          query,
-        })
-      );
-    } catch (error) {
-      const reason = String(error);
-      if (
-        reason.includes('invalid_action_token') ||
-        reason.includes('token_expired')
-      ) {
-        await thread.setState({ searchToken: undefined });
-        throw new Error(
-          'The Slack search token expired. Ask the user to mention the bot in a new message, then search again.',
-          { cause: error }
-        );
-      }
-      throw error;
-    }
-
-    const messages = response.results?.messages ?? [];
-    return {
-      messages,
-      nextCursor: response.response_metadata?.next_cursor || undefined,
-    };
+    const token = env.SLACK_USER_TOKEN;
+    await assertPublicOnly(token);
+    return toOutput({
+      response: await runSearch({ cursor, query, token }),
+      threadId,
+    });
   },
 });

@@ -107,8 +107,6 @@ export async function onFeedbackClick(event: ActionEvent): Promise<void> {
     .catch((error: unknown) => {
       logger.warn('[feedback] could not open the details modal', { error });
     });
-  // The rating counts even when the details never arrive; a closed modal comes
-  // back through onModalClose instead.
   if (!opened) {
     await recordFeedback(rating);
   }

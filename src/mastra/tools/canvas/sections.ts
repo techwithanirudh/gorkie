@@ -1,7 +1,10 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
+import { channelContext } from '../../lib/context';
+import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
+import { assertReadableResource } from '../slack/utils';
 import { canvasIdSchema } from './utils';
 
 export const lookupCanvasSectionsTool = createTool({
@@ -29,7 +32,19 @@ export const lookupCanvasSectionsTool = createTool({
       }),
     },
   },
-  execute: async ({ canvasId, sectionTypes, containsText }) => {
+  execute: async ({ canvasId, sectionTypes, containsText }, context) => {
+    spendSlackCall(context?.requestContext);
+
+    const info = await slack.webClient.files.info({ file: canvasId });
+    const ctx = channelContext(context.requestContext);
+    await assertReadableResource({
+      channelIds: [
+        ...(info.file?.channels ?? []),
+        ...(info.file?.groups ?? []),
+      ],
+      currentThreadId: ctx.threadId,
+    });
+
     if (sectionTypes?.length) {
       const response = await slack.webClient.canvases.sections.lookup({
         canvas_id: canvasId,

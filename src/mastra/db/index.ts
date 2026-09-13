@@ -1,8 +1,14 @@
-import { createMCPServersTable } from './schema/mcps';
-import { createUserSettingsTable } from './schema/settings';
+import { join } from 'node:path';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { env } from '@/env';
+import { db } from './client';
 
 export { db, postgresStore } from './client';
 
-export async function createTables(): Promise<void> {
-  await Promise.all([createMCPServersTable(), createUserSettingsTable()]);
+// Applies the checked-in drizzle migrations for gorkie's own tables. Mastra's
+// PostgresStore creates its own tables on init, so those are not covered here.
+export async function runMigrations(): Promise<void> {
+  await migrate(db, {
+    migrationsFolder: join(env.PROJECT_ROOT, 'drizzle'),
+  });
 }

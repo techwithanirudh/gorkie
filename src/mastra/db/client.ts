@@ -1,19 +1,13 @@
 import { PostgresStore } from '@mastra/pg';
-import { Kysely, PostgresDialect } from 'kysely';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { env } from '@/env';
-import type { MCPServersTable } from './schema/mcps';
-import type { UserSettingsTable } from './schema/settings';
 
 export const postgresStore = new PostgresStore({
   id: 'main-storage',
   connectionString: env.DATABASE_URL,
 });
 
-interface Database {
-  mcp_servers: MCPServersTable;
-  user_settings: UserSettingsTable;
-}
-
-export const db = new Kysely<Database>({
-  dialect: new PostgresDialect({ pool: postgresStore.pool }),
-});
+// drizzle v1 takes the driver via `{ client }`; `schema` is only for the
+// db.query.* relational API, which gorkie does not use (tables are imported
+// directly and used with the core query builder).
+export const db = drizzle({ client: postgresStore.pool });

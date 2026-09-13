@@ -4,11 +4,6 @@ import { chat } from '../chat/instance';
 import { rawId } from './ids';
 import { logger } from './logger';
 
-/**
- * Opt-in allowlist: when OPT_IN_CHANNEL is set, only members of that channel
- * may use gorkie. The channel gates terms-of-service acceptance: users read
- * the terms posted there and opt in by joining, which is what grants access.
- */
 function allowlistKey(channel: string): string {
   return `slack:allowed-users:${channel}`;
 }
@@ -60,7 +55,6 @@ export async function buildAllowlist(): Promise<void> {
   }
   const state = chat().getState();
 
-  // No member-left event exists, so leavers stay cached until restart.
   chat().onMemberJoinedChannel(async (event) => {
     if (rawId(event.channelId) === channel) {
       await addAllowedUser(event.userId);

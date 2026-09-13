@@ -27,6 +27,7 @@ export const turnFooter = {
     ) {
       return args.messages;
     }
+
     const elapsed = formatDuration(
       intervalToDuration({ start: startTime, end: Date.now() }),
       { format: ['hours', 'minutes', 'seconds'] }

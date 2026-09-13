@@ -2,8 +2,10 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
-import { rawId } from '../../lib/ids';
+import { chatChannelId, parseSlackId } from '../../lib/ids';
+import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
+import { assertReadableChannel } from './utils';
 
 export const getPermalinkTool = createTool({
   id: 'get_permalink',
@@ -26,25 +28,31 @@ export const getPermalinkTool = createTool({
     },
   },
   execute: async ({ messageId, channelId }, context) => {
-    const parts = messageId.startsWith('slack:') ? messageId.split(':') : [];
-    const channel =
-      parts[1] ??
-      channelId ??
-      channelContext(context?.requestContext).channelId;
-    const messageTs = parts[2] ?? messageId;
+    const { channel, ts } = parseSlackId(messageId, {
+      channel: channelId ?? channelContext(context?.requestContext).channelId,
+    });
     if (!channel) {
       throw new Error('Pass channelId or run inside the message channel.');
     }
+    if (!ts) {
+      throw new Error(`${messageId} is not a Slack message id.`);
+    }
+    await assertReadableChannel({
+      channelId: chatChannelId(channel),
+      currentThreadId: channelContext(context?.requestContext).threadId,
+    });
+    spendSlackCall(context?.requestContext);
+
     const response = await slack.webClient.chat.getPermalink({
-      channel: rawId(channel),
-      message_ts: messageTs,
+      channel,
+      message_ts: ts,
     });
     if (!response.permalink) {
       throw new Error('Slack did not return a permalink for that message.');
     }
     return {
-      channelId: `slack:${rawId(channel)}`,
-      messageTs,
+      channelId: chatChannelId(channel),
+      messageTs: ts,
       permalink: response.permalink,
     };
   },

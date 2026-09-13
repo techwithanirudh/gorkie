@@ -3,9 +3,12 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
+import { channelContext } from '../../lib/context';
+import { spendSlackCall } from '../../lib/slack-budget';
 import { sh } from '../../lib/utils';
 import { input, output } from '../../types/tools/index';
-import { getSandbox, sandboxPath as p } from '../../workspace';
+import { sandboxPath as p, requireSandbox } from '../../workspace';
+import { assertReadableResource } from './utils';
 
 function formatBytes(value: number): string {
   if (value < 1024 * 1024) {
@@ -50,11 +53,7 @@ export const getSlackFileTool = createTool({
     if (!context?.requestContext) {
       throw new Error('No workspace context.');
     }
-    const sandbox = await getSandbox(context.requestContext);
-    if (!sandbox) {
-      throw new Error('No sandbox available.');
-    }
-    await sandbox.ensureRunning();
+    const sandbox = await requireSandbox(context.requestContext);
 
     const fileId = /(F[A-Z0-9]{6,})/.exec(file)?.[1];
     if (!fileId) {
@@ -63,7 +62,17 @@ export const getSlackFileTool = createTool({
       );
     }
 
+    spendSlackCall(context?.requestContext);
+
     const fileInfo = (await slack.webClient.files.info({ file: fileId })).file;
+    await assertReadableResource({
+      channelIds: [
+        ...(fileInfo?.channels ?? []),
+        ...(fileInfo?.groups ?? []),
+        ...(fileInfo?.ims ?? []),
+      ],
+      currentThreadId: channelContext(context.requestContext).threadId,
+    });
     const url = fileInfo?.url_private_download ?? fileInfo?.url_private;
     if (!url) {
       throw new Error(
@@ -92,20 +101,22 @@ export const getSlackFileTool = createTool({
       targetPath: string
     ) => {
       let downloaded = 0;
-      await sandbox.retryOnDead(() =>
-        sandbox.e2b.files.write(
-          targetPath,
-          body.pipeThrough(
-            new TransformStream<Uint8Array, Uint8Array>({
-              transform(chunk, controller) {
-                throwIfAborted(context.abortSignal);
-                downloaded += chunk.byteLength;
-                controller.enqueue(chunk);
-              },
-            })
-          ),
-          { signal: context.abortSignal, useOctetStream: true }
-        )
+      // Not wrapped in retryOnDead: a ReadableStream is single-use, so a retry
+      // would re-pipe an already-locked stream (and double-count `downloaded`).
+      // A dead sandbox mid-download surfaces as an error; the next call resumes
+      // from the `.part` file instead.
+      await sandbox.e2b.files.write(
+        targetPath,
+        body.pipeThrough(
+          new TransformStream<Uint8Array, Uint8Array>({
+            transform(chunk, controller) {
+              throwIfAborted(context.abortSignal);
+              downloaded += chunk.byteLength;
+              controller.enqueue(chunk);
+            },
+          })
+        ),
+        { signal: context.abortSignal, useOctetStream: true }
       );
       throwIfAborted(context.abortSignal);
       return downloaded;

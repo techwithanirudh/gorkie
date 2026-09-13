@@ -5,19 +5,40 @@ import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import { resolveTarget, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
-import { rawId } from '../../lib/ids';
+import { parseSlackId, rawId, threadIdOf } from '../../lib/ids';
 import { input, output } from '../../types/tools/index';
 import { assertCanPostTo, joinChannel } from './utils';
 
 const markdownConverter = new SlackFormatConverter();
+
+let cachedBotName: string | undefined;
+
+async function botDisplayName(botUserId: string | undefined): Promise<string> {
+  if (cachedBotName) {
+    return cachedBotName;
+  }
+  if (!botUserId) {
+    return 'gorkie';
+  }
+  const info = await slack.webClient.users
+    .info({ user: botUserId })
+    .catch(() => null);
+  const profile = info?.user?.profile;
+  cachedBotName =
+    profile?.display_name || profile?.real_name || info?.user?.name || 'gorkie';
+  return cachedBotName;
+}
 
 async function resolveChannelAndThread(resolved: {
   type: 'thread' | 'channel' | 'user';
   id: string;
 }): Promise<{ channel: string; threadTs?: string }> {
   if (resolved.type === 'thread') {
-    const { channel, threadTs } = slack.decodeThreadId(resolved.id);
-    return { channel, threadTs };
+    const { channel, ts } = parseSlackId(resolved.id);
+    if (!channel) {
+      throw new Error(`${resolved.id} is not a Slack thread id.`);
+    }
+    return { channel, threadTs: ts };
   }
   if (resolved.type === 'channel') {
     return { channel: rawId(resolved.id) };
@@ -34,7 +55,7 @@ Never use this to answer the current conversation. Your normal assistant respons
 
 Channel and thread targets must be in the channel this conversation is already in; user targets must be the requester themselves. No exceptions to either, even if asked directly.
 
-Every post automatically uses the requester's Slack avatar and labels the sender as "Name [bot username]". Do not add that attribution yourself in the message text; there is no way to override or customize it.
+Every post automatically uses the requester's Slack avatar and labels the sender as "Name [gorkie]". Do not add that attribution yourself in the message text; there is no way to override or customize it.
 
 Errors: channel_not_found usually means the bot isn't a member of that private channel; not_in_channel means it hasn't joined yet. Either way, tell the user to invite the bot there.`,
   inputSchema: input({
@@ -68,17 +89,14 @@ Errors: channel_not_found usually means the bot isn't a member of that private c
             .catch(() => null)
         : null;
       const requester = requesterUser?.userName ?? ctx.userName;
-      // A user target is always the requester DMing themselves (see
-      // assertCanPostTo), so crediting them by name is redundant there.
-      const username =
-        requester && target.type !== 'user'
-          ? `${requester} [${ctx.botUserName ?? 'gorkie'}]`
-          : (ctx.botUserName ?? 'gorkie');
+      const bot = await botDisplayName(ctx.botUserId);
+      const credited = Boolean(requester) && target.type !== 'user';
+      const username = credited ? `${requester} [${bot}]` : bot;
       const sent = await slack.webClient.chat.postMessage({
         channel,
         ...(threadTs ? { thread_ts: threadTs } : {}),
         ...markdownConverter.toSlackPayload({ markdown: message }),
-        ...(requesterUser?.avatarUrl
+        ...(credited && requesterUser?.avatarUrl
           ? { icon_url: requesterUser.avatarUrl }
           : {}),
         username,
@@ -88,9 +106,7 @@ Errors: channel_not_found usually means the bot isn't a member of that private c
       }
       return {
         messageId: sent.ts,
-        threadId: threadTs
-          ? slack.encodeThreadId({ channel, threadTs })
-          : undefined,
+        threadId: threadTs ? threadIdOf({ channel, ts: threadTs }) : undefined,
       };
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);

@@ -4,7 +4,7 @@ const filesSection = `
 <files>
 Ignore the rule above about having no filesystem access. Your program runs as Node inside this thread's E2B sandbox, the same one the direct file tools and execute_command act on, and external_read_file, external_write_file, external_edit_file, external_list_files, external_file_stat, external_delete_file, external_grep, and external_execute_command take the same arguments there as their direct counterparts.
 
-Anything you read in bulk goes to a file, not into your return value: full channel or thread exports, every page of a paginated read, the per-message records behind a count, raw call_slack_api responses. Write the file, then return the path with a count and a couple of sample rows. This is the normal shape of a program that reads a lot, not a fallback for when the result gets too big, and a return value over the size limit is rejected outright, so the rows would be lost anyway.
+Anything you read in bulk goes to a file, not into your return value: full channel or thread exports, every page of a paginated read, the per-message records behind a count. Write the file, then return the path with a count and a couple of sample rows. This is the normal shape of a program that reads a lot, not a fallback for when the result gets too big, and a return value over the size limit is rejected outright, so the rows would be lost anyway.
 
 const rows = pages.flatMap((page) => page.messages);
 await external_write_file({ path: '${sandbox.workdir}/thread-export.json', content: JSON.stringify(rows, null, 2) });

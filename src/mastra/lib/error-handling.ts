@@ -4,28 +4,43 @@ import {
   StreamErrorRetryProcessor,
 } from '@mastra/core/processors';
 
+function messageOf(error: unknown): string {
+  if (typeof error === 'string') {
+    return error;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return '';
+}
+
+const terminalPattern =
+  /is not supported|unknown model|model[_ ]not[_ ]found|insufficient credits|no endpoints found/i;
+
+function isTerminalModelError(error: unknown): boolean {
+  return terminalPattern.test(messageOf(error));
+}
+
 const econnresetMaxRetries = 2;
 const econnresetRetryInitialDelayMs = 1000;
 const econnresetRetryMaxDelayMs = 30_000;
 const econnresetMessagePattern = /econnreset|socket hang up/i;
 
 function isEconnresetError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-
-  const code = 'code' in error ? error.code : undefined;
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? error.code
+      : undefined;
   if (typeof code === 'string' && code.toUpperCase() === 'ECONNRESET') {
     return true;
   }
-
-  return error instanceof Error && econnresetMessagePattern.test(error.message);
+  return econnresetMessagePattern.test(messageOf(error));
 }
 
-const rateLimitPattern = /temporarily rate-limited upstream/i;
+const rateLimitPattern = /temporarily rate-limited upstream|too many requests/i;
 
 function isRateLimitError(error: unknown): boolean {
-  return error instanceof Error && rateLimitPattern.test(error.message);
+  return rateLimitPattern.test(messageOf(error));
 }
 
 export function defaultErrorProcessors() {
@@ -35,7 +50,11 @@ export function defaultErrorProcessors() {
       maxRetries: 2,
       delayMs: 3000,
       matchers: [
-        { match: isBadRequestError, maxRetries: 1, delayMs: 2000 },
+        { match: isTerminalModelError, maxRetries: 0 },
+        // A 400 is deterministic (a malformed/oversized request), so retrying
+        // the same model is a guaranteed second failure. Stop, so the run falls
+        // through to the next model in the ladder instead.
+        { match: isBadRequestError, maxRetries: 0 },
         {
           match: isEconnresetError,
           maxRetries: econnresetMaxRetries,

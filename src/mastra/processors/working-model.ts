@@ -1,16 +1,13 @@
 import type { ProcessOutputResultArgs } from '@mastra/core/processors';
+import { z } from 'zod';
 import { rememberModel } from '../lib/working-model';
 
+const responseSchema = z.object({
+  modelMetadata: z.object({ modelProvider: z.string() }).optional(),
+});
+
 function providerOf(response: unknown): string | undefined {
-  if (typeof response !== 'object' || response === null) {
-    return;
-  }
-  const { modelMetadata } = response as { modelMetadata?: unknown };
-  if (typeof modelMetadata !== 'object' || modelMetadata === null) {
-    return;
-  }
-  const { modelProvider } = modelMetadata as { modelProvider?: unknown };
-  return typeof modelProvider === 'string' ? modelProvider : undefined;
+  return responseSchema.safeParse(response).data?.modelMetadata?.modelProvider;
 }
 
 export function workingModel(agentKey: string) {
@@ -27,7 +24,6 @@ export function workingModel(agentKey: string) {
       const modelId = response?.modelId;
       if (modelId) {
         await rememberModel({
-          agentKey,
           modelId,
           modelProvider: providerOf(response),
         });
