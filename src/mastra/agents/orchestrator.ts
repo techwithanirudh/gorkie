@@ -13,7 +13,11 @@ import {
 } from '../chat/handlers';
 import { chat } from '../chat/instance';
 import { status } from '../chat/status';
-import { agent as config, summarizer as summarizerConfig } from '../config';
+import {
+  agent as config,
+  sandbox as sandboxConfig,
+  summarizer as summarizerConfig,
+} from '../config';
 import { listMCPServers } from '../db/queries/mcps';
 import { getInstructions } from '../db/queries/settings';
 import { channelContext } from '../lib/context';
@@ -95,6 +99,16 @@ const orchestrator = new Agent({
   model: orchestratorModel,
   errorProcessors: defaultErrorProcessors(),
   maxProcessorRetries: 2,
+  // run_background is deferred: it dispatches, the turn ends, and the job runs
+  // off-turn. Only this tool, execute_command stays synchronous.
+  backgroundTasks: {
+    tools: {
+      run_background: {
+        enabled: true,
+        timeoutMs: sandboxConfig.backgroundTimeout,
+      },
+    },
+  },
   defaultOptions: ({ requestContext }) => ({
     modelSettings: {
       maxOutputTokens: config.maxTokens.output,

@@ -3,6 +3,8 @@ export const sandbox = {
   template: 'gorkie-workspace:2.0',
   executionTimeout: 15 * 60 * 1000,
   timeout: 16 * 60 * 1000,
+  // The sandbox is kept alive for a running job and reaped once it ends.
+  backgroundTimeout: 30 * 60 * 1000,
   // A cold clone or a large push runs well past E2B's 60s request default, and
   // a timeout there retries the whole clone inside the credential window.
   gitTimeout: 5 * 60 * 1000,
