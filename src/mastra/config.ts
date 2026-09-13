@@ -3,8 +3,7 @@ export const sandbox = {
   template: 'gorkie-workspace:2.0',
   executionTimeout: 15 * 60 * 1000,
   timeout: 16 * 60 * 1000,
-  // Longest a run_background job may run; the box is kept alive for it and
-  // reaped after.
+  // The sandbox is kept alive for a running job and reaped once it ends.
   backgroundTimeout: 30 * 60 * 1000,
   // A cold clone or a large push runs well past E2B's 60s request default, and
   // a timeout there retries the whole clone inside the credential window.
@@ -14,6 +13,12 @@ export const sandbox = {
 
 export const upload = {
   maxBytes: 1_000_000_000,
+};
+
+export const file = {
+  // Without a cap, `fallocate -l 8G x && read_file x` OOMs the host (reachable
+  // from injected repo content).
+  maxReadBytes: 10 * 1024 * 1024,
 };
 
 export const image = {

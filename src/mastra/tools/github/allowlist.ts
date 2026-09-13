@@ -1,8 +1,18 @@
 import { GITHUB_WRITE_TOOLS, type GithubToolName } from '@github-tools/sdk';
-import { logger } from '../../lib/logger';
 
-const READ_TOOLS: GithubToolName[] = [
+// Which GitHub tools gorkie exposes: a security boundary, so an explicit
+// reviewed list, not an SDK preset that could gain tools on a bump. Read/write
+// is not tracked here; `isWriteTool` derives it from the SDK at the call site.
+export const ALLOWLIST: GithubToolName[] = [
+  'addAssignees',
+  'addIssueComment',
+  'addLabels',
+  'addPullRequestComment',
+  'closeIssue',
   'compareCommits',
+  'createIssue',
+  'createPullRequest',
+  'forkRepository',
   'getCiFailureContext',
   'getCommit',
   'getFileContent',
@@ -19,45 +29,15 @@ const READ_TOOLS: GithubToolName[] = [
   'listPullRequestFiles',
   'listPullRequestReviews',
   'listPullRequests',
-  'searchCode',
-  'searchIssues',
-  'searchRepositories',
-];
-
-const WRITE_TOOLS: GithubToolName[] = [
-  'addAssignees',
-  'addIssueComment',
-  'addLabels',
-  'addPullRequestComment',
-  'closeIssue',
-  'createIssue',
-  'createPullRequest',
-  'forkRepository',
   'removeAssignees',
   'removeLabel',
   'requestReviewers',
+  'searchCode',
+  'searchIssues',
+  'searchRepositories',
   'updateIssue',
   'updatePullRequest',
 ];
 
 export const isWriteTool = (name: GithubToolName): boolean =>
   name in GITHUB_WRITE_TOOLS;
-
-const misgrouped = [
-  ...WRITE_TOOLS.filter((name) => !isWriteTool(name)),
-  ...READ_TOOLS.filter(isWriteTool),
-];
-if (misgrouped.length > 0) {
-  // Drop them rather than throwing: a reclassified tool would otherwise be
-  // gated at the wrong approval level, and a module-level throw takes the whole
-  // Slack bot down at startup over one dependency bump.
-  logger.error(
-    '[github] read/write split disagrees with the SDK, dropping those tools',
-    { misgrouped }
-  );
-}
-
-export const ALLOWLIST: GithubToolName[] = [
-  ...READ_TOOLS,
-  ...WRITE_TOOLS,
-].filter((name) => !misgrouped.includes(name));

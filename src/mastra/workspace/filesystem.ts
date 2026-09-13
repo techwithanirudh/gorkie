@@ -26,7 +26,7 @@ import {
 import type { E2BSandbox } from '@mastra/e2b';
 import { FileNotFoundError as E2BFileNotFoundError, FileType } from 'e2b';
 import { lookup } from 'mime-types';
-import { sandbox as config } from '../config';
+import { sandbox as config, file as fileLimits } from '../config';
 
 interface FilesystemOptions {
   basePath?: string;
@@ -75,6 +75,11 @@ export class E2BFilesystem extends MastraFilesystem {
         );
         if (info.type === FileType.DIR) {
           throw new IsDirectoryError(inputPath);
+        }
+        if (info.size > fileLimits.maxReadBytes) {
+          throw new Error(
+            `${inputPath} is ${Math.round(info.size / 1_000_000)}MB, over the ${Math.round(fileLimits.maxReadBytes / 1_000_000)}MB read limit. Read a slice with execute_command (head, sed, tail) instead.`
+          );
         }
 
         if (options?.encoding) {
@@ -344,7 +349,12 @@ export class E2BFilesystem extends MastraFilesystem {
             });
           })
           .map((entry) => ({
-            name: entry.name,
+            // A recursive listing returns the same basename from many dirs, so
+            // key rows by their path relative to the listing root; a flat
+            // listing keeps the bare name.
+            name: options?.recursive
+              ? path.posix.relative(dirPath, entry.path)
+              : entry.name,
             type: entry.type === FileType.DIR ? 'directory' : 'file',
             size: entry.type === FileType.FILE ? entry.size : undefined,
             isSymlink: Boolean(entry.symlinkTarget) || undefined,
@@ -375,8 +385,12 @@ export class E2BFilesystem extends MastraFilesystem {
       path: inputPath,
       type: info.type === FileType.DIR ? 'directory' : 'file',
       size: info.size,
-      createdAt: info.modifiedTime ?? new Date(),
-      modifiedAt: info.modifiedTime ?? new Date(),
+      // Fall back to the epoch, not `now`, to match writeFile's expectedMtime
+      // check: `now` there would never equal a later write's `new Date(0)`
+      // fallback, throwing a spurious StaleFileError on every edit-after-read of
+      // a file whose mtime the sandbox did not report.
+      createdAt: info.modifiedTime ?? new Date(0),
+      modifiedAt: info.modifiedTime ?? new Date(0),
       mimeType: lookup(filePath) || undefined,
     };
   }

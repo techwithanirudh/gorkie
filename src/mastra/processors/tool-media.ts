@@ -48,8 +48,6 @@ export const moveToolImages: CompatRule = {
       return;
     }
 
-    // Walk newest first, keeping images until the per-request image or byte
-    // budget is hit; everything older is dropped.
     const keep = new Set<MediaPart>();
     let bytes = 0;
     for (let i = found.length - 1; i >= 0; i--) {

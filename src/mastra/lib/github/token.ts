@@ -1,4 +1,5 @@
 import { refreshToken } from '@octokit/oauth-methods';
+import { z } from 'zod';
 import { env } from '@/env';
 import {
   type GitHubCredential,
@@ -11,6 +12,13 @@ import { githubUser } from './api';
 import { toAccount } from './device-flow';
 
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
+
+const refreshErrorSchema = z.object({
+  status: z.number().optional(),
+  response: z
+    .object({ data: z.object({ error: z.string().optional() }).optional() })
+    .optional(),
+});
 
 const refreshes = new Map<string, Promise<string | undefined>>();
 
@@ -42,12 +50,27 @@ async function refreshAccount({
     });
     return refreshed.token;
   } catch (error) {
-    logger.warn('[github] token refresh failed', { error, userId });
+    // Never log `error` directly: an octokit refresh failure carries the
+    // client_secret and refresh_token. Pull out only the status and error code.
+    const parsed = refreshErrorSchema.safeParse(error).data;
+    const code = parsed?.response?.data?.error;
+    logger.warn('[github] token refresh failed', {
+      userId,
+      status: parsed?.status,
+      code,
+    });
     const current = await getGitHubCredential(userId);
     if (current && current.refreshToken !== spent) {
       return current.token;
     }
-    await removeGitHubCredential(userId);
+    // Only forget the credential when GitHub says the refresh token itself is
+    // dead. A transient failure (network, 5xx, timeout) must not delete it, or a
+    // blip logs the user out for good. Keep it and hand back the current token.
+    if (code === 'bad_refresh_token') {
+      await removeGitHubCredential(userId);
+      return;
+    }
+    return current?.token;
   }
 }
 

@@ -2,9 +2,8 @@ import { getMastra } from '../chat/mastra-instance';
 import type { ChannelContext } from '../types';
 import { logger } from './logger';
 
-// A task is still gorkie's problem until it reaches a terminal state. The turn
-// footer and the sandbox pause both read this and must agree: guarding the
-// pause on `running` alone froze the box under a task that had not started yet.
+// A task is still gorkie's problem until it reaches a terminal state, so the
+// turn footer and the sandbox pause both read this and must agree on the set.
 const ACTIVE = ['pending', 'running', 'suspended'] as const;
 
 export async function threadHasBackgroundTask(

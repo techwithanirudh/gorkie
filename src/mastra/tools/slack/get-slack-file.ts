@@ -101,20 +101,22 @@ export const getSlackFileTool = createTool({
       targetPath: string
     ) => {
       let downloaded = 0;
-      await sandbox.retryOnDead(() =>
-        sandbox.e2b.files.write(
-          targetPath,
-          body.pipeThrough(
-            new TransformStream<Uint8Array, Uint8Array>({
-              transform(chunk, controller) {
-                throwIfAborted(context.abortSignal);
-                downloaded += chunk.byteLength;
-                controller.enqueue(chunk);
-              },
-            })
-          ),
-          { signal: context.abortSignal, useOctetStream: true }
-        )
+      // Not wrapped in retryOnDead: a ReadableStream is single-use, so a retry
+      // would re-pipe an already-locked stream (and double-count `downloaded`).
+      // A dead sandbox mid-download surfaces as an error; the next call resumes
+      // from the `.part` file instead.
+      await sandbox.e2b.files.write(
+        targetPath,
+        body.pipeThrough(
+          new TransformStream<Uint8Array, Uint8Array>({
+            transform(chunk, controller) {
+              throwIfAborted(context.abortSignal);
+              downloaded += chunk.byteLength;
+              controller.enqueue(chunk);
+            },
+          })
+        ),
+        { signal: context.abortSignal, useOctetStream: true }
       );
       throwIfAborted(context.abortSignal);
       return downloaded;

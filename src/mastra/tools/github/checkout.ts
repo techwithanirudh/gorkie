@@ -53,16 +53,17 @@ export const checkoutTool = ({
       const access = token
         ? await repoAccess({ repository, token })
         : { error: 'no token' as const };
-      // A public repo clones with no auth, so it needs neither the credential
-      // window nor the approval that gates it; only a private clone opens
-      // ambient github.com auth. Anything we can't confirm public (no token, API
-      // error) takes the credentialed path. (A repo flipped public->private in
-      // the window between the approval check and here would clone anonymously
-      // and simply fail, never opening an ungated credential window.)
+      // Fail-safe: anything we can't confirm public (no token, API error) takes
+      // the credentialed path.
       const isPrivate = 'error' in access ? true : access.private;
 
       const clone = async () => {
         await git({
+          // Shallow for speed; github_push_branch runs `git fetch --unshallow`
+          // if a push is rejected at the shallow boundary. A blobless clone
+          // would push fine but then lazy-fetch blobs on later git ops, which
+          // fails on a private repo because that fetch is outside the credential
+          // window.
           command: `test -d ${sh(`${path}/.git`)} || git clone --depth 50 ${sh(remote)} ${sh(path)}`,
           sandbox,
         });
