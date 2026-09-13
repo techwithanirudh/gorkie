@@ -97,20 +97,28 @@ export const withCredential = async <T>({
   }
   return await serialize(sandbox.e2b.sandboxId, () =>
     sandbox.retryOnDead(async () => {
-      await sandbox.e2b.updateNetwork({
-        rules: {
-          ...baseRules(),
-          'github.com': [
-            {
-              transform: {
-                headers: {
-                  Authorization: `Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
+      try {
+        await sandbox.e2b.updateNetwork({
+          rules: {
+            ...baseRules(),
+            'github.com': [
+              {
+                transform: {
+                  headers: {
+                    Authorization: `Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
+                  },
                 },
               },
-            },
-          ],
-        },
-      });
+            ],
+          },
+        });
+      } catch {
+        // The rules object holds the github token in an Authorization header, so
+        // never let a failure here propagate the raw error: it could carry the
+        // request body into a log. Throw a token-free error instead.
+        // biome-ignore lint/style/useErrorCause: dropping the cause is the point; it can carry the token
+        throw new Error('Could not open the GitHub credential window.');
+      }
       try {
         return await operation();
       } finally {
