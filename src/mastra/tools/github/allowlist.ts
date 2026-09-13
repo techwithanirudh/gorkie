@@ -1,4 +1,5 @@
 import { GITHUB_WRITE_TOOLS, type GithubToolName } from '@github-tools/sdk';
+import { logger } from '../../lib/logger';
 
 const READ_TOOLS: GithubToolName[] = [
   'compareCommits',
@@ -47,9 +48,16 @@ const misgrouped = [
   ...READ_TOOLS.filter(isWriteTool),
 ];
 if (misgrouped.length > 0) {
-  throw new Error(
-    `GitHub tool read/write split disagrees with the SDK for: ${misgrouped.join(', ')}. The SDK reclassified these, so their approval gating is now wrong. Move them between READ_TOOLS and WRITE_TOOLS.`
+  // Drop them rather than throwing: a reclassified tool would otherwise be
+  // gated at the wrong approval level, and a module-level throw takes the whole
+  // Slack bot down at startup over one dependency bump.
+  logger.error(
+    '[github] read/write split disagrees with the SDK, dropping those tools',
+    { misgrouped }
   );
 }
 
-export const ALLOWLIST: GithubToolName[] = [...READ_TOOLS, ...WRITE_TOOLS];
+export const ALLOWLIST: GithubToolName[] = [
+  ...READ_TOOLS,
+  ...WRITE_TOOLS,
+].filter((name) => !misgrouped.includes(name));

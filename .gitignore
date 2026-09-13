@@ -64,3 +64,6 @@ output.txt
 
 # Raw observability trace dumps (expire on the platform)
 .issues/traces*/
+
+# Mastra Cloud platform link (self-hosted, not used)
+.mastra-project.json

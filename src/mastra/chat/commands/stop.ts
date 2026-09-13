@@ -2,7 +2,11 @@ import { logger } from '../../lib/logger';
 import { memoryThread } from '../../lib/memory';
 import type { CommandHandler } from '../../types';
 
-export async function stopThread(threadId: string): Promise<boolean> {
+// 'aborted' means a live run was cancelled, and the agent's own onAbort posts
+// about it; anything else is this command's to report.
+export async function stopThread(
+  threadId: string
+): Promise<'aborted' | 'cancelled' | 'idle'> {
   const { default: orchestrator } = await import('../../agents/orchestrator');
   const threadMemory = await memoryThread({
     agent: orchestrator,
@@ -36,7 +40,7 @@ export async function stopThread(threadId: string): Promise<boolean> {
   }
 
   if (!(scope && (activeRunId || backgroundTasks.length > 0))) {
-    return false;
+    return 'idle';
   }
   if (activeRunId) {
     orchestrator.abortThreadStream(scope);
@@ -51,11 +55,15 @@ export async function stopThread(threadId: string): Promise<boolean> {
       });
     }
   }
-  return true;
+  return activeRunId ? 'aborted' : 'cancelled';
 }
 
 export const stop: CommandHandler = async ({ message, thread }) => {
-  if (await stopThread(thread.id)) {
+  const outcome = await stopThread(thread.id);
+  if (outcome === 'aborted') {
+    return;
+  }
+  if (outcome === 'cancelled') {
     await thread.post({ markdown: '_Stopped._' });
     return;
   }

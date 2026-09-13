@@ -3,10 +3,12 @@ import { workspaceCodeMode } from './code-mode/slack';
 import { submitFeedbackTool } from './feedback';
 import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
+import { runBackgroundTool } from './run-background';
 import { scheduledTaskTools } from './scheduled-tasks';
 import { searchWebTool } from './search-web';
 import { slackTools } from './slack';
 import { uploadEmojiTool } from './upload-emoji';
+import { viewImageTool } from './view-image';
 import { waitTool } from './wait';
 
 export async function orchestratorTools() {
@@ -23,8 +25,10 @@ export async function orchestratorTools() {
     search_web: searchWebTool,
     fetch_url: fetchUrlTool,
     get_slack_file: slackTools.get_slack_file,
+    view_image: viewImageTool,
     upload_file: slackTools.upload_file,
     post_message: slackTools.post_message,
+    run_background: runBackgroundTool,
     wait: waitTool,
   };
 }

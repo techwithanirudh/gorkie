@@ -5,7 +5,7 @@ import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { shellQuote } from '../../lib/utils';
+import { sh } from '../../lib/utils';
 import { input, output } from '../../types/tools/index';
 import { sandboxPath as p, requireSandbox } from '../../workspace';
 import { assertReadableResource } from './utils';
@@ -66,7 +66,11 @@ export const getSlackFileTool = createTool({
 
     const fileInfo = (await slack.webClient.files.info({ file: fileId })).file;
     await assertReadableResource({
-      channelIds: [...(fileInfo?.channels ?? []), ...(fileInfo?.groups ?? [])],
+      channelIds: [
+        ...(fileInfo?.channels ?? []),
+        ...(fileInfo?.groups ?? []),
+        ...(fileInfo?.ims ?? []),
+      ],
       currentThreadId: channelContext(context.requestContext).threadId,
     });
     const url = fileInfo?.url_private_download ?? fileInfo?.url_private;
@@ -126,7 +130,7 @@ export const getSlackFileTool = createTool({
     const mergeDownload = async () => {
       const result = await sandbox.retryOnDead(() =>
         sandbox.e2b.commands.run(
-          `cat ${shellQuote(partPath)} ${shellQuote(nextPath)} > ${shellQuote(mergePath)} && mv ${shellQuote(mergePath)} ${shellQuote(partPath)} && rm -f ${shellQuote(nextPath)}`
+          `cat ${sh(partPath)} ${sh(nextPath)} > ${sh(mergePath)} && mv ${sh(mergePath)} ${sh(partPath)} && rm -f ${sh(nextPath)}`
         )
       );
       if (result.exitCode !== 0) {
@@ -175,9 +179,7 @@ export const getSlackFileTool = createTool({
 
     if (expectedSize === 0) {
       await sandbox.retryOnDead(() =>
-        sandbox.e2b.commands.run(
-          `rm -f ${shellQuote(path)} && : > ${shellQuote(path)}`
-        )
+        sandbox.e2b.commands.run(`rm -f ${sh(path)} && : > ${sh(path)}`)
       );
       return formatResult(expectedSize);
     }

@@ -46,10 +46,22 @@ export async function githubTools({
       if (name === 'forkRepository' && credential.kind !== 'pat') {
         continue;
       }
-      const tool = built[name];
       // The SDK's formatter is AI SDK shaped; Mastra hands it the result alone.
-      const format = tool.toModelOutput;
+      const { toModelOutput: format, ...tool } = built[name];
       const id = `github_${name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()}`;
+      if (!direct) {
+        // Replace the tool outright rather than layering the handoff over the
+        // SDK's formatter: those assume a GitHub API result, and
+        // listPullRequestFiles maps over it unguarded, so a handoff message
+        // throws instead of reaching the model. Nothing here reaches GitHub, so
+        // there is nothing to approve either.
+        tools[id] = {
+          ...tool,
+          needsApproval: false,
+          execute: () => handoff({ channelId, threadId, userId }),
+        };
+        continue;
+      }
       tools[id] = {
         ...tool,
         needsApproval: asksBefore({
@@ -62,9 +74,6 @@ export async function githubTools({
               ? result
               : format({ input: undefined, output: result, toolCallId: '' }),
         }),
-        ...(direct
-          ? {}
-          : { execute: () => handoff({ channelId, threadId, userId }) }),
       };
     }
     if (direct && threadId) {

@@ -1,6 +1,8 @@
 import { join } from 'node:path';
+import type { BackgroundTask } from '@mastra/core/background-tasks';
 import { Mastra } from '@mastra/core/mastra';
 import { SpanType } from '@mastra/core/observability';
+import { RequestContext } from '@mastra/core/request-context';
 import { MastraCompositeStore } from '@mastra/core/storage';
 import { DuckDBStore } from '@mastra/duckdb';
 import { LangfuseExporter } from '@mastra/langfuse';
@@ -13,11 +15,13 @@ import { summarizer } from './agents/summarizer';
 import { registerEvents } from './chat/events';
 import { setChat } from './chat/instance';
 import { setMastra } from './chat/mastra-instance';
-import { createTables, postgresStore } from './db';
+import { postgresStore, runMigrations } from './db';
 import { buildAllowlist } from './lib/allowed-users';
+import { recallThreadChannel } from './lib/background-tasks';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
+import { trimSpanPayloads } from './observability/trim-payloads';
 
 process.on('unhandledRejection', (err: unknown) => {
   logger.error('[process] unhandled rejection', { err });
@@ -28,8 +32,58 @@ process.on('uncaughtException', (err: Error) => {
 
 const isProduction = env.NODE_ENV === 'production';
 
+// A background task finishes off-turn, and channels never passes `untilIdle`, so
+// nothing would post its result. Wake the thread with a notification signal (the
+// same idle-wake `wait` uses); the woken run reports the result to Slack.
+async function notifyBackgroundTask(task: BackgroundTask): Promise<void> {
+  if (!(task.threadId && task.resourceId)) {
+    return;
+  }
+  const outcome =
+    task.status === 'completed'
+      ? 'finished'
+      : `did not finish (${task.status}${task.error ? `: ${task.error.message}` : ''})`;
+  // Without this the woken run has no Slack channel bound, so the workspace
+  // resolver falls back to a scratch sandbox and nothing renders into the
+  // thread. `task.threadId` is the memory thread, not the Slack one.
+  const channel = recallThreadChannel(task.threadId);
+  const streamOptions = channel
+    ? { requestContext: new RequestContext([['channel', channel]]) }
+    : undefined;
+  try {
+    await orchestrator
+      .sendSignal(
+        {
+          type: 'notification',
+          contents: `A background job (${task.toolName}) ${outcome}. Read its result from the tool output and report back to the user in this thread.`,
+        },
+        {
+          threadId: task.threadId,
+          resourceId: task.resourceId,
+          ifIdle: { behavior: 'wake', ...(streamOptions && { streamOptions }) },
+        }
+      )
+      .accepted.catch((error: unknown) => {
+        logger.error('[background] wake signal rejected', {
+          error,
+          taskId: task.id,
+        });
+      });
+  } catch (error) {
+    logger.error('[background] failed to notify completion', {
+      error,
+      taskId: task.id,
+    });
+  }
+}
+
 export const mastra = new Mastra({
   agents: { orchestrator, summarizer, research, explore },
+  backgroundTasks: {
+    enabled: true,
+    onTaskComplete: notifyBackgroundTask,
+    onTaskFailed: notifyBackgroundTask,
+  },
   schedules: {
     prepare: async ({ mastra: runtime, schedule }) => {
       const current = await runtime.schedules.get(schedule.id);
@@ -55,7 +109,6 @@ export const mastra = new Mastra({
         excludeSpanTypes: [
           SpanType.MAPPING,
           SpanType.MEMORY_OPERATION,
-          SpanType.MODEL_GENERATION,
           SpanType.MODEL_STEP,
           SpanType.PROCESSOR_RUN,
           SpanType.SKILL_ACTION,
@@ -77,14 +130,14 @@ export const mastra = new Mastra({
               ]
             : []),
         ],
-        spanOutputProcessors: [slackIdentity],
+        spanOutputProcessors: [slackIdentity, trimSpanPayloads],
       },
     },
   }),
   logger,
 });
 
-await createTables();
+await runMigrations();
 await mastra.startWorkers();
 setMastra(mastra);
 

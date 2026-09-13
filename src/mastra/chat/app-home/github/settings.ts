@@ -11,7 +11,7 @@ import { logger } from '../../../lib/logger';
 import { githubPermissionSchema } from '../../../types';
 import { slack } from '../../client';
 import { chat } from '../../instance';
-import { polling } from './actions';
+import { polling } from './connect';
 import { ids } from './ids';
 import { configureView, selectedPermission, viewOf } from './views';
 

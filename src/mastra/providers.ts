@@ -57,9 +57,9 @@ async function preferLastWorking(
 
 function ladder(agentKey: string): ModelWithRetries[] {
   return [
+    { ...opencode('deepseek-flash', agentKey), maxRetries: 3 },
     { ...opencode('glm-5.3-flash', agentKey), maxRetries: 3 },
     { model: hackclub('z-ai/glm-5.3-flash'), maxRetries: 3 },
-    { ...opencode('deepseek-v4-flash-vision-exp', agentKey), maxRetries: 3 },
     { ...opencode('muse-spark-1.3-contributor', agentKey), maxRetries: 3 },
   ];
 }

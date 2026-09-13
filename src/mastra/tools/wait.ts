@@ -37,7 +37,10 @@ export const waitTool = createTool({
       throw new Error('No current Slack thread/resource to wait in.');
     }
 
-    const previous = await schedules.list({ agentId: agentConfig.id });
+    const previous = await schedules.list({
+      agentId: agentConfig.id,
+      threadId,
+    });
     await Promise.all(
       previous
         .filter(

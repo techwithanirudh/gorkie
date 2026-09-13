@@ -1,5 +1,5 @@
-import { registerConnect } from './actions';
-import { registerSettings } from './settings-actions';
+import { registerConnect } from './connect';
+import { registerSettings } from './settings';
 
 export { githubBlocks } from './blocks';
 

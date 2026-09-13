@@ -128,6 +128,12 @@ export const statuses: Record<string, (args: Args) => string> = {
       : 'is reading a file…';
   },
   resume_scheduled_task: () => 'is resuming a scheduled task…',
+  run_background: (args) => {
+    const reason = str(args, 'reason');
+    return reason
+      ? fit('is starting a background job: ', reason, '…')
+      : 'is starting a background job…';
+  },
   search_slack: (args) => {
     const query = str(args, 'query');
     return query
@@ -164,6 +170,12 @@ export const statuses: Record<string, (args: Args) => string> = {
     return instructions
       ? fit('is summarizing: ', instructions, '…')
       : 'is summarizing the thread…';
+  },
+  view_image: (args) => {
+    const path = str(args, 'path');
+    return path
+      ? fit('is looking at ', fileName(path), '…')
+      : 'is looking at an image…';
   },
   upload_emoji: (args) => {
     const name = str(args, 'name');

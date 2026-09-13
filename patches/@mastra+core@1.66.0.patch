@@ -18,7 +18,7 @@
  						}
 +						const approvalRequesterId = stashed?.requesterId;
 +						const actingUserId = event.user?.userId;
-+						if (approvalRequesterId && actingUserId && approvalRequesterId !== actingUserId) {
++						if (approvalRequesterId && (!actingUserId || approvalRequesterId !== actingUserId)) {
 +							this.log("info", `Ignoring tool approval action from ${actingUserId}: only ${approvalRequesterId} may answer toolCallId=${toolCallId}`);
 +							return;
 +						}
@@ -113,7 +113,7 @@
  						}
 +						const approvalRequesterId = stashed?.requesterId;
 +						const actingUserId = event.user?.userId;
-+						if (approvalRequesterId && actingUserId && approvalRequesterId !== actingUserId) {
++						if (approvalRequesterId && (!actingUserId || approvalRequesterId !== actingUserId)) {
 +							this.log("info", `Ignoring tool approval action from ${actingUserId}: only ${approvalRequesterId} may answer toolCallId=${toolCallId}`);
 +							return;
 +						}

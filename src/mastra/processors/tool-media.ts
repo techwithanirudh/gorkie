@@ -1,9 +1,14 @@
 import type { CompatRule } from '@mastra/core/processors';
+import { image as imageLimits } from '../config';
 
 interface MediaPart {
   data: string;
   mediaType: string;
   type: 'media';
+}
+
+function byteLength(base64: string): number {
+  return Math.ceil((base64.length * 3) / 4);
 }
 
 // Every gateway gorkie routes through is OpenAI-compatible, and none of them
@@ -16,26 +21,73 @@ interface MediaPart {
 // branches on `image/*`, `audio/*` and `application/pdf` and throws
 // `UnsupportedFunctionalityError` for anything else, which crashes the turn
 // rather than merely not working.
+//
+// The relocation also concentrates every tool image into the request, and
+// vision models cap inline images (GLM: 8 / 64 MiB, non-retryable 400). So keep
+// only the most recent images within that budget and drop the older ones.
 export const moveToolImages: CompatRule = {
   name: 'move-tool-images',
   applyToPrompt({ prompt }) {
-    let changed = false;
-    const next: typeof prompt = [];
+    const found: MediaPart[] = [];
+    for (const message of prompt) {
+      if (message.role !== 'tool') {
+        continue;
+      }
+      for (const part of message.content) {
+        if (part.type !== 'tool-result' || part.output.type !== 'content') {
+          continue;
+        }
+        for (const item of part.output.value) {
+          if (item.type === 'media' && item.mediaType.startsWith('image/')) {
+            found.push(item);
+          }
+        }
+      }
+    }
+    if (found.length === 0) {
+      return;
+    }
 
+    // Walk newest first, keeping images until the per-request image or byte
+    // budget is hit; everything older is dropped.
+    const keep = new Set<MediaPart>();
+    let bytes = 0;
+    for (let i = found.length - 1; i >= 0; i--) {
+      const media = found[i];
+      const size = byteLength(media.data);
+      if (
+        keep.size >= imageLimits.maxContextImages ||
+        bytes + size > imageLimits.maxContextBytes
+      ) {
+        break;
+      }
+      keep.add(media);
+      bytes += size;
+    }
+    const next: typeof prompt = [];
     for (const message of prompt) {
       if (message.role !== 'tool') {
         next.push(message);
         continue;
       }
-
-      const images: MediaPart[] = [];
+      const relocated: MediaPart[] = [];
+      // The note lives on the tool result the image was stripped from, not as a
+      // trailing message: appending one would make a synthetic user message the
+      // most recent thing said, displacing the real request.
       const content = message.content.map((part) => {
         if (part.type !== 'tool-result' || part.output.type !== 'content') {
           return part;
         }
+        let keptImage = false;
+        let droppedImage = false;
         const kept = part.output.value.filter((item) => {
           if (item.type === 'media' && item.mediaType.startsWith('image/')) {
-            images.push(item);
+            if (keep.has(item)) {
+              relocated.push(item);
+              keptImage = true;
+            } else {
+              droppedImage = true;
+            }
             return false;
           }
           return true;
@@ -43,37 +95,39 @@ export const moveToolImages: CompatRule = {
         if (kept.length === part.output.value.length) {
           return part;
         }
-        if (kept.length === 0) {
+        if (keptImage) {
           kept.push({
             type: 'text',
             text: 'Image attached in the following message.',
           });
         }
+        if (droppedImage) {
+          kept.push({
+            type: 'text',
+            text: "Image omitted to stay within the model's image limit. Call view_image on the file again if you still need it.",
+          });
+        }
         return { ...part, output: { ...part.output, value: kept } };
       });
 
-      if (images.length === 0) {
-        next.push(message);
-        continue;
-      }
-
-      changed = true;
       next.push({ ...message, content });
-      next.push({
-        role: 'user',
-        content: [
-          { type: 'text', text: 'Attached media from tool result:' },
-          ...images.map(
-            (image): { type: 'file'; data: string; mediaType: string } => ({
-              type: 'file',
-              data: image.data,
-              mediaType: image.mediaType,
-            })
-          ),
-        ],
-      });
+      if (relocated.length > 0) {
+        next.push({
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Attached media from tool result:' },
+            ...relocated.map(
+              (media): { type: 'file'; data: string; mediaType: string } => ({
+                type: 'file',
+                data: media.data,
+                mediaType: media.mediaType,
+              })
+            ),
+          ],
+        });
+      }
     }
 
-    return changed ? next : undefined;
+    return next;
   },
 };
