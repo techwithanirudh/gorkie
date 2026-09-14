@@ -87,7 +87,13 @@ export async function editImages({
   for (const entry of message?.images ?? []) {
     const match = DATA_URI.exec(entry.image_url?.url ?? '');
     if (match) {
-      out.push({ data: Buffer.from(match[2], 'base64'), mediaType: match[1] });
+      const data = Buffer.from(match[2], 'base64');
+      // Type by the bytes, not the model-declared label, so the file written to
+      // the sandbox carries a correct type and does not get mislabeled later.
+      out.push({
+        data,
+        mediaType: detectMediaType({ data, topLevelType: 'image' }) ?? match[1],
+      });
     }
   }
   if (out.length === 0) {

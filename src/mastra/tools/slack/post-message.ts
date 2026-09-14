@@ -51,7 +51,7 @@ export const postMessageTool = createTool({
   id: 'post_message',
   description: `Send a markdown message to a different Slack thread, channel, or user.
 
-Never use this to answer the current conversation. Your normal assistant response is already streamed there. Use this tool only when the user explicitly asks you to send something somewhere else.
+Never use this to answer the current conversation, and never for status or progress updates in this thread: your normal assistant response, progress notes included, is already streamed here. Use this tool only when the user explicitly asks you to send something to a different thread, channel, or person (for example posting an update into another channel on their behalf).
 
 Channel and thread targets must be in the channel this conversation is already in; user targets must be the requester themselves. No exceptions to either, even if asked directly.
 

@@ -1,16 +1,16 @@
+import { detectMediaType } from '@ai-sdk/provider-utils';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { image } from '../config';
 import { input, output } from '../types/tools/index';
 import { requireSandbox } from '../workspace';
 
-const IMAGE_MEDIA_TYPES: Record<string, string> = {
-  gif: 'image/gif',
-  jpeg: 'image/jpeg',
-  jpg: 'image/jpeg',
-  png: 'image/png',
-  webp: 'image/webp',
-};
+const SUPPORTED_IMAGE_TYPES = new Set([
+  'image/gif',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
 
 export const viewImageTool = createTool({
   id: 'view_image',
@@ -46,13 +46,6 @@ export const viewImageTool = createTool({
     if (!context?.requestContext) {
       throw new Error('No workspace context.');
     }
-    const mediaType =
-      IMAGE_MEDIA_TYPES[path.split('.').at(-1)?.toLowerCase() ?? ''];
-    if (!mediaType) {
-      throw new Error(
-        `${path} is not a viewable image (png, jpeg, gif, webp). Use read_file for other files.`
-      );
-    }
     const sandbox = await requireSandbox(context.requestContext);
     const stat = await sandbox.retryOnDead(() =>
       sandbox.e2b.files.getInfo(path)
@@ -62,13 +55,24 @@ export const viewImageTool = createTool({
         `${path} is ${Math.round(stat.size / 1_000_000)}MB, too large to view inline.`
       );
     }
-    const bytes = await sandbox.retryOnDead(() =>
-      sandbox.e2b.files.read(path, { format: 'bytes' })
+    const bytes = Buffer.from(
+      await sandbox.retryOnDead(() =>
+        sandbox.e2b.files.read(path, { format: 'bytes' })
+      )
     );
+    // Type by the actual bytes, never the extension: a mislabeled file (e.g. a
+    // non-image renamed .png) sent as image/png makes the model gateway reject
+    // the whole turn, and the malformed part poisons the thread's history.
+    const mediaType = detectMediaType({ data: bytes, topLevelType: 'image' });
+    if (!(mediaType && SUPPORTED_IMAGE_TYPES.has(mediaType))) {
+      throw new Error(
+        `${path} is not a viewable image (png, jpeg, gif, webp). Use read_file for other files.`
+      );
+    }
     return {
       path,
       mediaType,
-      data: Buffer.from(bytes).toString('base64'),
+      data: bytes.toString('base64'),
     };
   },
 });

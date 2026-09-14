@@ -1,4 +1,5 @@
 import type { Message } from 'chat';
+import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import type { Target } from '../../chat/target';
@@ -84,12 +85,30 @@ export function assertCanPostTo({
   }
 }
 
+const joinedChannels = new Set<string>();
+const slackErrorSchema = z.looseObject({
+  data: z.looseObject({ error: z.string().optional() }).optional(),
+});
+
 export async function joinChannel(channelId: string): Promise<void> {
+  const id = rawId(channelId);
+  if (joinedChannels.has(id)) {
+    return;
+  }
   try {
-    await slack.webClient.conversations.join({
-      channel: rawId(channelId),
-    });
+    await slack.webClient.conversations.join({ channel: id });
+    joinedChannels.add(id);
   } catch (error) {
+    // already_in_channel means the bot is already a member, the state we want,
+    // so remember it and stop re-calling join. Other failures may be transient,
+    // so do not cache and let a later call retry.
+    if (
+      slackErrorSchema.safeParse(error).data?.data?.error ===
+      'already_in_channel'
+    ) {
+      joinedChannels.add(id);
+      return;
+    }
     logger.debug('[slack] could not join the channel', { channelId, error });
   }
 }

@@ -128,13 +128,10 @@ export const workspace: Workspace = new Workspace({
   tools: {
     [WORKSPACE_TOOLS.FILESYSTEM.READ_FILE]: {
       name: READ_FILE,
-      mediaTypes: [
-        'image/png',
-        'image/jpeg',
-        'image/webp',
-        'image/gif',
-        'application/pdf',
-      ],
+      // Images go through view_image (which types by magic bytes), not read_file:
+      // read_file trusts the extension, which is how a mislabeled file becomes a
+      // bad image part. Keep PDFs, which view_image does not handle.
+      mediaTypes: ['application/pdf'],
     },
     [WORKSPACE_TOOLS.FILESYSTEM.WRITE_FILE]: {
       name: WRITE_FILE,
