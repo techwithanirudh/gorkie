@@ -1,28 +1,14 @@
-import { z } from 'zod';
+import { Chat } from 'chat';
 import { rawId } from '../lib/ids';
 import { type UserProfile, userProfileSchema } from '../types';
 import { slack } from './client';
-import { chat } from './instance';
-
-const profileFieldsSchema = z.record(
-  z.string(),
-  z.looseObject({ label: z.string().optional(), value: z.string().optional() })
-);
-const userInfoSchema = z.looseObject({
-  user: z
-    .looseObject({
-      tz: z.string().optional(),
-      tz_label: z.string().optional(),
-    })
-    .optional(),
-});
 
 export async function resolveUserProfile(
   id: string
 ): Promise<UserProfile | undefined> {
   const userId = rawId(id);
   const cacheKey = `slack:user-profile:${userId}`;
-  const bot = chat();
+  const bot = Chat.getSingleton();
   const cached = userProfileSchema.safeParse(
     await bot.getState().get(cacheKey)
   );
@@ -35,21 +21,19 @@ export async function resolveUserProfile(
   // A transient Slack failure is cached only briefly so it is retried soon.
   let ttl = 86_400_000;
   try {
-    const [{ profile: raw }, rawUser] = await Promise.all([
+    const [{ profile: raw }, { user: info }] = await Promise.all([
       slack.webClient.users.profile.get({
         include_labels: true,
         user: userId,
       }),
       slack.webClient.users.info({ user: userId }),
     ]);
-    const info = userInfoSchema.parse(rawUser);
     if (!(raw || user)) {
       return;
     }
-    const fields = profileFieldsSchema.parse(raw?.fields ?? {});
     profile = {
       displayName: raw?.display_name || undefined,
-      fields: Object.values(fields).flatMap((field) =>
+      fields: Object.values(raw?.fields ?? {}).flatMap((field) =>
         field.value && field.label
           ? [{ label: field.label, value: field.value }]
           : []
@@ -57,8 +41,8 @@ export async function resolveUserProfile(
       pronouns: raw?.pronouns || undefined,
       realName: raw?.real_name || undefined,
       status: raw?.status_text || undefined,
-      timezone: info.user?.tz || undefined,
-      timezoneLabel: info.user?.tz_label || undefined,
+      timezone: info?.tz || undefined,
+      timezoneLabel: info?.tz_label || undefined,
       title: raw?.title || undefined,
     };
   } catch {

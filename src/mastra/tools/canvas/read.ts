@@ -3,17 +3,17 @@ import { z } from 'zod';
 import { env } from '@/env';
 import { canvas as canvasConfig } from '../../config';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { input, output } from '../../types/tools/index';
-import { canvasIdSchema, readableCanvas } from './utils';
+import { readableFile } from '../slack/utils';
+import { canvasIdSchema } from './utils';
 
 export const readCanvasTool = createTool({
   id: 'read_canvas',
   description:
     'Read one Slack canvas as HTML by its canvas id, such as F0123ABCD. Get the id from get_channel_info, list_canvases, or create_canvas. Use lookup_canvas_sections before a targeted edit.',
-  inputSchema: input({
+  inputSchema: z.strictObject({
     canvasId: canvasIdSchema,
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     canvasId: z.string(),
     title: z.string().optional(),
     html: z.string(),
@@ -29,8 +29,8 @@ export const readCanvasTool = createTool({
   execute: async ({ canvasId }, context) => {
     spendSlackCall(context.requestContext);
 
-    const canvas = await readableCanvas({
-      canvasId,
+    const { file: canvas } = await readableFile({
+      fileId: canvasId,
       requestContext: context.requestContext,
     });
     const url = canvas?.url_private_download ?? canvas?.url_private;

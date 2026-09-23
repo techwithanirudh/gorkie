@@ -1,12 +1,12 @@
 import { createTool } from '@mastra/core/tools';
+import { Chat } from 'chat';
 import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
-import { chat } from '../../chat/instance';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { input, output, slackErrorSchema } from '../../types/tools/index';
+import { slackErrorSchema } from '../../types/tools/index';
 
 const contextMessageSchema = z
   .looseObject({
@@ -133,7 +133,9 @@ async function toOutput({
       return channelId;
     }
     try {
-      const metadata = await chat().channel(channelId).fetchMetadata();
+      const metadata = await Chat.getSingleton()
+        .channel(channelId)
+        .fetchMetadata();
       return metadata.channelVisibility === 'workspace' ? channelId : undefined;
     } catch (error) {
       const parsed = slackErrorSchema.safeParse(error);
@@ -191,7 +193,7 @@ export const searchSlackTool = createTool({
   id: 'search_slack',
   description:
     'Run one Slack message search for past conversations, decisions, links, people, or internal references. Use Slack search syntax to narrow by keywords, names, channels, senders, or dates. Public channels only: DMs, private channels, and Slack Connect conversations are never searched. This returns one result page with short surrounding context. Use Slack code mode when the task needs multiple queries, exhaustive pagination, filtering, aggregation, or full conversation reads. Search runs as the workspace-wide public identity, so it needs a live message in the thread and never runs on scheduled or unattended turns.',
-  inputSchema: input({
+  inputSchema: z.strictObject({
     query: z
       .string()
       .min(1)
@@ -204,7 +206,7 @@ export const searchSlackTool = createTool({
       .optional()
       .describe('Cursor from a previous result page, passed back unchanged.'),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     messages: z.array(
       z.strictObject({
         author: z.string().optional(),

@@ -17,7 +17,7 @@ export function attachments(message: Message): Message {
         attachment.name ?? `file-${i + 1}`,
         attachment.mimeType,
         size,
-        attachment.url ?? attachment.fetchMetadata?.url,
+        attachment.url,
       ].filter(Boolean);
       return `- ${details.join(', ')}`;
     }),

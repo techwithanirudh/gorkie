@@ -3,19 +3,18 @@ import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { input, optionalCursor, output } from '../../types/tools/index';
 
 export const listChannelsTool = createTool({
   id: 'list_channels',
   description:
     'List or filter public Slack channels. Private channels, DMs, and group DMs are never listed. Search applies to channel names, topics, and purposes within each paginated Slack result page.',
-  inputSchema: input({
+  inputSchema: z.strictObject({
     query: z.string().min(1).optional(),
     includeArchived: z.boolean().default(false),
     limit: z.coerce.number().int().min(1).max(200).default(100),
-    cursor: optionalCursor,
+    cursor: z.string().min(1).optional(),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     channels: z.array(
       z.strictObject({
         channelId: z.string(),

@@ -1,10 +1,9 @@
 import { createTool } from '@mastra/core/tools';
-import { sandbox as sandboxConfig } from '../../config';
+import { z } from 'zod';
 import { sh } from '../../lib/utils';
 import { branchSchema, repositorySchema } from '../../types';
-import { input } from '../../types/tools/index';
 import { requireSandbox } from '../../workspace';
-import { git, withCredential } from './git';
+import { checkoutPath, git, withCredential } from './git';
 
 export const pushTool = ({
   approval,
@@ -20,7 +19,7 @@ export const pushTool = ({
     description:
       'Push a committed branch of a sandbox checkout to GitHub. The branch must already exist locally with the work committed; main and master are refused. Use this when a change spans more than a couple of files, then open the pull request with github_create_pull_request. To push to a fork, set `checkout` to the repo you cloned and `repository` to the fork.',
     requireApproval: approval,
-    inputSchema: input({
+    inputSchema: z.strictObject({
       repository: repositorySchema.describe(
         'Where to push, as "owner/repo". For a fork PR this is the fork; otherwise the same repo you checked out.'
       ),
@@ -39,7 +38,7 @@ export const pushTool = ({
     execute: async ({ repository, branch, checkout }, context) => {
       const sandbox = await requireSandbox(context.requestContext);
       const source = checkout ?? repository;
-      const path = `${sandboxConfig.workdir}/${source.replace('/', '__')}`;
+      const path = checkoutPath(source);
       const remote = `https://github.com/${repository}.git`;
       const push = () =>
         git({

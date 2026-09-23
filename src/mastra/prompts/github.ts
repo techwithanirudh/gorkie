@@ -7,7 +7,7 @@ export async function githubPrompt({
   userId,
 }: {
   isDM: boolean;
-  requestContext?: RequestContext;
+  requestContext: RequestContext;
   userId: string | undefined;
 }): Promise<string | undefined> {
   if (!userId) {

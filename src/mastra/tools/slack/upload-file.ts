@@ -4,12 +4,7 @@ import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { upload } from '../../config';
 import { channelContext } from '../../lib/context';
-import {
-  input,
-  output,
-  type Target,
-  targetSchema,
-} from '../../types/tools/index';
+import { type Target, targetSchema } from '../../types/tools/index';
 import { requireSandbox } from '../../workspace';
 import { assertCanPostTo, joinChannel, slackDestination } from './utils';
 
@@ -109,7 +104,7 @@ export const uploadFileTool = createTool({
   id: 'upload_file',
   description:
     'Upload a file from the sandbox to Slack. Defaults to the current thread; pass target to send it elsewhere. Channel and thread targets must be in the channel this conversation is already in; user targets must be the requester themselves.',
-  inputSchema: input({
+  inputSchema: z.strictObject({
     path: z
       .string()
       .min(1)
@@ -128,7 +123,7 @@ export const uploadFileTool = createTool({
       .optional()
       .describe('Optional destination other than the current thread.'),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     filename: z.string(),
     path: z.string(),
     fileId: z.string().optional(),

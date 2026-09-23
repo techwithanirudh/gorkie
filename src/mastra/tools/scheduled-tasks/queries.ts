@@ -22,8 +22,7 @@ export async function ownedScheduleService({
   }
   const schedule = await service.get(id);
   if (
-    !(schedule && isAgentSchedule(schedule)) ||
-    schedule.agentId !== agentConfig.id ||
+    schedule?.agentId !== agentConfig.id ||
     schedule.resourceId !== resourceId
   ) {
     throw new Error(`Schedule ${id} was not found in this conversation.`);

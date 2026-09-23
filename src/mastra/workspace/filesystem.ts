@@ -23,7 +23,11 @@ import {
   StaleFileError,
 } from '@mastra/core/workspace';
 import type { E2BSandbox } from '@mastra/e2b';
-import { FileNotFoundError as E2BFileNotFoundError, FileType } from 'e2b';
+import {
+  FileNotFoundError as E2BFileNotFoundError,
+  type EntryInfo,
+  FileType,
+} from 'e2b';
 import { lookup } from 'mime-types';
 import { file as fileLimits } from '../config';
 
@@ -68,7 +72,7 @@ export class E2BFilesystem extends MastraFilesystem {
       absent: 'file',
       inputPath,
       run: async () => {
-        const info = await this.e2b(() =>
+        const info = await this.sandbox.retryOnDead(() =>
           this.sandbox.e2b.files.getInfo(filePath)
         );
         if (info.type === FileType.DIR) {
@@ -86,18 +90,18 @@ export class E2BFilesystem extends MastraFilesystem {
             options.encoding === 'hex' ||
             options.encoding === 'binary'
           ) {
-            const bytes = await this.e2b(() =>
+            const bytes = await this.sandbox.retryOnDead(() =>
               this.sandbox.e2b.files.read(filePath, { format: 'bytes' })
             );
             return Buffer.from(bytes).toString(options.encoding);
           }
 
-          return this.e2b(() =>
+          return this.sandbox.retryOnDead(() =>
             this.sandbox.e2b.files.read(filePath, { format: 'text' })
           );
         }
 
-        const bytes = await this.e2b(() =>
+        const bytes = await this.sandbox.retryOnDead(() =>
           this.sandbox.e2b.files.read(filePath, { format: 'bytes' })
         );
         return Buffer.from(bytes);
@@ -116,7 +120,7 @@ export class E2BFilesystem extends MastraFilesystem {
     if (options?.recursive === false) {
       await this.assertParent({ filePath, inputPath });
     } else {
-      await this.e2b(() =>
+      await this.sandbox.retryOnDead(() =>
         this.sandbox.e2b.files.makeDir(path.posix.dirname(filePath))
       );
     }
@@ -135,7 +139,7 @@ export class E2BFilesystem extends MastraFilesystem {
       }
     }
 
-    await this.e2b(() =>
+    await this.sandbox.retryOnDead(() =>
       this.sandbox.e2b.files.write(filePath, this.e2bContent(content))
     );
   }
@@ -143,15 +147,15 @@ export class E2BFilesystem extends MastraFilesystem {
   async appendFile(inputPath: string, content: FileContent): Promise<void> {
     await this.ensureReady();
     const filePath = this.resolve(inputPath);
-    await this.e2b(() =>
+    await this.sandbox.retryOnDead(() =>
       this.sandbox.e2b.files.makeDir(path.posix.dirname(filePath))
     );
     const current = (await this.exists(inputPath))
-      ? await this.e2b(() =>
+      ? await this.sandbox.retryOnDead(() =>
           this.sandbox.e2b.files.read(filePath, { format: 'bytes' })
         )
       : new Uint8Array();
-    await this.e2b(() =>
+    await this.sandbox.retryOnDead(() =>
       this.sandbox.e2b.files.write(
         filePath,
         this.e2bContent(
@@ -170,13 +174,15 @@ export class E2BFilesystem extends MastraFilesystem {
         absent: 'file',
         inputPath,
         run: async () => {
-          const info = await this.e2b(() =>
+          const info = await this.sandbox.retryOnDead(() =>
             this.sandbox.e2b.files.getInfo(filePath)
           );
           if (info.type === FileType.DIR) {
             throw new IsDirectoryError(inputPath);
           }
-          await this.e2b(() => this.sandbox.e2b.files.remove(filePath));
+          await this.sandbox.retryOnDead(() =>
+            this.sandbox.e2b.files.remove(filePath)
+          );
         },
       });
     } catch (error) {
@@ -203,19 +209,19 @@ export class E2BFilesystem extends MastraFilesystem {
       absent: 'file',
       inputPath: src,
       run: async () => {
-        const info = await this.e2b(() =>
+        const info = await this.sandbox.retryOnDead(() =>
           this.sandbox.e2b.files.getInfo(srcPath)
         );
         if (info.type === FileType.DIR) {
           throw new IsDirectoryError(src);
         }
-        await this.e2b(() =>
+        await this.sandbox.retryOnDead(() =>
           this.sandbox.e2b.files.makeDir(path.posix.dirname(destPath))
         );
-        const content = await this.e2b(() =>
+        const content = await this.sandbox.retryOnDead(() =>
           this.sandbox.e2b.files.read(srcPath, { format: 'bytes' })
         );
-        await this.e2b(() =>
+        await this.sandbox.retryOnDead(() =>
           this.sandbox.e2b.files.write(destPath, this.e2bContent(content))
         );
       },
@@ -235,14 +241,16 @@ export class E2BFilesystem extends MastraFilesystem {
       throw new FileExistsError(dest);
     }
 
-    await this.e2b(() =>
+    await this.sandbox.retryOnDead(() =>
       this.sandbox.e2b.files.makeDir(path.posix.dirname(destPath))
     );
     await this.attempt({
       absent: 'file',
       inputPath: src,
       run: () =>
-        this.e2b(() => this.sandbox.e2b.files.rename(srcPath, destPath)),
+        this.sandbox.retryOnDead(() =>
+          this.sandbox.e2b.files.rename(srcPath, destPath)
+        ),
     });
   }
 
@@ -262,7 +270,9 @@ export class E2BFilesystem extends MastraFilesystem {
       throw new FileExistsError(inputPath);
     }
 
-    await this.e2b(() => this.sandbox.e2b.files.makeDir(dirPath));
+    await this.sandbox.retryOnDead(() =>
+      this.sandbox.e2b.files.makeDir(dirPath)
+    );
   }
 
   async rmdir(inputPath: string, options?: RemoveOptions): Promise<void> {
@@ -274,7 +284,7 @@ export class E2BFilesystem extends MastraFilesystem {
         absent: 'directory',
         inputPath,
         run: async () => {
-          const info = await this.e2b(() =>
+          const info = await this.sandbox.retryOnDead(() =>
             this.sandbox.e2b.files.getInfo(dirPath)
           );
           if (info.type !== FileType.DIR) {
@@ -286,7 +296,9 @@ export class E2BFilesystem extends MastraFilesystem {
           ) {
             throw new DirectoryNotEmptyError(inputPath);
           }
-          await this.e2b(() => this.sandbox.e2b.files.remove(dirPath));
+          await this.sandbox.retryOnDead(() =>
+            this.sandbox.e2b.files.remove(dirPath)
+          );
         },
       });
     } catch (error) {
@@ -307,14 +319,14 @@ export class E2BFilesystem extends MastraFilesystem {
       absent: 'directory',
       inputPath,
       run: async () => {
-        const info = await this.e2b(() =>
+        const info = await this.sandbox.retryOnDead(() =>
           this.sandbox.e2b.files.getInfo(dirPath)
         );
         if (info.type !== FileType.DIR) {
           throw new NotDirectoryError(inputPath);
         }
 
-        const entries = await this.e2b(() =>
+        const entries = await this.sandbox.retryOnDead(() =>
           this.sandbox.e2b.files.list(dirPath, {
             depth: options?.recursive ? (options.maxDepth ?? 100) : 1,
           })
@@ -351,7 +363,7 @@ export class E2BFilesystem extends MastraFilesystem {
 
   async exists(inputPath: string): Promise<boolean> {
     await this.ensureReady();
-    return this.e2b(() =>
+    return this.sandbox.retryOnDead(() =>
       this.sandbox.e2b.files.exists(this.resolve(inputPath))
     );
   }
@@ -362,7 +374,10 @@ export class E2BFilesystem extends MastraFilesystem {
     const info = await this.attempt({
       absent: 'file',
       inputPath,
-      run: () => this.e2b(() => this.sandbox.e2b.files.getInfo(filePath)),
+      run: () =>
+        this.sandbox.retryOnDead(() =>
+          this.sandbox.e2b.files.getInfo(filePath)
+        ),
     });
 
     return {
@@ -419,7 +434,7 @@ export class E2BFilesystem extends MastraFilesystem {
       absent: 'directory',
       inputPath: path.posix.dirname(inputPath),
       run: async () => {
-        const info = await this.e2b(() =>
+        const info = await this.sandbox.retryOnDead(() =>
           this.sandbox.e2b.files.getInfo(path.posix.dirname(filePath))
         );
         if (info.type !== FileType.DIR) {
@@ -440,27 +455,13 @@ export class E2BFilesystem extends MastraFilesystem {
     );
   }
 
-  private e2b<T>(operation: () => Promise<T>): Promise<T> {
-    return this.sandbox.retryOnDead(operation);
-  }
-
-  private missing(error: unknown): boolean {
-    return (
-      error instanceof E2BFileNotFoundError ||
-      (error instanceof Error && error.name === 'FileNotFoundError') ||
-      (error instanceof Error && error.message.includes('[not_found]'))
-    );
-  }
-
-  private async infoOrAbsent(
-    filePath: string
-  ): Promise<
-    Awaited<ReturnType<E2BSandbox['e2b']['files']['getInfo']>> | undefined
-  > {
+  private async infoOrAbsent(filePath: string): Promise<EntryInfo | undefined> {
     try {
-      return await this.e2b(() => this.sandbox.e2b.files.getInfo(filePath));
+      return await this.sandbox.retryOnDead(() =>
+        this.sandbox.e2b.files.getInfo(filePath)
+      );
     } catch (error) {
-      if (this.missing(error)) {
+      if (error instanceof E2BFileNotFoundError) {
         return;
       }
       throw error;
@@ -479,7 +480,7 @@ export class E2BFilesystem extends MastraFilesystem {
     try {
       return await run();
     } catch (error) {
-      if (!this.missing(error)) {
+      if (!(error instanceof E2BFileNotFoundError)) {
         throw error;
       }
       const translated =

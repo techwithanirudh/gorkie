@@ -6,7 +6,7 @@ import { encryptedPrefix, encryptSecret } from '../lib/crypto';
 import { db } from './client';
 import { mcpServers } from './schema';
 
-export { db, postgresStore } from './client';
+export { postgresStore } from './client';
 
 export async function runMigrations(): Promise<void> {
   await migrate(db, {

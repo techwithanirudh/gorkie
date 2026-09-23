@@ -3,25 +3,16 @@ import type { RequestContext } from '@mastra/core/request-context';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { env } from '@/env';
-import { slack } from '../../chat/client';
-import { channelContext } from '../../lib/context';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { sh } from '../../lib/utils';
-import { input, output } from '../../types/tools/index';
 import { sandboxPath as p, requireSandbox } from '../../workspace';
-import { assertReadableResource } from './utils';
+import { readableFile } from './utils';
 
 function formatBytes(value: number): string {
   if (value < 1024 * 1024) {
     return `${Math.ceil(value / 1024)} KB`;
   }
   return `${Math.ceil(value / 1024 / 1024)} MB`;
-}
-
-function throwIfAborted(signal?: AbortSignal): void {
-  if (signal?.aborted) {
-    throw new Error('File download aborted.');
-  }
 }
 
 async function downloadSlackFile({
@@ -46,15 +37,7 @@ async function downloadSlackFile({
 
   spendSlackCall(requestContext);
 
-  const fileInfo = (await slack.webClient.files.info({ file: fileId })).file;
-  await assertReadableResource({
-    channelIds: [
-      ...(fileInfo?.channels ?? []),
-      ...(fileInfo?.groups ?? []),
-      ...(fileInfo?.ims ?? []),
-    ],
-    currentThreadId: channelContext(requestContext).threadId,
-  });
+  const { file: fileInfo } = await readableFile({ fileId, requestContext });
   const url = fileInfo?.url_private_download ?? fileInfo?.url_private;
   if (!url) {
     throw new Error(
@@ -167,7 +150,7 @@ async function downloadSlackFile({
     response.body.pipeThrough(
       new TransformStream<Uint8Array, Uint8Array>({
         transform(chunk, controller) {
-          throwIfAborted(abortSignal);
+          abortSignal?.throwIfAborted();
           downloadedSize += chunk.byteLength;
           controller.enqueue(chunk);
         },
@@ -175,7 +158,7 @@ async function downloadSlackFile({
     ),
     { signal: abortSignal, useOctetStream: true }
   );
-  throwIfAborted(abortSignal);
+  abortSignal?.throwIfAborted();
 
   if (resumeOffset > 0) {
     const merged = await sandbox.retryOnDead(() =>
@@ -205,7 +188,7 @@ export const getSlackFileTool = createTool({
   id: 'get_slack_file',
   description:
     'Download one Slack upload, snippet, or image into the thread sandbox for reading or processing. Pass a Slack file id such as F0123ABCD, or a Slack file permalink containing one. Use fetch_url for web URLs and read_canvas for canvases. Preserve a useful image extension so read_file can infer its MIME type.',
-  inputSchema: input({
+  inputSchema: z.strictObject({
     file: z
       .string()
       .min(1)
@@ -214,7 +197,7 @@ export const getSlackFileTool = createTool({
       ),
     filename: z.string().optional().describe('Optional name to save it as.'),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     path: z.string(),
     filename: z.string(),
     mimeType: z.string().optional(),

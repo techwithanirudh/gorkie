@@ -1,6 +1,6 @@
 import type { AnySpan, SpanOutputProcessor } from '@mastra/core/observability';
 import { SpanType } from '@mastra/core/observability';
-import { z } from 'zod';
+import { channelSchema } from '../lib/context';
 
 // Mastra stashes its live channel render context under this key, and that object
 // holds the Slack adapter carrying SLACK_BOT_TOKEN and SLACK_APP_TOKEN.
@@ -10,16 +10,6 @@ import { z } from 'zod';
 // Mirrors `@mastra/core`'s CHAT_CHANNEL_RENDER_CONTEXT_KEY, which is not
 // re-exported from a public entry point, so the literal is duplicated.
 const RENDER_KEY = '__mastra_chat_channel_render';
-
-const channel = z.object({
-  channelId: z.string().optional(),
-  eventType: z.string().optional(),
-  isDM: z.boolean().optional(),
-  messageId: z.string().optional(),
-  threadId: z.string().optional(),
-  userId: z.string().optional(),
-  userName: z.string().optional(),
-});
 
 export const slackIdentity: SpanOutputProcessor = {
   name: 'slack-identity',
@@ -39,7 +29,7 @@ export const slackIdentity: SpanOutputProcessor = {
     if (span.type !== SpanType.AGENT_RUN || span.getParentSpanId()) {
       return span;
     }
-    const parsed = channel.safeParse(span.requestContext?.channel);
+    const parsed = channelSchema.safeParse(span.requestContext?.channel);
     if (!parsed.success) {
       return span;
     }

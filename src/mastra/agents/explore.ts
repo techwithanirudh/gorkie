@@ -7,7 +7,6 @@ import { InMemoryStore } from '@mastra/core/storage';
 import { Memory } from '@mastra/memory';
 import { agent as config } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
-import { stepCountIs } from '../lib/tools';
 import { sandbox } from '../processors/sandbox';
 import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
@@ -54,7 +53,7 @@ export const explore = new Agent({
       topP: 0.95,
       timeout: config.modelTimeout,
     },
-    stopWhen: stepCountIs(config.maxSteps),
+    maxSteps: config.maxSteps,
     autoResumeSuspendedTools: true,
   },
   outputProcessors: [sandbox, workingModel('explore')],

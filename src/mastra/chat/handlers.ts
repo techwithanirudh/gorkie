@@ -1,3 +1,4 @@
+import type { ChannelHandler } from '@mastra/core/channels';
 import type { Message, Thread } from 'chat';
 import { isUserAllowed } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
@@ -9,14 +10,8 @@ import { isComment } from './message';
 import { offerOptIn } from './onboarding';
 import { threadState } from './state';
 
-type DefaultHandler = (thread: Thread, message: Message) => Promise<void>;
-
 function isFromBot(message: Message): boolean {
-  return (
-    message.author.isBot === true ||
-    message.author.userId === 'USLACKBOT' ||
-    message.author.isMe === true
-  );
+  return message.author.isBot === true || message.author.userId === 'USLACKBOT';
 }
 
 async function runTurn({
@@ -24,7 +19,7 @@ async function runTurn({
   message,
   thread,
 }: {
-  defaultHandler: DefaultHandler;
+  defaultHandler: Parameters<ChannelHandler>[2];
   message: Message;
   thread: Thread;
 }): Promise<void> {
@@ -35,7 +30,7 @@ async function runTurn({
       name: attachment.name,
       mimeType: attachment.mimeType,
       size: attachment.size,
-      url: attachment.url ?? attachment.fetchMetadata?.url,
+      url: attachment.url,
     })),
     textLength: message.text.length,
   });
@@ -49,11 +44,11 @@ async function runTurn({
   }
 }
 
-export async function onMention(
-  thread: Thread,
-  message: Message,
-  defaultHandler: DefaultHandler
-): Promise<void> {
+export const onMention: ChannelHandler = async (
+  thread,
+  message,
+  defaultHandler
+) => {
   if (isFromBot(message)) {
     return;
   }
@@ -68,13 +63,13 @@ export async function onMention(
     return;
   }
   await runTurn({ defaultHandler, message, thread });
-}
+};
 
-export async function onSubscribedMessage(
-  thread: Thread,
-  message: Message,
-  defaultHandler: DefaultHandler
-): Promise<void> {
+export const onSubscribedMessage: ChannelHandler = async (
+  thread,
+  message,
+  defaultHandler
+) => {
   if (isFromBot(message) || isComment(message)) {
     return;
   }
@@ -90,13 +85,13 @@ export async function onSubscribedMessage(
     return;
   }
   await runTurn({ defaultHandler, message, thread });
-}
+};
 
-export async function onDirectMessage(
-  thread: Thread,
-  message: Message,
-  defaultHandler: DefaultHandler
-): Promise<void> {
+export const onDirectMessage: ChannelHandler = async (
+  thread,
+  message,
+  defaultHandler
+) => {
   if (isFromBot(message)) {
     return;
   }
@@ -108,4 +103,4 @@ export async function onDirectMessage(
     return;
   }
   await runTurn({ defaultHandler, message, thread });
-}
+};

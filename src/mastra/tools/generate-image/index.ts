@@ -2,7 +2,6 @@ import { createTool } from '@mastra/core/tools';
 import { generateImage } from 'ai';
 import { z } from 'zod';
 import { hackclub, images } from '../../providers';
-import { input, output } from '../../types/tools/index';
 import { sandboxPath as p, requireSandbox } from '../../workspace';
 import { editImages } from './edit';
 
@@ -10,7 +9,7 @@ export const generateImageTool = createTool({
   id: 'generate_image',
   description:
     'Generate or edit AI images. With just a prompt it generates from scratch. Pass referenceImages (sandbox file paths to existing images) to edit them instead: change something, add something, restyle, or combine several. Write results into the sandbox downloads/ directory. Use upload_file afterward to send them to Slack (defaults to the current thread; pass target for elsewhere) or process them first (resize, composite, edit) with other sandbox tools.',
-  inputSchema: input({
+  inputSchema: z.strictObject({
     prompt: z
       .string()
       .min(1)
@@ -33,7 +32,7 @@ export const generateImageTool = createTool({
         'Sandbox paths of existing images to edit or combine instead of generating from scratch.'
       ),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     prompt: z.string(),
     paths: z.array(z.string()),
   }),

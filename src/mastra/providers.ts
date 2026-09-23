@@ -61,8 +61,8 @@ async function preferLastWorking(
   return matches.length ? [...matches, ...rest] : models;
 }
 
-function ladder(agentKey: string): ModelWithRetries[] {
-  return [
+function ladder(agentKey: string): () => Promise<ModelWithRetries[]> {
+  const models: ModelWithRetries[] = [
     {
       ...opencode({ modelId: 'glm-5.3-flash', fallbackSession: agentKey }),
       maxRetries: 3,
@@ -80,11 +80,14 @@ function ladder(agentKey: string): ModelWithRetries[] {
       maxRetries: 3,
     },
   ];
+  return () => preferLastWorking(models);
 }
 
-const orchestratorModels = ladder('orchestrator');
+export const orchestrator = ladder('orchestrator');
 
-export const orchestrator = () => preferLastWorking(orchestratorModels);
+export const scout = ladder('research');
+
+export const explorer = ladder('explore');
 
 export const summarizer: ModelWithRetries[] = [
   { model: hackclub('google/gemini-3.5-flash-lite'), maxRetries: 3 },
@@ -93,14 +96,6 @@ export const summarizer: ModelWithRetries[] = [
     maxRetries: 3,
   },
 ];
-
-const scoutModels = ladder('research');
-
-export const scout = () => preferLastWorking(scoutModels);
-
-const explorerModels = ladder('explore');
-
-export const explorer = () => preferLastWorking(explorerModels);
 
 export const images = {
   model: 'google/gemini-3.1-flash-image',

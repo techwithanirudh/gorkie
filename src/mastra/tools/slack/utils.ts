@@ -1,6 +1,8 @@
+import type { RequestContext } from '@mastra/core/request-context';
 import type { Message } from 'chat';
+import { Chat } from 'chat';
 import { slack } from '../../chat/client';
-import { chat } from '../../chat/instance';
+import { channelContext } from '../../lib/context';
 import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 import type { ChannelContext } from '../../types';
@@ -14,7 +16,7 @@ export async function assertReadableChannel({
   currentThreadId?: string;
 }) {
   const id = chatChannelId(channelId);
-  const metadata = await chat().channel(id).fetchMetadata();
+  const metadata = await Chat.getSingleton().channel(id).fetchMetadata();
   if (currentThreadId && id === chatChannelId(currentThreadId)) {
     return metadata;
   }
@@ -28,29 +30,35 @@ export async function assertReadableChannel({
   );
 }
 
-export async function assertReadableResource({
-  channelIds,
-  currentThreadId,
+export async function readableFile({
+  fileId,
+  requestContext,
 }: {
-  channelIds: string[];
-  currentThreadId?: string;
-}): Promise<void> {
+  fileId: string;
+  requestContext: RequestContext;
+}) {
+  const { file } = await slack.webClient.files.info({ file: fileId });
+  const channelIds = [
+    ...(file?.channels ?? []),
+    ...(file?.groups ?? []),
+    ...(file?.ims ?? []),
+  ];
   if (channelIds.length === 0) {
     throw new Error('This Slack resource is not associated with a channel.');
   }
 
+  const { threadId } = channelContext(requestContext);
   const checks = await Promise.allSettled(
     channelIds.map((channelId) =>
-      assertReadableChannel({ channelId, currentThreadId })
+      assertReadableChannel({ channelId, currentThreadId: threadId })
     )
   );
-  if (checks.some((check) => check.status === 'fulfilled')) {
-    return;
+  if (!checks.some((check) => check.status === 'fulfilled')) {
+    throw new Error(
+      'Reading or editing Slack resources from another private conversation is not allowed.'
+    );
   }
-
-  throw new Error(
-    'Reading or editing Slack resources from another private conversation is not allowed.'
-  );
+  return { file, channelIds };
 }
 
 export function assertCanPostTo({
@@ -91,7 +99,9 @@ export async function slackDestination(
     return { channel: rawId(target.id) };
   }
   if (target.type === 'user') {
-    return { channel: rawId((await chat().openDM(rawId(target.id))).id) };
+    return {
+      channel: rawId((await Chat.getSingleton().openDM(rawId(target.id))).id),
+    };
   }
   // Decode exactly as assertCanPostTo does: a lenient parser here could read a
   // different channel out of the same id than the one the gate approved.

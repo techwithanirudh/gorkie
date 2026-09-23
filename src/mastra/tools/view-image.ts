@@ -2,7 +2,6 @@ import { detectMediaType } from '@ai-sdk/provider-utils';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { image } from '../config';
-import { input, output } from '../types/tools/index';
 import { requireSandbox } from '../workspace';
 
 export function viewableImageType(bytes: Uint8Array): string | undefined {
@@ -20,10 +19,10 @@ export const viewImageTool = createTool({
   id: 'view_image',
   description:
     'Look at an image in the sandbox (png, jpeg, gif, webp) so you can actually see it. Pass just the path. This is how you view an image: read_file with an encoding returns text or base64, which you cannot see.',
-  inputSchema: input({
+  inputSchema: z.strictObject({
     path: z.string().min(1).describe('Sandbox path to the image file.'),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     path: z.string(),
     mediaType: z.string(),
     data: z.string(),

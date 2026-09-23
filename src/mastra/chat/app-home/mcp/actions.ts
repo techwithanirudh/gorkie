@@ -1,4 +1,4 @@
-import { Modal, TextInput } from 'chat';
+import { Chat, Modal, type ModalErrorsResponse, TextInput } from 'chat';
 import { mcp } from '../../../config';
 import {
   insertMCPServer,
@@ -10,10 +10,12 @@ import {
 import { logger } from '../../../lib/logger';
 import { findMCPUrlError } from '../../../mcp/security';
 import { findMCPConnectionError } from '../../../mcp/user-servers';
-import { mcpServerSchema, type PublishHome } from '../../../types';
-import { chat } from '../../instance';
+import {
+  mcpServerSchema,
+  type PublishHome,
+  toolPermissionSchema,
+} from '../../../types';
 import { ids } from './ids';
-import { decodePreset } from './presets';
 import { configureModal } from './views';
 
 async function addServer({
@@ -24,7 +26,7 @@ async function addServer({
   publishHome: PublishHome;
   userId: string;
   values: Record<string, string | undefined>;
-}): Promise<{ action: 'errors'; errors: Record<string, string> } | undefined> {
+}): Promise<ModalErrorsResponse | undefined> {
   const parsed = mcpServerSchema.safeParse({
     name: values.name?.trim(),
     url: values.url?.trim(),
@@ -38,7 +40,7 @@ async function addServer({
         errors[field] = issue.message;
       }
     }
-    return { action: 'errors' as const, errors };
+    return { action: 'errors', errors };
   }
 
   const isGitHub = new URL(parsed.data.url).host === 'api.githubcopilot.com';
@@ -46,13 +48,13 @@ async function addServer({
     const message =
       'GitHub has its own section above. Use Sign in with GitHub instead.';
     return {
-      action: 'errors' as const,
+      action: 'errors',
       errors: isGitHub ? { url: message } : { name: message },
     };
   }
   const urlError = await findMCPUrlError(parsed.data.url);
   if (urlError) {
-    return { action: 'errors' as const, errors: { url: urlError } };
+    return { action: 'errors', errors: { url: urlError } };
   }
   const result = await insertMCPServer({
     userId,
@@ -61,7 +63,7 @@ async function addServer({
   });
   if (result === 'name-taken') {
     return {
-      action: 'errors' as const,
+      action: 'errors',
       errors: {
         name: `The name "${parsed.data.name}" is already in use. Pick another name, or remove the existing server first.`,
       },
@@ -69,7 +71,7 @@ async function addServer({
   }
   if (result === 'limit-reached') {
     return {
-      action: 'errors' as const,
+      action: 'errors',
       errors: { name: `You can connect at most ${mcp.maxServers} servers.` },
     };
   }
@@ -100,7 +102,7 @@ export function registerMCPServers({
 }: {
   publishHome: PublishHome;
 }): void {
-  const bot = chat();
+  const bot = Chat.getSingleton();
 
   bot.onAction(ids.add, async (event) => {
     const servers = await listMCPServers(event.user.userId);
@@ -161,11 +163,10 @@ export function registerMCPServers({
   });
 
   bot.onModalSubmit(ids.configureModal, async (event) => {
-    const { permission, scope } = decodePreset(event.values.permission);
-    if (scope) {
+    if (event.privateMetadata) {
       await setMCPServerPermission({
-        name: scope,
-        permission,
+        name: event.privateMetadata,
+        permission: toolPermissionSchema.parse(event.values.permission),
         userId: event.user.userId,
       });
     }

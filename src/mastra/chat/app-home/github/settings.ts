@@ -1,3 +1,4 @@
+import { Chat } from 'chat';
 import {
   getGitHubCredential,
   removeGitHubCredential,
@@ -10,7 +11,6 @@ import {
 import { logger } from '../../../lib/logger';
 import { githubPermissionSchema, type PublishHome } from '../../../types';
 import { slack } from '../../client';
-import { chat } from '../../instance';
 import { polling } from './connect';
 import { ids } from './ids';
 import { configureView, selectedPermission, viewOf } from './views';
@@ -20,7 +20,7 @@ export function registerSettings({
 }: {
   publishHome: PublishHome;
 }): void {
-  const bot = chat();
+  const bot = Chat.getSingleton();
 
   bot.onAction(ids.configure, async (event) => {
     const { userId } = event.user;

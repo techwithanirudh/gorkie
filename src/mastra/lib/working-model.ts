@@ -1,4 +1,4 @@
-import { chat } from '../chat/instance';
+import { Chat } from 'chat';
 import { workingModel } from '../config';
 import { logger } from './logger';
 
@@ -13,8 +13,9 @@ export function slugOf(modelId: string): string {
 export async function recallModel(): Promise<string | undefined> {
   try {
     return (
-      (await chat().getState().get<string>(SHARED_WORKING_MODEL_KEY)) ??
-      undefined
+      (await Chat.getSingleton()
+        .getState()
+        .get<string>(SHARED_WORKING_MODEL_KEY)) ?? undefined
     );
   } catch (err) {
     logger.warn('[working-model] failed to read', { err });
@@ -33,7 +34,7 @@ export async function rememberModel({
       ? slugOf(`${modelProvider}/${modelId}`)
       : slugOf(modelId);
   try {
-    await chat()
+    await Chat.getSingleton()
       .getState()
       .set(SHARED_WORKING_MODEL_KEY, slug, workingModel.ttl);
   } catch (err) {

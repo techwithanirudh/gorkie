@@ -1,5 +1,3 @@
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { defaultBuildLogger, Template } from 'e2b';
 import { env } from '@/env';
 import { sandbox as config } from '../config';
@@ -9,10 +7,7 @@ async function main(): Promise<void> {
 
   const build = await Template.build(
     Template({
-      fileContextPath: resolve(
-        dirname(fileURLToPath(import.meta.url)),
-        '../../..'
-      ),
+      fileContextPath: env.PROJECT_ROOT,
     })
       .fromBaseImage()
       .setEnvs({ HOME: '/home/user' })

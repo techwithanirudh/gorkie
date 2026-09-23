@@ -1,6 +1,7 @@
+import type { SlackBlock } from '@chat-adapter/slack/blocks';
 import type { HomeSection } from '../../types';
 
-export function fitHome(sections: HomeSection[]): Record<string, unknown>[] {
+export function fitHome(sections: HomeSection[]): SlackBlock[] {
   const reserved = sections.filter((section) => section.rows?.length).length;
   // Slack rejects a Home view with more than 100 blocks.
   let budget =

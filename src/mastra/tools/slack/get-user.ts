@@ -2,16 +2,15 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { resolveUserProfile } from '../../chat/names';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { input, output } from '../../types/tools/index';
 
 export const getUserTool = createTool({
   id: 'get_user',
   description:
     "Look up one Slack user's profile by raw user id, such as U0123ABCD. Returns names, pronouns, timezone, title, status, and custom profile fields. Use search_slack instead when you only know the person's name.",
-  inputSchema: input({
+  inputSchema: z.strictObject({
     userId: z.string().min(1).describe('Slack user id, e.g. U123ABC'),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     userId: z.string(),
     userName: z.string().optional(),
     fullName: z.string().optional(),

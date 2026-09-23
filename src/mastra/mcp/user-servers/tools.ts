@@ -1,14 +1,15 @@
+import type { ToolsInput } from '@mastra/core/agent';
 import { listMCPServers, setMCPServerError } from '../../db/queries/mcps';
 import { logger } from '../../lib/logger';
 import { cleanMCPErrorMessage } from '../errors';
-import { annotatedTool, coverageKey, unlabelledServers } from './approval';
+import { coverageKey, unlabelledServers } from './approval';
 import { dropClient, resolveClient } from './client';
 
 export async function userMCPTools({
   userId,
 }: {
   userId: string;
-}): Promise<Record<string, unknown>> {
+}): Promise<ToolsInput> {
   try {
     const servers = await listMCPServers(userId);
     if (servers.length === 0) {
@@ -35,9 +36,7 @@ export async function userMCPTools({
         (id) => ownerOf.get(id) === server.name
       );
       const labelled = own.some(
-        (id) =>
-          annotatedTool.safeParse(tools[id]).data?.mcp?.annotations
-            ?.readOnlyHint !== undefined
+        (id) => tools[id]?.mcp?.annotations?.readOnlyHint !== undefined
       );
       const key = coverageKey({ serverName: server.name, userId });
       if (own.length > 0 && !labelled) {

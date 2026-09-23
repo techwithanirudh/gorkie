@@ -1,6 +1,6 @@
+import { Chat } from 'chat';
 import { env } from '@/env';
 import { slack } from '../chat/client';
-import { chat } from '../chat/instance';
 import { rawId } from './ids';
 import { logger } from './logger';
 
@@ -13,7 +13,7 @@ export async function isUserAllowed(userId: string): Promise<boolean> {
     return true;
   }
   try {
-    const allowedUsers = await chat()
+    const allowedUsers = await Chat.getSingleton()
       .getState()
       .get<string[]>(allowlistKey(env.OPT_IN_CHANNEL));
     return allowedUsers?.includes(userId) ?? false;
@@ -28,7 +28,7 @@ export async function addAllowedUser(userId: string): Promise<void> {
   if (!channel) {
     return;
   }
-  const state = chat().getState();
+  const state = Chat.getSingleton().getState();
   try {
     const allowedUsers = new Set(
       (await state.get<string[]>(allowlistKey(channel))) ?? []
@@ -53,9 +53,9 @@ export async function buildAllowlist(): Promise<void> {
   if (!channel) {
     return;
   }
-  const state = chat().getState();
+  const state = Chat.getSingleton().getState();
 
-  chat().onMemberJoinedChannel(async (event) => {
+  Chat.getSingleton().onMemberJoinedChannel(async (event) => {
     if (rawId(event.channelId) === channel) {
       await addAllowedUser(event.userId);
     }

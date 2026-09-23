@@ -1,11 +1,5 @@
 import type { Thread } from 'chat';
-import { z } from 'zod';
-import type { ThreadState } from '../types';
-
-const threadStateSchema = z.looseObject({
-  lastSeenMessage: z.string().optional(),
-  respondOnThreadMessages: z.boolean().optional(),
-});
+import { type ThreadState, threadStateSchema } from '../types';
 
 export async function threadState(thread: Thread): Promise<ThreadState | null> {
   const state = await thread.state;

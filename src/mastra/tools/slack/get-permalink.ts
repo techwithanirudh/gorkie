@@ -4,18 +4,17 @@ import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, parseSlackId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { input, output } from '../../types/tools/index';
 import { assertReadableChannel } from './utils';
 
 export const getPermalinkTool = createTool({
   id: 'get_permalink',
   description:
     'Resolve one Slack message or thread identifier to its permanent URL. Pass a full Slack id, or a message timestamp with an optional channel id. The channel defaults to the current channel. Do not use this to search for a message.',
-  inputSchema: input({
+  inputSchema: z.strictObject({
     messageId: z.string().min(1),
     channelId: z.string().optional(),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     channelId: z.string(),
     messageTs: z.string(),
     permalink: z.url(),

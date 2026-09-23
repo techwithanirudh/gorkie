@@ -7,11 +7,10 @@ import { LangfuseExporter } from '@mastra/langfuse';
 import { MastraStorageExporter, Observability } from '@mastra/observability';
 import { env } from '@/env';
 import { explore } from './agents/explore';
-import orchestrator from './agents/orchestrator';
+import { orchestrator } from './agents/orchestrator';
 import { research } from './agents/research';
 import { summarizer } from './agents/summarizer';
 import { registerEvents } from './chat/events';
-import { setChat } from './chat/instance';
 import { setMastra } from './chat/mastra-instance';
 import { postgresStore, runMigrations } from './db';
 import { buildAllowlist } from './lib/allowed-users';
@@ -87,15 +86,14 @@ setMastra(mastra);
 // Mastra starts channels itself without awaiting them. initialize() is
 // idempotent and returns that same promise, so this hooks the post-init wiring
 // onto it without holding module load.
-orchestrator
-  .getChannels()
+const channels = orchestrator.getChannels();
+channels
   ?.initialize(mastra)
   .then(async () => {
-    const sdk = orchestrator.getChannels()?.sdk;
-    if (!sdk) {
+    if (!channels.sdk) {
       return;
     }
-    setChat(sdk);
+    channels.sdk.registerSingleton();
     registerEvents();
     await buildAllowlist();
     logger.info('[agent] online');

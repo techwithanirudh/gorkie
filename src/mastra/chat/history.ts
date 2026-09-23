@@ -45,9 +45,8 @@ export async function withHistory({
       previous.attachments.length > 0
         ? ` [${previous.attachments.length} attachment${previous.attachments.length === 1 ? '' : 's'}: ${previous.attachments
             .map((file) => {
-              const url = file.url ?? file.fetchMetadata?.url;
-              const id = url?.match(/\bF[A-Z0-9]{6,}\b/)?.[0];
-              return [file.name ?? file.type, id ?? url]
+              const id = file.url?.match(/\bF[A-Z0-9]{6,}\b/)?.[0];
+              return [file.name ?? file.type, id ?? file.url]
                 .filter(Boolean)
                 .join(' ');
             })

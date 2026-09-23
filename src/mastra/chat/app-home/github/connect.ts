@@ -1,3 +1,4 @@
+import { Chat, type ModalResponse } from 'chat';
 import {
   getGitHubCredential,
   setGitHubCredential,
@@ -17,7 +18,6 @@ import type {
   ViewTarget,
 } from '../../../types';
 import { slack } from '../../client';
-import { chat } from '../../instance';
 import { ids } from './ids';
 import { connectedModal, connectView, failedModal, viewOf } from './views';
 
@@ -200,13 +200,13 @@ async function saveToken({
   publishHome: PublishHome;
   token: string;
   userId: string;
-}) {
+}): Promise<ModalResponse> {
   if (!token) {
-    return { action: 'errors' as const, errors: { token: 'Paste a token.' } };
+    return { action: 'errors', errors: { token: 'Paste a token.' } };
   }
   const verified = await verifyGitHubPat(token);
   if ('error' in verified) {
-    return { action: 'errors' as const, errors: { token: verified.error } };
+    return { action: 'errors', errors: { token: verified.error } };
   }
   polling.get(userId)?.controller.abort();
   polling.delete(userId);
@@ -220,15 +220,15 @@ async function saveToken({
     userId,
   });
   await publishHome(userId);
-  return { action: 'clear' as const };
+  return { action: 'clear' };
 }
 
-async function finishDeviceLogin(userId: string) {
+async function finishDeviceLogin(userId: string): Promise<ModalResponse> {
   // A pending login outranks a stored credential: on Reconnect the old one is
   // still there until GitHub confirms the new code.
   if (polling.has(userId)) {
     return {
-      action: 'errors' as const,
+      action: 'errors',
       errors: {
         [ids.method]:
           'GitHub has not confirmed yet. Finish both steps, then press Done again.',
@@ -236,9 +236,9 @@ async function finishDeviceLogin(userId: string) {
     };
   }
   if (await getGitHubCredential(userId)) {
-    return { action: 'clear' as const };
+    return { action: 'clear' };
   }
-  return { action: 'update' as const, modal: failedModal('interrupted') };
+  return { action: 'update', modal: failedModal('interrupted') };
 }
 
 export function registerConnect({
@@ -246,7 +246,7 @@ export function registerConnect({
 }: {
   publishHome: PublishHome;
 }): void {
-  const bot = chat();
+  const bot = Chat.getSingleton();
 
   bot.onAction(ids.connect, (event) =>
     openConnect({
@@ -278,7 +278,7 @@ export function registerConnect({
     const chosen = polling.get(userId)?.method ?? event.values[ids.method];
     // Only the signed-in and not-signed-in result modals lack the method select.
     if (!chosen) {
-      return { action: 'clear' as const };
+      return { action: 'clear' };
     }
     if (chosen === 'pat') {
       return await saveToken({

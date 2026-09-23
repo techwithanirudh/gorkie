@@ -3,7 +3,11 @@ import { listMCPServers } from '../../db/queries/mcps';
 import { getGitHubSettings, getInstructions } from '../../db/queries/settings';
 import { countInstallations } from '../../lib/github';
 import { logger } from '../../lib/logger';
-import type { GitHubCredential, HomeSection } from '../../types';
+import {
+  type GitHubCredential,
+  githubPermissionSchema,
+  type HomeSection,
+} from '../../types';
 import { slack } from '../client';
 import { content } from '../content';
 import { githubBlocks } from './github';
@@ -72,7 +76,7 @@ export async function publishHome(userId: string): Promise<void> {
     githubBlocks({
       credential,
       installations,
-      permission: github?.permission ?? 'write',
+      permission: githubPermissionSchema.parse(github?.permission),
       threads: github?.threads === true,
       unreadable,
     }),

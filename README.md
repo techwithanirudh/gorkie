@@ -75,7 +75,7 @@ git clone https://github.com/techwithanirudh/gorkie.git
 # Install dependencies
 bun install
 
-# Copy and fill in the environment
+# Copy and fill in the environment (set PROJECT_ROOT to this repo's absolute path)
 cp .env.example .env
 
 # Build the configured E2B sandbox image
@@ -102,6 +102,7 @@ local database named `gorkie`. Mastra creates its tables on first run.
 
 | Variable | Required | Description |
 |---|---|---|
+| `PROJECT_ROOT` | yes | Absolute path to this repo. `mastra dev`/`start` run from `.mastra/output`, so migrations, skills, and the DuckDB file resolve against this instead of cwd |
 | `SLACK_BOT_TOKEN` | yes | Bot User OAuth token (`xoxb-…`) |
 | `SLACK_APP_TOKEN` | yes | App-level token with `connections:write` (`xapp-…`) |
 | `SLACK_USER_TOKEN` | yes | Slack user token, not the bot token, used for public-channel search. Mint it with `search:read.public` only; gorkie verifies the granted scopes on first use and refuses the token if it also carries `search:read.im`, `search:read.mpim`, or `search:read.private`. See [docs/slack-search.md](docs/slack-search.md) |

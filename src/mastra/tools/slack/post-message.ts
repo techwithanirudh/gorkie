@@ -2,32 +2,12 @@ import { SlackFormatConverter } from '@chat-adapter/slack';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
-import { chat } from '../../chat/instance';
 import { channelContext } from '../../lib/context';
-import { threadIdOf } from '../../lib/ids';
-import { input, output, targetSchema } from '../../types/tools/index';
+import { rawId, threadIdOf } from '../../lib/ids';
+import { slackErrorSchema, targetSchema } from '../../types/tools/index';
 import { assertCanPostTo, joinChannel, slackDestination } from './utils';
 
 const markdownConverter = new SlackFormatConverter();
-
-let cachedBotName: string | undefined;
-
-async function botDisplayName(botUserId: string | undefined): Promise<string> {
-  if (cachedBotName) {
-    return cachedBotName;
-  }
-  if (!botUserId) {
-    return 'gorkie';
-  }
-  // The name only labels the post, so a failed lookup falls back to the default.
-  const info = await slack.webClient.users
-    .info({ user: botUserId })
-    .catch(() => null);
-  const profile = info?.user?.profile;
-  cachedBotName =
-    profile?.display_name || profile?.real_name || info?.user?.name || 'gorkie';
-  return cachedBotName;
-}
 
 export const postMessageTool = createTool({
   id: 'post_message',
@@ -40,13 +20,13 @@ Channel and thread targets must be in the channel this conversation is already i
 Every post automatically uses the requester's Slack avatar and labels the sender as "Name [gorkie]". Do not add that attribution yourself in the message text; there is no way to override or customize it.
 
 Errors: channel_not_found usually means the bot isn't a member of that private channel; not_in_channel means it hasn't joined yet. Either way, tell the user to invite the bot there.`,
-  inputSchema: input({
+  inputSchema: z.strictObject({
     target: targetSchema.describe(
       'Required destination outside the current conversation.'
     ),
     message: z.string().min(1).describe('Markdown message body.'),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     messageId: z.string(),
     threadId: z.string().optional(),
   }),
@@ -65,14 +45,16 @@ Errors: channel_not_found usually means the bot isn't a member of that private c
         await joinChannel(target.id);
       }
       const { channel, threadTs } = await slackDestination(target);
-      // Crediting the requester is cosmetic; a failed lookup posts uncredited.
+      // Both names only label the post; the adapter's cached lookup resolves a
+      // failure to null, which posts uncredited or under the default name.
       const requesterUser = ctx.userId
-        ? await chat()
-            .getUser(ctx.userId)
-            .catch(() => null)
+        ? await slack.getUser(rawId(ctx.userId))
         : null;
       const requester = requesterUser?.userName ?? ctx.userName;
-      const bot = await botDisplayName(ctx.botUserId);
+      const botUser = slack.botUserId
+        ? await slack.getUser(slack.botUserId)
+        : null;
+      const bot = botUser?.userName ?? 'gorkie';
       const credited = Boolean(requester) && target.type !== 'user';
       const username = credited ? `${requester} [${bot}]` : bot;
       const sent = await slack.webClient.chat.postMessage({
@@ -92,14 +74,14 @@ Errors: channel_not_found usually means the bot isn't a member of that private c
         threadId: threadTs ? threadIdOf({ channel, ts: threadTs }) : undefined,
       };
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      if (reason.includes('channel_not_found')) {
+      const code = slackErrorSchema.safeParse(error).data?.data?.error;
+      if (code === 'channel_not_found') {
         throw new Error(
           'Slack rejected the post with channel_not_found. For private channels this usually means the bot is not a member. Ask a member to invite the bot in that channel, then retry. If the channel is public, double-check the channel id.',
           { cause: error }
         );
       }
-      if (reason.includes('not_in_channel')) {
+      if (code === 'not_in_channel') {
         throw new Error(
           'Slack rejected the post with not_in_channel. Invite the bot to that channel, then retry.',
           { cause: error }

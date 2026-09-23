@@ -1,15 +1,14 @@
 import { createTool } from '@mastra/core/tools';
+import { Chat } from 'chat';
 import { z } from 'zod';
-import { chat } from '../../chat/instance';
 import { channelContext } from '../../lib/context';
-import { input, output } from '../../types/tools/index';
 
 export const leaveThreadTool = createTool({
   id: 'leave_thread',
   description:
     'Leave the current thread: stop auto-responding to its messages. Use this when asked to stop following a thread, be quiet, or let people talk without you. You can still be pinged back with a direct @mention.',
-  inputSchema: input({}),
-  outputSchema: output({ threadId: z.string() }),
+  inputSchema: z.strictObject({}),
+  outputSchema: z.strictObject({ threadId: z.string() }),
   transform: {
     display: {
       output: ({ output }) => ({
@@ -22,7 +21,7 @@ export const leaveThreadTool = createTool({
     if (!threadId) {
       throw new Error('No current thread.');
     }
-    const thread = chat().thread(threadId);
+    const thread = Chat.getSingleton().thread(threadId);
     await thread.setState({ respondOnThreadMessages: false });
     await thread.unsubscribe();
     return { threadId };

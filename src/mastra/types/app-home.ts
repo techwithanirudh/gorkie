@@ -1,12 +1,11 @@
+import type { SlackBlock } from '@chat-adapter/slack/blocks';
 import { z } from 'zod';
 
-type Block = Record<string, unknown>;
-
 export interface HomeSection {
-  fixed: Block[];
-  overflow?: (dropped: number) => Block;
-  rows?: Block[][];
-  trailing?: Block[];
+  fixed: SlackBlock[];
+  overflow?: (dropped: number) => SlackBlock;
+  rows?: SlackBlock[][];
+  trailing?: SlackBlock[];
 }
 
 export type PublishHome = (userId: string) => Promise<void>;

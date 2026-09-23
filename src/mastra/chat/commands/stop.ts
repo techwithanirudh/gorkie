@@ -1,16 +1,26 @@
+import { agent as agentConfig } from '../../config';
 import { logger } from '../../lib/logger';
-import { memoryThread } from '../../lib/memory';
 import type { CommandHandler } from '../../types';
+import { getMastra } from '../mastra-instance';
 
 export const stop: CommandHandler = async ({ message, thread }) => {
-  // The orchestrator imports the chat handlers that reach this command, so a
-  // static import here would be circular.
-  const { default: orchestrator } = await import('../../agents/orchestrator');
+  const orchestrator = getMastra().getAgentById(agentConfig.id);
   // A thread with no memory yet has never run a turn, so there is nothing to stop.
-  const threadMemory = await memoryThread({
-    agent: orchestrator,
-    externalThreadId: thread.id,
-  }).catch(() => undefined);
+  const threadMemory = await orchestrator
+    .getMemory()
+    .then((memory) =>
+      memory?.listThreads({
+        filter: { metadata: { channel_externalThreadId: thread.id } },
+        perPage: 1,
+      })
+    )
+    .then((found) => found?.threads[0])
+    .catch((error: unknown) => {
+      logger.warn('[commands] Failed to look up the memory thread to stop', {
+        error,
+        threadId: thread.id,
+      });
+    });
   const scope = threadMemory && {
     threadId: threadMemory.id,
     resourceId: threadMemory.resourceId,

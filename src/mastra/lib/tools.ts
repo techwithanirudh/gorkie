@@ -7,7 +7,3 @@ export function toolCall(toolName: string): MastraStopCondition {
       ?.toolResults?.some((toolResult) => toolResult.toolName === toolName) ??
     false;
 }
-
-export function stepCountIs(stepCount: number): MastraStopCondition {
-  return ({ steps }) => steps.length === stepCount;
-}

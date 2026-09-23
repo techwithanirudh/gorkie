@@ -1,8 +1,8 @@
-import { CardText, Modal } from 'chat';
+import { CardText, Modal, RadioSelect } from 'chat';
 import { coverageKey, unlabelledServers } from '../../../mcp/user-servers';
-import type { MCPServerConfig } from '../../../types';
+import { type MCPServerConfig, toolPermissionSchema } from '../../../types';
+import { PRESETS } from '../presets';
 import { ids } from './ids';
-import { presetRadio } from './presets';
 
 export function configureModal({
   server,
@@ -18,11 +18,17 @@ export function configureModal({
     callbackId: ids.configureModal,
     title: `Configure ${server.name}`.slice(0, 24),
     submitLabel: 'Save',
+    privateMetadata: server.name,
     children: [
-      presetRadio({
+      RadioSelect({
         id: 'permission',
-        permission: server.permission,
-        scope: server.name,
+        label: 'When should Gorkie stop and ask?',
+        initialOption: server.permission,
+        options: toolPermissionSchema.unwrap().options.map((value) => ({
+          label: PRESETS[value].label,
+          description: PRESETS[value].description,
+          value,
+        })),
       }),
       ...(unlabelled
         ? [

@@ -3,14 +3,13 @@ import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, parseSlackId } from '../../lib/ids';
-import { input, output } from '../../types/tools/index';
 import { assertCanPostTo } from './utils';
 
 export const reactTool = createTool({
   id: 'react',
   description:
     'Add or remove an emoji reaction on a Slack message in the current conversation, by message timestamp or message URL. Messages in other channels or DMs cannot be reacted to.',
-  inputSchema: input({
+  inputSchema: z.strictObject({
     channelId: z
       .string()
       .optional()
@@ -28,7 +27,7 @@ export const reactTool = createTool({
     action: z.enum(['add', 'remove']).default('add'),
     emoji: z.string().min(1).describe('Emoji name without colons.'),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     action: z.enum(['add', 'remove']),
     channelId: z.string(),
     messageId: z.string(),

@@ -2,14 +2,13 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { agent as agentConfig } from '../config';
 import { channelContext } from '../lib/context';
-import { input, output, WAIT_SCHEDULE_KIND } from '../types/tools/index';
-import { isAgentSchedule } from './scheduled-tasks/queries';
+import { WAIT_SCHEDULE_KIND } from '../types/tools/index';
 
 export const waitTool = createTool({
   id: 'wait',
   description:
     "Pause the conversation and automatically resume it later, without blocking. Use for one-time delays, spaced-out polling, or giving a background job or external event time to progress. Before calling this, send a short text message telling the user what you're waiting for; the typing status clears the moment your turn ends, so that message is the only lasting sign you're still on it. Call this last and then stop; you will be woken up automatically when the wait is over. Calling it always ends your turn, the same as skip. For recurring work, use create_scheduled_task instead.",
-  inputSchema: input({
+  inputSchema: z.strictObject({
     seconds: z
       .number()
       .int()
@@ -22,7 +21,7 @@ export const waitTool = createTool({
       .min(1)
       .describe('What you are waiting for, and what to do once it resumes.'),
   }),
-  outputSchema: output({ seconds: z.number() }),
+  outputSchema: z.strictObject({ seconds: z.number() }),
   transform: {
     display: {
       output: ({ input, output }) => ({
@@ -51,7 +50,6 @@ export const waitTool = createTool({
       previous
         .filter(
           (task) =>
-            isAgentSchedule(task) &&
             task.metadata?.kind === WAIT_SCHEDULE_KIND &&
             task.lastFireAt !== undefined
         )

@@ -4,7 +4,6 @@ import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { rawId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { input, output } from '../../types/tools/index';
 import { assertReadableChannel } from '../slack/utils';
 
 const canvasFile = z
@@ -66,31 +65,33 @@ export const listCanvasesTool = createTool({
   id: 'list_canvases',
   description:
     'List one page of Slack canvases visible to the bot, optionally filtered by title. Channel scope defaults to the current channel. Workspace scope lists canvases shared in public channels (or the current conversation); canvases only in private channels, DMs, or not shared anywhere are left out, so a page can hold fewer than limit. Use Slack code mode for exhaustive pagination or further filtering.',
-  inputSchema: input({
-    query: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('Case-insensitive title filter.'),
-    scope: z
-      .enum(['channel', 'workspace'])
-      .default('channel')
-      .describe(
-        'Use channel for the current or specified channel, or workspace for all accessible canvases.'
-      ),
-    channelId: z
-      .string()
-      .optional()
-      .describe(
-        'Channel id (slack:C...) to use instead of the current channel. Only valid with channel scope.'
-      ),
-    limit: z.coerce.number().int().min(1).max(100).default(20),
-    page: z.coerce.number().int().min(1).default(1),
-  }).refine(({ scope, channelId }) => !(scope === 'workspace' && channelId), {
-    message: 'channelId cannot be used with workspace scope.',
-    path: ['channelId'],
-  }),
-  outputSchema: output({
+  inputSchema: z
+    .strictObject({
+      query: z
+        .string()
+        .min(1)
+        .optional()
+        .describe('Case-insensitive title filter.'),
+      scope: z
+        .enum(['channel', 'workspace'])
+        .default('channel')
+        .describe(
+          'Use channel for the current or specified channel, or workspace for all accessible canvases.'
+        ),
+      channelId: z
+        .string()
+        .optional()
+        .describe(
+          'Channel id (slack:C...) to use instead of the current channel. Only valid with channel scope.'
+        ),
+      limit: z.coerce.number().int().min(1).max(100).default(20),
+      page: z.coerce.number().int().min(1).default(1),
+    })
+    .refine(({ scope, channelId }) => !(scope === 'workspace' && channelId), {
+      message: 'channelId cannot be used with workspace scope.',
+      path: ['channelId'],
+    }),
+  outputSchema: z.strictObject({
     scope: z.enum(['channel', 'workspace']),
     channelId: z.string().optional(),
     canvases: z.array(

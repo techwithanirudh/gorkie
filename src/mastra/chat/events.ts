@@ -1,3 +1,4 @@
+import { Chat } from 'chat';
 import { logger } from '../lib/logger';
 import { registerAppHome } from './app-home';
 import { slack } from './client';
@@ -7,11 +8,10 @@ import {
   onFeedbackClick,
   recordFeedbackDetails,
 } from './feedback';
-import { chat } from './instance';
 import { acceptOptIn, optInIds } from './onboarding';
 
 export function registerEvents(): void {
-  const bot = chat();
+  const bot = Chat.getSingleton();
 
   bot.onAssistantContextChanged((event) =>
     slack

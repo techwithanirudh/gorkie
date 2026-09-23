@@ -1,7 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { exa } from '../lib/exa';
-import { input, output } from '../types/tools/index';
 
 export const fetchUrlTool = createTool({
   id: 'fetch_url',
@@ -13,10 +12,10 @@ This extracts readable article content, so it fails on anything that isn't a pla
 - Slack URLs; use Slack tools instead.
 - Search result or directory listing pages.
 - Raw/binary file downloads: PDFs, images, zips.`,
-  inputSchema: input({
+  inputSchema: z.strictObject({
     url: z.url().describe('The exact URL to fetch.'),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     url: z.url(),
     title: z.string(),
     text: z.string(),

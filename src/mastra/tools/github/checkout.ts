@@ -1,12 +1,12 @@
 import { createTool } from '@mastra/core/tools';
+import { z } from 'zod';
 import { sandbox as sandboxConfig } from '../../config';
 import { githubAccessToken } from '../../lib/github';
 import { repoAccess } from '../../lib/github/api';
 import { sh } from '../../lib/utils';
 import { branchSchema, repositorySchema } from '../../types';
-import { input } from '../../types/tools/index';
 import { requireSandbox } from '../../workspace';
-import { git, withCredential } from './git';
+import { checkoutPath, git, withCredential } from './git';
 
 const inspectRepository = async ({
   repository,
@@ -40,7 +40,7 @@ export const checkoutTool = ({
       ? async ({ repository }) =>
           (await inspectRepository({ repository, userId })).needsCredential
       : false,
-    inputSchema: input({
+    inputSchema: z.strictObject({
       repository: repositorySchema.describe(
         'Repository to check out, as "owner/repo".'
       ),
@@ -52,7 +52,7 @@ export const checkoutTool = ({
     }),
     execute: async ({ repository, branch }, context) => {
       const sandbox = await requireSandbox(context.requestContext);
-      const path = `${sandboxConfig.workdir}/${repository.replace('/', '__')}`;
+      const path = checkoutPath(repository);
       const remote = `https://github.com/${repository}.git`;
 
       const { canPush, needsCredential } = await inspectRepository({

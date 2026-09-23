@@ -1,7 +1,6 @@
-import { Modal, TextInput } from 'chat';
+import { Chat, Modal, TextInput } from 'chat';
 import { getInstructions, setInstructions } from '../../../db/queries/settings';
 import type { PublishHome } from '../../../types';
-import { chat } from '../../instance';
 import { ids } from './ids';
 
 export function registerCustomInstructions({
@@ -9,7 +8,7 @@ export function registerCustomInstructions({
 }: {
   publishHome: PublishHome;
 }): void {
-  const bot = chat();
+  const bot = Chat.getSingleton();
 
   bot.onAction(ids.edit, async (event) => {
     const instructions = await getInstructions(event.user.userId);

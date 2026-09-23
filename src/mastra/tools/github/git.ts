@@ -5,6 +5,10 @@ import { githubAccessToken } from '../../lib/github';
 import { logger } from '../../lib/logger';
 import { baseRules } from '../../workspace/network';
 
+// github_push_branch finds the clone github_checkout made by this path.
+export const checkoutPath = (repository: string): string =>
+  `${sandboxConfig.workdir}/${repository.replace('/', '__')}`;
+
 export const git = async ({
   command,
   cwd,

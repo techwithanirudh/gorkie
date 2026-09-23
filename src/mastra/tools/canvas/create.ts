@@ -3,14 +3,14 @@ import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, rawId } from '../../lib/ids';
-import { input, output } from '../../types/tools/index';
+import { slackErrorSchema } from '../../types/tools/index';
 import { assertCanManageChannel } from './utils';
 
 export const createCanvasTool = createTool({
   id: 'create_canvas',
   description:
     'Create either a standalone Slack canvas or the Canvas tab for a channel. A channel canvas defaults to the current channel and fails if that channel already has one. A standalone canvas can optionally be shared with the current channel. Canvas markdown uses ![](@USER_ID) for user mentions and ![](#CHANNEL_ID) for channel mentions. Regular Slack message syntax such as <@U123> and <#C123> renders as literal text in a canvas.',
-  inputSchema: input({
+  inputSchema: z.strictObject({
     mode: z.enum(['standalone', 'channel']).default('standalone'),
     title: z.string().min(1).optional(),
     channelId: z
@@ -27,7 +27,7 @@ export const createCanvasTool = createTool({
         'Initial canvas content as Markdown. For a user mention, write ![](@U123ABC). For a channel mention, write ![](#C123ABC). Do not write <@U123ABC> or <#C123ABC>; message mention syntax renders as literal text in canvases.'
       ),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     mode: z.enum(['standalone', 'channel']),
     canvasId: z.string(),
     channelId: z.string().optional(),
@@ -86,8 +86,10 @@ export const createCanvasTool = createTool({
         canvasId: response.canvas_id,
       };
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      if (reason.includes('channel_canvas_already_exists')) {
+      if (
+        slackErrorSchema.safeParse(error).data?.data?.error ===
+        'channel_canvas_already_exists'
+      ) {
         throw new Error(
           `${targetChannelId} already has a canvas. Use edit_canvas to change it instead.`,
           { cause: error }

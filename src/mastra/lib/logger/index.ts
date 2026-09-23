@@ -1,5 +1,4 @@
 import { PinoLogger } from '@mastra/loggers';
-import { isRecord } from '../utils';
 
 export const logger = new PinoLogger({
   name: 'orchestrator',
@@ -28,6 +27,10 @@ export const logger = new PinoLogger({
     censor: '[redacted]',
   },
 });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 export function logMeta(args: unknown[]): Record<string, unknown> {
   const [first] = args;

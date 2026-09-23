@@ -7,13 +7,13 @@ import {
 } from '@mastra/core/processors';
 import type { RequestContext } from '@mastra/core/request-context';
 import { Memory } from '@mastra/memory';
+import { Chat } from 'chat';
 import { slack } from '../chat/client';
 import {
   onDirectMessage,
   onMention,
   onSubscribedMessage,
 } from '../chat/handlers';
-import { chat } from '../chat/instance';
 import { status } from '../chat/status';
 import { agent as config, summarizer as summarizerConfig } from '../config';
 import { listMCPServers } from '../db/queries/mcps';
@@ -21,7 +21,7 @@ import { getInstructions } from '../db/queries/settings';
 import { channelContext } from '../lib/context';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { logger } from '../lib/logger';
-import { stepCountIs, toolCall } from '../lib/tools';
+import { toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
 import { delegatedTools } from '../processors/delegated-tools';
 import { sandbox } from '../processors/sandbox';
@@ -98,7 +98,7 @@ async function orchestratorInstructions({
   return messages;
 }
 
-const orchestrator = new Agent({
+export const orchestrator = new Agent({
   id: config.id,
   name: 'Orchestrator',
   instructions: orchestratorInstructions,
@@ -117,7 +117,8 @@ const orchestrator = new Agent({
       messageFilter: ({ messages }) =>
         messages.filter(({ role }) => role === 'user').slice(-1),
     },
-    stopWhen: [toolCall('wait'), stepCountIs(config.maxSteps)],
+    maxSteps: config.maxSteps,
+    stopWhen: toolCall('wait'),
     autoResumeSuspendedTools: true,
     onAbort: async () => {
       await pauseSandbox(requestContext);
@@ -126,7 +127,7 @@ const orchestrator = new Agent({
         return;
       }
       try {
-        await chat()
+        await Chat.getSingleton()
           .thread(threadId)
           .post(
             '_that turn stopped before I finished. ask again to pick it back up._'
@@ -231,5 +232,3 @@ const orchestrator = new Agent({
     handlers: { onMention, onSubscribedMessage, onDirectMessage },
   },
 });
-
-export default orchestrator;

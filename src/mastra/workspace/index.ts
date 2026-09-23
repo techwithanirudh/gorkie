@@ -1,6 +1,4 @@
-import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import type { RequestContext } from '@mastra/core/request-context';
 import {
   LocalSkillSource,
@@ -8,6 +6,7 @@ import {
   Workspace,
 } from '@mastra/core/workspace';
 import { E2BSandbox } from '@mastra/e2b';
+import { env } from '@/env';
 import { sandbox as config } from '../config';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
@@ -113,15 +112,7 @@ export const workspace: Workspace = new Workspace({
   },
   sandboxCacheKey: ({ requestContext }) => sandboxKey(requestContext),
   skillSource: new LocalSkillSource({
-    basePath:
-      [
-        resolve(process.cwd(), 'workspace/skills'),
-        resolve(process.cwd(), '../../../workspace/skills'),
-        resolve(
-          dirname(fileURLToPath(import.meta.url)),
-          '../../workspace/skills'
-        ),
-      ].find(existsSync) ?? resolve(process.cwd(), 'workspace/skills'),
+    basePath: join(env.PROJECT_ROOT, 'workspace/skills'),
   }),
   skills: ['.'],
   tools: {

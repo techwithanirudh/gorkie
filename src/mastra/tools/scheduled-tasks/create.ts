@@ -3,7 +3,6 @@ import { computeNextFireAt, validateCron } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { agent as agentConfig, scheduledTasks } from '../../config';
 import { channelContext } from '../../lib/context';
-import { input, output } from '../../types/tools/index';
 
 const minMinutes = scheduledTasks.minInterval / 60_000;
 
@@ -40,7 +39,7 @@ export const createScheduledTaskTool = createTool({
     minMinutes > 0
       ? `Create a recurring schedule for the current Slack conversation. Use a valid cron expression and optional IANA timezone. Minimum interval is ${minMinutes} minutes between fires, each run costs model credits: never request a faster cadence, refuse and offer the nearest ${minMinutes}-minute-or-slower option instead.`
       : 'Create a recurring schedule for the current Slack conversation. Use a valid cron expression and optional IANA timezone. No minimum interval in this environment; any cadence is allowed.',
-  inputSchema: input({
+  inputSchema: z.strictObject({
     task: z.string().min(1).describe('Prompt to run on the schedule.'),
     cron: z
       .string()
@@ -62,7 +61,7 @@ export const createScheduledTaskTool = createTool({
       .optional()
       .describe('IANA timezone, such as America/New_York.'),
   }),
-  outputSchema: output({ schedule: z.unknown() }),
+  outputSchema: z.strictObject({ schedule: z.unknown() }),
   execute: async ({ task, cron, name, timezone }, context) => {
     const service = context.mastra?.schedules;
     const threadId = context.agent?.threadId;

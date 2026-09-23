@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { emoji as emojiConfig, image } from '../../config';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { input, output } from '../../types/tools/index';
 import { sandboxPath as p, requireSandbox } from '../../workspace';
 import { viewableImageType } from '../view-image';
 
@@ -15,7 +14,7 @@ export const getSlackEmojiTool = createTool({
   id: 'get_slack_emoji',
   description:
     "Fetch one of this workspace's custom Slack emoji by name, save its image into the sandbox, and show it to you. Aliases are followed to the original image. Use the saved path to edit it, upload it, or reuse it. Standard Unicode emoji are not custom and return custom: false.",
-  inputSchema: input({
+  inputSchema: z.strictObject({
     name: z
       .string()
       .min(1)
@@ -24,14 +23,14 @@ export const getSlackEmojiTool = createTool({
       ),
   }),
   outputSchema: z.discriminatedUnion('custom', [
-    output({
+    z.strictObject({
       custom: z.literal(true),
       name: z.string(),
       path: z.string(),
       mediaType: z.string(),
       data: z.string(),
     }),
-    output({
+    z.strictObject({
       custom: z.literal(false),
       name: z.string(),
       message: z.string(),

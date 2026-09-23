@@ -1,8 +1,8 @@
 import { createGithubTools, GITHUB_WRITE_TOOLS } from '@github-tools/sdk';
 import type { RequestContext } from '@mastra/core/request-context';
+import { asksBefore } from '../../lib/approval';
 import { githubAccess, githubAccessToken } from '../../lib/github';
 import { logger } from '../../lib/logger';
-import { asksBefore } from '../../types';
 import { ALLOWLIST } from './allowlist';
 import { checkoutTool } from './checkout';
 import { handoff } from './handoff';

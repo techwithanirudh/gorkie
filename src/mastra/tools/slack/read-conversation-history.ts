@@ -5,7 +5,7 @@ import { isComment } from '../../chat/message';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { input, output, slackMessageSchema } from '../../types/tools/index';
+import { slackMessageSchema } from '../../types/tools/index';
 import {
   assertReadableChannel,
   formatMessage,
@@ -17,7 +17,7 @@ export const readConversationHistoryTool = createTool({
   id: 'read_conversation_history',
   description:
     'Read one chronological page of raw messages from a Slack channel or thread when exact wording matters. Messages starting with ## are side comments and are left out unless includeComments is true; nothing else is filtered. Use search_slack for one keyword query, Slack code mode for query-driven or exhaustive conversation analysis, and summarize_thread when a long thread only needs a summary. The current conversation is always readable; other channels must be public, and public channels are joined automatically.',
-  inputSchema: input({
+  inputSchema: z.strictObject({
     channelId: z
       .string()
       .optional()
@@ -42,7 +42,7 @@ export const readConversationHistoryTool = createTool({
         'Include messages whose first line starts with ##. People use those for side remarks they are not asking you to act on, so they are left out unless you ask for them. The result says so when any were dropped.'
       ),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     channelId: z.string(),
     messages: z.array(slackMessageSchema),
     nextCursor: z.string().optional(),

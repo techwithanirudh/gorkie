@@ -2,35 +2,36 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { env } from '@/env';
 import { emoji } from '../config';
-import { input, output } from '../types/tools/index';
 import { requireSandbox } from '../workspace';
 
 export const uploadEmojiTool = createTool({
   id: 'upload_emoji',
   description:
     'Add a custom Slack emoji. Pass path (a sandbox image file) to upload a new emoji, or aliasFor (an existing emoji name) to create an alias instead. Exactly one of the two is required.',
-  inputSchema: input({
-    name: z
-      .string()
-      .regex(
-        /^[a-z0-9_+-]+$/,
-        'Emoji names are lowercase letters, numbers, dashes, and underscores only, no spaces or colons.'
-      )
-      .describe('The new emoji name, without colons.'),
-    path: z
-      .string()
-      .optional()
-      .describe('Sandbox path to the image to upload as a new emoji.'),
-    aliasFor: z
-      .string()
-      .optional()
-      .describe(
-        'Name of an existing emoji to alias, instead of uploading a new image.'
-      ),
-  }).refine((value) => Boolean(value.path) !== Boolean(value.aliasFor), {
-    message: 'Pass exactly one of path or aliasFor.',
-  }),
-  outputSchema: output({
+  inputSchema: z
+    .strictObject({
+      name: z
+        .string()
+        .regex(
+          /^[a-z0-9_+-]+$/,
+          'Emoji names are lowercase letters, numbers, dashes, and underscores only, no spaces or colons.'
+        )
+        .describe('The new emoji name, without colons.'),
+      path: z
+        .string()
+        .optional()
+        .describe('Sandbox path to the image to upload as a new emoji.'),
+      aliasFor: z
+        .string()
+        .optional()
+        .describe(
+          'Name of an existing emoji to alias, instead of uploading a new image.'
+        ),
+    })
+    .refine((value) => Boolean(value.path) !== Boolean(value.aliasFor), {
+      message: 'Pass exactly one of path or aliasFor.',
+    }),
+  outputSchema: z.strictObject({
     name: z.string(),
   }),
   transform: {

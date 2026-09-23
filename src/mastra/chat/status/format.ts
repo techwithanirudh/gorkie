@@ -10,15 +10,11 @@ export function fit({
   suffix: string;
 }): string {
   const budget = slackStatusMaxLength - prefix.length - suffix.length;
-  const flat = content.replace(/\s+/g, ' ').trim();
-  const clipped = flat.length > budget ? flat.slice(0, budget) : flat;
-  return prefix + clipped + suffix;
+  return prefix + content.replace(/\s+/g, ' ').trim().slice(0, budget) + suffix;
 }
 
 export function truncate(text: string): string {
-  return text.length > slackStatusMaxLength
-    ? text.slice(0, slackStatusMaxLength)
-    : text;
+  return text.slice(0, slackStatusMaxLength);
 }
 
 export function fileName(path: string): string {
