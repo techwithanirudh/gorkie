@@ -15,16 +15,17 @@ export const canvasIdSchema = z
   .describe('Slack canvas id, e.g. F0123ABCD.');
 
 export function assertCanManageChannel({
-  channelId,
+  channelIds,
   ctx,
 }: {
-  channelId: string;
+  channelIds: string[];
   ctx: ChannelContext;
 }): void {
-  if (!ctx.channelId) {
+  const current = ctx.channelId;
+  if (!current) {
     throw new Error('No current Slack channel to compare against.');
   }
-  if (rawId(channelId) !== rawId(ctx.channelId)) {
+  if (!channelIds.some((channelId) => rawId(channelId) === rawId(current))) {
     throw new Error(
       'Can only manage canvases for the current channel, not other channels.'
     );
@@ -40,7 +41,11 @@ export async function readableCanvas({
 }) {
   const { file } = await slack.webClient.files.info({ file: canvasId });
   await assertReadableResource({
-    channelIds: [...(file?.channels ?? []), ...(file?.groups ?? [])],
+    channelIds: [
+      ...(file?.channels ?? []),
+      ...(file?.groups ?? []),
+      ...(file?.ims ?? []),
+    ],
     currentThreadId: channelContext(requestContext).threadId,
   });
   return file;

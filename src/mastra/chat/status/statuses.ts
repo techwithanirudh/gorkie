@@ -102,6 +102,16 @@ const statuses: Record<string, (args: Args) => string> = {
       ? fit({ prefix: 'is checking process ', content: pid, suffix: '…' })
       : 'is checking a process…';
   },
+  get_slack_emoji: (args) => {
+    const { name } = args;
+    return name
+      ? fit({
+          prefix: 'is looking at :',
+          content: name.replaceAll(':', ''),
+          suffix: ':…',
+        })
+      : 'is looking at an emoji…';
+  },
   get_slack_file: () => 'is downloading a Slack file…',
   get_user: () => 'is looking up a user…',
   grep: (args) => {

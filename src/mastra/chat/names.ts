@@ -31,7 +31,9 @@ export async function resolveUserProfile(
   }
 
   const user = await bot.getUser(userId);
-  let profile: UserProfile | undefined;
+  let profile: UserProfile;
+  // A transient Slack failure is cached only briefly so it is retried soon.
+  let ttl = 86_400_000;
   try {
     const [{ profile: raw }, rawUser] = await Promise.all([
       slack.webClient.users.profile.get({
@@ -59,27 +61,23 @@ export async function resolveUserProfile(
       timezoneLabel: info.user?.tz_label || undefined,
       title: raw?.title || undefined,
     };
-    // A failed cache write only costs a refetch next time.
-    await bot
-      .getState()
-      .set(cacheKey, profile, 86_400_000)
-      .catch(() => undefined);
   } catch {
-    // The profile is best effort: fall back to what the Chat SDK knows, cached
-    // only briefly so a transient Slack failure is retried soon.
     if (!user) {
       return;
     }
     profile = { fields: [] };
-    await bot
-      .getState()
-      .set(cacheKey, profile, 60_000)
-      .catch(() => undefined);
+    ttl = 60_000;
   }
 
-  return {
+  const resolved = {
     ...profile,
     displayName: user?.userName ?? profile.displayName,
     realName: user?.fullName ?? profile.realName,
   };
+  // A failed cache write only costs a refetch next time.
+  await bot
+    .getState()
+    .set(cacheKey, resolved, ttl)
+    .catch(() => undefined);
+  return resolved;
 }

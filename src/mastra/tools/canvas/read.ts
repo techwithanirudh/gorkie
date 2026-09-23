@@ -1,6 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { env } from '@/env';
+import { canvas as canvasConfig } from '../../config';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
 import { canvasIdSchema, readableCanvas } from './utils';
@@ -16,6 +17,7 @@ export const readCanvasTool = createTool({
     canvasId: z.string(),
     title: z.string().optional(),
     html: z.string(),
+    truncated: z.boolean(),
   }),
   transform: {
     display: {
@@ -43,10 +45,15 @@ export const readCanvasTool = createTool({
     if (!response.ok) {
       throw new Error(`Failed to read canvas ${canvasId}: ${response.status}`);
     }
+    const html = await response.text();
+    const truncated = html.length > canvasConfig.maxReadChars;
     return {
       canvasId,
       title: canvas?.title,
-      html: await response.text(),
+      html: truncated
+        ? `${html.slice(0, canvasConfig.maxReadChars)}\n<!-- Truncated: showed ${canvasConfig.maxReadChars} of ${html.length} characters. Use lookup_canvas_sections to find the part you need. -->`
+        : html,
+      truncated,
     };
   },
 });

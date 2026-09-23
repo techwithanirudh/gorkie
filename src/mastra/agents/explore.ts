@@ -41,9 +41,6 @@ export const explore = new Agent({
   defaultOptions: {
     activeTools: [
       'read_file',
-      'write_file',
-      'edit_file',
-      'delete_file',
       'list_files',
       'grep',
       'file_stat',

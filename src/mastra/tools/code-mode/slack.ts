@@ -21,15 +21,15 @@ async function getSandboxTools(
   );
 }
 
-const RESULT_LIMIT = 60_000;
-
 async function createCodeModeInstance({
+  mcp,
   workspaceAccess,
 }: {
+  mcp: Awaited<ReturnType<typeof mcpTools>>;
   workspaceAccess: boolean;
 }) {
   const slackCodeTools = {
-    ...(await mcpTools()),
+    ...mcp,
     search_slack: slackTools.search_slack,
     read_conversation_history: slackTools.read_conversation_history,
     list_threads: slackTools.list_threads,
@@ -80,13 +80,13 @@ async function createCodeModeInstance({
     }
     const outcome = await execute(input, context);
     const size = JSON.stringify(outcome ?? null)?.length ?? 0;
-    if (size <= RESULT_LIMIT) {
+    if (size <= 60_000) {
       return outcome;
     }
     return {
       success: false,
       error: {
-        message: `The program returned ${size} characters, over the ${RESULT_LIMIT} limit, so nothing was kept. Return a summary computed inside the program (counts, the few records that matter, a written answer) rather than the rows you read, or write the full data to a file and return its path.`,
+        message: `The program returned ${size} characters, over the 60000 limit, so nothing was kept. Return a summary computed inside the program (counts, the few records that matter, a written answer) rather than the rows you read, or write the full data to a file and return its path.`,
         name: 'ResultTooLarge',
       },
     };
@@ -99,13 +99,15 @@ type CodeModeInstance = Awaited<ReturnType<typeof createCodeModeInstance>>;
 
 const instances = new Map<string, Promise<CodeModeInstance>>();
 
-function codeMode(workspaceAccess: boolean): Promise<CodeModeInstance> {
-  const key = workspaceAccess ? 'workspace' : 'slack';
+async function codeMode(workspaceAccess: boolean): Promise<CodeModeInstance> {
+  const mcp = await mcpTools();
+  // Keyed on the MCP tool names so an instance built during an MCP outage is replaced once the tools come back.
+  const key = `${workspaceAccess ? 'workspace' : 'slack'}:${Object.keys(mcp).sort().join(',')}`;
   const existing = instances.get(key);
   if (existing) {
     return existing;
   }
-  const started = createCodeModeInstance({ workspaceAccess });
+  const started = createCodeModeInstance({ mcp, workspaceAccess });
   instances.set(key, started);
   return started;
 }

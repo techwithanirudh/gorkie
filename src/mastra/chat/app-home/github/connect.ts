@@ -85,7 +85,7 @@ async function settleLogin({
   userId: string;
 }): Promise<void> {
   const current = polling.get(userId);
-  if (!(current && isCurrentLogin({ controller, userId }))) {
+  if (current?.controller !== controller) {
     return;
   }
   const resolved = await completeLogin({ controller, login, userId });
@@ -148,7 +148,7 @@ async function openConnect({
     return;
   }
   const current = polling.get(userId);
-  if (current && isCurrentLogin({ controller, userId })) {
+  if (current?.controller === controller) {
     polling.set(userId, { ...current, viewId: opened.view?.id });
   }
 
@@ -224,23 +224,21 @@ async function saveToken({
 }
 
 async function finishDeviceLogin(userId: string) {
-  const account = await getGitHubCredential(userId);
-  if (account) {
-    polling.get(userId)?.controller.abort();
-    polling.delete(userId);
+  // A pending login outranks a stored credential: on Reconnect the old one is
+  // still there until GitHub confirms the new code.
+  if (polling.has(userId)) {
+    return {
+      action: 'errors' as const,
+      errors: {
+        [ids.method]:
+          'GitHub has not confirmed yet. Finish both steps, then press Done again.',
+      },
+    };
+  }
+  if (await getGitHubCredential(userId)) {
     return { action: 'clear' as const };
   }
-  const pending = polling.get(userId);
-  if (!pending?.device) {
-    return { action: 'update' as const, modal: failedModal('interrupted') };
-  }
-  return {
-    action: 'errors' as const,
-    errors: {
-      [ids.method]:
-        'GitHub has not confirmed yet. Finish both steps, then press Done again.',
-    },
-  };
+  return { action: 'update' as const, modal: failedModal('interrupted') };
 }
 
 export function registerConnect({
@@ -278,6 +276,10 @@ export function registerConnect({
   bot.onModalSubmit(ids.modal, async (event) => {
     const { userId } = event.user;
     const chosen = polling.get(userId)?.method ?? event.values[ids.method];
+    // Only the signed-in and not-signed-in result modals lack the method select.
+    if (!chosen) {
+      return { action: 'clear' as const };
+    }
     if (chosen === 'pat') {
       return await saveToken({
         publishHome,

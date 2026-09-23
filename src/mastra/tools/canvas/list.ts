@@ -15,6 +15,9 @@ const canvasFile = z
     created: z.number().optional(),
     updated: z.number().optional(),
     permalink: z.string().optional(),
+    channels: z.array(z.string()).optional(),
+    groups: z.array(z.string()).optional(),
+    ims: z.array(z.string()).optional(),
   })
   .transform((f) => ({
     canvasId: f.id,
@@ -22,12 +25,47 @@ const canvasFile = z
     created: f.created,
     updated: f.updated,
     permalink: f.permalink,
+    channelIds: [...(f.channels ?? []), ...(f.groups ?? []), ...(f.ims ?? [])],
   }));
+
+// Never cache visibility: it is the privacy gate, and a channel can go private.
+async function readableChannelIds({
+  channelIds,
+  currentThreadId,
+}: {
+  channelIds: string[];
+  currentThreadId?: string;
+}): Promise<Set<string>> {
+  const maxConcurrentVisibilityLookups = 4;
+  const readable = new Set<string>();
+  for (
+    let index = 0;
+    index < channelIds.length;
+    index += maxConcurrentVisibilityLookups
+  ) {
+    const batch = channelIds.slice(
+      index,
+      index + maxConcurrentVisibilityLookups
+    );
+    // biome-ignore lint/performance/noAwaitInLoops: batches are sequential on purpose - that is what bounds the concurrency.
+    const checks = await Promise.allSettled(
+      batch.map((channelId) =>
+        assertReadableChannel({ channelId, currentThreadId })
+      )
+    );
+    checks.forEach((check, i) => {
+      if (check.status === 'fulfilled') {
+        readable.add(batch[i]);
+      }
+    });
+  }
+  return readable;
+}
 
 export const listCanvasesTool = createTool({
   id: 'list_canvases',
   description:
-    'List one page of Slack canvases visible to the bot, optionally filtered by title. Channel scope defaults to the current channel. Workspace scope includes standalone canvases and canvases from other accessible channels. Use Slack code mode for exhaustive pagination or further filtering.',
+    'List one page of Slack canvases visible to the bot, optionally filtered by title. Channel scope defaults to the current channel. Workspace scope lists canvases shared in public channels (or the current conversation); canvases only in private channels, DMs, or not shared anywhere are left out, so a page can hold fewer than limit. Use Slack code mode for exhaustive pagination or further filtering.',
   inputSchema: input({
     query: z
       .string()
@@ -94,12 +132,23 @@ export const listCanvasesTool = createTool({
       page,
       ...(id ? { channel: rawId(id) } : {}),
     });
-    const canvases = (response.files ?? [])
+    const matches = (response.files ?? [])
       .map((f) => canvasFile.parse(f))
       .filter(
         (canvas) =>
           !query || canvas.title?.toLowerCase().includes(query.toLowerCase())
       );
+    const readable = id
+      ? undefined
+      : await readableChannelIds({
+          channelIds: [...new Set(matches.flatMap((c) => c.channelIds))],
+          currentThreadId: ctx.threadId,
+        });
+    const canvases = matches.flatMap(({ channelIds, ...canvas }) =>
+      !readable || channelIds.some((channelId) => readable.has(channelId))
+        ? [canvas]
+        : []
+    );
     const nextPage =
       response.paging?.page &&
       response.paging.pages &&

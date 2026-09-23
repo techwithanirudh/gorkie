@@ -4,12 +4,12 @@ import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, parseSlackId } from '../../lib/ids';
 import { input, output } from '../../types/tools/index';
-import { assertReadableChannel } from './utils';
+import { assertCanPostTo } from './utils';
 
 export const reactTool = createTool({
   id: 'react',
   description:
-    'Add or remove an emoji reaction on a Slack message by current channel timestamp, channel/message id, or message URL.',
+    'Add or remove an emoji reaction on a Slack message in the current conversation, by message timestamp or message URL. Messages in other channels or DMs cannot be reacted to.',
   inputSchema: input({
     channelId: z
       .string()
@@ -56,9 +56,9 @@ export const reactTool = createTool({
     if (!target.ts) {
       throw new Error('Pass messageId or url.');
     }
-    await assertReadableChannel({
-      channelId: chatChannelId(target.channel),
-      currentThreadId: ctx.threadId,
+    assertCanPostTo({
+      target: { type: 'channel', id: chatChannelId(target.channel) },
+      ctx,
     });
 
     const emoji = emojiInput.replaceAll(':', '');

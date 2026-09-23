@@ -36,16 +36,19 @@ export async function editImages({
 }): Promise<{ data: Buffer; mediaType: string }[]> {
   const references = await Promise.all(
     referenceImages.map(async (path) => {
+      const { size } = await sandbox.retryOnDead(() =>
+        sandbox.e2b.files.getInfo(path)
+      );
+      if (size > 8 * 1024 * 1024) {
+        throw new Error(
+          `"${path}" is ${Math.round(size / 1024 / 1024)}MB, too large to send for editing. Resize it below 8MB first.`
+        );
+      }
       const data = Buffer.from(
         await sandbox.retryOnDead(() =>
           sandbox.e2b.files.read(path, { format: 'bytes' })
         )
       );
-      if (data.byteLength > 8 * 1024 * 1024) {
-        throw new Error(
-          `"${path}" is ${Math.round(data.byteLength / 1024 / 1024)}MB, too large to send for editing. Resize it below 8MB first.`
-        );
-      }
       return {
         data,
         mediaType:

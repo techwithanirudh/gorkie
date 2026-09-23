@@ -28,6 +28,7 @@ Optional:
 2. Resolve the input image path and output GIF path.
 3. Call the API directly with `curl` (see below).
 4. Confirm the output file exists and is non-empty before reporting success.
+5. Mention that the image was sent to 67ify, a public third-party service, because it leaves the sandbox. Ask before sending an image that looks private or sensitive.
 
 ## Call the API
 

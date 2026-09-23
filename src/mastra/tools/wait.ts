@@ -10,7 +10,13 @@ export const waitTool = createTool({
   description:
     "Pause the conversation and automatically resume it later, without blocking. Use for one-time delays, spaced-out polling, or giving a background job or external event time to progress. Before calling this, send a short text message telling the user what you're waiting for; the typing status clears the moment your turn ends, so that message is the only lasting sign you're still on it. Call this last and then stop; you will be woken up automatically when the wait is over. Calling it always ends your turn, the same as skip. For recurring work, use create_scheduled_task instead.",
   inputSchema: input({
-    seconds: z.number().int().min(1).describe('How many seconds to wait.'),
+    seconds: z
+      .number()
+      .int()
+      .min(1)
+      // The resume cron has no year field, so a wait of a year or more fires early.
+      .max(364 * 24 * 60 * 60)
+      .describe('How many seconds to wait, at most 364 days.'),
     reason: z
       .string()
       .min(1)
@@ -73,7 +79,13 @@ export const waitTool = createTool({
       ifIdle: {
         behavior: 'wake',
         streamOptions: {
-          requestContext: { channel: channelContext(context.requestContext) },
+          // Without the live message, search_slack refuses this run as unattended.
+          requestContext: {
+            channel: {
+              ...channelContext(context.requestContext),
+              messageId: undefined,
+            },
+          },
         },
       },
       metadata: { kind: WAIT_SCHEDULE_KIND },

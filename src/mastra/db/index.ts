@@ -10,7 +10,7 @@ export { db, postgresStore } from './client';
 
 export async function runMigrations(): Promise<void> {
   await migrate(db, {
-    migrationsFolder: join(env.MASTRA_PROJECT_ROOT, 'drizzle'),
+    migrationsFolder: join(env.PROJECT_ROOT, 'drizzle'),
   });
 
   // Rows written before MCP tokens were encrypted at rest still hold plaintext.

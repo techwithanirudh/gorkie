@@ -37,6 +37,7 @@ export const deferredTools = {
   list_channels: slackTools.list_channels,
   list_threads: slackTools.list_threads,
   generate_image: generateImageTool,
+  get_slack_emoji: slackTools.get_slack_emoji,
   upload_emoji: uploadEmojiTool,
   submit_feedback: submitFeedbackTool,
   ...canvasTools,

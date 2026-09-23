@@ -30,7 +30,7 @@ const reached = new WeakSet<RequestContext>();
 const unscopedSandboxKey = '__unscoped__';
 
 function sandboxKey(requestContext: RequestContext): string {
-  return channelContext(requestContext).threadId ?? unscopedSandboxKey;
+  return channelContext(requestContext).threadId || unscopedSandboxKey;
 }
 
 export function usedSandbox(requestContext: RequestContext): boolean {

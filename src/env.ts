@@ -8,7 +8,10 @@ export const env = createEnv({
       .enum(['development', 'production', 'test'])
       .default('development'),
 
-    MASTRA_PROJECT_ROOT: z.string().default(process.cwd()),
+    // Set in .env to the repo root. Not MASTRA_PROJECT_ROOT: `mastra dev` sets
+    // that after .env loads and points it at `.mastra`, so migrations and the
+    // DuckDB file anchored to it land in the wrong directory.
+    PROJECT_ROOT: z.string().default(process.cwd()),
 
     SLACK_BOT_TOKEN: z.string().min(1),
     SLACK_APP_TOKEN: z.string().min(1),

@@ -43,7 +43,7 @@ export const createCanvasTool = createTool({
     const ctx = channelContext(context.requestContext);
     if (mode === 'standalone') {
       if (channelId) {
-        assertCanManageChannel({ channelId, ctx });
+        assertCanManageChannel({ channelIds: [channelId], ctx });
       }
       const response = await slack.webClient.canvases.create({
         ...(title ? { title } : {}),
@@ -66,7 +66,7 @@ export const createCanvasTool = createTool({
     if (!targetChannelId) {
       throw new Error('No channel to create a channel canvas for.');
     }
-    assertCanManageChannel({ channelId: targetChannelId, ctx });
+    assertCanManageChannel({ channelIds: [targetChannelId], ctx });
     try {
       const response = await slack.webClient.conversations.canvases.create({
         channel_id: rawId(targetChannelId),

@@ -48,12 +48,16 @@ export async function publishHome(userId: string): Promise<void> {
     instructions,
     mcpServers,
     { credential, unreadable },
+    installations,
     github,
     scheduled,
   ] = await Promise.all([
     settled({ label: 'instructions', userId, work: getInstructions(userId) }),
     settled({ label: 'mcp', userId, work: listMCPServers(userId) }),
     credentialResult,
+    credentialResult.then(({ credential }) =>
+      credential?.kind === 'app' ? countInstallations(credential.token) : 0
+    ),
     settled({ label: 'settings', userId, work: getGitHubSettings(userId) }),
     settled({
       label: 'scheduled',
@@ -61,8 +65,6 @@ export async function publishHome(userId: string): Promise<void> {
       work: scheduledTasksBlocks(userId),
     }),
   ]);
-  const installations =
-    credential?.kind === 'app' ? await countInstallations(credential.token) : 0;
 
   const sections: HomeSection[] = [
     { fixed: [...content.home, { type: 'divider' }] },

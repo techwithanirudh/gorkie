@@ -44,6 +44,9 @@ function relocateToolImages({
     return;
   }
 
+  // Relocation concentrates every tool image into one request, and vision
+  // models cap inline images (GLM: 8 / 64 MiB, a non-retryable 400), so keep
+  // only the most recent images within budget.
   const keep = new Set<MediaPart>();
   let bytes = 0;
   for (let i = found.length - 1; i >= 0; i--) {
@@ -65,6 +68,8 @@ function relocateToolImages({
       continue;
     }
     const relocated: MediaPart[] = [];
+    // The note goes on the stripped tool result, not a trailing message: a
+    // synthetic user message last would displace the real request.
     const content = message.content.map((part) => {
       if (part.type !== 'tool-result' || part.output.type !== 'content') {
         return part;

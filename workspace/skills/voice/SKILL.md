@@ -56,7 +56,7 @@ PY
 
 ## Guidelines
 
-- Use `get_file` first when the audio came from Slack, then work with the downloaded path.
+- Use `get_slack_file` first when the audio came from Slack, then work with the downloaded path.
 - Use `upload_file` when the user wants the generated audio sent back to Slack.
 - Mention when transcription uses Google's free recognizer, because it sends audio to an external service.
 - For private or sensitive audio, ask before using network transcription. If an API key or local model is later available, prefer that path.

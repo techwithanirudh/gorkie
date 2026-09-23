@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import { MCPClient } from '@mastra/mcp';
-import { setMCPServerError } from '../../db/queries/mcps';
 import { logger } from '../../lib/logger';
 import type { MCPServerConfig } from '../../types';
 import { findMCPUrlError } from '../security';
@@ -26,7 +25,15 @@ export function serverConnection({
   };
 }
 
-const clients = new Map<string, { key: string; promise: Promise<MCPClient> }>();
+interface UserClient {
+  client: MCPClient;
+  rejected: Map<string, string>;
+}
+
+const clients = new Map<
+  string,
+  { key: string; promise: Promise<UserClient> }
+>();
 
 async function buildClient({
   userId,
@@ -35,12 +42,12 @@ async function buildClient({
 }: {
   userId: string;
   servers: MCPServerConfig[];
-  stale: Promise<MCPClient> | undefined;
-}): Promise<MCPClient> {
+  stale: Promise<UserClient> | undefined;
+}): Promise<UserClient> {
   // A stale client that never connected has nothing to disconnect.
   const staleClient = await stale?.catch(() => undefined);
   if (staleClient) {
-    await staleClient.disconnect().catch((error: unknown) => {
+    await staleClient.client.disconnect().catch((error: unknown) => {
       logger.debug('[mcp] failed to disconnect stale client', {
         error,
         userId,
@@ -54,27 +61,17 @@ async function buildClient({
       error: await findMCPUrlError(server.url),
     }))
   );
-  const rejected = checked.flatMap(({ server, error }) =>
-    error ? [{ server, error }] : []
-  );
-  await Promise.all(
-    rejected.map(({ server, error }) => {
+  const rejected = new Map<string, string>();
+  for (const { server, error } of checked) {
+    if (error) {
       logger.warn('[mcp] server failed url revalidation at connect', {
         error,
         name: server.name,
         userId,
       });
-      return setMCPServerError({ userId, name: server.name, error }).catch(
-        (writeError: unknown) => {
-          logger.debug('[mcp] failed to record revalidation error', {
-            error: writeError,
-            name: server.name,
-            userId,
-          });
-        }
-      );
-    })
-  );
+      rejected.set(server.name, error);
+    }
+  }
 
   // findMCPUrlError already rejected any url that fails to parse.
   const client = new MCPClient({
@@ -95,7 +92,7 @@ async function buildClient({
     ),
   });
   client.__setLogger(logger);
-  return client;
+  return { client, rejected };
 }
 
 export async function dropClient(userId: string): Promise<void> {
@@ -105,7 +102,7 @@ export async function dropClient(userId: string): Promise<void> {
   }
   clients.delete(userId);
   try {
-    const client = await cached.promise;
+    const { client } = await cached.promise;
     await client.disconnect();
   } catch (error) {
     logger.debug('[mcp] failed to disconnect client on removal', {
@@ -121,7 +118,7 @@ export function resolveClient({
 }: {
   userId: string;
   servers: MCPServerConfig[];
-}): Promise<MCPClient> {
+}): Promise<UserClient> {
   const key = servers
     .map((server) =>
       [

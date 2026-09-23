@@ -14,6 +14,24 @@ client.__setLogger(logger);
 let listed: ReturnType<MCPClient['listTools']> | undefined;
 
 export function mcpTools(): ReturnType<MCPClient['listTools']> {
-  listed ??= client.listTools();
-  return listed;
+  if (listed) {
+    return listed;
+  }
+  const listing = client.listTools().then(
+    (tools) => {
+      // An unreachable server lists as {}, so leave it uncached and retry next turn.
+      if (Object.keys(tools).length === 0 && listed === listing) {
+        listed = undefined;
+      }
+      return tools;
+    },
+    (error: unknown) => {
+      if (listed === listing) {
+        listed = undefined;
+      }
+      throw error;
+    }
+  );
+  listed = listing;
+  return listing;
 }

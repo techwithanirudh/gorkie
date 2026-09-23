@@ -1,8 +1,13 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
+import { channelContext } from '../../lib/context';
 import { input, output } from '../../types/tools/index';
-import { canvasIdSchema, readableCanvas } from './utils';
+import {
+  assertCanManageChannel,
+  canvasIdSchema,
+  readableCanvas,
+} from './utils';
 
 const markdownContentSchema = z.object({
   type: z.literal('markdown').default('markdown'),
@@ -47,7 +52,7 @@ const canvasChangeSchema = z.discriminatedUnion('operation', [
 export const editCanvasTool = createTool({
   id: 'edit_canvas',
   description:
-    'Edit a Slack canvas by applying ordered markdown changes: insert, replace, or delete sections. Use lookup_canvas_sections to find section ids first. Canvas mentions use ![](@USER_ID) and ![](#CHANNEL_ID), not <@U123>.',
+    'Edit a Slack canvas shared in the current conversation by applying ordered markdown changes: insert, replace, or delete sections. Canvases that are not shared in the current channel or DM cannot be edited, even if they are readable. Use lookup_canvas_sections to find section ids first. Canvas mentions use ![](@USER_ID) and ![](#CHANNEL_ID), not <@U123>.',
   inputSchema: input({
     canvasId: canvasIdSchema,
     changes: z.tuple([canvasChangeSchema]).rest(canvasChangeSchema),
@@ -61,9 +66,17 @@ export const editCanvasTool = createTool({
     },
   },
   execute: async ({ canvasId, changes }, context) => {
-    await readableCanvas({
+    const file = await readableCanvas({
       canvasId,
       requestContext: context.requestContext,
+    });
+    assertCanManageChannel({
+      channelIds: [
+        ...(file?.channels ?? []),
+        ...(file?.groups ?? []),
+        ...(file?.ims ?? []),
+      ],
+      ctx: channelContext(context.requestContext),
     });
     try {
       await slack.webClient.canvases.edit({

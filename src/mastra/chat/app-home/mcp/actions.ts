@@ -1,11 +1,11 @@
 import { Modal, TextInput } from 'chat';
 import { mcp } from '../../../config';
 import {
+  insertMCPServer,
   listMCPServers,
   removeMCPServer,
   setMCPServerError,
   setMCPServerPermission,
-  upsertMCPServer,
 } from '../../../db/queries/mcps';
 import { logger } from '../../../lib/logger';
 import { findMCPUrlError } from '../../../mcp/security';
@@ -54,11 +54,19 @@ async function addServer({
   if (urlError) {
     return { action: 'errors' as const, errors: { url: urlError } };
   }
-  const result = await upsertMCPServer({
+  const result = await insertMCPServer({
     userId,
     server: parsed.data,
     maxServers: mcp.maxServers,
   });
+  if (result === 'name-taken') {
+    return {
+      action: 'errors' as const,
+      errors: {
+        name: `The name "${parsed.data.name}" is already in use. Pick another name, or remove the existing server first.`,
+      },
+    };
+  }
   if (result === 'limit-reached') {
     return {
       action: 'errors' as const,

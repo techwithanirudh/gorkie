@@ -37,7 +37,7 @@ async function runTurn({
       size: attachment.size,
       url: attachment.url ?? attachment.fetchMetadata?.url,
     })),
-    text: message.text,
+    textLength: message.text.length,
   });
 
   await defaultHandler(

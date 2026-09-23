@@ -46,7 +46,7 @@ export const mastra = new Mastra({
         default: postgresStore,
         domains: {
           observability: await new DuckDBStore({
-            path: join(env.MASTRA_PROJECT_ROOT, 'observability.duckdb'),
+            path: join(env.PROJECT_ROOT, 'observability.duckdb'),
           }).getStore('observability'),
         },
       }),

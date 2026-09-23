@@ -15,12 +15,24 @@ export async function userMCPTools({
       await dropClient(userId);
       return {};
     }
-    const client = await resolveClient({ servers, userId });
+    const { client, rejected } = await resolveClient({ servers, userId });
     const { tools, errors } = await client.listToolsWithErrors();
 
+    const ownerOf = new Map<string, string>();
+    for (const id of Object.keys(tools)) {
+      // Longest prefix wins, so servers `a` and `a_b` do not both claim `a_b_*` tools.
+      const [owner] = servers
+        .map((server) => server.name)
+        .filter((name) => id.startsWith(`${name}_`))
+        .sort((left, right) => right.length - left.length);
+      if (owner) {
+        ownerOf.set(id, owner);
+      }
+    }
+
     for (const server of servers) {
-      const own = Object.keys(tools).filter((id) =>
-        id.startsWith(`${server.name}_`)
+      const own = Object.keys(tools).filter(
+        (id) => ownerOf.get(id) === server.name
       );
       const labelled = own.some(
         (id) =>
@@ -36,15 +48,27 @@ export async function userMCPTools({
     }
 
     await Promise.all(
-      servers.map((server) => {
+      servers.flatMap((server) => {
         const rawError = errors[server.name];
-        return setMCPServerError({
-          userId,
-          name: server.name,
-          error: rawError
+        const error =
+          rejected.get(server.name) ??
+          (rawError
             ? cleanMCPErrorMessage({ serverName: server.name, raw: rawError })
-            : null,
-        });
+            : null);
+        if (error === (server.lastError ?? null)) {
+          return [];
+        }
+        return [
+          setMCPServerError({ userId, name: server.name, error }).catch(
+            (writeError: unknown) => {
+              logger.warn('[mcp] failed to record server error', {
+                error: writeError,
+                name: server.name,
+                userId,
+              });
+            }
+          ),
+        ];
       })
     );
     return tools;

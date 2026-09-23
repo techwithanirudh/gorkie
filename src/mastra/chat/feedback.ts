@@ -121,9 +121,18 @@ export async function recordFeedbackDetails({
   comment?: string;
   event: ModalCloseEvent | ModalSubmitEvent;
 }): Promise<void> {
-  const metadata = metadataSchema.safeParse(
-    JSON.parse(event.privateMetadata || '{}')
-  );
+  const metadata = z
+    .string()
+    .transform((raw, ctx) => {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        ctx.addIssue({ code: 'custom', message: 'not JSON' });
+        return z.NEVER;
+      }
+    })
+    .pipe(metadataSchema)
+    .safeParse(event.privateMetadata || '{}');
   if (!metadata.success) {
     logger.warn('[feedback] modal carried no thread to attribute it to');
     return;

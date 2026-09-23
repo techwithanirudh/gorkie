@@ -91,13 +91,12 @@ export async function slackDestination(
     return { channel: rawId(target.id) };
   }
   if (target.type === 'user') {
-    return { channel: rawId((await chat().openDM(target.id)).id) };
+    return { channel: rawId((await chat().openDM(rawId(target.id))).id) };
   }
-  const { channel, ts } = parseSlackId({ input: target.id });
-  if (!channel) {
-    throw new Error(`${target.id} is not a Slack thread id.`);
-  }
-  return { channel, threadTs: ts };
+  // Decode exactly as assertCanPostTo does: a lenient parser here could read a
+  // different channel out of the same id than the one the gate approved.
+  const { channel, threadTs } = slack.decodeThreadId(target.id);
+  return { channel, threadTs: threadTs || undefined };
 }
 
 const joinedChannels = new Set<string>();

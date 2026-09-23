@@ -18,6 +18,10 @@ export const file = {
   maxReadBytes: 10 * 1024 * 1024,
 };
 
+export const canvas = {
+  maxReadChars: 200_000,
+};
+
 export const image = {
   maxViewBytes: 10 * 1024 * 1024,
   // Vision models cap inline images per request (GLM: 8 images, 64 MiB total,
@@ -51,5 +55,6 @@ export const mcp = {
 };
 
 export const emoji = {
+  listTtl: 5 * 60 * 1000,
   proxyUrl: 'https://hackclub-slack-emoji-proxy.vercel.app/api/emoji',
 };

@@ -50,7 +50,7 @@ export class SlackAgentAdapter extends SlackAdapter {
         // is not held up on it, and a failed write just loses that hint.
         chat
           .getState()
-          .set(this.recipientKey(threadId), recipient)
+          .set(this.recipientKey(threadId), recipient, 30 * 24 * 60 * 60 * 1000)
           .catch(() => undefined);
       }
     }

@@ -7,7 +7,7 @@ export const help: CommandHandler = async ({ message, thread }) => {
     '',
     '*commands*',
     '*!help:* show this list.',
-    '*!stop:* immediately stop the current turn and any background work in this thread.',
+    '*!stop:* immediately stop the reply in progress in this thread.',
     '*!connections:* list your mcp servers, integrations, and github, with status.',
     '',
     'tip: set your custom instructions and manage github, mcp servers, and scheduled tasks from the *home* tab.',

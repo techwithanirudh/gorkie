@@ -30,6 +30,7 @@ export const slackIdentity: SpanOutputProcessor = {
 
     const context = span.requestContext;
     if (context && typeof context === 'object' && RENDER_KEY in context) {
+      // Copy rather than mutate: under realtime export the running turn still reads the render adapter from this context.
       const sanitized = { ...context };
       Reflect.deleteProperty(sanitized, RENDER_KEY);
       span.requestContext = sanitized;

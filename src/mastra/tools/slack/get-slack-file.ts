@@ -37,7 +37,7 @@ async function downloadSlackFile({
 }) {
   const sandbox = await requireSandbox(requestContext);
 
-  const fileId = /(F[A-Z0-9]{6,})/.exec(file)?.[1];
+  const fileId = /(?<![A-Z0-9])(F[A-Z0-9]{6,})/.exec(file)?.[1];
   if (!fileId) {
     throw new Error(
       `Not a Slack file id: "${file}". Pass a Slack file id like F0123ABCD (or a Slack file permalink that contains one). get_slack_file only downloads Slack files; use fetch_url for arbitrary web URLs.`
@@ -71,9 +71,11 @@ async function downloadSlackFile({
       : sanitized;
   const path = p('downloads', name);
   await sandbox.retryOnDead(() => sandbox.e2b.files.makeDir(p('downloads')));
-  const partPath = `${path}.part`;
-  const nextPath = `${path}.next`;
-  const mergePath = `${path}.merge`;
+  // Keyed on the file id so a partial of another file saved under the same
+  // name is never resumed into this one.
+  const partPath = `${path}.${fileId}.part`;
+  const nextPath = `${path}.${fileId}.next`;
+  const mergePath = `${path}.${fileId}.merge`;
   const formatResult = (size: number) => ({
     path,
     filename: name,

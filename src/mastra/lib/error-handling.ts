@@ -28,6 +28,7 @@ export function defaultErrorProcessors() {
             ),
           maxRetries: 0,
         },
+        // A 400 is deterministic, so fall through to the next model rather than retry.
         { match: isBadRequestError, maxRetries: 0 },
         {
           match: (error) => {

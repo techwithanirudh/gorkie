@@ -92,6 +92,8 @@ async function orchestratorInstructions({
       content: `<mcps>The user's MCP server(s) ${failedServers.join(', ')} failed to connect. If they ask about missing tools or the request calls for one of these servers, mention casually that it looks down and they may want to check it in App Home.</mcps>`,
     });
   }
+  // Last so the reply-format rule sits closest to the output instead of decaying
+  // mid-prompt over a long turn.
   messages.push({ role: 'system', content: reasoningPrompt });
   return messages;
 }
@@ -134,6 +136,7 @@ const orchestrator = new Agent({
       }
     },
     onError: async () => {
+      // A thrown turn never reaches the `sandbox` output processor.
       await pauseSandbox(requestContext);
     },
   }),
