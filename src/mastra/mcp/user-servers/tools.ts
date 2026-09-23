@@ -1,7 +1,7 @@
 import type { ToolsInput } from '@mastra/core/agent';
 import { listMCPServers, setMCPServerError } from '../../db/queries/mcps';
 import { logger } from '../../lib/logger';
-import { cleanMCPErrorMessage } from '../errors';
+import { describeMCPError } from '../errors';
 import { coverageKey, unlabelledServers } from './approval';
 import { dropClient, resolveClient } from './client';
 
@@ -17,7 +17,7 @@ export async function userMCPTools({
       return {};
     }
     const { client, rejected } = await resolveClient({ servers, userId });
-    const { tools, errors } = await client.listToolsWithErrors();
+    const { tools, errorDetails } = await client.listToolsWithErrors();
 
     const ownerOf = new Map<string, string>();
     for (const id of Object.keys(tools)) {
@@ -47,27 +47,23 @@ export async function userMCPTools({
     }
 
     await Promise.all(
-      servers.flatMap((server) => {
-        const rawError = errors[server.name];
+      servers.map(async (server) => {
+        const details = errorDetails[server.name];
         const error =
           rejected.get(server.name) ??
-          (rawError
-            ? cleanMCPErrorMessage({ serverName: server.name, raw: rawError })
-            : null);
+          (details ? await describeMCPError({ server, details }) : null);
         if (error === (server.lastError ?? null)) {
-          return [];
+          return;
         }
-        return [
-          setMCPServerError({ userId, name: server.name, error }).catch(
-            (writeError: unknown) => {
-              logger.warn('[mcp] failed to record server error', {
-                error: writeError,
-                name: server.name,
-                userId,
-              });
-            }
-          ),
-        ];
+        await setMCPServerError({ userId, name: server.name, error }).catch(
+          (writeError: unknown) => {
+            logger.warn('[mcp] failed to record server error', {
+              error: writeError,
+              name: server.name,
+              userId,
+            });
+          }
+        );
       })
     );
     return tools;

@@ -1,46 +1,145 @@
+import {
+  discoverOAuthProtectedResourceMetadata,
+  type MCPDiscoveryErrorDetails,
+} from '@mastra/mcp';
 import { z } from 'zod';
+import type { MCPServerConfig } from '../types';
 
-const mastraErrorSchema = z.object({ message: z.string() });
-
-const oauthBody = z.object({
+const errorBodySchema = z.object({
+  error: z
+    .union([
+      z.string(),
+      z.object({ message: z.string(), code: z.number().optional() }),
+    ])
+    .optional(),
   error_description: z.string().optional(),
-  error: z.string().optional(),
+  message: z.union([z.string(), z.array(z.string())]).optional(),
+  messages: z.array(z.string()).optional(),
 });
 
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    // Most MCP errors are plain text; JSON is only the occasional wrapped body.
+function upstreamMessage({ line }: { line: string }): {
+  text: string;
+  rpcCode?: number;
+} {
+  const brace = line.indexOf('{');
+  if (brace === -1) {
+    return { text: line };
   }
+  let json: unknown;
+  try {
+    json = JSON.parse(line.slice(brace));
+  } catch {
+    // A brace in plain text is not a JSON body; keep the line as is.
+    return { text: line };
+  }
+  const body = errorBodySchema.safeParse(json).data;
+  if (!body) {
+    return { text: line };
+  }
+  const name = typeof body.error === 'string' ? body.error : undefined;
+  const rpc = typeof body.error === 'object' ? body.error : undefined;
+  const joined = [body.message ?? body.messages ?? []].flat().join('; ');
+  const detail = body.error_description ?? (joined || rpc?.message);
+  const text =
+    name && detail && name !== detail
+      ? `${name}: ${detail}`
+      : (name ?? detail ?? line);
+  return { text, rpcCode: rpc?.code };
 }
 
-export function cleanMCPErrorMessage({
-  serverName,
-  raw,
+const advertisesOAuth = new Map<string, Promise<boolean>>();
+
+async function authHint({
+  server,
+  status,
+  transportFailed,
 }: {
-  serverName: string;
-  raw: string;
-}): string {
-  const unwrapped = mastraErrorSchema.safeParse(parseJson(raw)).data?.message;
-  const [firstLine] = (unwrapped ?? raw).split('\n');
-  let message = (firstLine ?? raw)
-    .replace(`Failed to connect to MCP server ${serverName}: `, '')
+  server: MCPServerConfig;
+  status?: number;
+  transportFailed: boolean;
+}): Promise<string | undefined> {
+  if (status === 403) {
+    return "The server accepted the credentials but denied access. Check the token's scopes or the account's permissions.";
+  }
+  if (status === 404 || status === 405 || transportFailed) {
+    return "Check that the URL points at the server's MCP endpoint (often ending in /mcp or /sse).";
+  }
+  if (status !== 401) {
+    return;
+  }
+  // Manual redirects keep the probe on the already-validated host. Missing or
+  // unreachable metadata means "unknown", which reads the same as no OAuth.
+  // Cached per URL because a server stuck on 401 is re-described every turn.
+  let lookup = advertisesOAuth.get(server.url);
+  if (!lookup) {
+    const signal = AbortSignal.timeout(2000);
+    lookup = discoverOAuthProtectedResourceMetadata(
+      server.url,
+      undefined,
+      (input, init) => fetch(input, { ...init, redirect: 'manual', signal })
+    ).then(
+      () => true,
+      () => false
+    );
+    advertisesOAuth.set(server.url, lookup);
+  }
+  const oauth = await lookup;
+  if (server.token && oauth) {
+    return 'The server rejected the access token. It advertises OAuth sign-in, which Gorkie does not support yet; use an API key or personal access token if the server offers one.';
+  }
+  if (oauth) {
+    return 'The server requires sign-in. It advertises OAuth, which Gorkie does not support yet; add an API key or personal access token if the server offers one.';
+  }
+  if (server.token) {
+    return 'The server rejected the access token. Check that it is correct and not expired; this server may require OAuth.';
+  }
+  return 'The server requires authentication. Remove this server and add it again with an access token.';
+}
+
+export async function describeMCPError({
+  server,
+  details,
+}: {
+  server: MCPServerConfig;
+  details: MCPDiscoveryErrorDetails;
+}): Promise<string> {
+  const connectPrefix = `Failed to connect to MCP server ${server.name}: `;
+  const [firstLine = ''] = details.message.split('\n');
+  const phase = firstLine.startsWith(connectPrefix)
+    ? 'Connection failed during initialization'
+    : 'Listing tools failed';
+  const line = firstLine
+    .replace(connectPrefix, '')
+    .replace(` (HTTP ${details.httpStatus})`, '')
+    .replace(/^(?:\w*Error: )+/, '')
     .replace('Error POSTing to endpoint: ', '')
     .trim();
-
-  const parts = message.split(': ');
-  while (parts.length > 1 && parts[0]?.endsWith('Error')) {
-    parts.shift();
-  }
-  message = parts.join(': ');
-
-  const brace = message.indexOf('{');
-  if (brace !== -1) {
-    const fields = oauthBody.safeParse(parseJson(message.slice(brace))).data;
-    message = (fields?.error_description ?? fields?.error) || message;
-  }
-
-  const sentence = message.charAt(0).toUpperCase() + message.slice(1);
-  return sentence.length > 200 ? `${sentence.slice(0, 200)}…` : sentence;
+  const { text, rpcCode } = upstreamMessage({ line });
+  const clean = (
+    server.token ? text.split(server.token).join('[redacted]') : text
+  )
+    .replace(/\b(Bearer|Basic)\s+[\w\-.~+/=]+/gi, '$1 [redacted]')
+    .replace(
+      /\b(authorization|cookie|x-api-key)\s*[:=]\s*[^\s,;]+/gi,
+      '$1: [redacted]'
+    )
+    .replace(
+      /([?&#](?:code|state|access_token|refresh_token|id_token|token|client_secret|api_key|key)=)[^&\s"']+/gi,
+      '$1[redacted]'
+    )
+    .replace(/eyJ[\w-]+\.[\w-]+\.[\w-]*/g, '[redacted]')
+    .replace(/(\/\/)[^\s/@:]+:[^\s/@]+@/g, '$1')
+    .replace(/\.$/, '');
+  const upstream = clean.length > 160 ? `${clean.slice(0, 160)}…` : clean;
+  const status = details.httpStatus ? ` (HTTP ${details.httpStatus})` : '';
+  const rpc = rpcCode === undefined ? '' : ` (MCP error ${rpcCode})`;
+  const hint = await authHint({
+    server,
+    status: details.httpStatus,
+    transportFailed: line.includes(
+      'Could not connect to server with any available HTTP transport'
+    ),
+  });
+  const message = `${phase}: ${upstream}${status}${rpc}.`;
+  return hint ? `${message} ${hint}` : message;
 }
