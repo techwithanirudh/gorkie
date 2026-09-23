@@ -1,6 +1,3 @@
-// The Chat SDK Slack adapter spells a conversation as `slack:<channel>` and a
-// thread as `slack:<channel>:<ts>` (@chat-adapter/slack encodeThreadId).
-
 const PREFIX = 'slack:';
 const PERMALINK = /archives\/([A-Z0-9]+)\/p(\d{10})(\d{6})/;
 

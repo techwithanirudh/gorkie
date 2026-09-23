@@ -53,8 +53,7 @@ export async function githubTools({
         // Replace the tool outright rather than layering the handoff over the
         // SDK's formatter: those assume a GitHub API result, and
         // listPullRequestFiles maps over it unguarded, so a handoff message
-        // throws instead of reaching the model. Nothing here reaches GitHub, so
-        // there is nothing to approve either.
+        // throws instead of reaching the model.
         tools[id] = {
           ...tool,
           needsApproval: false,
@@ -79,6 +78,7 @@ export async function githubTools({
     if (direct && threadId) {
       tools.github_checkout = checkoutTool({
         approval: !isDM || asksBefore({ kind: 'read', level }),
+        canFork: credential.kind === 'pat',
         userId,
       });
       tools.github_push_branch = pushTool({

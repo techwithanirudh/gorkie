@@ -27,6 +27,11 @@ import {
 } from './tool-names';
 
 const reached = new WeakSet<RequestContext>();
+const unscopedSandboxKey = '__unscoped__';
+
+function sandboxKey(requestContext: RequestContext): string {
+  return channelContext(requestContext).threadId ?? unscopedSandboxKey;
+}
 
 export function usedSandbox(requestContext: RequestContext): boolean {
   return reached.has(requestContext);
@@ -35,11 +40,7 @@ export function usedSandbox(requestContext: RequestContext): boolean {
 export async function requireSandbox(
   requestContext: RequestContext
 ): Promise<E2BSandbox> {
-  // Real command/filesystem work needs a real thread. The `sandbox` resolver
-  // degrades to a shared `__unscoped__` sandbox so Mastra's pre-bind
-  // instruction read never crashes a turn, but a tool must not silently run
-  // commands in that scratch sandbox: fail loudly instead.
-  if (!channelContext(requestContext).threadId) {
+  if (sandboxKey(requestContext) === unscopedSandboxKey) {
     throw new Error(
       'No Slack thread bound for this run, so a sandbox tool cannot run here.'
     );
@@ -63,10 +64,10 @@ export async function getSandbox(
   return sandbox;
 }
 
-// Pause the thread's sandbox and drop its cache entry. The `sandbox` output
-// processor calls this on a normal turn, but that phase never runs on an abort
-// or a thrown turn, so `onAbort`/`onError` call it too: otherwise the sandbox
-// stays live until its own 16 minute timeout after every stopped turn.
+// The `sandbox` output processor calls this on a normal turn, but that phase
+// never runs on an abort or a thrown turn, so `onAbort`/`onError` call it too:
+// otherwise the sandbox stays live until its own 16 minute timeout after every
+// stopped turn.
 export async function pauseSandbox(
   requestContext: RequestContext
 ): Promise<void> {
@@ -92,13 +93,12 @@ export const workspace: Workspace = new Workspace({
   id: 'main-workspace',
   name: 'Workspace',
   sandbox: ({ requestContext }) => {
-    const { threadId } = channelContext(requestContext);
     // Degrade instead of throw. Mastra can resolve workspace instructions
     // before a thread is bound (and a scheduled/idle wake may arrive without
     // channel context), and throwing here failed the whole turn and every
     // fallback model. A contextless run gets a shared scratch sandbox; real
     // turns still key on their own thread, so sandbox continuity is unchanged.
-    return createSandbox(threadId ?? '__unscoped__');
+    return createSandbox(sandboxKey(requestContext));
   },
   filesystem: async ({ requestContext }) => {
     const sandbox = await getSandbox(requestContext);
@@ -111,8 +111,7 @@ export const workspace: Workspace = new Workspace({
       basePath: config.workdir,
     });
   },
-  sandboxCacheKey: ({ requestContext }) =>
-    channelContext(requestContext).threadId ?? '__unscoped__',
+  sandboxCacheKey: ({ requestContext }) => sandboxKey(requestContext),
   skillSource: new LocalSkillSource({
     basePath:
       [

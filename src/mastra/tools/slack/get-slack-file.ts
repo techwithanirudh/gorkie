@@ -96,15 +96,14 @@ export const getSlackFileTool = createTool({
       mimeType: fileInfo?.mimetype,
       size,
     });
-    const writeResponseBody = async (
-      body: ReadableStream<Uint8Array>,
-      targetPath: string
-    ) => {
+    const writeBodyOnce = async ({
+      body,
+      targetPath,
+    }: {
+      body: ReadableStream<Uint8Array>;
+      targetPath: string;
+    }) => {
       let downloaded = 0;
-      // Not wrapped in retryOnDead: a ReadableStream is single-use, so a retry
-      // would re-pipe an already-locked stream (and double-count `downloaded`).
-      // A dead sandbox mid-download surfaces as an error; the next call resumes
-      // from the `.part` file instead.
       await sandbox.e2b.files.write(
         targetPath,
         body.pipeThrough(
@@ -218,10 +217,10 @@ export const getSlackFileTool = createTool({
       throw new Error('Slack file response did not include a body.');
     }
 
-    const downloadedSize = await writeResponseBody(
-      response.body,
-      resumeOffset > 0 ? nextPath : partPath
-    );
+    const downloadedSize = await writeBodyOnce({
+      body: response.body,
+      targetPath: resumeOffset > 0 ? nextPath : partPath,
+    });
 
     if (resumeOffset > 0) {
       await mergeDownload();

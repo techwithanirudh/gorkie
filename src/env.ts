@@ -8,13 +8,7 @@ export const env = createEnv({
       .enum(['development', 'production', 'test'])
       .default('development'),
 
-    // Injected by the Mastra CLI, not set by hand. `mastra dev` and
-    // `mastra start` each run with a different cwd, neither of which is the
-    // repo root, so anything writing a file relative to cwd needs this.
-    // Not `MASTRA_PROJECT_ROOT`: the Mastra CLI sets that itself, after our
-    // .env is loaded, and points it at `.mastra` rather than the repo root.
-    // Anything anchored to it lands in the wrong directory.
-    PROJECT_ROOT: z.string().default(process.cwd()),
+    MASTRA_PROJECT_ROOT: z.string().default(process.cwd()),
 
     SLACK_BOT_TOKEN: z.string().min(1),
     SLACK_APP_TOKEN: z.string().min(1),

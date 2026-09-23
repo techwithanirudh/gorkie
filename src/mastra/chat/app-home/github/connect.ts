@@ -32,6 +32,14 @@ export const polling = new Map<
   }
 >();
 
+const isCurrentLogin = ({
+  controller,
+  userId,
+}: {
+  controller: AbortController;
+  userId: string;
+}) => polling.get(userId)?.controller === controller;
+
 export async function completeLogin({
   controller,
   login,
@@ -56,8 +64,7 @@ export async function completeLogin({
     });
     return;
   }
-  // Disconnect or a newer sign-in may have claimed the slot while GitHub answered.
-  if (polling.get(userId)?.controller !== controller) {
+  if (!isCurrentLogin({ controller, userId })) {
     return;
   }
   await setGitHubCredential({
@@ -81,11 +88,11 @@ async function settleLogin({
   userId: string;
 }): Promise<void> {
   const current = polling.get(userId);
-  if (current?.controller !== controller) {
+  if (!(current && isCurrentLogin({ controller, userId }))) {
     return;
   }
   const resolved = await completeLogin({ controller, login, userId });
-  if (polling.get(userId)?.controller === controller) {
+  if (isCurrentLogin({ controller, userId })) {
     polling.delete(userId);
   }
   await publishHome(userId);
@@ -138,13 +145,13 @@ async function openConnect({
       error,
       userId,
     });
-    if (polling.get(userId)?.controller === controller) {
+    if (isCurrentLogin({ controller, userId })) {
       polling.delete(userId);
     }
     return;
   }
   const current = polling.get(userId);
-  if (current?.controller === controller) {
+  if (current && isCurrentLogin({ controller, userId })) {
     polling.set(userId, { ...current, viewId: opened.view?.id });
   }
 

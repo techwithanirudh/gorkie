@@ -1,10 +1,12 @@
 export type Args = Record<string, unknown>;
 
+const slackStatusMaxLength = 50;
+
 export function fit(
   prefix: string,
   content: string,
   suffix: string,
-  max = 50
+  max = slackStatusMaxLength
 ): string {
   const budget = max - prefix.length - suffix.length;
   const flat = content.replace(/\s+/g, ' ').trim();
@@ -12,7 +14,7 @@ export function fit(
   return prefix + clipped + suffix;
 }
 
-export function truncate(text: string, max = 50): string {
+export function truncate(text: string, max = slackStatusMaxLength): string {
   return text.length > max ? text.slice(0, max) : text;
 }
 

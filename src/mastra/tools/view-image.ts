@@ -31,10 +31,6 @@ export const viewImageTool = createTool({
       }),
     },
   },
-  // Surface the bytes as a native media part the model can see, mirroring
-  // Mastra read_file's media handling. moveToolImages then relocates it into a
-  // user message, since the OpenAI-compatible gateways drop media in tool
-  // results.
   toModelOutput: (out) => ({
     type: 'content',
     value: [

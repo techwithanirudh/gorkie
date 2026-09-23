@@ -60,16 +60,11 @@ export async function repoAccess({
 }: {
   repository: string;
   token: string;
-}): Promise<{ private: boolean; push: boolean } | { error: string }> {
+}): Promise<{ needsCredential: boolean; push: boolean } | { error: string }> {
   const body = await githubApi({ path: `/repos/${repository}`, token });
   if ('error' in body) {
     return body;
   }
-  // `permissions` is present only on an authenticated read, and `push` is the
-  // flag that decides push-a-branch-here vs fork-first. `private` decides
-  // whether the clone needs the ambient credential window at all: a public repo
-  // clones anonymously. Treat an absent `private` as private, so anything we
-  // can't positively confirm public stays gated and credentialed.
   const parsed = z
     .object({
       private: z.boolean().optional(),
@@ -77,7 +72,7 @@ export async function repoAccess({
     })
     .safeParse(body.data).data;
   return {
-    private: parsed?.private !== false,
+    needsCredential: parsed?.private !== false,
     push: parsed?.permissions?.push === true,
   };
 }

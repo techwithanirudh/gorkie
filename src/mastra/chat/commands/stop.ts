@@ -2,13 +2,9 @@ import { logger } from '../../lib/logger';
 import { memoryThread } from '../../lib/memory';
 import type { CommandHandler } from '../../types';
 
-// 'aborted' means a live run was cancelled, and the agent's own onAbort posts
-// about it; anything else is this command's to report. (Background-task
-// cancellation lives on the background branch, where backgroundTasks is
-// actually configured; this branch has no background tasks to stop.)
 export async function stopThread(
   threadId: string
-): Promise<'aborted' | 'idle'> {
+): Promise<'aborted-agent-notifies' | 'idle'> {
   const { default: orchestrator } = await import('../../agents/orchestrator');
   const threadMemory = await memoryThread({
     agent: orchestrator,
@@ -24,12 +20,12 @@ export async function stopThread(
     return 'idle';
   }
   orchestrator.abortThreadStream(scope);
-  return 'aborted';
+  return 'aborted-agent-notifies';
 }
 
 export const stop: CommandHandler = async ({ message, thread }) => {
   const outcome = await stopThread(thread.id);
-  if (outcome === 'aborted') {
+  if (outcome === 'aborted-agent-notifies') {
     return;
   }
   await thread

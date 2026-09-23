@@ -63,9 +63,6 @@ async function refreshAccount({
     if (current && current.refreshToken !== spent) {
       return current.token;
     }
-    // Only forget the credential when GitHub says the refresh token itself is
-    // dead. A transient failure (network, 5xx, timeout) must not delete it, or a
-    // blip logs the user out for good. Keep it and hand back the current token.
     if (code === 'bad_refresh_token') {
       await removeGitHubCredential(userId);
       return;

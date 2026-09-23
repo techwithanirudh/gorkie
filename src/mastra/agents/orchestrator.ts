@@ -126,8 +126,6 @@ const orchestrator = new Agent({
       }
     },
     onError: async () => {
-      // A thrown turn never reaches the `sandbox` output processor either, so
-      // pause here too rather than leave the sandbox running until its timeout.
       await pauseSandbox(requestContext);
     },
   }),

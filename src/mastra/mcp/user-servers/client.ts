@@ -37,7 +37,6 @@ async function buildClient({
   servers: MCPServerConfig[];
   stale: Promise<MCPClient> | undefined;
 }): Promise<MCPClient> {
-  // A previous build that failed has nothing to disconnect.
   const staleClient = await stale?.catch(() => undefined);
   if (staleClient) {
     await staleClient.disconnect().catch((error: unknown) => {
@@ -47,10 +46,6 @@ async function buildClient({
       });
     });
   }
-  // Re-run the SSRF URL check at connect, not just when the server was added:
-  // a hostname that resolved to a public address at add time can be re-pointed
-  // to an internal one (DNS rebinding), so re-resolve here and drop any that
-  // now fail, surfacing the reason in App Home via lastError.
   const checked = await Promise.all(
     servers.map(async (server) => ({
       server,

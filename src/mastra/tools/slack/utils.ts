@@ -99,9 +99,6 @@ export async function joinChannel(channelId: string): Promise<void> {
     await slack.webClient.conversations.join({ channel: id });
     joinedChannels.add(id);
   } catch (error) {
-    // already_in_channel means the bot is already a member, the state we want,
-    // so remember it and stop re-calling join. Other failures may be transient,
-    // so do not cache and let a later call retry.
     if (
       slackErrorSchema.safeParse(error).data?.data?.error ===
       'already_in_channel'

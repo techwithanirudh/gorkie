@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { env } from '@/env';
 
-const PREFIX = 'v1.';
+export const encryptedPrefix = 'v1.';
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
 
@@ -15,15 +15,16 @@ export function encryptSecret(plaintext: string): string {
     cipher.final(),
   ]);
   return (
-    PREFIX + Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64')
+    encryptedPrefix +
+    Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64')
   );
 }
 
 export function decryptSecret(stored: string): string {
-  if (!stored.startsWith(PREFIX)) {
+  if (!stored.startsWith(encryptedPrefix)) {
     throw new Error('Stored secret is not encrypted.');
   }
-  const raw = Buffer.from(stored.slice(PREFIX.length), 'base64');
+  const raw = Buffer.from(stored.slice(encryptedPrefix.length), 'base64');
   const decipher = createDecipheriv(
     'aes-256-gcm',
     key,

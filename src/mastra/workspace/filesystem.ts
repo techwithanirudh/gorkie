@@ -34,6 +34,10 @@ interface FilesystemOptions {
   sandbox: E2BSandbox;
 }
 
+function modifiedTime(info: { modifiedTime?: Date }): Date {
+  return info.modifiedTime ?? new Date(0);
+}
+
 export class E2BFilesystem extends MastraFilesystem {
   readonly id: string;
   readonly name = 'E2BFilesystem';
@@ -135,7 +139,7 @@ export class E2BFilesystem extends MastraFilesystem {
       ? await this.infoOrAbsent(filePath)
       : undefined;
     if (options?.expectedMtime && current) {
-      const modifiedAt = current.modifiedTime ?? new Date(0);
+      const modifiedAt = modifiedTime(current);
       if (modifiedAt.getTime() !== options.expectedMtime.getTime()) {
         throw new StaleFileError(inputPath, options.expectedMtime, modifiedAt);
       }
@@ -349,9 +353,6 @@ export class E2BFilesystem extends MastraFilesystem {
             });
           })
           .map((entry) => ({
-            // A recursive listing returns the same basename from many dirs, so
-            // key rows by their path relative to the listing root; a flat
-            // listing keeps the bare name.
             name: options?.recursive
               ? path.posix.relative(dirPath, entry.path)
               : entry.name,
@@ -385,12 +386,8 @@ export class E2BFilesystem extends MastraFilesystem {
       path: inputPath,
       type: info.type === FileType.DIR ? 'directory' : 'file',
       size: info.size,
-      // Fall back to the epoch, not `now`, to match writeFile's expectedMtime
-      // check: `now` there would never equal a later write's `new Date(0)`
-      // fallback, throwing a spurious StaleFileError on every edit-after-read of
-      // a file whose mtime the sandbox did not report.
-      createdAt: info.modifiedTime ?? new Date(0),
-      modifiedAt: info.modifiedTime ?? new Date(0),
+      createdAt: modifiedTime(info),
+      modifiedAt: modifiedTime(info),
       mimeType: lookup(filePath) || undefined,
     };
   }

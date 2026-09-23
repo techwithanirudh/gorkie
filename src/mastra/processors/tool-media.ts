@@ -21,10 +21,6 @@ function byteLength(base64: string): number {
 // branches on `image/*`, `audio/*` and `application/pdf` and throws
 // `UnsupportedFunctionalityError` for anything else, which crashes the turn
 // rather than merely not working.
-//
-// The relocation also concentrates every tool image into the request, and
-// vision models cap inline images (GLM: 8 / 64 MiB, non-retryable 400). So keep
-// only the most recent images within that budget and drop the older ones.
 export const moveToolImages: CompatRule = {
   name: 'move-tool-images',
   applyToPrompt({ prompt }) {
@@ -69,9 +65,6 @@ export const moveToolImages: CompatRule = {
         continue;
       }
       const relocated: MediaPart[] = [];
-      // The note lives on the tool result the image was stripped from, not as a
-      // trailing message: appending one would make a synthetic user message the
-      // most recent thing said, displacing the real request.
       const content = message.content.map((part) => {
         if (part.type !== 'tool-result' || part.output.type !== 'content') {
           return part;

@@ -45,7 +45,7 @@ Storage is **Postgres** for agent memory and channel state. Long-term memory use
 thread-scoped **Observational Memory**.
 Observability traces go to **Langfuse** (`@mastra/langfuse`), configured in
 `src/mastra/index.ts`. In development they are also written to a local DuckDB
-file (`observability.duckdb`, anchored to `env.PROJECT_ROOT` rather than cwd,
+file (`observability.duckdb`, anchored to `env.MASTRA_PROJECT_ROOT`, which the Mastra CLI sets to the repo root, rather than cwd,
 wired via `MastraStorageExporter` on a `MastraCompositeStore` domain override).
 DuckDB is single-writer, so a running `mastra dev`/`mastra start` holds the
 lock; query it read-only while the server is stopped.

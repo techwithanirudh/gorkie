@@ -88,8 +88,6 @@ export async function editImages({
     const match = DATA_URI.exec(entry.image_url?.url ?? '');
     if (match) {
       const data = Buffer.from(match[2], 'base64');
-      // Type by the bytes, not the model-declared label, so the file written to
-      // the sandbox carries a correct type and does not get mislabeled later.
       out.push({
         data,
         mediaType: detectMediaType({ data, topLevelType: 'image' }) ?? match[1],

@@ -44,7 +44,6 @@ async function runTurn({
     thread,
     await withHistory({ message: attachments(message), thread })
   );
-  // Only a turn that finished has seen the backfill; a failed one retries it.
   if (!thread.isDM) {
     await thread.setState({ lastSeenMessage: message.id });
   }

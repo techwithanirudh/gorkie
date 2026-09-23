@@ -20,9 +20,8 @@ export function channelContext(
   if (!raw) {
     return {};
   }
-  // Slack sets `channel` as an object, but the Studio/API request-context
-  // boundary serializes it to a JSON string, so parse that back first.
   let value: unknown = raw;
+  // Studio's request-context presets reach the server with nested objects JSON-stringified.
   if (typeof value === 'string') {
     try {
       value = JSON.parse(value);

@@ -51,9 +51,6 @@ export function defaultErrorProcessors() {
       delayMs: 3000,
       matchers: [
         { match: isTerminalModelError, maxRetries: 0 },
-        // A 400 is deterministic (a malformed/oversized request), so retrying
-        // the same model is a guaranteed second failure. Stop, so the run falls
-        // through to the next model in the ladder instead.
         { match: isBadRequestError, maxRetries: 0 },
         {
           match: isEconnresetError,

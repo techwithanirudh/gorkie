@@ -13,18 +13,12 @@ function meta(args: unknown[]): Record<string, unknown> {
 export const slackWebLogger: SlackLogger = {
   debug: (...args) => logger.debug('[slack:web-api]', meta(args)),
   info: (...args) => logger.debug('[slack:web-api]', meta(args)),
-  // already_in_channel is the bot already being a member, the state we want; the
-  // WebClient logs it at warn, so drop it to debug to keep it out of the noise.
   warn: (...args) =>
     args.includes('already_in_channel')
       ? logger.debug('[slack:web-api]', meta(args))
       : logger.warn('[slack:web-api]', meta(args)),
   error: (...args) => logger.error('[slack:web-api]', meta(args)),
-  setLevel: () => {
-    // pino owns the level; the WebClient must not override it.
-  },
+  setLevel: () => undefined,
   getLevel: () => LogLevel.DEBUG,
-  setName: () => {
-    // Name is already stamped via the [slack:web-api] prefix.
-  },
+  setName: () => undefined,
 };

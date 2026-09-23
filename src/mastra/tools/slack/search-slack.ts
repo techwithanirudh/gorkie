@@ -122,9 +122,6 @@ async function runSearch({
 }): Promise<SearchResponse> {
   return searchResponseSchema.parse(
     await slack.webClient.apiCall('assistant.search.context', {
-      // Slack reads these as comma-separated strings. WebClient JSON-encodes an
-      // array, which Slack then ignores, and an ignored channel_types silently
-      // reopens DMs and private channels to whatever the token can reach.
       channel_types: 'public_channel',
       content_types: 'messages',
       cursor,
@@ -165,9 +162,6 @@ async function toOutput({
       const metadata = await chat().channel(channelId).fetchMetadata();
       return metadata.channelVisibility === 'workspace' ? channelId : undefined;
     } catch (error) {
-      // A channel gorkie cannot look up is not readable. Anything else, a
-      // rate limit above all, has to fail the search instead of quietly
-      // shrinking it into a confident "nothing found".
       const parsed = slackErrorSchema.safeParse(error);
       if (parsed.success && parsed.data.data?.error === 'channel_not_found') {
         return;
@@ -175,18 +169,20 @@ async function toOutput({
       throw error;
     }
   };
-  // Bounded in small batches: one unbounded Promise.all can fire enough
-  // parallel fetchMetadata calls to trip Slack rate limits. No caching, on
-  // purpose - visibility is the privacy gate for these results, and a stale
-  // "workspace" entry would leak a channel that later went private.
-  const visibilityBatchSize = 4;
+  const maxConcurrentVisibilityLookups = 4;
   const ids = [...channelIds];
   const resolved: Array<string | undefined> = [];
-  for (let index = 0; index < ids.length; index += visibilityBatchSize) {
+  for (
+    let index = 0;
+    index < ids.length;
+    index += maxConcurrentVisibilityLookups
+  ) {
     resolved.push(
       // biome-ignore lint/performance/noAwaitInLoops: batches are sequential on purpose - that is what bounds the concurrency.
       ...(await Promise.all(
-        ids.slice(index, index + visibilityBatchSize).map(lookupVisibility)
+        ids
+          .slice(index, index + maxConcurrentVisibilityLookups)
+          .map(lookupVisibility)
       ))
     );
   }

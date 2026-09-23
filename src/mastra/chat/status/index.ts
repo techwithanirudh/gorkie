@@ -23,8 +23,6 @@ function delegatedChildTool(
 }
 
 export const status: TypingStatusFn = (chunk, context) => {
-  // Slack caps a status at 50 characters and the built-in approval text is 28
-  // plus the tool name, which the longer github_ names overflow.
   if (chunk.type === 'tool-call-approval') {
     return truncate(`is asking about ${label(chunk.payload.toolName)}…`);
   }

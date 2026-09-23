@@ -31,26 +31,29 @@ export const git = async ({
   }
 };
 
-// One credential window per sandbox at a time. Two overlapping operations
-// interleave badly: the first's cleanup resets the firewall while the second is
-// still pushing, and each one's window stays open for the other's duration.
-const windows = new Map<string, Promise<unknown>>();
+const credentialWindows = new Map<string, Promise<unknown>>();
 
-const serialize = async <T>(
-  key: string,
-  work: () => Promise<T>
-): Promise<T> => {
-  const next = (windows.get(key) ?? Promise.resolve()).then(work, work);
+const oneWindowPerSandbox = async <T>({
+  sandboxId,
+  work,
+}: {
+  sandboxId: string;
+  work: () => Promise<T>;
+}): Promise<T> => {
+  const next = (credentialWindows.get(sandboxId) ?? Promise.resolve()).then(
+    work,
+    work
+  );
   const settled = next.then(
     () => undefined,
     () => undefined
   );
-  windows.set(key, settled);
+  credentialWindows.set(sandboxId, settled);
   try {
     return await next;
   } finally {
-    if (windows.get(key) === settled) {
-      windows.delete(key);
+    if (credentialWindows.get(sandboxId) === settled) {
+      credentialWindows.delete(sandboxId);
     }
   }
 };
@@ -68,35 +71,30 @@ export const withCredential = async <T>({
   if (!token) {
     throw new Error('GitHub is not connected. Ask them to sign in again.');
   }
-  return await serialize(sandbox.e2b.sandboxId, () =>
-    sandbox.retryOnDead(async () => {
-      try {
-        await sandbox.e2b.updateNetwork({
-          rules: {
-            ...baseRules(),
-            'github.com': [
-              {
-                transform: {
-                  headers: {
-                    Authorization: `Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
+  return await oneWindowPerSandbox({
+    sandboxId: sandbox.e2b.sandboxId,
+    work: () =>
+      sandbox.retryOnDead(async () => {
+        try {
+          await sandbox.e2b.updateNetwork({
+            rules: {
+              ...baseRules(),
+              'github.com': [
+                {
+                  transform: {
+                    headers: {
+                      Authorization: `Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
+                    },
                   },
                 },
-              },
-            ],
-          },
-        });
-      } catch {
-        // The rules object holds the github token in an Authorization header, so
-        // never let a failure here propagate the raw error: it could carry the
-        // request body into a log. Throw a token-free error instead.
-        // biome-ignore lint/style/useErrorCause: dropping the cause is the point; it can carry the token
-        throw new Error('Could not open the GitHub credential window.');
-      }
-      try {
-        return await operation();
-      } finally {
-        // A failed drop leaves the token injected for everything in the
-        // sandbox, which is keyed on the thread and outlives this turn.
+              ],
+            },
+          });
+        } catch {
+          // biome-ignore lint/style/useErrorCause: dropping the cause is the point; it can carry the token
+          throw new Error('Could not open the GitHub credential window.');
+        }
+        const [outcome] = await Promise.allSettled([operation()]);
         let dropped = false;
         for (let attempt = 1; attempt <= 3 && !dropped; attempt++) {
           try {
@@ -111,19 +109,19 @@ export const withCredential = async <T>({
           }
         }
         if (!dropped) {
-          // Killing is the only way left to close the window; the next turn
-          // gets a fresh sandbox under the same id.
           await sandbox.e2b.kill().catch((error: unknown) => {
             logger.error('[github] failed to kill a credentialed sandbox', {
               error,
             });
           });
-          // biome-ignore lint/correctness/noUnsafeFinally: a leaked credential must override the operation's result
           throw new Error(
             'Could not close the GitHub credential window, so the sandbox was discarded. Files in it are gone; check out the repository again.'
           );
         }
-      }
-    })
-  );
+        if (outcome.status === 'rejected') {
+          throw outcome.reason;
+        }
+        return outcome.value;
+      }),
+  });
 };
