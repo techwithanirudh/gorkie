@@ -7,6 +7,15 @@ const GITHUB_PERMISSIONS = [
   'never',
 ] as const satisfies readonly ApprovalLevel[];
 
+export interface GitHubCredential {
+  expiresAt: Date | undefined;
+  kind: 'app' | 'pat';
+  login: string;
+  refreshToken: string | undefined;
+  scopes: string[];
+  token: string;
+}
+
 export type GitHubPermission = (typeof GITHUB_PERMISSIONS)[number];
 
 export const githubPermissionSchema = z.enum(GITHUB_PERMISSIONS).catch('all');

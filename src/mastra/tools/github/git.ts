@@ -95,9 +95,8 @@ export const withCredential = async <T>({
       try {
         return await operation();
       } finally {
-        // Drop the ambient github.com auth as soon as the git command is done. A
-        // failed drop leaves the credential window open on the sandbox, so retry
-        // a few times before giving up rather than dropping it on the first blip.
+        // A failed drop leaves the token injected for everything in the
+        // sandbox, which is keyed on the thread and outlives this turn.
         let dropped = false;
         for (let attempt = 1; attempt <= 3 && !dropped; attempt++) {
           try {
@@ -110,6 +109,19 @@ export const withCredential = async <T>({
               error,
             });
           }
+        }
+        if (!dropped) {
+          // Killing is the only way left to close the window; the next turn
+          // gets a fresh sandbox under the same id.
+          await sandbox.e2b.kill().catch((error: unknown) => {
+            logger.error('[github] failed to kill a credentialed sandbox', {
+              error,
+            });
+          });
+          // biome-ignore lint/correctness/noUnsafeFinally: a leaked credential must override the operation's result
+          throw new Error(
+            'Could not close the GitHub credential window, so the sandbox was discarded. Files in it are gone; check out the repository again.'
+          );
         }
       }
     })

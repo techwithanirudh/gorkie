@@ -37,8 +37,9 @@ async function buildClient({
   servers: MCPServerConfig[];
   stale: Promise<MCPClient> | undefined;
 }): Promise<MCPClient> {
-  if (stale) {
-    const staleClient = await stale;
+  // A previous build that failed has nothing to disconnect.
+  const staleClient = await stale?.catch(() => undefined);
+  if (staleClient) {
     await staleClient.disconnect().catch((error: unknown) => {
       logger.debug('[mcp] failed to disconnect stale client', {
         error,

@@ -8,9 +8,11 @@ import { git, withCredential } from './git';
 
 export const pushTool = ({
   approval,
+  canFork,
   userId,
 }: {
   approval: boolean;
+  canFork: boolean;
   userId: string;
 }) =>
   createTool({
@@ -66,7 +68,9 @@ export const pushTool = ({
               await push();
             } else if (/denied|permission|403|forbidden/i.test(message)) {
               throw new Error(
-                `${message}\n\nThis account cannot push to ${repository}. Fork it with github_fork_repository, then call github_push_branch again with checkout set to "${source}" (the repo you cloned) and repository set to your fork, then open the pull request from the fork into ${repository}.`,
+                canFork
+                  ? `${message}\n\nThis account cannot push to ${repository}. Fork it with github_fork_repository, then call github_push_branch again with checkout set to "${source}" (the repo you cloned) and repository set to your fork, then open the pull request from the fork into ${repository}.`
+                  : `${message}\n\nThis GitHub App connection cannot push to ${repository} and cannot fork it, because an app only reaches repositories it is installed on. Say so, and offer a classic token from the Home tab or a pull request they open themselves.`,
                 { cause: error }
               );
             } else {

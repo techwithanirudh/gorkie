@@ -1,6 +1,5 @@
 import { env } from '@/env';
-import type { GitHubCredential } from '../../../db/queries/github';
-import type { GitHubPermission } from '../../../types';
+import type { GitHubCredential, GitHubPermission } from '../../../types';
 import type { HomeSection } from '../limit';
 import { PRESETS } from '../presets';
 import { ids } from './ids';

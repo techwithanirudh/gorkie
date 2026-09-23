@@ -63,18 +63,14 @@ export const mastra = new Mastra({
         serviceName: 'orchestrator',
         exporters: [
           ...(isProduction ? [] : [new MastraStorageExporter()]),
-          ...(env.LANGFUSE_PUBLIC_KEY && env.LANGFUSE_SECRET_KEY
-            ? [
-                new LangfuseFeedbackExporter(),
-                new LangfuseExporter({
-                  baseUrl: env.LANGFUSE_BASE_URL,
-                  environment: env.NODE_ENV,
-                  publicKey: env.LANGFUSE_PUBLIC_KEY,
-                  realtime: !isProduction,
-                  secretKey: env.LANGFUSE_SECRET_KEY,
-                }),
-              ]
-            : []),
+          new LangfuseFeedbackExporter(),
+          new LangfuseExporter({
+            baseUrl: env.LANGFUSE_BASE_URL,
+            environment: env.NODE_ENV,
+            publicKey: env.LANGFUSE_PUBLIC_KEY,
+            realtime: !isProduction,
+            secretKey: env.LANGFUSE_SECRET_KEY,
+          }),
         ],
         spanOutputProcessors: [slackIdentity],
       },

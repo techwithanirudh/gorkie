@@ -1,10 +1,7 @@
 import type { RequestContext } from '@mastra/core/request-context';
-import {
-  type GitHubCredential,
-  getGitHubCredential,
-} from '../../db/queries/github';
+import { getGitHubCredential } from '../../db/queries/github';
 import { getGitHubSettings } from '../../db/queries/settings';
-import type { GitHubPermission } from '../../types';
+import type { GitHubCredential, GitHubPermission } from '../../types';
 import { logger } from '../logger';
 
 type GitHubAccess =
