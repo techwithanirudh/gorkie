@@ -1,4 +1,4 @@
-import { GITHUB_WRITE_TOOLS, type GithubToolName } from '@github-tools/sdk';
+import type { GithubToolName } from '@github-tools/sdk';
 
 export const ALLOWLIST: GithubToolName[] = [
   'addAssignees',
@@ -35,6 +35,3 @@ export const ALLOWLIST: GithubToolName[] = [
   'updateIssue',
   'updatePullRequest',
 ];
-
-export const isWriteTool = (name: GithubToolName): boolean =>
-  name in GITHUB_WRITE_TOOLS;

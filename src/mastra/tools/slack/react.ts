@@ -45,8 +45,9 @@ export const reactTool = createTool({
     { channelId, messageId, url, action, emoji: emojiInput },
     context
   ) => {
-    const ctx = channelContext(context?.requestContext);
-    const target = parseSlackId(url ?? messageId ?? ctx.messageId, {
+    const ctx = channelContext(context.requestContext);
+    const target = parseSlackId({
+      input: url ?? messageId ?? ctx.messageId,
       channel: channelId ?? ctx.channelId,
     });
     if (!target.channel) {
@@ -68,15 +69,9 @@ export const reactTool = createTool({
     };
     if (action === 'remove') {
       await slack.webClient.reactions.remove(request);
-      return {
-        action,
-        channelId: chatChannelId(target.channel),
-        messageId: target.ts,
-        emoji,
-      };
+    } else {
+      await slack.webClient.reactions.add(request);
     }
-
-    await slack.webClient.reactions.add(request);
     return {
       action,
       channelId: chatChannelId(target.channel),

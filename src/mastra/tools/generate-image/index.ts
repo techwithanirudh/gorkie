@@ -45,9 +45,6 @@ export const generateImageTool = createTool({
     },
   },
   execute: async ({ prompt, n, referenceImages }, context) => {
-    if (!context?.requestContext) {
-      throw new Error('No workspace context.');
-    }
     const sandbox = await requireSandbox(context.requestContext);
 
     const generated =

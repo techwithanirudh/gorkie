@@ -37,6 +37,7 @@ async function buildClient({
   servers: MCPServerConfig[];
   stale: Promise<MCPClient> | undefined;
 }): Promise<MCPClient> {
+  // A stale client that never connected has nothing to disconnect.
   const staleClient = await stale?.catch(() => undefined);
   if (staleClient) {
     await staleClient.disconnect().catch((error: unknown) => {
@@ -46,61 +47,51 @@ async function buildClient({
       });
     });
   }
+  // Re-check at connect: DNS can be re-pointed at an internal address after add.
   const checked = await Promise.all(
     servers.map(async (server) => ({
       server,
       error: await findMCPUrlError(server.url),
     }))
   );
-  const valid = checked.filter((c) => !c.error).map((c) => c.server);
+  const rejected = checked.flatMap(({ server, error }) =>
+    error ? [{ server, error }] : []
+  );
   await Promise.all(
-    checked
-      .filter((c) => c.error)
-      .map(({ server, error }) => {
-        logger.warn('[mcp] server failed url revalidation at connect', {
-          error,
-          name: server.name,
-          userId,
-        });
-        return setMCPServerError({
-          userId,
-          name: server.name,
-          error: error ?? null,
-        }).catch((writeError: unknown) => {
+    rejected.map(({ server, error }) => {
+      logger.warn('[mcp] server failed url revalidation at connect', {
+        error,
+        name: server.name,
+        userId,
+      });
+      return setMCPServerError({ userId, name: server.name, error }).catch(
+        (writeError: unknown) => {
           logger.debug('[mcp] failed to record revalidation error', {
             error: writeError,
             name: server.name,
             userId,
           });
-        });
-      })
+        }
+      );
+    })
   );
 
+  // findMCPUrlError already rejected any url that fails to parse.
   const client = new MCPClient({
     id: `user-mcp-${userId}`,
     servers: Object.fromEntries(
-      valid.flatMap((server) => {
-        let url: URL;
-        try {
-          url = new URL(server.url);
-        } catch (error) {
-          logger.debug('[mcp] skipping server with invalid url', {
-            error,
-            name: server.name,
-            userId,
-          });
-          return [];
-        }
-        return [
-          [
+      checked
+        .filter(({ error }) => !error)
+        .map(({ server }) => {
+          const url = new URL(server.url);
+          return [
             server.name,
             {
               ...serverConnection({ server, url }),
               requireToolApproval: approvalFor(server.permission),
             },
-          ],
-        ] as const;
-      })
+          ];
+        })
     ),
   });
   client.__setLogger(logger);

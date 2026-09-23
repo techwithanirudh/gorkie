@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { rawId } from '../../lib/ids';
-import { type GitHubPermission, githubPermissionSchema } from '../../types';
+import { type GitHubSettings, githubPermissionSchema } from '../../types';
 import { db } from '../client';
 import { userSettings } from '../schema';
 
@@ -26,11 +26,6 @@ export async function setInstructions({
     .insert(userSettings)
     .values({ ...set, userId: rawId(userId) })
     .onConflictDoUpdate({ target: userSettings.userId, set });
-}
-
-interface GitHubSettings {
-  permission: GitHubPermission;
-  threads: boolean;
 }
 
 export async function getGitHubSettings(

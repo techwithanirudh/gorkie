@@ -25,7 +25,7 @@ export function presetRadio({
     id,
     label: 'When should Gorkie stop and ask?',
     initialOption: `${scope} ${permission}`,
-    options: (['all', 'write', 'delete'] as const).map((value) => ({
+    options: toolPermissionSchema.unwrap().options.map((value) => ({
       label: PRESETS[value].label,
       description: PRESETS[value].description,
       value: `${scope} ${value}`,

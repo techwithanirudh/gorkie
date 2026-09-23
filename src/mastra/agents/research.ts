@@ -11,7 +11,7 @@ import { stepCountIs } from '../lib/tools';
 import { sandbox } from '../processors/sandbox';
 import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
-import * as research from '../prompts/agents/research';
+import { description, prompt } from '../prompts/agents/research';
 import { slackToolPrompt } from '../prompts/slack';
 import { scout } from '../providers';
 import { slackCodeMode, slackCodeModePrompt } from '../tools/code-mode/slack';
@@ -19,12 +19,12 @@ import { fetchUrlTool } from '../tools/fetch-url';
 import { searchWebTool } from '../tools/search-web';
 import { slackTools } from '../tools/slack';
 
-export const researchAgent = new Agent({
+export const research = new Agent({
   id: 'research',
   name: 'Research',
-  description: research.description,
+  description,
   instructions: async () => [
-    research.prompt,
+    prompt,
     slackToolPrompt,
     await slackCodeModePrompt(),
   ],

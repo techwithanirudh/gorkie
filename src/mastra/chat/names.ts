@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { rawId } from '../lib/ids';
-import type { UserProfile } from '../types';
+import { type UserProfile, userProfileSchema } from '../types';
 import { slack } from './client';
 import { chat } from './instance';
 
@@ -16,15 +16,18 @@ const userInfoSchema = z.looseObject({
     })
     .optional(),
 });
+
 export async function resolveUserProfile(
   id: string
 ): Promise<UserProfile | undefined> {
   const userId = rawId(id);
   const cacheKey = `slack:user-profile:${userId}`;
   const bot = chat();
-  const cached = await bot.getState().get<UserProfile>(cacheKey);
-  if (cached) {
-    return cached;
+  const cached = userProfileSchema.safeParse(
+    await bot.getState().get(cacheKey)
+  );
+  if (cached.success) {
+    return cached.data;
   }
 
   const user = await bot.getUser(userId);
@@ -56,11 +59,14 @@ export async function resolveUserProfile(
       timezoneLabel: info.user?.tz_label || undefined,
       title: raw?.title || undefined,
     };
+    // A failed cache write only costs a refetch next time.
     await bot
       .getState()
       .set(cacheKey, profile, 86_400_000)
       .catch(() => undefined);
   } catch {
+    // The profile is best effort: fall back to what the Chat SDK knows, cached
+    // only briefly so a transient Slack failure is retried soon.
     if (!user) {
       return;
     }

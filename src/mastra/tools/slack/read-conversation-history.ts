@@ -59,7 +59,7 @@ export const readConversationHistoryTool = createTool({
     { channelId, threadId, limit, cursor, includeComments },
     context
   ) => {
-    const ctx = channelContext(context?.requestContext);
+    const ctx = channelContext(context.requestContext);
     const suppliedThreadId = threadId ?? (channelId ? undefined : ctx.threadId);
     const tid = suppliedThreadId
       ? slackThreadId({ channelId, threadId: suppliedThreadId })
@@ -78,7 +78,7 @@ export const readConversationHistoryTool = createTool({
     });
     await joinChannel(chId);
 
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
     const result = tid
       ? await slack.fetchMessages(tid, { limit, cursor })

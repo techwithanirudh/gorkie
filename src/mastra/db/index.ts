@@ -13,10 +13,7 @@ export async function runMigrations(): Promise<void> {
     migrationsFolder: join(env.MASTRA_PROJECT_ROOT, 'drizzle'),
   });
 
-  await encryptPlaintextMCPTokens();
-}
-
-async function encryptPlaintextMCPTokens(): Promise<void> {
+  // Rows written before MCP tokens were encrypted at rest still hold plaintext.
   const plaintext = await db
     .select({
       name: mcpServers.name,

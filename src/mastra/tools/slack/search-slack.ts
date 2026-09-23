@@ -6,7 +6,7 @@ import { chat } from '../../chat/instance';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { input, output } from '../../types/tools/index';
+import { input, output, slackErrorSchema } from '../../types/tools/index';
 
 const contextMessageSchema = z
   .looseObject({
@@ -72,10 +72,6 @@ const authTestSchema = z.looseObject({
     .optional(),
 });
 
-const slackErrorSchema = z.looseObject({
-  data: z.looseObject({ error: z.string().optional() }).optional(),
-});
-
 type SearchResponse = z.infer<typeof searchResponseSchema>;
 
 let verifiedToken: string | undefined;
@@ -109,28 +105,6 @@ async function assertPublicOnly(token: string): Promise<void> {
     );
   }
   verifiedToken = token;
-}
-
-async function runSearch({
-  cursor,
-  query,
-  token,
-}: {
-  cursor?: string;
-  query: string;
-  token: string;
-}): Promise<SearchResponse> {
-  return searchResponseSchema.parse(
-    await slack.webClient.apiCall('assistant.search.context', {
-      channel_types: 'public_channel',
-      content_types: 'messages',
-      cursor,
-      include_context_messages: true,
-      limit: 10,
-      query,
-      token,
-    })
-  );
 }
 
 async function toOutput({
@@ -169,6 +143,7 @@ async function toOutput({
       throw error;
     }
   };
+  // Never cache visibility: it is the privacy gate, and a channel can go private.
   const maxConcurrentVisibilityLookups = 4;
   const ids = [...channelIds];
   const resolved: Array<string | undefined> = [];
@@ -252,8 +227,8 @@ export const searchSlackTool = createTool({
     },
   },
   execute: async ({ query, cursor }, context) => {
-    spendSlackCall(context?.requestContext);
-    const { messageId, threadId } = channelContext(context?.requestContext);
+    spendSlackCall(context.requestContext);
+    const { messageId, threadId } = channelContext(context.requestContext);
     if (!messageId) {
       throw new Error(
         'Slack search needs a live message in this thread. gorkie does not run the workspace search identity on scheduled or unattended runs. Ask the user to mention the bot, then search again.'
@@ -262,7 +237,18 @@ export const searchSlackTool = createTool({
     const token = env.SLACK_USER_TOKEN;
     await assertPublicOnly(token);
     return toOutput({
-      response: await runSearch({ cursor, query, token }),
+      response: searchResponseSchema.parse(
+        await slack.webClient.apiCall('assistant.search.context', {
+          // Must be a comma-separated string: Slack ignores an array, which reopens private channels and DMs.
+          channel_types: 'public_channel',
+          content_types: 'messages',
+          cursor,
+          include_context_messages: true,
+          limit: 10,
+          query,
+          token,
+        })
+      ),
       threadId,
     });
   },

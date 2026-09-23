@@ -1,98 +1,142 @@
-import { type Args, fileName, fit, str } from './format';
+import { z } from 'zod';
+import { fileName, fit } from './format';
 
-export const statuses: Record<string, (args: Args) => string> = {
+const text = z.string().min(1).optional().catch(undefined);
+
+const argsSchema = z
+  .object({
+    action: text,
+    command: text,
+    emoji: text,
+    instructions: text,
+    kind: text,
+    name: text,
+    path: text,
+    pattern: text,
+    pid: text,
+    prompt: text,
+    query: text,
+    reason: text,
+    target: z.object({ type: text }).optional().catch(undefined),
+    task: text,
+    title: text,
+    url: text,
+  })
+  .catch({});
+
+type Args = z.infer<typeof argsSchema>;
+
+const statuses: Record<string, (args: Args) => string> = {
   create_canvas: (args) => {
-    const title = str(args, 'title');
+    const { title } = args;
     return title
-      ? fit('is creating the canvas "', title, '"…')
+      ? fit({
+          prefix: 'is creating the canvas "',
+          content: title,
+          suffix: '"…',
+        })
       : 'is creating a canvas…';
   },
   create_scheduled_task: (args) => {
-    const name = str(args, 'name') ?? str(args, 'task');
-    return name ? fit('is scheduling "', name, '"…') : 'is scheduling a task…';
+    const name = args.name ?? args.task;
+    return name
+      ? fit({ prefix: 'is scheduling "', content: name, suffix: '"…' })
+      : 'is scheduling a task…';
   },
   delete_file: (args) => {
-    const path = str(args, 'path');
+    const { path } = args;
     return path
-      ? fit('is deleting ', fileName(path), '…')
+      ? fit({ prefix: 'is deleting ', content: fileName(path), suffix: '…' })
       : 'is deleting a file…';
   },
   delete_scheduled_task: () => 'is deleting a scheduled task…',
   edit_canvas: () => 'is editing a canvas…',
   edit_file: (args) => {
-    const path = str(args, 'path');
+    const { path } = args;
     return path
-      ? fit('is editing ', fileName(path), '…')
+      ? fit({ prefix: 'is editing ', content: fileName(path), suffix: '…' })
       : 'is editing a file…';
   },
   execute_command: (args) => {
-    const command = str(args, 'command');
+    const { command } = args;
     return command
-      ? fit('is running `', command, '`…')
+      ? fit({ prefix: 'is running `', content: command, suffix: '`…' })
       : 'is running a command…';
   },
   fetch_url: (args) => {
-    const url = str(args, 'url');
+    const { url } = args;
     if (!url) {
       return 'is reading a web page…';
     }
     try {
-      return fit('is reading ', new URL(url).hostname, '…');
+      return fit({
+        prefix: 'is reading ',
+        content: new URL(url).hostname,
+        suffix: '…',
+      });
     } catch {
       return 'is reading a web page…';
     }
   },
   file_stat: (args) => {
-    const path = str(args, 'path');
+    const { path } = args;
     return path
-      ? fit('is checking ', fileName(path), '…')
+      ? fit({ prefix: 'is checking ', content: fileName(path), suffix: '…' })
       : 'is checking a file…';
   },
   generate_image: (args) => {
-    const prompt = str(args, 'prompt');
+    const { prompt } = args;
     return prompt
-      ? fit('is generating an image of "', prompt, '"…')
+      ? fit({
+          prefix: 'is generating an image of "',
+          content: prompt,
+          suffix: '"…',
+        })
       : 'is generating an image…';
   },
   get_channel_info: () => 'is checking a channel…',
   get_permalink: () => 'is getting a Slack link…',
   get_process_output: (args) => {
-    const pid = str(args, 'pid');
+    const { pid } = args;
     return pid
-      ? fit('is checking process ', pid, '…')
+      ? fit({ prefix: 'is checking process ', content: pid, suffix: '…' })
       : 'is checking a process…';
   },
   get_slack_file: () => 'is downloading a Slack file…',
   get_user: () => 'is looking up a user…',
   grep: (args) => {
-    const pattern = str(args, 'pattern');
+    const { pattern } = args;
     return pattern
-      ? fit('is searching files for "', pattern, '"…')
+      ? fit({
+          prefix: 'is searching files for "',
+          content: pattern,
+          suffix: '"…',
+        })
       : 'is searching files…';
   },
   kill_process: (args) => {
-    const pid = str(args, 'pid');
+    const { pid } = args;
     return pid
-      ? fit('is stopping process ', pid, '…')
+      ? fit({ prefix: 'is stopping process ', content: pid, suffix: '…' })
       : 'is stopping a process…';
   },
   leave_thread: () => 'is leaving the thread…',
   list_canvases: (args) => {
-    const query = str(args, 'query');
+    const { query } = args;
     return query
-      ? fit('is listing canvases: "', query, '"…')
+      ? fit({ prefix: 'is listing canvases: "', content: query, suffix: '"…' })
       : 'is listing canvases…';
   },
   list_channels: (args) => {
-    const query = str(args, 'query');
+    const { query } = args;
     return query
-      ? fit('is listing channels: "', query, '"…')
+      ? fit({ prefix: 'is listing channels: "', content: query, suffix: '"…' })
       : 'is listing channels…';
   },
   list_files: (args) => {
-    const path = str(args, 'path');
+    const { path } = args;
     return path && path !== '.'
-      ? fit('is listing ', fileName(path), '…')
+      ? fit({ prefix: 'is listing ', content: fileName(path), suffix: '…' })
       : 'is listing files…';
   },
   list_scheduled_tasks: () => 'is checking scheduled tasks…',
@@ -101,7 +145,7 @@ export const statuses: Record<string, (args: Args) => string> = {
   lookup_canvas_sections: () => 'is inspecting a canvas…',
   pause_scheduled_task: () => 'is pausing a scheduled task…',
   post_message: (args) => {
-    const target = args.target as { type?: string } | undefined;
+    const { target } = args;
     if (target?.type === 'user') {
       return 'is sending a DM…';
     }
@@ -111,81 +155,113 @@ export const statuses: Record<string, (args: Args) => string> = {
     return 'is sending a message…';
   },
   react: (args) => {
-    const emoji = str(args, 'emoji');
+    const { emoji } = args;
     if (!emoji) {
       return 'is adding a reaction…';
     }
     return args.action === 'remove'
-      ? fit('is removing a :', emoji, ': reaction…')
-      : fit('is adding a :', emoji, ': reaction…');
+      ? fit({
+          prefix: 'is removing a :',
+          content: emoji,
+          suffix: ': reaction…',
+        })
+      : fit({ prefix: 'is adding a :', content: emoji, suffix: ': reaction…' });
   },
   read_canvas: () => 'is reading a canvas…',
   read_conversation_history: () => 'is reading Slack history…',
   read_file: (args) => {
-    const path = str(args, 'path');
+    const { path } = args;
     return path
-      ? fit('is reading ', fileName(path), '…')
+      ? fit({ prefix: 'is reading ', content: fileName(path), suffix: '…' })
       : 'is reading a file…';
   },
   resume_scheduled_task: () => 'is resuming a scheduled task…',
   search_slack: (args) => {
-    const query = str(args, 'query');
+    const { query } = args;
     return query
-      ? fit('is searching Slack for "', query, '"…')
+      ? fit({
+          prefix: 'is searching Slack for "',
+          content: query,
+          suffix: '"…',
+        })
       : 'is searching Slack…';
   },
   search_web: (args) => {
-    const query = str(args, 'query');
+    const { query } = args;
     return query
-      ? fit('is searching the web for "', query, '"…')
+      ? fit({
+          prefix: 'is searching the web for "',
+          content: query,
+          suffix: '"…',
+        })
       : 'is searching the web…';
   },
   search_tools: (args) => {
-    const query = str(args, 'query');
+    const { query } = args;
     return query
-      ? fit('is looking for a tool: "', query, '"…')
+      ? fit({
+          prefix: 'is looking for a tool: "',
+          content: query,
+          suffix: '"…',
+        })
       : 'is looking for a tool…';
   },
   skill_search: (args) => {
-    const query = str(args, 'query');
+    const { query } = args;
     return query
-      ? fit('is looking for a skill: "', query, '"…')
+      ? fit({
+          prefix: 'is looking for a skill: "',
+          content: query,
+          suffix: '"…',
+        })
       : 'is looking for a skill…';
   },
   slack: () => 'is working in Slack…',
   submit_feedback: (args) => {
-    const kind = str(args, 'kind');
+    const { kind } = args;
     return kind && kind !== 'other'
-      ? fit('is passing on your ', kind, '…')
+      ? fit({ prefix: 'is passing on your ', content: kind, suffix: '…' })
       : 'is passing on your feedback…';
   },
   summarize_thread: (args) => {
-    const instructions = str(args, 'instructions');
+    const { instructions } = args;
     return instructions
-      ? fit('is summarizing: ', instructions, '…')
+      ? fit({ prefix: 'is summarizing: ', content: instructions, suffix: '…' })
       : 'is summarizing the thread…';
   },
   view_image: (args) => {
-    const path = str(args, 'path');
+    const { path } = args;
     return path
-      ? fit('is looking at ', fileName(path), '…')
+      ? fit({ prefix: 'is looking at ', content: fileName(path), suffix: '…' })
       : 'is looking at an image…';
   },
   upload_emoji: (args) => {
-    const name = str(args, 'name');
+    const { name } = args;
     return name
-      ? fit('is adding the :', name, ': emoji…')
+      ? fit({ prefix: 'is adding the :', content: name, suffix: ': emoji…' })
       : 'is adding an emoji…';
   },
   upload_file: () => 'is uploading a file…',
   wait: (args) => {
-    const reason = str(args, 'reason');
-    return reason ? fit('is waiting: ', reason, '…') : 'is waiting…';
+    const { reason } = args;
+    return reason
+      ? fit({ prefix: 'is waiting: ', content: reason, suffix: '…' })
+      : 'is waiting…';
   },
   write_file: (args) => {
-    const path = str(args, 'path');
+    const { path } = args;
     return path
-      ? fit('is writing ', fileName(path), '…')
+      ? fit({ prefix: 'is writing ', content: fileName(path), suffix: '…' })
       : 'is writing a file…';
   },
 };
+
+export function toolStatus({
+  args,
+  toolName,
+}: {
+  args: unknown;
+  toolName: string;
+}): string | undefined {
+  return statuses[toolName]?.(argsSchema.parse(args));
+}

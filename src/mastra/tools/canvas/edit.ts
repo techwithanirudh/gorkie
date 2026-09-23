@@ -1,10 +1,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
-import { channelContext } from '../../lib/context';
 import { input, output } from '../../types/tools/index';
-import { assertReadableResource } from '../slack/utils';
-import { canvasIdSchema } from './utils';
+import { canvasIdSchema, readableCanvas } from './utils';
 
 const markdownContentSchema = z.object({
   type: z.literal('markdown').default('markdown'),
@@ -63,14 +61,9 @@ export const editCanvasTool = createTool({
     },
   },
   execute: async ({ canvasId, changes }, context) => {
-    const info = await slack.webClient.files.info({ file: canvasId });
-    const ctx = channelContext(context.requestContext);
-    await assertReadableResource({
-      channelIds: [
-        ...(info.file?.channels ?? []),
-        ...(info.file?.groups ?? []),
-      ],
-      currentThreadId: ctx.threadId,
+    await readableCanvas({
+      canvasId,
+      requestContext: context.requestContext,
     });
     try {
       await slack.webClient.canvases.edit({

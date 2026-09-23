@@ -1,11 +1,8 @@
-import type { MCPServerConfig } from '../../../types';
-import type { HomeSection } from '../limit';
+import type { HomeSection, StoredMCPServer } from '../../../types';
 import { PRESETS } from '../presets';
 import { ids } from './ids';
 
-export function mcpServersBlocks(
-  servers: (MCPServerConfig & { lastError?: string })[]
-): HomeSection {
+export function mcpServersBlocks(servers: StoredMCPServer[]): HomeSection {
   const header = {
     type: 'section',
     text: {

@@ -5,11 +5,15 @@ import {
   text,
   timestamp,
 } from 'drizzle-orm/pg-core';
-import type { GitHubPermission, ToolPermission } from '../types';
+import type {
+  GitHubCredential,
+  GitHubPermission,
+  ToolPermission,
+} from '../types';
 
 export const githubCredentials = pgTable('github_credentials', {
   userId: text('user_id').primaryKey(),
-  kind: text('kind').$type<'app' | 'pat'>().notNull(),
+  kind: text('kind').$type<GitHubCredential['kind']>().notNull(),
   login: text('login').notNull(),
   token: text('token').notNull(),
   refreshToken: text('refresh_token'),

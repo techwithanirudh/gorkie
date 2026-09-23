@@ -2,30 +2,21 @@ import { logger } from '../../lib/logger';
 import { memoryThread } from '../../lib/memory';
 import type { CommandHandler } from '../../types';
 
-export async function stopThread(
-  threadId: string
-): Promise<'aborted-agent-notifies' | 'idle'> {
+export const stop: CommandHandler = async ({ message, thread }) => {
+  // The orchestrator imports the chat handlers that reach this command, so a
+  // static import here would be circular.
   const { default: orchestrator } = await import('../../agents/orchestrator');
+  // A thread with no memory yet has never run a turn, so there is nothing to stop.
   const threadMemory = await memoryThread({
     agent: orchestrator,
-    externalThreadId: threadId,
+    externalThreadId: thread.id,
   }).catch(() => undefined);
-  const scope = threadMemory
-    ? { threadId: threadMemory.id, resourceId: threadMemory.resourceId }
-    : undefined;
-  const activeRunId = scope
-    ? orchestrator.getActiveThreadRunId(scope)
-    : undefined;
-  if (!(scope && activeRunId)) {
-    return 'idle';
-  }
-  orchestrator.abortThreadStream(scope);
-  return 'aborted-agent-notifies';
-}
-
-export const stop: CommandHandler = async ({ message, thread }) => {
-  const outcome = await stopThread(thread.id);
-  if (outcome === 'aborted-agent-notifies') {
+  const scope = threadMemory && {
+    threadId: threadMemory.id,
+    resourceId: threadMemory.resourceId,
+  };
+  if (scope && orchestrator.getActiveThreadRunId(scope)) {
+    orchestrator.abortThreadStream(scope);
     return;
   }
   await thread

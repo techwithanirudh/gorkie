@@ -2,7 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { agent as agentConfig } from '../config';
 import { channelContext } from '../lib/context';
-import { input, output } from '../types/tools/index';
+import { input, output, WAIT_SCHEDULE_KIND } from '../types/tools/index';
 import { isAgentSchedule } from './scheduled-tasks/queries';
 
 export const waitTool = createTool({
@@ -46,7 +46,7 @@ export const waitTool = createTool({
         .filter(
           (task) =>
             isAgentSchedule(task) &&
-            task.metadata?.kind === 'wait' &&
+            task.metadata?.kind === WAIT_SCHEDULE_KIND &&
             task.lastFireAt !== undefined
         )
         .map((task) => schedules.delete(task.id))
@@ -76,7 +76,7 @@ export const waitTool = createTool({
           requestContext: { channel: channelContext(context.requestContext) },
         },
       },
-      metadata: { kind: 'wait' },
+      metadata: { kind: WAIT_SCHEDULE_KIND },
     });
 
     return {

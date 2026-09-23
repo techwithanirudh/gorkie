@@ -1,9 +1,11 @@
 import { Agent } from '@mastra/core/agent';
+import type { CoreSystemMessage } from '@mastra/core/llm';
 import {
   ProviderHistoryCompat,
   TokenLimiterProcessor,
   ToolSearchProcessor,
 } from '@mastra/core/processors';
+import type { RequestContext } from '@mastra/core/request-context';
 import { Memory } from '@mastra/memory';
 import { slack } from '../chat/client';
 import {
@@ -37,61 +39,67 @@ import { workspaceCodeModePrompt } from '../tools/code-mode/slack';
 import { githubTools } from '../tools/github';
 import { deferredTools, orchestratorTools } from '../tools/toolsets';
 import { pauseSandbox, workspace } from '../workspace';
-import { exploreAgent } from './explore';
-import { researchAgent } from './research';
+import { explore } from './explore';
+import { research } from './research';
+
+async function orchestratorInstructions({
+  requestContext,
+}: {
+  requestContext: RequestContext;
+}): Promise<CoreSystemMessage[]> {
+  const messages: CoreSystemMessage[] = [
+    ...instructions(requestContext),
+    { role: 'system', content: await workspaceCodeModePrompt() },
+  ];
+  const { isDM, userId } = channelContext(requestContext);
+  const github = await githubPrompt({
+    isDM: isDM === true,
+    requestContext,
+    userId,
+  });
+  if (github) {
+    messages.push({ role: 'system', content: github });
+  }
+  const userInstructions = userId
+    ? await getInstructions(userId).catch((error: unknown) => {
+        logger.debug('[orchestrator] failed to load user instructions', {
+          error,
+          userId,
+        });
+      })
+    : undefined;
+  if (userInstructions) {
+    messages.push({
+      role: 'system',
+      content: `<user_instructions>\n${userInstructions}\n</user_instructions>`,
+    });
+  }
+  const mcpServers = userId
+    ? await listMCPServers(userId).catch((error: unknown) => {
+        logger.debug('[orchestrator] failed to load mcp server status', {
+          error,
+          userId,
+        });
+        return [];
+      })
+    : [];
+  const failedServers = mcpServers
+    .filter((server) => server.lastError)
+    .map((server) => server.name);
+  if (failedServers.length > 0) {
+    messages.push({
+      role: 'system',
+      content: `<mcps>The user's MCP server(s) ${failedServers.join(', ')} failed to connect. If they ask about missing tools or the request calls for one of these servers, mention casually that it looks down and they may want to check it in App Home.</mcps>`,
+    });
+  }
+  messages.push({ role: 'system', content: reasoningPrompt });
+  return messages;
+}
 
 const orchestrator = new Agent({
   id: config.id,
   name: 'Orchestrator',
-  instructions: async ({ requestContext }) => {
-    const messages = [
-      ...instructions(requestContext),
-      { role: 'system' as const, content: await workspaceCodeModePrompt() },
-    ];
-    const { isDM, userId } = channelContext(requestContext);
-    const github = await githubPrompt({
-      isDM: isDM === true,
-      requestContext,
-      userId,
-    });
-    if (github) {
-      messages.push({ role: 'system' as const, content: github });
-    }
-    const userInstructions = userId
-      ? await getInstructions(userId).catch((error: unknown) => {
-          logger.debug('[orchestrator] failed to load user instructions', {
-            error,
-            userId,
-          });
-        })
-      : undefined;
-    if (userInstructions) {
-      messages.push({
-        role: 'system' as const,
-        content: `<user_instructions>\n${userInstructions}\n</user_instructions>`,
-      });
-    }
-    const mcpServers = userId
-      ? await listMCPServers(userId).catch((error: unknown) => {
-          logger.debug('[orchestrator] failed to load mcp server status', {
-            error,
-            userId,
-          });
-          return [];
-        })
-      : [];
-    const failedServers = mcpServers
-      .filter((server) => server.lastError)
-      .map((server) => server.name);
-    if (failedServers.length > 0) {
-      messages.push({
-        role: 'system' as const,
-        content: `<mcps>The user's MCP server(s) ${failedServers.join(', ')} failed to connect. If they ask about missing tools or the request calls for one of these servers, mention casually that it looks down and they may want to check it in App Home.</mcps>`,
-      });
-    }
-    messages.push({ role: 'system' as const, content: reasoningPrompt });
-    return messages;
-  },
+  instructions: orchestratorInstructions,
   model: orchestratorModel,
   errorProcessors: defaultErrorProcessors(),
   maxProcessorRetries: 2,
@@ -170,10 +178,7 @@ const orchestrator = new Agent({
     ]);
     return { ...userTools, ...github, ...base };
   },
-  agents: {
-    research: researchAgent,
-    explore: exploreAgent,
-  },
+  agents: { research, explore },
   memory: new Memory({
     options: {
       lastMessages: 20,

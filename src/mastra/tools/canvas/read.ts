@@ -1,12 +1,9 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { env } from '@/env';
-import { slack } from '../../chat/client';
-import { channelContext } from '../../lib/context';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
-import { assertReadableResource } from '../slack/utils';
-import { canvasIdSchema } from './utils';
+import { canvasIdSchema, readableCanvas } from './utils';
 
 export const readCanvasTool = createTool({
   id: 'read_canvas',
@@ -28,18 +25,13 @@ export const readCanvasTool = createTool({
     },
   },
   execute: async ({ canvasId }, context) => {
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
-    const info = await slack.webClient.files.info({ file: canvasId });
-    const ctx = channelContext(context.requestContext);
-    await assertReadableResource({
-      channelIds: [
-        ...(info.file?.channels ?? []),
-        ...(info.file?.groups ?? []),
-      ],
-      currentThreadId: ctx.threadId,
+    const canvas = await readableCanvas({
+      canvasId,
+      requestContext: context.requestContext,
     });
-    const url = info.file?.url_private_download ?? info.file?.url_private;
+    const url = canvas?.url_private_download ?? canvas?.url_private;
     if (!url) {
       throw new Error(
         `Could not resolve a content URL for canvas ${canvasId}. It may have been deleted, or the bot may not have access to it.`
@@ -51,11 +43,10 @@ export const readCanvasTool = createTool({
     if (!response.ok) {
       throw new Error(`Failed to read canvas ${canvasId}: ${response.status}`);
     }
-    const html = await response.text();
     return {
       canvasId,
-      title: info.file?.title,
-      html,
+      title: canvas?.title,
+      html: await response.text(),
     };
   },
 });

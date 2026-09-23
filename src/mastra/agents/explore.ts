@@ -11,17 +11,17 @@ import { stepCountIs } from '../lib/tools';
 import { sandbox } from '../processors/sandbox';
 import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
-import * as explore from '../prompts/agents/explore';
+import { description, prompt } from '../prompts/agents/explore';
 import { explorer } from '../providers';
 import { fetchUrlTool } from '../tools/fetch-url';
 import { searchWebTool } from '../tools/search-web';
 import { workspace } from '../workspace';
 
-export const exploreAgent = new Agent({
+export const explore = new Agent({
   id: 'explore',
   name: 'Explore',
-  description: explore.description,
-  instructions: explore.prompt,
+  description,
+  instructions: prompt,
   model: explorer,
   errorProcessors: defaultErrorProcessors(),
   maxProcessorRetries: 2,

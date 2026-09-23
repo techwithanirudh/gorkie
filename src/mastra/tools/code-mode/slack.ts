@@ -12,9 +12,24 @@ import { slackTools } from '../slack';
 
 const transport = new E2BCodeModeTransport();
 
-function codeTools(mcp: Awaited<ReturnType<typeof mcpTools>>) {
-  return {
-    ...mcp,
+async function getSandboxTools(
+  requestContext?: RequestContext
+): Promise<ToolsInput> {
+  const tools = await workspaceTools(requestContext);
+  return Object.fromEntries(
+    Object.entries(tools).filter(([name]) => codeModeToolNames.has(name))
+  );
+}
+
+const RESULT_LIMIT = 60_000;
+
+async function createCodeModeInstance({
+  workspaceAccess,
+}: {
+  workspaceAccess: boolean;
+}) {
+  const slackCodeTools = {
+    ...(await mcpTools()),
     search_slack: slackTools.search_slack,
     read_conversation_history: slackTools.read_conversation_history,
     list_threads: slackTools.list_threads,
@@ -28,41 +43,6 @@ function codeTools(mcp: Awaited<ReturnType<typeof mcpTools>>) {
     read_canvas: canvasTools.read_canvas,
     lookup_canvas_sections: canvasTools.lookup_canvas_sections,
   };
-}
-
-async function getSandboxTools(
-  requestContext?: RequestContext
-): Promise<ToolsInput> {
-  const tools = await workspaceTools(requestContext);
-  return {
-    ...Object.fromEntries(
-      Object.entries(tools).filter(([name]) => codeModeToolNames.has(name))
-    ),
-  };
-}
-
-const RESULT_LIMIT = 60_000;
-
-function capResult(outcome: unknown): unknown {
-  const size = JSON.stringify(outcome ?? null)?.length ?? 0;
-  if (size <= RESULT_LIMIT) {
-    return outcome;
-  }
-  return {
-    success: false,
-    error: {
-      message: `The program returned ${size} characters, over the ${RESULT_LIMIT} limit, so nothing was kept. Return a summary computed inside the program (counts, the few records that matter, a written answer) rather than the rows you read, or write the full data to a file and return its path.`,
-      name: 'ResultTooLarge',
-    },
-  };
-}
-
-async function createCodeModeInstance({
-  workspaceAccess,
-}: {
-  workspaceAccess: boolean;
-}) {
-  const slackCodeTools = codeTools(await mcpTools());
   const tools = workspaceAccess
     ? { ...slackCodeTools, ...(await getSandboxTools()) }
     : slackCodeTools;
@@ -98,7 +78,18 @@ async function createCodeModeInstance({
     if (!execute) {
       throw new Error('Slack code mode is not executable.');
     }
-    return capResult(await execute(input, context));
+    const outcome = await execute(input, context);
+    const size = JSON.stringify(outcome ?? null)?.length ?? 0;
+    if (size <= RESULT_LIMIT) {
+      return outcome;
+    }
+    return {
+      success: false,
+      error: {
+        message: `The program returned ${size} characters, over the ${RESULT_LIMIT} limit, so nothing was kept. Return a summary computed inside the program (counts, the few records that matter, a written answer) rather than the rows you read, or write the full data to a file and return its path.`,
+        name: 'ResultTooLarge',
+      },
+    };
   };
 
   return mode;

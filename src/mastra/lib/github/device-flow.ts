@@ -1,15 +1,11 @@
 import { createDeviceCode, exchangeDeviceCode } from '@octokit/oauth-methods';
 import { z } from 'zod';
 import { env } from '@/env';
-import type { GitHubCredential } from '../../types';
-
-export interface DeviceLogin {
-  deviceCode: string;
-  expiresIn: number;
-  interval: number;
-  userCode: string;
-  verificationUri: string;
-}
+import type {
+  DeviceLogin,
+  DeviceLoginResult,
+  GitHubAccount,
+} from '../../types';
 
 export async function startDeviceLogin(): Promise<DeviceLogin> {
   const { data } = await createDeviceCode({
@@ -25,19 +21,11 @@ export async function startDeviceLogin(): Promise<DeviceLogin> {
   };
 }
 
-const oauthErrorSchema = z.object({
-  response: z.object({ data: z.object({ error: z.string() }) }),
-});
-
-function oauthError(error: unknown): string | undefined {
-  return oauthErrorSchema.safeParse(error).data?.response.data.error;
-}
-
 export function toAccount(authentication: {
   expiresAt?: string;
   refreshToken?: string;
   token: string;
-}): Omit<GitHubCredential, 'kind' | 'login' | 'scopes'> {
+}): GitHubAccount {
   return {
     expiresAt: authentication.expiresAt
       ? new Date(authentication.expiresAt)
@@ -52,9 +40,7 @@ export async function awaitDeviceLogin({
   expiresIn,
   interval,
   signal,
-}: DeviceLogin & { signal?: AbortSignal }): Promise<
-  Omit<GitHubCredential, 'kind' | 'login' | 'scopes'> | { error: string }
-> {
+}: DeviceLogin & { signal?: AbortSignal }): Promise<DeviceLoginResult> {
   const deadline = Date.now() + expiresIn * 1000;
   let waitMs = interval * 1000;
 
@@ -75,7 +61,11 @@ export async function awaitDeviceLogin({
       });
       return toAccount(authentication);
     } catch (error) {
-      const code = oauthError(error);
+      const code = z
+        .object({
+          response: z.object({ data: z.object({ error: z.string() }) }),
+        })
+        .safeParse(error).data?.response.data.error;
       if (code === 'authorization_pending') {
         continue;
       }

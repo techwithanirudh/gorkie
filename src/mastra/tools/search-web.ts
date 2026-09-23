@@ -38,9 +38,8 @@ export const searchWebTool = createTool({
       numResults: 8,
       contents: { text: { maxCharacters: 1200 } },
     });
-    const links = results.slice(0, 5).map((r) => r.url);
     return {
-      links,
+      links: results.slice(0, 5).map((r) => r.url),
       results: results.map((r) => ({
         title: r.title ?? r.url,
         url: r.url,

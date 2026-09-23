@@ -7,9 +7,7 @@ const threadStateSchema = z.looseObject({
   respondOnThreadMessages: z.boolean().optional(),
 });
 
-export async function threadState(
-  thread: Thread | undefined
-): Promise<ThreadState | null> {
-  const state = await thread?.state;
+export async function threadState(thread: Thread): Promise<ThreadState | null> {
+  const state = await thread.state;
   return state ? threadStateSchema.parse(state) : null;
 }

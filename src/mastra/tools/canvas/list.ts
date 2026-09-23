@@ -74,21 +74,19 @@ export const listCanvasesTool = createTool({
     },
   },
   execute: async ({ query, scope, channelId, limit, page }, context) => {
-    const id =
-      scope === 'workspace'
-        ? undefined
-        : (channelId ?? channelContext(context?.requestContext).channelId);
+    const ctx = channelContext(context.requestContext);
+    const id = scope === 'workspace' ? undefined : (channelId ?? ctx.channelId);
     if (scope === 'channel' && !id) {
       throw new Error('No channel to list canvases from.');
     }
     if (id) {
       await assertReadableChannel({
         channelId: id,
-        currentThreadId: channelContext(context?.requestContext).threadId,
+        currentThreadId: ctx.threadId,
       });
     }
 
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
     const response = await slack.webClient.files.list({
       types: 'canvas',

@@ -30,7 +30,7 @@ export const getUserTool = createTool({
     },
   },
   execute: async ({ userId }, context) => {
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
     const profile = await resolveUserProfile(userId);
     if (!profile) {

@@ -36,7 +36,7 @@ export const summarizeThreadTool = createTool({
     },
   },
   execute: async ({ threadId, instructions }, context) => {
-    const ctx = channelContext(context?.requestContext);
+    const ctx = channelContext(context.requestContext);
     const suppliedThreadId = threadId ?? ctx.threadId;
     if (!suppliedThreadId) {
       throw new Error('No thread to summarize.');
@@ -47,7 +47,7 @@ export const summarizeThreadTool = createTool({
     await assertReadableChannel({ channelId, currentThreadId: ctx.threadId });
     await joinChannel(channelId);
 
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
     const result = await slack.fetchMessages(target, {
       limit: 100,

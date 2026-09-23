@@ -14,35 +14,6 @@ function messageOf(error: unknown): string {
   return '';
 }
 
-const terminalPattern =
-  /is not supported|unknown model|model[_ ]not[_ ]found|insufficient credits|no endpoints found/i;
-
-function isTerminalModelError(error: unknown): boolean {
-  return terminalPattern.test(messageOf(error));
-}
-
-const econnresetMaxRetries = 2;
-const econnresetRetryInitialDelayMs = 1000;
-const econnresetRetryMaxDelayMs = 30_000;
-const econnresetMessagePattern = /econnreset|socket hang up/i;
-
-function isEconnresetError(error: unknown): boolean {
-  const code =
-    error && typeof error === 'object' && 'code' in error
-      ? error.code
-      : undefined;
-  if (typeof code === 'string' && code.toUpperCase() === 'ECONNRESET') {
-    return true;
-  }
-  return econnresetMessagePattern.test(messageOf(error));
-}
-
-const rateLimitPattern = /temporarily rate-limited upstream|too many requests/i;
-
-function isRateLimitError(error: unknown): boolean {
-  return rateLimitPattern.test(messageOf(error));
-}
-
 export function defaultErrorProcessors() {
   return [
     new StreamErrorRetryProcessor({
@@ -50,18 +21,39 @@ export function defaultErrorProcessors() {
       maxRetries: 2,
       delayMs: 3000,
       matchers: [
-        { match: isTerminalModelError, maxRetries: 0 },
+        {
+          match: (error) =>
+            /is not supported|unknown model|model[_ ]not[_ ]found|insufficient credits|no endpoints found/i.test(
+              messageOf(error)
+            ),
+          maxRetries: 0,
+        },
         { match: isBadRequestError, maxRetries: 0 },
         {
-          match: isEconnresetError,
-          maxRetries: econnresetMaxRetries,
-          delayMs: ({ retryCount }) =>
-            Math.min(
-              econnresetRetryInitialDelayMs * 2 ** retryCount,
-              econnresetRetryMaxDelayMs
-            ),
+          match: (error) => {
+            const code =
+              error && typeof error === 'object' && 'code' in error
+                ? error.code
+                : undefined;
+            if (
+              typeof code === 'string' &&
+              code.toUpperCase() === 'ECONNRESET'
+            ) {
+              return true;
+            }
+            return /econnreset|socket hang up/i.test(messageOf(error));
+          },
+          maxRetries: 2,
+          delayMs: ({ retryCount }) => Math.min(1000 * 2 ** retryCount, 30_000),
         },
-        { match: isRateLimitError, maxRetries: 2, delayMs: 3000 },
+        {
+          match: (error) =>
+            /temporarily rate-limited upstream|too many requests/i.test(
+              messageOf(error)
+            ),
+          maxRetries: 2,
+          delayMs: 3000,
+        },
       ],
     }),
     new PrefillErrorHandler(),

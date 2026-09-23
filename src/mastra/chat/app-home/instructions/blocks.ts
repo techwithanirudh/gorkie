@@ -1,4 +1,4 @@
-import type { HomeSection } from '../limit';
+import type { HomeSection } from '../../../types';
 import { ids } from './ids';
 
 export function customInstructionsBlocks(

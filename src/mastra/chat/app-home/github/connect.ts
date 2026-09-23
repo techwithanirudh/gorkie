@@ -4,30 +4,29 @@ import {
 } from '../../../db/queries/github';
 import {
   awaitDeviceLogin,
-  type DeviceLogin,
   githubUser,
   startDeviceLogin,
   verifyGitHubPat,
 } from '../../../lib/github';
 import { logger } from '../../../lib/logger';
+import type {
+  DeviceLogin,
+  DeviceLoginResult,
+  GitHubCredentialKind,
+  PublishHome,
+  ViewTarget,
+} from '../../../types';
 import { slack } from '../../client';
 import { chat } from '../../instance';
 import { ids } from './ids';
-import {
-  type ConnectMethod,
-  connectedModal,
-  connectView,
-  failedModal,
-  type ViewTarget,
-  viewOf,
-} from './views';
+import { connectedModal, connectView, failedModal, viewOf } from './views';
 
 export const polling = new Map<
   string,
   {
     controller: AbortController;
     device: DeviceLogin;
-    method: ConnectMethod;
+    method: GitHubCredentialKind;
     viewId: string | undefined;
   }
 >();
@@ -40,13 +39,13 @@ const isCurrentLogin = ({
   userId: string;
 }) => polling.get(userId)?.controller === controller;
 
-export async function completeLogin({
+async function completeLogin({
   controller,
   login,
   userId,
 }: {
   controller: AbortController;
-  login: Awaited<ReturnType<typeof awaitDeviceLogin>>;
+  login: DeviceLoginResult;
   userId: string;
 }): Promise<string | undefined> {
   if ('error' in login) {
@@ -74,8 +73,6 @@ export async function completeLogin({
   return resolved.login;
 }
 
-type PublishHome = (userId: string) => Promise<void>;
-
 async function settleLogin({
   controller,
   login,
@@ -83,7 +80,7 @@ async function settleLogin({
   userId,
 }: {
   controller: AbortController;
-  login: Awaited<ReturnType<typeof awaitDeviceLogin>>;
+  login: DeviceLoginResult;
   publishHome: PublishHome;
   userId: string;
 }): Promise<void> {
@@ -167,7 +164,7 @@ async function switchMethod({
   userId,
   view,
 }: {
-  method: ConnectMethod;
+  method: GitHubCredentialKind;
   userId: string;
   view: ViewTarget;
 }): Promise<void> {
@@ -281,10 +278,10 @@ export function registerConnect({
   bot.onModalSubmit(ids.modal, async (event) => {
     const { userId } = event.user;
     const chosen = polling.get(userId)?.method ?? event.values[ids.method];
-    if (`${chosen}` === 'pat') {
+    if (chosen === 'pat') {
       return await saveToken({
         publishHome,
-        token: `${event.values.token ?? ''}`.trim(),
+        token: (event.values.token ?? '').trim(),
         userId,
       });
     }

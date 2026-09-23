@@ -3,12 +3,12 @@ import { listMCPServers } from '../../db/queries/mcps';
 import { getGitHubSettings, getInstructions } from '../../db/queries/settings';
 import { countInstallations } from '../../lib/github';
 import { logger } from '../../lib/logger';
-import type { GitHubCredential } from '../../types';
+import type { GitHubCredential, HomeSection } from '../../types';
 import { slack } from '../client';
 import { content } from '../content';
 import { githubBlocks } from './github';
 import { customInstructionsBlocks } from './instructions';
-import { fitHome, type HomeSection } from './limit';
+import { fitHome } from './limit';
 import { mcpServersBlocks } from './mcp';
 import { scheduledTasksBlocks } from './scheduled-tasks';
 
@@ -28,7 +28,7 @@ async function settled<T>({
   }
 }
 
-async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
+export async function publishHome(userId: string): Promise<void> {
   const credentialResult: Promise<{
     credential: GitHubCredential | undefined;
     unreadable: boolean;
@@ -65,7 +65,7 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
     credential?.kind === 'app' ? await countInstallations(credential.token) : 0;
 
   const sections: HomeSection[] = [
-    { fixed: [...content.home.blocks, { type: 'divider' }] },
+    { fixed: [...content.home, { type: 'divider' }] },
     customInstructionsBlocks(instructions),
     githubBlocks({
       credential,
@@ -78,9 +78,8 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
     ...(scheduled ? [scheduled] : []),
   ];
 
-  return { type: 'home', blocks: fitHome(sections) };
-}
-
-export async function publishHome(userId: string): Promise<void> {
-  await slack.publishHomeView(userId, await buildHomeView(userId));
+  await slack.publishHomeView(userId, {
+    type: 'home',
+    blocks: fitHome(sections),
+  });
 }

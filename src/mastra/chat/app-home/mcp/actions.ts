@@ -1,4 +1,5 @@
 import { Modal, TextInput } from 'chat';
+import { mcp } from '../../../config';
 import {
   listMCPServers,
   removeMCPServer,
@@ -9,13 +10,11 @@ import {
 import { logger } from '../../../lib/logger';
 import { findMCPUrlError } from '../../../mcp/security';
 import { findMCPConnectionError } from '../../../mcp/user-servers';
-import { mcpServerSchema } from '../../../types';
+import { mcpServerSchema, type PublishHome } from '../../../types';
 import { chat } from '../../instance';
-import { ids, MAX_SERVERS } from './ids';
+import { ids } from './ids';
 import { decodePreset } from './presets';
 import { configureModal } from './views';
-
-type PublishHome = (userId: string) => Promise<void>;
 
 async function addServer({
   publishHome,
@@ -58,12 +57,12 @@ async function addServer({
   const result = await upsertMCPServer({
     userId,
     server: parsed.data,
-    maxServers: MAX_SERVERS,
+    maxServers: mcp.maxServers,
   });
   if (result === 'limit-reached') {
     return {
       action: 'errors' as const,
-      errors: { name: `You can connect at most ${MAX_SERVERS} servers.` },
+      errors: { name: `You can connect at most ${mcp.maxServers} servers.` },
     };
   }
   await publishHome(userId);
@@ -97,7 +96,7 @@ export function registerMCPServers({
 
   bot.onAction(ids.add, async (event) => {
     const servers = await listMCPServers(event.user.userId);
-    if (servers.length >= MAX_SERVERS) {
+    if (servers.length >= mcp.maxServers) {
       return;
     }
     await event.openModal(

@@ -3,11 +3,10 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
-import { resolveTarget, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
-import { parseSlackId, rawId, threadIdOf } from '../../lib/ids';
-import { input, output } from '../../types/tools/index';
-import { assertCanPostTo, joinChannel } from './utils';
+import { threadIdOf } from '../../lib/ids';
+import { input, output, targetSchema } from '../../types/tools/index';
+import { assertCanPostTo, joinChannel, slackDestination } from './utils';
 
 const markdownConverter = new SlackFormatConverter();
 
@@ -20,6 +19,7 @@ async function botDisplayName(botUserId: string | undefined): Promise<string> {
   if (!botUserId) {
     return 'gorkie';
   }
+  // The name only labels the post, so a failed lookup falls back to the default.
   const info = await slack.webClient.users
     .info({ user: botUserId })
     .catch(() => null);
@@ -27,24 +27,6 @@ async function botDisplayName(botUserId: string | undefined): Promise<string> {
   cachedBotName =
     profile?.display_name || profile?.real_name || info?.user?.name || 'gorkie';
   return cachedBotName;
-}
-
-async function resolveChannelAndThread(resolved: {
-  type: 'thread' | 'channel' | 'user';
-  id: string;
-}): Promise<{ channel: string; threadTs?: string }> {
-  if (resolved.type === 'thread') {
-    const { channel, ts } = parseSlackId(resolved.id);
-    if (!channel) {
-      throw new Error(`${resolved.id} is not a Slack thread id.`);
-    }
-    return { channel, threadTs: ts };
-  }
-  if (resolved.type === 'channel') {
-    return { channel: rawId(resolved.id) };
-  }
-  const dm = await resolveTarget(resolved);
-  return { channel: rawId(dm.id) };
 }
 
 export const postMessageTool = createTool({
@@ -76,13 +58,14 @@ Errors: channel_not_found usually means the bot isn't a member of that private c
     },
   },
   execute: async ({ target, message }, context) => {
-    const ctx = channelContext(context?.requestContext);
+    const ctx = channelContext(context.requestContext);
     assertCanPostTo({ target, ctx });
     try {
       if (target.type !== 'user') {
         await joinChannel(target.id);
       }
-      const { channel, threadTs } = await resolveChannelAndThread(target);
+      const { channel, threadTs } = await slackDestination(target);
+      // Crediting the requester is cosmetic; a failed lookup posts uncredited.
       const requesterUser = ctx.userId
         ? await chat()
             .getUser(ctx.userId)

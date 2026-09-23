@@ -10,18 +10,6 @@ export function slugOf(modelId: string): string {
     : modelId;
 }
 
-function qualifiedSlug({
-  modelId,
-  modelProvider,
-}: {
-  modelId: string;
-  modelProvider?: string;
-}): string {
-  return modelProvider && !modelId.startsWith(`${modelProvider}/`)
-    ? slugOf(`${modelProvider}/${modelId}`)
-    : slugOf(modelId);
-}
-
 export async function recallModel(): Promise<string | undefined> {
   try {
     return (
@@ -40,7 +28,10 @@ export async function rememberModel({
   modelId: string;
   modelProvider?: string;
 }): Promise<void> {
-  const slug = qualifiedSlug({ modelId, modelProvider });
+  const slug =
+    modelProvider && !modelId.startsWith(`${modelProvider}/`)
+      ? slugOf(`${modelProvider}/${modelId}`)
+      : slugOf(modelId);
   try {
     await chat()
       .getState()

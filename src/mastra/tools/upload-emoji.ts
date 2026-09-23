@@ -1,11 +1,9 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { env } from '@/env';
+import { emoji } from '../config';
 import { input, output } from '../types/tools/index';
 import { requireSandbox } from '../workspace';
-
-const EMOJI_PROXY_URL =
-  'https://hackclub-slack-emoji-proxy.vercel.app/api/emoji';
 
 export const uploadEmojiTool = createTool({
   id: 'upload_emoji',
@@ -51,19 +49,7 @@ export const uploadEmojiTool = createTool({
     const headers = { authorization: `Bearer ${env.EMOJI_PROXY_TOKEN}` };
 
     let response: Response;
-    if (aliasFor) {
-      response = await fetch(`${EMOJI_PROXY_URL}/alias`, {
-        method: 'POST',
-        headers: { ...headers, 'content-type': 'application/json' },
-        body: JSON.stringify({ name, alias_for: aliasFor }),
-      });
-    } else {
-      if (!path) {
-        throw new Error('Pass path to upload a new emoji.');
-      }
-      if (!context?.requestContext) {
-        throw new Error('No workspace context.');
-      }
+    if (path) {
       const sandbox = await requireSandbox(context.requestContext);
       const bytes = await sandbox.retryOnDead(() =>
         sandbox.e2b.files.read(path, { format: 'bytes' })
@@ -75,17 +61,24 @@ export const uploadEmojiTool = createTool({
         new Blob([new Uint8Array(bytes)]),
         path.split('/').pop() ?? name
       );
-      response = await fetch(`${EMOJI_PROXY_URL}/upload`, {
+      response = await fetch(`${emoji.proxyUrl}/upload`, {
         method: 'POST',
         headers,
         body: form,
       });
+    } else {
+      response = await fetch(`${emoji.proxyUrl}/alias`, {
+        method: 'POST',
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify({ name, alias_for: aliasFor }),
+      });
     }
 
     if (!response.ok) {
+      // The status alone still makes a useful error if the body is unreadable.
       const body = await response.text().catch(() => '');
       throw new Error(
-        `Emoji ${aliasFor ? 'alias' : 'upload'} failed (${response.status}): ${body.slice(0, 300)}`
+        `Emoji ${path ? 'upload' : 'alias'} failed (${response.status}): ${body.slice(0, 300)}`
       );
     }
 

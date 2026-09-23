@@ -9,7 +9,13 @@ export const hackclub = createOpenRouter({
   baseURL: 'https://ai.hackclub.com/proxy/v1',
 });
 
-function opencode(modelId: string, fallbackSession: string): ModelWithRetries {
+function opencode({
+  modelId,
+  fallbackSession,
+}: {
+  modelId: string;
+  fallbackSession: string;
+}): ModelWithRetries {
   return {
     model: `opencode-go/${modelId}`,
     headers: ({ requestContext }) => ({
@@ -57,13 +63,22 @@ async function preferLastWorking(
 
 function ladder(agentKey: string): ModelWithRetries[] {
   return [
-    { ...opencode('glm-5.3-flash', agentKey), maxRetries: 3 },
+    {
+      ...opencode({ modelId: 'glm-5.3-flash', fallbackSession: agentKey }),
+      maxRetries: 3,
+    },
     { model: hackclub('z-ai/glm-5.3-flash'), maxRetries: 3 },
     // Last resort only. deepseek 400s on tool-calling turns (the reasoning_content
     // round-trip the opencode-go generic converter drops, see IMPLEMENTED.md), so
     // it only reliably serves single-shot replies, but unlike muse-spark it does
     // not train on submitted data.
-    { ...opencode('deepseek-v4-flash-vision-exp', agentKey), maxRetries: 3 },
+    {
+      ...opencode({
+        modelId: 'deepseek-v4-flash-vision-exp',
+        fallbackSession: agentKey,
+      }),
+      maxRetries: 3,
+    },
   ];
 }
 
@@ -73,7 +88,10 @@ export const orchestrator = () => preferLastWorking(orchestratorModels);
 
 export const summarizer: ModelWithRetries[] = [
   { model: hackclub('google/gemini-3.5-flash-lite'), maxRetries: 3 },
-  { ...opencode('mimo-v2.5', 'summarizer'), maxRetries: 3 },
+  {
+    ...opencode({ modelId: 'mimo-v2.5', fallbackSession: 'summarizer' }),
+    maxRetries: 3,
+  },
 ];
 
 const scoutModels = ladder('research');

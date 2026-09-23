@@ -1,3 +1,5 @@
+export * from './agent';
+export * from './app-home';
 export * from './approval';
 export * from './channel';
 export * from './command';

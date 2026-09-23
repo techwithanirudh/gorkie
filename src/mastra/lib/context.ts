@@ -25,7 +25,8 @@ export function channelContext(
   if (typeof value === 'string') {
     try {
       value = JSON.parse(value);
-    } catch {
+    } catch (error) {
+      logger.warn('[context] channel context was not valid JSON', { error });
       return {};
     }
   }

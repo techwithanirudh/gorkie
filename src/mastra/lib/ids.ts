@@ -1,5 +1,4 @@
 const PREFIX = 'slack:';
-const PERMALINK = /archives\/([A-Z0-9]+)\/p(\d{10})(\d{6})/;
 
 interface SlackId {
   channel: string | undefined;
@@ -29,16 +28,19 @@ export function threadIdOf({ channel, ts }: SlackId): string | undefined {
   return channel && ts ? `${PREFIX}${rawId(channel)}:${ts}` : undefined;
 }
 
-export function parseSlackId(
-  input: string | undefined,
-  fallback?: { channel?: string }
-): SlackId {
-  const channel = fallback?.channel ? rawId(fallback.channel) : undefined;
+export function parseSlackId({
+  channel: fallbackChannel,
+  input,
+}: {
+  channel?: string;
+  input: string | undefined;
+}): SlackId {
+  const channel = fallbackChannel ? rawId(fallbackChannel) : undefined;
   if (!input) {
     return { channel, ts: undefined };
   }
 
-  const permalink = PERMALINK.exec(input);
+  const permalink = /archives\/([A-Z0-9]+)\/p(\d{10})(\d{6})/.exec(input);
   if (permalink?.[1]) {
     return { channel: permalink[1], ts: `${permalink[2]}.${permalink[3]}` };
   }

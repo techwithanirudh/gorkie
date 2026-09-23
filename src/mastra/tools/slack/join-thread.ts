@@ -18,7 +18,7 @@ export const joinThreadTool = createTool({
     },
   },
   execute: async (_input, context) => {
-    const { threadId } = channelContext(context?.requestContext);
+    const { threadId } = channelContext(context.requestContext);
     if (!threadId) {
       throw new Error('No current thread.');
     }

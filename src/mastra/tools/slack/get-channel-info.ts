@@ -33,13 +33,13 @@ export const getChannelInfoTool = createTool({
     },
   },
   execute: async ({ channelId }, context) => {
-    const ctx = channelContext(context?.requestContext);
+    const ctx = channelContext(context.requestContext);
     const id = channelId ?? ctx.channelId;
     if (!id) {
       throw new Error('No channel to inspect.');
     }
     const chId = chatChannelId(id);
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
     const info = await assertReadableChannel({
       channelId: chId,

@@ -10,6 +10,8 @@ export const feedbackIds = {
   modal: 'message_feedback_modal',
 };
 
+const directionSchema = z.enum(['up', 'down']);
+
 const metadataSchema = z.object({
   messageId: z.string().optional(),
   threadId: z.string(),
@@ -36,7 +38,7 @@ async function recordFeedback({
   userId,
 }: {
   comment?: string;
-  direction: 'up' | 'down';
+  direction: z.infer<typeof directionSchema>;
   messageId?: string;
   threadId: string;
   traceId?: string;
@@ -64,7 +66,7 @@ async function recordFeedback({
 
 export async function onFeedbackClick(event: ActionEvent): Promise<void> {
   const [prefix, traceId] = (event.value ?? '').split(':');
-  const direction = z.enum(['up', 'down']).safeParse(prefix).data;
+  const direction = directionSchema.safeParse(prefix).data;
   if (!direction) {
     logger.warn('[feedback] click carried no rating', {
       raw: event.raw,

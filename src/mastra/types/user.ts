@@ -1,10 +1,14 @@
-export interface UserProfile {
-  displayName?: string;
-  fields: { label: string; value: string }[];
-  pronouns?: string;
-  realName?: string;
-  status?: string;
-  timezone?: string;
-  timezoneLabel?: string;
-  title?: string;
-}
+import { z } from 'zod';
+
+export const userProfileSchema = z.object({
+  displayName: z.string().optional(),
+  fields: z.array(z.object({ label: z.string(), value: z.string() })),
+  pronouns: z.string().optional(),
+  realName: z.string().optional(),
+  status: z.string().optional(),
+  timezone: z.string().optional(),
+  timezoneLabel: z.string().optional(),
+  title: z.string().optional(),
+});
+
+export type UserProfile = z.infer<typeof userProfileSchema>;

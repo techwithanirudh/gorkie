@@ -11,15 +11,6 @@ import { logger } from '../logger';
 import { githubUser } from './api';
 import { toAccount } from './device-flow';
 
-const REFRESH_MARGIN_MS = 5 * 60 * 1000;
-
-const refreshErrorSchema = z.object({
-  status: z.number().optional(),
-  response: z
-    .object({ data: z.object({ error: z.string().optional() }).optional() })
-    .optional(),
-});
-
 const refreshes = new Map<string, Promise<string | undefined>>();
 
 async function refreshAccount({
@@ -52,7 +43,16 @@ async function refreshAccount({
   } catch (error) {
     // Never log `error` directly: an octokit refresh failure carries the
     // client_secret and refresh_token. Pull out only the status and error code.
-    const parsed = refreshErrorSchema.safeParse(error).data;
+    const parsed = z
+      .object({
+        status: z.number().optional(),
+        response: z
+          .object({
+            data: z.object({ error: z.string().optional() }).optional(),
+          })
+          .optional(),
+      })
+      .safeParse(error).data;
     const code = parsed?.response?.data?.error;
     logger.warn('[github] token refresh failed', {
       userId,
@@ -83,7 +83,7 @@ export async function githubAccessToken(
   }
   const expiresSoon =
     account.expiresAt !== undefined &&
-    account.expiresAt.getTime() - Date.now() < REFRESH_MARGIN_MS;
+    account.expiresAt.getTime() - Date.now() < 5 * 60 * 1000;
   if (!(expiresSoon && account.refreshToken)) {
     return account.token;
   }

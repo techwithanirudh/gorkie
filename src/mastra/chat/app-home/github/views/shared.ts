@@ -1,8 +1,6 @@
 import type { PlainTextOption } from '@slack/web-api';
-import { z } from 'zod';
+import { type ViewTarget, viewActionSchema } from '../../../../types';
 import { ids } from '../ids';
-
-export type ConnectMethod = 'app' | 'pat';
 
 export const option = ({
   description,
@@ -23,30 +21,8 @@ export const text = (body: string) => ({
   text: { type: 'mrkdwn' as const, text: body },
 });
 
-const viewAction = z.object({
-  view: z.object({
-    hash: z.string().optional(),
-    id: z.string(),
-    state: z
-      .object({
-        values: z.record(
-          z.string(),
-          z.record(
-            z.string(),
-            z.looseObject({
-              selected_option: z.object({ value: z.string() }).nullish(),
-            })
-          )
-        ),
-      })
-      .optional(),
-  }),
-});
-
-export type ViewTarget = z.infer<typeof viewAction>['view'];
-
 export const viewOf = (raw: unknown): ViewTarget | undefined =>
-  viewAction.safeParse(raw).data?.view;
+  viewActionSchema.safeParse(raw).data?.view;
 
 export const selectedPermission = ({
   raw,
@@ -55,6 +31,6 @@ export const selectedPermission = ({
   raw: unknown;
   renderedScope: 'dm' | 'threads';
 }): string | undefined =>
-  viewAction.safeParse(raw).data?.view.state?.values?.[
+  viewActionSchema.safeParse(raw).data?.view.state?.values?.[
     `${ids.permission}_${renderedScope}`
   ]?.[ids.permission]?.selected_option?.value;

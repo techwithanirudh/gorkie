@@ -1,11 +1,9 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
-import { channelContext } from '../../lib/context';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
-import { assertReadableResource } from '../slack/utils';
-import { canvasIdSchema } from './utils';
+import { canvasIdSchema, readableCanvas } from './utils';
 
 export const lookupCanvasSectionsTool = createTool({
   id: 'lookup_canvas_sections',
@@ -33,19 +31,14 @@ export const lookupCanvasSectionsTool = createTool({
     },
   },
   execute: async ({ canvasId, sectionTypes, containsText }, context) => {
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
-    const info = await slack.webClient.files.info({ file: canvasId });
-    const ctx = channelContext(context.requestContext);
-    await assertReadableResource({
-      channelIds: [
-        ...(info.file?.channels ?? []),
-        ...(info.file?.groups ?? []),
-      ],
-      currentThreadId: ctx.threadId,
+    await readableCanvas({
+      canvasId,
+      requestContext: context.requestContext,
     });
 
-    if (sectionTypes?.length) {
+    if (sectionTypes) {
       const response = await slack.webClient.canvases.sections.lookup({
         canvas_id: canvasId,
         criteria: {
@@ -53,10 +46,7 @@ export const lookupCanvasSectionsTool = createTool({
           ...(containsText ? { contains_text: containsText } : {}),
         },
       });
-      return {
-        canvasId,
-        sections: response.sections ?? [],
-      };
+      return { canvasId, sections: response.sections ?? [] };
     }
     if (!containsText) {
       throw new Error('Provide sectionTypes, containsText, or both.');
@@ -65,9 +55,6 @@ export const lookupCanvasSectionsTool = createTool({
       canvas_id: canvasId,
       criteria: { contains_text: containsText },
     });
-    return {
-      canvasId,
-      sections: response.sections ?? [],
-    };
+    return { canvasId, sections: response.sections ?? [] };
   },
 });

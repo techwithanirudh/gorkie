@@ -1,7 +1,11 @@
 import type { RequestContext } from '@mastra/core/request-context';
 import { getGitHubCredential } from '../../db/queries/github';
 import { getGitHubSettings } from '../../db/queries/settings';
-import type { GitHubCredential, GitHubPermission } from '../../types';
+import type {
+  GitHubCredential,
+  GitHubPermission,
+  GitHubSettings,
+} from '../../types';
 import { logger } from '../logger';
 
 type GitHubAccess =
@@ -26,7 +30,7 @@ async function read({
   userId: string;
 }): Promise<GitHubAccess> {
   let credential: GitHubCredential | undefined;
-  let settings: Awaited<ReturnType<typeof getGitHubSettings>>;
+  let settings: GitHubSettings;
   try {
     [credential, settings] = await Promise.all([
       getGitHubCredential(userId),
@@ -39,12 +43,10 @@ async function read({
   if (!credential) {
     return { state: 'disconnected' };
   }
-
-  const direct = isDM || settings.threads;
   return {
     state: 'connected',
     credential,
-    direct,
+    direct: isDM || settings.threads,
     level: levelsFor(!isDM).includes(settings.permission)
       ? settings.permission
       : 'write',

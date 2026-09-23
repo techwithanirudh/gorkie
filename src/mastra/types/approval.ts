@@ -1,6 +1,4 @@
-const APPROVAL_LEVELS = ['all', 'write', 'delete', 'never'] as const;
-
-export type ApprovalLevel = (typeof APPROVAL_LEVELS)[number];
+export type ApprovalLevel = 'all' | 'write' | 'delete' | 'never';
 
 export type ToolKind = 'read' | 'write' | 'delete';
 

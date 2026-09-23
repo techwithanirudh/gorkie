@@ -7,16 +7,35 @@ const GITHUB_PERMISSIONS = [
   'never',
 ] as const satisfies readonly ApprovalLevel[];
 
+export interface DeviceLogin {
+  deviceCode: string;
+  expiresIn: number;
+  interval: number;
+  userCode: string;
+  verificationUri: string;
+}
+
+export type GitHubCredentialKind = 'app' | 'pat';
+
 export interface GitHubCredential {
   expiresAt: Date | undefined;
-  kind: 'app' | 'pat';
+  kind: GitHubCredentialKind;
   login: string;
   refreshToken: string | undefined;
   scopes: string[];
   token: string;
 }
 
+export type GitHubAccount = Omit<GitHubCredential, 'kind' | 'login' | 'scopes'>;
+
+export type DeviceLoginResult = GitHubAccount | { error: string };
+
 export type GitHubPermission = (typeof GITHUB_PERMISSIONS)[number];
+
+export interface GitHubSettings {
+  permission: GitHubPermission;
+  threads: boolean;
+}
 
 export const githubPermissionSchema = z.enum(GITHUB_PERMISSIONS).catch('all');
 

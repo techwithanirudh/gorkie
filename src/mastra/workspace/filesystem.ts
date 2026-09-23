@@ -21,18 +21,11 @@ import {
   NotDirectoryError,
   PermissionError,
   StaleFileError,
-  WorkspaceReadOnlyError,
 } from '@mastra/core/workspace';
 import type { E2BSandbox } from '@mastra/e2b';
 import { FileNotFoundError as E2BFileNotFoundError, FileType } from 'e2b';
 import { lookup } from 'mime-types';
-import { sandbox as config, file as fileLimits } from '../config';
-
-interface FilesystemOptions {
-  basePath?: string;
-  readOnly?: boolean;
-  sandbox: E2BSandbox;
-}
+import { file as fileLimits } from '../config';
 
 function modifiedTime(info: { modifiedTime?: Date }): Date {
   return info.modifiedTime ?? new Date(0);
@@ -42,16 +35,17 @@ export class E2BFilesystem extends MastraFilesystem {
   readonly id: string;
   readonly name = 'E2BFilesystem';
   readonly provider = 'e2b';
-  readonly readOnly?: boolean;
   readonly basePath: string;
   status: ProviderStatus = 'pending';
 
-  constructor(options: FilesystemOptions) {
+  constructor({
+    basePath,
+    sandbox,
+  }: { basePath: string; sandbox: E2BSandbox }) {
     super({ name: 'E2BFilesystem' });
-    this.id = `${options.sandbox.id}-filesystem`;
-    this.basePath = path.posix.normalize(options.basePath ?? config.workdir);
-    this.readOnly = options.readOnly;
-    this.sandbox = options.sandbox;
+    this.id = `${sandbox.id}-filesystem`;
+    this.basePath = path.posix.normalize(basePath);
+    this.sandbox = sandbox;
   }
 
   private readonly sandbox: E2BSandbox;
@@ -87,18 +81,15 @@ export class E2BFilesystem extends MastraFilesystem {
         }
 
         if (options?.encoding) {
-          if (options.encoding === 'base64' || options.encoding === 'hex') {
+          if (
+            options.encoding === 'base64' ||
+            options.encoding === 'hex' ||
+            options.encoding === 'binary'
+          ) {
             const bytes = await this.e2b(() =>
               this.sandbox.e2b.files.read(filePath, { format: 'bytes' })
             );
             return Buffer.from(bytes).toString(options.encoding);
-          }
-
-          if (options.encoding === 'binary') {
-            const bytes = await this.e2b(() =>
-              this.sandbox.e2b.files.read(filePath, { format: 'bytes' })
-            );
-            return Buffer.from(bytes).toString('binary');
           }
 
           return this.e2b(() =>
@@ -120,7 +111,6 @@ export class E2BFilesystem extends MastraFilesystem {
     options?: WriteOptions
   ): Promise<void> {
     await this.ensureReady();
-    this.assertWritable('writeFile');
     const filePath = this.resolve(inputPath);
 
     if (options?.recursive === false) {
@@ -152,7 +142,6 @@ export class E2BFilesystem extends MastraFilesystem {
 
   async appendFile(inputPath: string, content: FileContent): Promise<void> {
     await this.ensureReady();
-    this.assertWritable('appendFile');
     const filePath = this.resolve(inputPath);
     await this.e2b(() =>
       this.sandbox.e2b.files.makeDir(path.posix.dirname(filePath))
@@ -174,7 +163,6 @@ export class E2BFilesystem extends MastraFilesystem {
 
   async deleteFile(inputPath: string, options?: RemoveOptions): Promise<void> {
     await this.ensureReady();
-    this.assertWritable('deleteFile');
     const filePath = this.resolve(inputPath);
 
     try {
@@ -204,7 +192,6 @@ export class E2BFilesystem extends MastraFilesystem {
     options?: CopyOptions
   ): Promise<void> {
     await this.ensureReady();
-    this.assertWritable('copyFile');
     const srcPath = this.resolve(src);
     const destPath = this.resolve(dest);
 
@@ -241,7 +228,6 @@ export class E2BFilesystem extends MastraFilesystem {
     options?: CopyOptions
   ): Promise<void> {
     await this.ensureReady();
-    this.assertWritable('moveFile');
     const srcPath = this.resolve(src);
     const destPath = this.resolve(dest);
 
@@ -265,7 +251,6 @@ export class E2BFilesystem extends MastraFilesystem {
     options?: { recursive?: boolean }
   ): Promise<void> {
     await this.ensureReady();
-    this.assertWritable('mkdir');
     const dirPath = this.resolve(inputPath);
 
     if (options?.recursive === false) {
@@ -282,7 +267,6 @@ export class E2BFilesystem extends MastraFilesystem {
 
   async rmdir(inputPath: string, options?: RemoveOptions): Promise<void> {
     await this.ensureReady();
-    this.assertWritable('rmdir');
     const dirPath = this.resolve(inputPath);
 
     try {
@@ -402,7 +386,6 @@ export class E2BFilesystem extends MastraFilesystem {
       name: this.name,
       provider: this.provider,
       status: this.status,
-      readOnly: this.readOnly,
       metadata: { basePath: this.basePath },
     };
   }
@@ -423,12 +406,6 @@ export class E2BFilesystem extends MastraFilesystem {
       throw new PermissionError(inputPath, 'access');
     }
     return resolved;
-  }
-
-  private assertWritable(operation: string): void {
-    if (this.readOnly) {
-      throw new WorkspaceReadOnlyError(operation);
-    }
   }
 
   private async assertParent({

@@ -1,34 +1,29 @@
 import { detectMediaType } from '@ai-sdk/provider-utils';
 import type { E2BSandbox } from '@mastra/e2b';
+import { z } from 'zod';
 import { env } from '@/env';
 import { images } from '../../providers';
 
-const DATA_URI = /^data:([^;,]+);base64,(.+)$/s;
-const MAX_REFERENCE_BYTES = 8 * 1024 * 1024;
-
-async function readReference({
-  path,
-  sandbox,
-}: {
-  path: string;
-  sandbox: E2BSandbox;
-}): Promise<{ data: Buffer; mediaType: string }> {
-  const bytes = Buffer.from(
-    await sandbox.retryOnDead(() =>
-      sandbox.e2b.files.read(path, { format: 'bytes' })
+const completionSchema = z.looseObject({
+  choices: z
+    .array(
+      z.looseObject({
+        message: z
+          .looseObject({
+            content: z.string().nullish(),
+            images: z
+              .array(
+                z.looseObject({
+                  image_url: z.looseObject({ url: z.string() }).optional(),
+                })
+              )
+              .optional(),
+          })
+          .optional(),
+      })
     )
-  );
-  if (bytes.byteLength > MAX_REFERENCE_BYTES) {
-    throw new Error(
-      `"${path}" is ${Math.round(bytes.byteLength / 1024 / 1024)}MB, too large to send for editing. Resize it below 8MB first.`
-    );
-  }
-  return {
-    data: bytes,
-    mediaType:
-      detectMediaType({ data: bytes, topLevelType: 'image' }) ?? 'image/png',
-  };
-}
+    .optional(),
+});
 
 export async function editImages({
   prompt,
@@ -40,7 +35,23 @@ export async function editImages({
   sandbox: E2BSandbox;
 }): Promise<{ data: Buffer; mediaType: string }[]> {
   const references = await Promise.all(
-    referenceImages.map((path) => readReference({ path, sandbox }))
+    referenceImages.map(async (path) => {
+      const data = Buffer.from(
+        await sandbox.retryOnDead(() =>
+          sandbox.e2b.files.read(path, { format: 'bytes' })
+        )
+      );
+      if (data.byteLength > 8 * 1024 * 1024) {
+        throw new Error(
+          `"${path}" is ${Math.round(data.byteLength / 1024 / 1024)}MB, too large to send for editing. Resize it below 8MB first.`
+        );
+      }
+      return {
+        data,
+        mediaType:
+          detectMediaType({ data, topLevelType: 'image' }) ?? 'image/png',
+      };
+    })
   );
 
   const response = await fetch(`${images.baseURL}/chat/completions`, {
@@ -69,31 +80,30 @@ export async function editImages({
     }),
   });
   if (!response.ok) {
+    // The status alone still makes a useful error if the body is unreadable.
     const body = await response.text().catch(() => '');
     throw new Error(
       `Image editing failed (${response.status}): ${body.slice(0, 300)}`
     );
   }
-  const payload = (await response.json()) as {
-    choices?: {
-      message?: {
-        content?: string;
-        images?: { image_url?: { url?: string } }[];
-      };
-    }[];
-  };
-  const message = payload.choices?.at(0)?.message;
-  const out: { data: Buffer; mediaType: string }[] = [];
-  for (const entry of message?.images ?? []) {
-    const match = DATA_URI.exec(entry.image_url?.url ?? '');
-    if (match) {
-      const data = Buffer.from(match[2], 'base64');
-      out.push({
+  const message = completionSchema
+    .parse(await response.json())
+    .choices?.at(0)?.message;
+  const out = (message?.images ?? []).flatMap((entry) => {
+    const match = /^data:([^;,]+);base64,(.+)$/s.exec(
+      entry.image_url?.url ?? ''
+    );
+    if (!match) {
+      return [];
+    }
+    const data = Buffer.from(match[2], 'base64');
+    return [
+      {
         data,
         mediaType: detectMediaType({ data, topLevelType: 'image' }) ?? match[1],
-      });
-    }
-  }
+      },
+    ];
+  });
   if (out.length === 0) {
     throw new Error(
       `The image model returned no image${message?.content ? `. It said: ${message.content.slice(0, 300)}` : '.'}`

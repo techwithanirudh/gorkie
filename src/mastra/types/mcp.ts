@@ -26,3 +26,5 @@ export const mcpServerSchema = z.object({
 });
 
 export type MCPServerConfig = z.infer<typeof mcpServerSchema>;
+
+export type StoredMCPServer = MCPServerConfig & { lastError?: string };

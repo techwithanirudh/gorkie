@@ -41,8 +41,8 @@ export const listThreadsTool = createTool({
     },
   },
   execute: async ({ channelId, limit, cursor }, context) => {
-    spendSlackCall(context?.requestContext);
-    const ctx = channelContext(context?.requestContext);
+    spendSlackCall(context.requestContext);
+    const ctx = channelContext(context.requestContext);
     const id = channelId ?? ctx.channelId;
     if (!id) {
       throw new Error('No channel to list threads from.');

@@ -1,6 +1,10 @@
+import type { RequestContext } from '@mastra/core/request-context';
 import { z } from 'zod';
-import type { channelContext } from '../../lib/context';
+import { slack } from '../../chat/client';
+import { channelContext } from '../../lib/context';
 import { rawId } from '../../lib/ids';
+import type { ChannelContext } from '../../types';
+import { assertReadableResource } from '../slack/utils';
 
 export const canvasIdSchema = z
   .string()
@@ -15,7 +19,7 @@ export function assertCanManageChannel({
   ctx,
 }: {
   channelId: string;
-  ctx: ReturnType<typeof channelContext>;
+  ctx: ChannelContext;
 }): void {
   if (!ctx.channelId) {
     throw new Error('No current Slack channel to compare against.');
@@ -25,4 +29,19 @@ export function assertCanManageChannel({
       'Can only manage canvases for the current channel, not other channels.'
     );
   }
+}
+
+export async function readableCanvas({
+  canvasId,
+  requestContext,
+}: {
+  canvasId: string;
+  requestContext: RequestContext;
+}) {
+  const { file } = await slack.webClient.files.info({ file: canvasId });
+  await assertReadableResource({
+    channelIds: [...(file?.channels ?? []), ...(file?.groups ?? [])],
+    currentThreadId: channelContext(requestContext).threadId,
+  });
+  return file;
 }

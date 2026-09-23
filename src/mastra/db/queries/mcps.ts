@@ -3,6 +3,7 @@ import { decryptSecret, encryptSecret } from '../../lib/crypto';
 import { rawId } from '../../lib/ids';
 import {
   type MCPServerConfig,
+  type StoredMCPServer,
   type ToolPermission,
   toolPermissionSchema,
 } from '../../types';
@@ -11,7 +12,7 @@ import { mcpServers } from '../schema';
 
 export async function listMCPServers(
   userId: string
-): Promise<(MCPServerConfig & { lastError?: string })[]> {
+): Promise<StoredMCPServer[]> {
   const rows = await db
     .select()
     .from(mcpServers)

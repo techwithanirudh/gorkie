@@ -8,7 +8,7 @@ import {
   recordFeedbackDetails,
 } from './feedback';
 import { chat } from './instance';
-import { acceptOptIn } from './onboarding';
+import { acceptOptIn, optInIds } from './onboarding';
 
 export function registerEvents(): void {
   const bot = chat();
@@ -23,7 +23,7 @@ export function registerEvents(): void {
 
   registerAppHome();
 
-  bot.onAction('opt_in_accept', acceptOptIn);
+  bot.onAction(optInIds.accept, acceptOptIn);
 
   bot.onAction(feedbackIds.action, onFeedbackClick);
   bot.onModalSubmit(feedbackIds.modal, (event) =>

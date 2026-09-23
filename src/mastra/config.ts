@@ -45,3 +45,11 @@ export const scheduledTasks = {
 export const workingModel = {
   ttl: 30 * 60 * 1000,
 };
+
+export const mcp = {
+  maxServers: 10,
+};
+
+export const emoji = {
+  proxyUrl: 'https://hackclub-slack-emoji-proxy.vercel.app/api/emoji',
+};

@@ -8,7 +8,7 @@ import {
   setGitHubSettings,
 } from '../../../db/queries/settings';
 import { logger } from '../../../lib/logger';
-import { githubPermissionSchema } from '../../../types';
+import { githubPermissionSchema, type PublishHome } from '../../../types';
 import { slack } from '../../client';
 import { chat } from '../../instance';
 import { polling } from './connect';
@@ -18,7 +18,7 @@ import { configureView, selectedPermission, viewOf } from './views';
 export function registerSettings({
   publishHome,
 }: {
-  publishHome: (userId: string) => Promise<void>;
+  publishHome: PublishHome;
 }): void {
   const bot = chat();
 

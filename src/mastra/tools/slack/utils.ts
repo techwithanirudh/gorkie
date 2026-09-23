@@ -1,11 +1,10 @@
 import type { Message } from 'chat';
-import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
-import type { Target } from '../../chat/target';
 import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 import type { ChannelContext } from '../../types';
+import { slackErrorSchema, type Target } from '../../types/tools/index';
 
 export async function assertReadableChannel({
   channelId,
@@ -85,10 +84,23 @@ export function assertCanPostTo({
   }
 }
 
+export async function slackDestination(
+  target: Target
+): Promise<{ channel: string; threadTs?: string }> {
+  if (target.type === 'channel') {
+    return { channel: rawId(target.id) };
+  }
+  if (target.type === 'user') {
+    return { channel: rawId((await chat().openDM(target.id)).id) };
+  }
+  const { channel, ts } = parseSlackId({ input: target.id });
+  if (!channel) {
+    throw new Error(`${target.id} is not a Slack thread id.`);
+  }
+  return { channel, threadTs: ts };
+}
+
 const joinedChannels = new Set<string>();
-const slackErrorSchema = z.looseObject({
-  data: z.looseObject({ error: z.string().optional() }).optional(),
-});
 
 export async function joinChannel(channelId: string): Promise<void> {
   const id = rawId(channelId);
@@ -117,7 +129,10 @@ export function slackThreadId({
   channelId?: string;
   threadId: string;
 }): string {
-  return threadIdOf(parseSlackId(threadId, { channel: channelId })) ?? threadId;
+  return (
+    threadIdOf(parseSlackId({ channel: channelId, input: threadId })) ??
+    threadId
+  );
 }
 
 export function formatMessage(message: Message) {

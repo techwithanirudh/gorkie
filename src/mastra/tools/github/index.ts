@@ -1,9 +1,9 @@
-import { createGithubTools } from '@github-tools/sdk';
+import { createGithubTools, GITHUB_WRITE_TOOLS } from '@github-tools/sdk';
 import type { RequestContext } from '@mastra/core/request-context';
 import { githubAccess, githubAccessToken } from '../../lib/github';
 import { logger } from '../../lib/logger';
 import { asksBefore } from '../../types';
-import { ALLOWLIST, isWriteTool } from './allowlist';
+import { ALLOWLIST } from './allowlist';
 import { checkoutTool } from './checkout';
 import { handoff } from './handoff';
 import { pushTool } from './push';
@@ -64,7 +64,7 @@ export async function githubTools({
       tools[id] = {
         ...tool,
         needsApproval: asksBefore({
-          kind: isWriteTool(name) ? 'write' : 'read',
+          kind: name in GITHUB_WRITE_TOOLS ? 'write' : 'read',
           level,
         }),
         ...(format && {

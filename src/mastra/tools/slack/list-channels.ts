@@ -38,7 +38,7 @@ export const listChannelsTool = createTool({
     },
   },
   execute: async ({ query, includeArchived, limit, cursor }, context) => {
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
     const response = await slack.webClient.conversations.list({
       cursor,

@@ -1,14 +1,14 @@
 import { SlackAdapter } from '@chat-adapter/slack';
+import { z } from 'zod';
 
 const mentionPattern = /<@([A-Z0-9_]+)(?:\|([^<>]+))?>/g;
 
-const MAX_USER_LOOKUPS = 4;
-const UNRESOLVED_TTL_MS = 60_000;
+const recipientSchema = z.object({
+  teamId: z.string().min(1),
+  userId: z.string().min(1),
+});
 
-interface Recipient {
-  teamId: string;
-  userId: string;
-}
+type Recipient = z.infer<typeof recipientSchema>;
 
 export class SlackAgentAdapter extends SlackAdapter {
   private readonly recipients = new Map<string, Recipient>();
@@ -46,6 +46,8 @@ export class SlackAgentAdapter extends SlackAdapter {
           }
         }
         this.recipients.set(threadId, recipient);
+        // Persisting only lets the recipient survive a restart, so the message
+        // is not held up on it, and a failed write just loses that hint.
         chat
           .getState()
           .set(this.recipientKey(threadId), recipient)
@@ -70,12 +72,12 @@ export class SlackAgentAdapter extends SlackAdapter {
     }
     let recipient = this.recipients.get(threadId);
     if (!recipient) {
-      const stored = await chat
-        .getState()
-        .get<Recipient>(this.recipientKey(threadId));
-      if (stored?.userId && stored.teamId) {
-        recipient = stored;
-        this.recipients.set(threadId, stored);
+      const stored = recipientSchema.safeParse(
+        await chat.getState().get(this.recipientKey(threadId))
+      );
+      if (stored.success) {
+        recipient = stored.data;
+        this.recipients.set(threadId, stored.data);
       }
     }
     if (!recipient) {
@@ -124,7 +126,7 @@ export class SlackAgentAdapter extends SlackAdapter {
     }
 
     const lookup = (async () => {
-      if (this.activeLookups >= MAX_USER_LOOKUPS) {
+      if (this.activeLookups >= 4) {
         await new Promise<void>((resolve) => this.waitingLookups.push(resolve));
       } else {
         this.activeLookups++;
@@ -134,7 +136,7 @@ export class SlackAgentAdapter extends SlackAdapter {
         if (user) {
           this.unresolvedUntil.delete(userId);
         } else {
-          this.unresolvedUntil.set(userId, Date.now() + UNRESOLVED_TTL_MS);
+          this.unresolvedUntil.set(userId, Date.now() + 60_000);
         }
         return user;
       } finally {

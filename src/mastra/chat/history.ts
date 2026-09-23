@@ -3,9 +3,6 @@ import { parseMarkdown, stringifyMarkdown } from 'chat';
 import { isComment } from './message';
 import { threadState } from './state';
 
-const MAX_MESSAGES = 10;
-const MAX_SCANNED = 30;
-
 export async function withHistory({
   message,
   thread,
@@ -26,7 +23,7 @@ export async function withHistory({
     if (previous.id === state?.lastSeenMessage) {
       break;
     }
-    if (scanned >= MAX_SCANNED) {
+    if (scanned >= 30) {
       truncated = true;
       break;
     }
@@ -35,30 +32,31 @@ export async function withHistory({
       comments++;
       continue;
     }
-    if (previous.id !== message.id && !previous.author.isMe) {
-      const mention = thread.mentionUser(previous.author.userId);
-      const author = previous.author.fullName || previous.author.userName;
-      const bot = previous.author.isBot === true ? ' (bot)' : '';
-      const text = previous.formatted
-        ? stringifyMarkdown(previous.formatted).trim()
-        : previous.text;
-      const files =
-        previous.attachments.length > 0
-          ? ` [${previous.attachments.length} attachment${previous.attachments.length === 1 ? '' : 's'}: ${previous.attachments
-              .map((file) => {
-                const url = file.url ?? file.fetchMetadata?.url;
-                const id = url?.match(/\bF[A-Z0-9]{6,}\b/)?.[0];
-                return [file.name ?? file.type, id ?? url]
-                  .filter(Boolean)
-                  .join(' ');
-              })
-              .join(', ')}]`
-          : '';
-      lines.push(
-        `[${author} (${mention})${bot}] (msg:${previous.id}): ${text}${files}`
-      );
+    if (previous.id === message.id || previous.author.isMe) {
+      continue;
     }
-    if (lines.length >= MAX_MESSAGES) {
+    const mention = thread.mentionUser(previous.author.userId);
+    const author = previous.author.fullName || previous.author.userName;
+    const bot = previous.author.isBot === true ? ' (bot)' : '';
+    const text = previous.formatted
+      ? stringifyMarkdown(previous.formatted).trim()
+      : previous.text;
+    const files =
+      previous.attachments.length > 0
+        ? ` [${previous.attachments.length} attachment${previous.attachments.length === 1 ? '' : 's'}: ${previous.attachments
+            .map((file) => {
+              const url = file.url ?? file.fetchMetadata?.url;
+              const id = url?.match(/\bF[A-Z0-9]{6,}\b/)?.[0];
+              return [file.name ?? file.type, id ?? url]
+                .filter(Boolean)
+                .join(' ');
+            })
+            .join(', ')}]`
+        : '';
+    lines.push(
+      `[${author} (${mention})${bot}] (msg:${previous.id}): ${text}${files}`
+    );
+    if (lines.length >= 10) {
       truncated = true;
       break;
     }

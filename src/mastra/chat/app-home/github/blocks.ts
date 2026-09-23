@@ -1,6 +1,9 @@
 import { env } from '@/env';
-import type { GitHubCredential, GitHubPermission } from '../../../types';
-import type { HomeSection } from '../limit';
+import type {
+  GitHubCredential,
+  GitHubPermission,
+  HomeSection,
+} from '../../../types';
 import { PRESETS } from '../presets';
 import { ids } from './ids';
 
@@ -35,7 +38,7 @@ export function githubBlocks({
     detail = `${PRESETS[permission].status}${scope}  ·  Gorkie uses your GitHub account`;
   } else if (credential) {
     status = `*${credential.login}*`;
-    detail = `Not installed on any repositories, so Gorkie cannot reach code${scope}  ·  <${`https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`}|choose repositories>`;
+    detail = `Not installed on any repositories, so Gorkie cannot reach code${scope}  ·  <https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new|choose repositories>`;
   }
 
   const connected = Boolean(credential) || unreadable;

@@ -1,18 +1,10 @@
-const SLACK_APP_HOME_BLOCK_LIMIT = 100;
+import type { HomeSection } from '../../types';
 
-type Block = Record<string, unknown>;
-
-export interface HomeSection {
-  fixed: Block[];
-  overflow?: (dropped: number) => Block;
-  rows?: Block[][];
-  trailing?: Block[];
-}
-
-export function fitHome(sections: HomeSection[]): Block[] {
+export function fitHome(sections: HomeSection[]): Record<string, unknown>[] {
   const reserved = sections.filter((section) => section.rows?.length).length;
+  // Slack rejects a Home view with more than 100 blocks.
   let budget =
-    SLACK_APP_HOME_BLOCK_LIMIT -
+    100 -
     sections.reduce(
       (total, section) =>
         total + section.fixed.length + (section.trailing?.length ?? 0),

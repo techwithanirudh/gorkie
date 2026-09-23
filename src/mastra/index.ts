@@ -6,9 +6,9 @@ import { DuckDBStore } from '@mastra/duckdb';
 import { LangfuseExporter } from '@mastra/langfuse';
 import { MastraStorageExporter, Observability } from '@mastra/observability';
 import { env } from '@/env';
-import { exploreAgent as explore } from './agents/explore';
+import { explore } from './agents/explore';
 import orchestrator from './agents/orchestrator';
-import { researchAgent as research } from './agents/research';
+import { research } from './agents/research';
 import { summarizer } from './agents/summarizer';
 import { registerEvents } from './chat/events';
 import { setChat } from './chat/instance';
@@ -18,6 +18,7 @@ import { buildAllowlist } from './lib/allowed-users';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
+import { WAIT_SCHEDULE_KIND } from './types';
 
 process.on('unhandledRejection', (err: unknown) => {
   logger.error('[process] unhandled rejection', { err });
@@ -33,7 +34,7 @@ export const mastra = new Mastra({
   schedules: {
     prepare: async ({ mastra: runtime, schedule }) => {
       const current = await runtime.schedules.get(schedule.id);
-      if (current?.metadata?.kind === 'wait') {
+      if (current?.metadata?.kind === WAIT_SCHEDULE_KIND) {
         await runtime.schedules.delete(schedule.id);
       }
     },
@@ -83,6 +84,9 @@ await runMigrations();
 await mastra.startWorkers();
 setMastra(mastra);
 
+// Mastra starts channels itself without awaiting them. initialize() is
+// idempotent and returns that same promise, so this hooks the post-init wiring
+// onto it without holding module load.
 orchestrator
   .getChannels()
   ?.initialize(mastra)

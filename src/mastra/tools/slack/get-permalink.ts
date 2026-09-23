@@ -28,8 +28,10 @@ export const getPermalinkTool = createTool({
     },
   },
   execute: async ({ messageId, channelId }, context) => {
-    const { channel, ts } = parseSlackId(messageId, {
-      channel: channelId ?? channelContext(context?.requestContext).channelId,
+    const ctx = channelContext(context.requestContext);
+    const { channel, ts } = parseSlackId({
+      input: messageId,
+      channel: channelId ?? ctx.channelId,
     });
     if (!channel) {
       throw new Error('Pass channelId or run inside the message channel.');
@@ -39,9 +41,9 @@ export const getPermalinkTool = createTool({
     }
     await assertReadableChannel({
       channelId: chatChannelId(channel),
-      currentThreadId: channelContext(context?.requestContext).threadId,
+      currentThreadId: ctx.threadId,
     });
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
     const response = await slack.webClient.chat.getPermalink({
       channel,

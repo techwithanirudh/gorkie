@@ -1,8 +1,8 @@
 import { agent as agentConfig } from '../../../config';
 import { chatChannelId } from '../../../lib/ids';
 import { isAgentSchedule } from '../../../tools/scheduled-tasks/queries';
+import type { HomeSection } from '../../../types';
 import { getMastra } from '../../mastra-instance';
-import type { HomeSection } from '../limit';
 import { ids } from './ids';
 
 export async function scheduledTasksBlocks(

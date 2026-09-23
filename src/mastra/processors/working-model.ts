@@ -6,10 +6,6 @@ const responseSchema = z.object({
   modelMetadata: z.object({ modelProvider: z.string() }).optional(),
 });
 
-function providerOf(response: unknown): string | undefined {
-  return responseSchema.safeParse(response).data?.modelMetadata?.modelProvider;
-}
-
 export function workingModel(agentKey: string) {
   return {
     id: `working-model-${agentKey}`,
@@ -25,7 +21,9 @@ export function workingModel(agentKey: string) {
       if (modelId) {
         await rememberModel({
           modelId,
-          modelProvider: providerOf(response),
+          modelProvider:
+            responseSchema.safeParse(response).data?.modelMetadata
+              ?.modelProvider,
         });
       }
       return args.messages;
