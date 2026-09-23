@@ -1,8 +1,10 @@
 import type { Message } from 'chat';
+import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import type { Target } from '../../chat/target';
-import { chatChannelId, rawId } from '../../lib/ids';
+import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
+import { logger } from '../../lib/logger';
 import type { ChannelContext } from '../../types';
 
 export async function assertReadableChannel({
@@ -27,6 +29,31 @@ export async function assertReadableChannel({
   );
 }
 
+export async function assertReadableResource({
+  channelIds,
+  currentThreadId,
+}: {
+  channelIds: string[];
+  currentThreadId?: string;
+}): Promise<void> {
+  if (channelIds.length === 0) {
+    throw new Error('This Slack resource is not associated with a channel.');
+  }
+
+  const checks = await Promise.allSettled(
+    channelIds.map((channelId) =>
+      assertReadableChannel({ channelId, currentThreadId })
+    )
+  );
+  if (checks.some((check) => check.status === 'fulfilled')) {
+    return;
+  }
+
+  throw new Error(
+    'Reading or editing Slack resources from another private conversation is not allowed.'
+  );
+}
+
 export function assertCanPostTo({
   target,
   ctx,
@@ -42,29 +69,47 @@ export function assertCanPostTo({
     }
     return;
   }
+
   if (!ctx.channelId) {
-    throw new Error(
-      'No current channel to compare against, so gorkie will not post there.'
-    );
+    throw new Error('No current Slack channel to compare against.');
   }
-  const targetChannelId =
-    target.type === 'channel'
-      ? target.id
-      : slack.channelIdFromThreadId(target.id);
-  if (chatChannelId(targetChannelId) !== chatChannelId(ctx.channelId)) {
+
+  const destination =
+    target.type === 'thread'
+      ? slack.decodeThreadId(target.id).channel
+      : target.id;
+  if (rawId(destination) !== rawId(ctx.channelId)) {
     throw new Error(
-      'gorkie can only post to the channel this conversation is already in, not a different channel. Ask a member of that channel to post it there.'
+      'gorkie can only post into the channel this conversation is already in, not another channel. Ask someone in that channel to post there instead.'
     );
   }
 }
 
+const joinedChannels = new Set<string>();
+const slackErrorSchema = z.looseObject({
+  data: z.looseObject({ error: z.string().optional() }).optional(),
+});
+
 export async function joinChannel(channelId: string): Promise<void> {
+  const id = rawId(channelId);
+  if (joinedChannels.has(id)) {
+    return;
+  }
   try {
-    await slack.webClient.conversations.join({
-      channel: rawId(channelId),
-    });
-  } catch {
-    // Joining is best effort. The subsequent read reports inaccessible channels.
+    await slack.webClient.conversations.join({ channel: id });
+    joinedChannels.add(id);
+  } catch (error) {
+    // already_in_channel means the bot is already a member, the state we want,
+    // so remember it and stop re-calling join. Other failures may be transient,
+    // so do not cache and let a later call retry.
+    if (
+      slackErrorSchema.safeParse(error).data?.data?.error ===
+      'already_in_channel'
+    ) {
+      joinedChannels.add(id);
+      return;
+    }
+    logger.debug('[slack] could not join the channel', { channelId, error });
   }
 }
 
@@ -75,26 +120,7 @@ export function slackThreadId({
   channelId?: string;
   threadId: string;
 }): string {
-  let channel = channelId ? rawId(channelId) : undefined;
-  let timestamp = threadId;
-
-  if (threadId.startsWith('slack:')) {
-    ({ channel, threadTs: timestamp } = slack.decodeThreadId(threadId));
-  } else {
-    const permalink = threadId.match(/\/archives\/([CDG][A-Z0-9]+)\/p(\d+)/);
-    channel = permalink?.[1] ?? channel;
-    timestamp = permalink?.[2] ?? timestamp;
-  }
-
-  const compact = timestamp.replace('.', '');
-  if (!(channel && /^\d{16}$/.test(compact))) {
-    return threadId;
-  }
-
-  return slack.encodeThreadId({
-    channel,
-    threadTs: `${compact.slice(0, 10)}.${compact.slice(10)}`,
-  });
+  return threadIdOf(parseSlackId(threadId, { channel: channelId })) ?? threadId;
 }
 
 export function formatMessage(message: Message) {

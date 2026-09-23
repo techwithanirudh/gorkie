@@ -5,6 +5,14 @@ const SENSITIVE_FIELDS = [
   'requestObject',
   'responseHeaders',
   'responseBody',
+  // Octokit RequestError carries the outgoing request (with client_secret and
+  // refresh_token) as a top-level `request` property that its own redaction
+  // misses. Censor the whole thing, plus the raw fields wherever they surface.
+  'request',
+  'client_secret',
+  'refresh_token',
+  'clientSecret',
+  'refreshToken',
 ];
 const ROOTS = ['', '*.', 'error.', 'err.'];
 const MAX_CAUSE_DEPTH = 4;

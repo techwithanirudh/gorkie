@@ -2,9 +2,7 @@ import { chat } from '../chat/instance';
 import { workingModel } from '../config';
 import { logger } from './logger';
 
-function cacheKey(agentKey: string): string {
-  return `working-model:${agentKey}`;
-}
+const SHARED_WORKING_MODEL_KEY = 'working-model';
 
 export function slugOf(modelId: string): string {
   return modelId.startsWith('openrouter/')
@@ -12,9 +10,7 @@ export function slugOf(modelId: string): string {
     : modelId;
 }
 
-// OpenCode answers a bare `mimo-v2.5` for `opencode-go/mimo-v2.5`, so put the
-// provider back before anything compares this against the configured list.
-export function qualifiedSlug({
+function qualifiedSlug({
   modelId,
   modelProvider,
 }: {
@@ -26,39 +22,30 @@ export function qualifiedSlug({
     : slugOf(modelId);
 }
 
-export function sameModel(entrySlug: string, recalled: string): boolean {
-  return (
-    entrySlug === recalled ||
-    entrySlug.endsWith(`/${recalled}`) ||
-    recalled.endsWith(`/${entrySlug}`)
-  );
-}
-
-export async function recallModel(
-  agentKey: string
-): Promise<string | undefined> {
+export async function recallModel(): Promise<string | undefined> {
   try {
     return (
-      (await chat().getState().get<string>(cacheKey(agentKey))) ?? undefined
+      (await chat().getState().get<string>(SHARED_WORKING_MODEL_KEY)) ??
+      undefined
     );
   } catch (err) {
-    logger.warn('[working-model] failed to read', { agentKey, err });
+    logger.warn('[working-model] failed to read', { err });
   }
 }
 
 export async function rememberModel({
-  agentKey,
   modelId,
   modelProvider,
 }: {
-  agentKey: string;
   modelId: string;
   modelProvider?: string;
 }): Promise<void> {
   const slug = qualifiedSlug({ modelId, modelProvider });
   try {
-    await chat().getState().set(cacheKey(agentKey), slug, workingModel.ttl);
+    await chat()
+      .getState()
+      .set(SHARED_WORKING_MODEL_KEY, slug, workingModel.ttl);
   } catch (err) {
-    logger.warn('[working-model] failed to persist', { agentKey, err, slug });
+    logger.warn('[working-model] failed to persist', { err, slug });
   }
 }

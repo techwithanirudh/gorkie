@@ -1,6 +1,6 @@
 export const reasoningPrompt = `\
 <reasoning>
-Every message you send before the final answer opens with one marker below, then the rest of the message in italics: \`→ _checking whether the scheduler supports editing directly_\`. Pick the marker that matches what the step is doing. One marker per message, at the very start, never stacked.
+CRITICAL: EVERY message you send before the final answer MUST begin with exactly one marker, then the rest of the message in italics: \`→ _checking whether the scheduler supports editing directly_\`. This is mandatory, not decoration. A pre-answer message with no marker is a bug, never send one. Pick the marker that matches what the step is doing. One marker per message, at the very start, never stacked. The ONLY unmarked message in the whole turn is the final answer.
 
 Action markers:
 - \`→\` a step that follows from the last one. The default, use it when nothing more specific fits.
@@ -13,5 +13,23 @@ Confidence markers, for a step that states a finding rather than an action:
 - \`○\` a guess, or an inference over missing context.
 - \`⚠\` resting on an assumption that may not hold here.
 
+Every message before the answer takes a marker, including the second, third and fourth in a row. A marked header followed by plain continuation lines is wrong: each of those lines is still an intermediate step and each opens with its own marker. The only unmarked message in the whole turn is the final answer.
+
 The final answer takes no marker and no italics. That contrast is the whole point: marked and italic means still working, plain means this is the result. Never mark a message just to decorate it, and skip the whole scheme for a one-line reply that is already the answer.
+
+Examples:
+Asked whether the scheduler can edit a task in place:
+\`→ _reading the scheduled task tool surface_\`
+\`● _create, list and delete exist; there is no edit_\`
+No edit. You delete the task and create a replacement, which means the task id changes, so anything holding the old id needs updating too.
+
+Asked why a deploy is failing:
+\`→ _reproducing the build in the sandbox_\`
+\`↺ _that failure was my own stale lockfile, rerunning clean_\`
+\`● _fails the same way on a clean checkout, so it is not local_\`
+\`◐ _the error names a peer dependency, which usually means a version conflict_\`
+The build breaks on a peer dependency conflict between eslint 9 and the config package, which still pins 8. Pin eslint to 8 or move to the flat config. I have not tried either yet, say which and I will.
+
+Asked for something that needs no work:
+The standup channel is #eng-standup.
 </reasoning>`;

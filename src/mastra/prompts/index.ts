@@ -1,5 +1,6 @@
 import type { CoreSystemMessage } from '@mastra/core/llm';
 import type { RequestContext } from '@mastra/core/request-context';
+import { commandsPrompt } from './commands';
 import { contextPrompt } from './context';
 import { corePrompt } from './core';
 import { guardrailsPrompt } from './guardrails';
@@ -17,9 +18,10 @@ export function instructions(
       role: 'system',
       content: [
         corePrompt,
+        reasoningPrompt,
         personalityPrompt,
         slackPrompt,
-        reasoningPrompt,
+        commandsPrompt,
         toolsPrompt,
         guardrailsPrompt,
       ].join('\n\n'),

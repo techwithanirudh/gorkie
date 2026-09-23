@@ -10,7 +10,7 @@ export type MastraStopCondition = (options: {
 }) => boolean;
 
 export interface TaskToolContext {
-  agent?: { resourceId?: string };
+  agent?: { resourceId?: string; threadId?: string };
   mastra?: MastraUnion;
   requestContext?: RequestContext;
 }

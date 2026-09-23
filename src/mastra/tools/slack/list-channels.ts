@@ -2,6 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { chatChannelId } from '../../lib/ids';
+import { spendSlackCall } from '../../lib/slack-budget';
 import { input, optionalCursor, output } from '../../types/tools/index';
 
 export const listChannelsTool = createTool({
@@ -36,7 +37,9 @@ export const listChannelsTool = createTool({
       }),
     },
   },
-  execute: async ({ query, includeArchived, limit, cursor }) => {
+  execute: async ({ query, includeArchived, limit, cursor }, context) => {
+    spendSlackCall(context?.requestContext);
+
     const response = await slack.webClient.conversations.list({
       cursor,
       exclude_archived: !includeArchived,
@@ -60,14 +63,15 @@ export const listChannelsTool = createTool({
         : []
     );
     const normalizedQuery = query?.toLowerCase();
-    return {
-      channels: normalizedQuery
-        ? channels.filter((channel) =>
-            [channel.name, channel.topic, channel.purpose].some((value) =>
-              value?.toLowerCase().includes(normalizedQuery)
-            )
+    const matches = normalizedQuery
+      ? channels.filter((channel) =>
+          [channel.name, channel.topic, channel.purpose].some((value) =>
+            value?.toLowerCase().includes(normalizedQuery)
           )
-        : channels,
+        )
+      : channels;
+    return {
+      channels: matches,
       nextCursor: response.response_metadata?.next_cursor || undefined,
     };
   },

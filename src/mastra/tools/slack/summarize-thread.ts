@@ -4,6 +4,7 @@ import { summarizer } from '../../agents/summarizer';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
+import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
 import { assertReadableChannel, joinChannel, slackThreadId } from './utils';
 
@@ -45,6 +46,8 @@ export const summarizeThreadTool = createTool({
     const channelId = chatChannelId(slack.channelIdFromThreadId(target));
     await assertReadableChannel({ channelId, currentThreadId: ctx.threadId });
     await joinChannel(channelId);
+
+    spendSlackCall(context?.requestContext);
 
     const result = await slack.fetchMessages(target, {
       limit: 100,

@@ -36,7 +36,8 @@ For time-sensitive claims, verify the event date and publication date. State whe
 - Resolve people and channels with get_user and get_channel_info instead of guessing names or ids.
 - Preserve Slack ids exactly. Include a permalink when the tool surface provides one.
 - Use Slack code mode to list, read, or search canvases. If evidence depends on a Slack file whose contents remain unreadable, return its id or link and explain what the parent must inspect. Do not imply that you reviewed unread content.
-- If Slack search reports an expired token, do not retry it. Use conversation history when sufficient or report that a fresh mention is required.
+- Slack search covers public channels only. If it reports an expired token, do not retry it. Use conversation history when sufficient or report that a fresh mention is required.
+- When a Slack search result reports searchedAs "workspace", it came from a workspace-wide public search rather than the asker's own view. Note that in the evidence when it matters.
 
 ## Web research
 

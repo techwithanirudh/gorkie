@@ -22,8 +22,6 @@ export async function resolveUserProfile(
   const userId = rawId(id);
   const cacheKey = `slack:user-profile:${userId}`;
   const bot = chat();
-  // Read the cache before any lookup: resolving a user costs three Slack calls,
-  // two of them users.info, and fanning those out is what trips the rate limit.
   const cached = await bot.getState().get<UserProfile>(cacheKey);
   if (cached) {
     return cached;
@@ -66,8 +64,6 @@ export async function resolveUserProfile(
     if (!user) {
       return;
     }
-    // Cache the degraded result briefly. Without this a rate-limited lookup
-    // writes nothing, so the next call retries and sustains the limit.
     profile = { fields: [] };
     await bot
       .getState()

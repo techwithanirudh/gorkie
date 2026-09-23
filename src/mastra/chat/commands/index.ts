@@ -1,9 +1,14 @@
 import type { Message, Thread } from 'chat';
 import type { CommandHandler } from '../../types';
 import { rawText, withoutLeadingMentions } from '../message';
+import { connections } from './connections';
+import { help } from './help';
 import { stop } from './stop';
 
 const commands: Record<string, CommandHandler> = {
+  connections,
+  help,
+  mcps: connections,
   stop,
 };
 

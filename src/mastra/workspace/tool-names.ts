@@ -2,6 +2,7 @@ export const READ_FILE = 'read_file';
 export const WRITE_FILE = 'write_file';
 export const EDIT_FILE = 'edit_file';
 export const LIST_FILES = 'list_files';
+export const GREP = 'grep';
 export const DELETE_FILE = 'delete_file';
 export const FILE_STAT = 'file_stat';
 export const EXECUTE_COMMAND = 'execute_command';
@@ -13,6 +14,7 @@ export const codeModeToolNames = new Set([
   WRITE_FILE,
   EDIT_FILE,
   LIST_FILES,
+  GREP,
   DELETE_FILE,
   FILE_STAT,
   EXECUTE_COMMAND,

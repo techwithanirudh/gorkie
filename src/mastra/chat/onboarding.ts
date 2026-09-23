@@ -93,7 +93,6 @@ async function inviteToOptInChannel(userId: string): Promise<void> {
   try {
     await slack.webClient.conversations.invite({ channel, users: userId });
   } catch (error) {
-    // Already a member is success; external users can't be invited (we log it).
     const slackError = slackErrorSchema.safeParse(error).data?.data?.error;
     if (slackError === 'already_in_channel') {
       return;

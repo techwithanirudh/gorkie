@@ -2,6 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
+import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
 import { assertReadableChannel } from './utils';
 
@@ -38,6 +39,8 @@ export const getChannelInfoTool = createTool({
       throw new Error('No channel to inspect.');
     }
     const chId = chatChannelId(id);
+    spendSlackCall(context?.requestContext);
+
     const info = await assertReadableChannel({
       channelId: chId,
       currentThreadId: ctx.threadId,
