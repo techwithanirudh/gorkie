@@ -85,7 +85,9 @@ export function registerSettings({
   });
 
   bot.onAction(ids.disconnect, async (event) => {
-    polling.get(event.user.userId)?.controller.abort();
+    const pending = polling.get(event.user.userId);
+    polling.delete(event.user.userId);
+    pending?.controller.abort();
     await removeGitHubCredential(event.user.userId);
     await clearGitHubSettings(event.user.userId);
     await publishHome(event.user.userId);

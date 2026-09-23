@@ -21,8 +21,13 @@ export async function withHistory({
   const lines: string[] = [];
   let scanned = 0;
   let comments = 0;
+  let truncated = false;
   for await (const previous of thread.messages) {
-    if (previous.id === state?.lastSeenMessage || scanned >= MAX_SCANNED) {
+    if (previous.id === state?.lastSeenMessage) {
+      break;
+    }
+    if (scanned >= MAX_SCANNED) {
+      truncated = true;
       break;
     }
     scanned++;
@@ -54,11 +59,11 @@ export async function withHistory({
       );
     }
     if (lines.length >= MAX_MESSAGES) {
+      truncated = true;
       break;
     }
   }
 
-  await thread.setState({ lastSeenMessage: message.id });
   if (lines.length === 0 && comments === 0) {
     return message;
   }
@@ -67,6 +72,11 @@ export async function withHistory({
     ...(lines.length > 0
       ? [
           '[Recent messages in this thread, oldest first, that you have not seen yet]',
+          ...(truncated
+            ? [
+                '[Older unseen messages were left out. Read them with read_conversation_history if they matter.]',
+              ]
+            : []),
           ...lines.reverse(),
         ]
       : []),

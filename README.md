@@ -66,7 +66,7 @@ Create a new [Slack app](https://api.slack.com/apps) from a manifest using
 [`slack-manifest.json`](./slack-manifest.json), which turns on Socket Mode,
 the App Home, scopes, and event subscriptions. You also need [Bun][bun], a
 [PostgreSQL][postgres] database, an [E2B][e2b] API key, an [Exa][exa] API key,
-and a model key ([Hack Club][hackclub] or [OpenCode][opencode], or both).
+and model keys for both [Hack Club][hackclub] and [OpenCode][opencode].
 
 ```bash
 # Clone this repository
@@ -109,6 +109,9 @@ local database named `gorkie`. Mastra creates its tables on first run.
 | `HACKCLUB_API_KEY` | yes | Hack Club AI proxy key, tried for every model |
 | `OPENCODE_API_KEY` | yes | opencode.ai/zen gateway key, tried alongside Hack Club |
 | `DATABASE_URL` | yes | Postgres connection string |
+| `LANGFUSE_PUBLIC_KEY` | yes | Langfuse public key. Tracing is the only production exporter, so the agent refuses to start without it |
+| `LANGFUSE_SECRET_KEY` | yes | Langfuse secret key |
+| `LANGFUSE_BASE_URL` | no | Self-hosted Langfuse only; defaults to `https://cloud.langfuse.com` |
 | `E2B_API_KEY` | yes | E2B sandbox key (`e2b_…`) |
 | `CREDENTIALS_KEY` | yes | Encrypts connected GitHub and MCP tokens at rest (`openssl rand -base64 32`) |
 | `GITHUB_APP_SLUG` | yes | The app's URL slug, used to link people to the install page |

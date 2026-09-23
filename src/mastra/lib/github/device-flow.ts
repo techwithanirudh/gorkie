@@ -1,7 +1,7 @@
 import { createDeviceCode, exchangeDeviceCode } from '@octokit/oauth-methods';
 import { z } from 'zod';
 import { env } from '@/env';
-import type { GitHubCredential } from '../../db/queries/github';
+import type { GitHubCredential } from '../../types';
 
 export interface DeviceLogin {
   deviceCode: string;
@@ -64,6 +64,9 @@ export async function awaitDeviceLogin({
     }
     // biome-ignore lint/performance/noAwaitInLoops: polling is the protocol
     await new Promise((resolve) => setTimeout(resolve, waitMs));
+    if (signal?.aborted) {
+      return { error: 'cancelled' };
+    }
     try {
       const { authentication } = await exchangeDeviceCode({
         clientId: env.GITHUB_APP_CLIENT_ID,

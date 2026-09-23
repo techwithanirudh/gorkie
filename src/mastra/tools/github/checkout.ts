@@ -68,13 +68,16 @@ export const checkoutTool = ({
           command: `test -d ${sh(`${path}/.git`)} || git clone --depth 50 ${sh(remote)} ${sh(path)}`,
           sandbox,
         });
-        if (branch) {
-          await git({
-            command: `git fetch ${sh(remote)} ${sh(branch)} && git checkout -B ${sh(branch)} FETCH_HEAD`,
-            cwd: path,
-            sandbox,
-          });
-        }
+        // A reused clone may be on a branch from an earlier call, so the
+        // default branch is fetched and checked out explicitly too.
+        const target = branch
+          ? sh(branch)
+          : '"$(git symbolic-ref --short refs/remotes/origin/HEAD | sed s@^origin/@@)"';
+        await git({
+          command: `target=${target} && git fetch ${sh(remote)} "$target" && git checkout -B "$target" FETCH_HEAD`,
+          cwd: path,
+          sandbox,
+        });
         return await git({ command: 'git rev-parse HEAD', cwd: path, sandbox });
       };
 

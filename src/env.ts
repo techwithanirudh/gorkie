@@ -27,12 +27,17 @@ export const env = createEnv({
     DATABASE_URL: z.url(),
 
     LANGFUSE_BASE_URL: z.string().default('https://cloud.langfuse.com'),
-    LANGFUSE_PUBLIC_KEY: z.string().optional(),
-    LANGFUSE_SECRET_KEY: z.string().optional(),
+    LANGFUSE_PUBLIC_KEY: z.string().min(1),
+    LANGFUSE_SECRET_KEY: z.string().min(1),
 
     E2B_API_KEY: z.string().min(1),
 
-    CREDENTIALS_KEY: z.string().min(1),
+    CREDENTIALS_KEY: z
+      .base64()
+      .refine((value) => Buffer.from(value, 'base64').length === 32, {
+        message:
+          'CREDENTIALS_KEY must be 32 bytes, base64 encoded. Generate one with: openssl rand -base64 32',
+      }),
 
     GITHUB_APP_SLUG: z.string().min(1),
     GITHUB_APP_CLIENT_ID: z.string().min(1),

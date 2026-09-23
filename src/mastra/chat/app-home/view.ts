@@ -1,11 +1,9 @@
-import {
-  type GitHubCredential,
-  getGitHubCredential,
-} from '../../db/queries/github';
+import { getGitHubCredential } from '../../db/queries/github';
 import { listMCPServers } from '../../db/queries/mcps';
 import { getGitHubSettings, getInstructions } from '../../db/queries/settings';
 import { countInstallations } from '../../lib/github';
 import { logger } from '../../lib/logger';
+import type { GitHubCredential } from '../../types';
 import { slack } from '../client';
 import { content } from '../content';
 import { githubBlocks } from './github';

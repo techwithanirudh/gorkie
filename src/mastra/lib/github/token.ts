@@ -2,11 +2,11 @@ import { refreshToken } from '@octokit/oauth-methods';
 import { z } from 'zod';
 import { env } from '@/env';
 import {
-  type GitHubCredential,
   getGitHubCredential,
   removeGitHubCredential,
   setGitHubCredential,
 } from '../../db/queries/github';
+import type { GitHubCredential } from '../../types';
 import { logger } from '../logger';
 import { githubUser } from './api';
 import { toAccount } from './device-flow';

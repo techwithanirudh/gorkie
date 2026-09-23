@@ -26,7 +26,7 @@ export const configureView = ({
     }),
     option({
       description:
-        'Anyone in the thread can steer the work, and checked-out code stays readable there for as long as the thread lives.',
+        'Anyone in the thread can steer it, and checked-out code stays readable.',
       label: 'Anywhere, including shared threads (dangerous)',
       value: 'threads',
     }),

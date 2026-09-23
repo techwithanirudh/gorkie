@@ -1,17 +1,9 @@
 import { eq } from 'drizzle-orm';
 import { decryptSecret, encryptSecret } from '../../lib/crypto';
 import { rawId } from '../../lib/ids';
+import type { GitHubCredential } from '../../types';
 import { db } from '../client';
 import { githubCredentials } from '../schema';
-
-export interface GitHubCredential {
-  expiresAt: Date | undefined;
-  kind: 'app' | 'pat';
-  login: string;
-  refreshToken: string | undefined;
-  scopes: string[];
-  token: string;
-}
 
 export async function getGitHubCredential(
   userId: string

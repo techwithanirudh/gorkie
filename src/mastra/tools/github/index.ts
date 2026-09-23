@@ -83,6 +83,7 @@ export async function githubTools({
       });
       tools.github_push_branch = pushTool({
         approval: asksBefore({ kind: 'write', level }),
+        canFork: credential.kind === 'pat',
         userId,
       });
     }

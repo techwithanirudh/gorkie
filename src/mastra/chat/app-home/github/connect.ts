@@ -33,9 +33,11 @@ export const polling = new Map<
 >();
 
 export async function completeLogin({
+  controller,
   login,
   userId,
 }: {
+  controller: AbortController;
   login: Awaited<ReturnType<typeof awaitDeviceLogin>>;
   userId: string;
 }): Promise<string | undefined> {
@@ -52,6 +54,10 @@ export async function completeLogin({
       error: resolved.error,
       userId,
     });
+    return;
+  }
+  // Disconnect or a newer sign-in may have claimed the slot while GitHub answered.
+  if (polling.get(userId)?.controller !== controller) {
     return;
   }
   await setGitHubCredential({
@@ -78,8 +84,10 @@ async function settleLogin({
   if (current?.controller !== controller) {
     return;
   }
-  const resolved = await completeLogin({ login, userId });
-  polling.delete(userId);
+  const resolved = await completeLogin({ controller, login, userId });
+  if (polling.get(userId)?.controller === controller) {
+    polling.delete(userId);
+  }
   await publishHome(userId);
   if (!current.viewId || current.method !== 'app') {
     return;
@@ -118,6 +126,7 @@ async function openConnect({
 
   polling.get(userId)?.controller.abort();
   const controller = new AbortController();
+  polling.set(userId, { controller, device, method: 'app', viewId: undefined });
   let opened: Awaited<ReturnType<typeof slack.webClient.views.open>>;
   try {
     opened = await slack.webClient.views.open({
@@ -129,14 +138,15 @@ async function openConnect({
       error,
       userId,
     });
+    if (polling.get(userId)?.controller === controller) {
+      polling.delete(userId);
+    }
     return;
   }
-  polling.set(userId, {
-    controller,
-    device,
-    method: 'app',
-    viewId: opened.view?.id,
-  });
+  const current = polling.get(userId);
+  if (current?.controller === controller) {
+    polling.set(userId, { ...current, viewId: opened.view?.id });
+  }
 
   awaitDeviceLogin({ ...device, signal: controller.signal })
     .then((login) => settleLogin({ controller, login, publishHome, userId }))
@@ -209,13 +219,7 @@ async function saveToken({
   return { action: 'clear' as const };
 }
 
-async function finishDeviceLogin({
-  userId,
-  view,
-}: {
-  userId: string;
-  view: ViewTarget;
-}) {
+async function finishDeviceLogin(userId: string) {
   const account = await getGitHubCredential(userId);
   if (account) {
     polling.get(userId)?.controller.abort();
@@ -226,16 +230,13 @@ async function finishDeviceLogin({
   if (!pending?.device) {
     return { action: 'update' as const, modal: failedModal('interrupted') };
   }
-  await slack.webClient.views.update({
-    hash: view.hash,
-    view_id: view.id,
-    view: connectView({
-      device: pending.device,
-      method: pending.method,
-      warning:
+  return {
+    action: 'errors' as const,
+    errors: {
+      [ids.method]:
         'GitHub has not confirmed yet. Finish both steps, then press Done again.',
-    }),
-  });
+    },
+  };
 }
 
 export function registerConnect({
@@ -280,9 +281,6 @@ export function registerConnect({
         userId,
       });
     }
-    return await finishDeviceLogin({
-      userId,
-      view: viewOf(event.raw) ?? { id: event.viewId },
-    });
+    return await finishDeviceLogin(userId);
   });
 }
