@@ -67,3 +67,5 @@ output.txt
 
 # Mastra Cloud platform link (self-hosted, not used)
 .mastra-project.json
+
+*.zip
