@@ -91,6 +91,7 @@
         "app_context_changed",
         "app_home_opened",
         "app_mention",
+        "link_shared",
         "member_joined_channel",
         "member_left_channel",
         "message.channels",
