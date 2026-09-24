@@ -1,5 +1,5 @@
 import { github as githubConfig } from '../../../config';
-import { oauthStartLink } from '../../../server/oauth';
+import { oauthStartLink } from '../../../server/oauth-link';
 import type {
   GitHubCredential,
   GitHubPermission,

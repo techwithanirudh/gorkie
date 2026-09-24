@@ -2,7 +2,7 @@ import { formatDistanceToNowStrict } from 'date-fns';
 import { recordTurn, turnUsage } from '../db/queries/usage';
 import { logger } from '../lib/logger';
 import type { TurnUsage } from '../types';
-import { isModerator } from './moderation';
+import { isModerator } from './moderation/moderators';
 
 export async function usageFor(
   userId: string

@@ -16,16 +16,16 @@ import { moderationIds } from './ids';
 
 export { banNotice } from './cards';
 
+import { isModerator } from './moderators';
+
+export { isModerator };
+
 const DURATION: Record<Exclude<BanDuration, 'perm'>, Duration> = {
   '1h': { hours: 1 },
   '1d': { days: 1 },
   '7d': { days: 7 },
   '30d': { days: 30 },
 };
-
-export function isModerator(userId: string): boolean {
-  return env.MODERATORS.includes(rawId(userId));
-}
 
 export async function isBanned(userId: string) {
   try {

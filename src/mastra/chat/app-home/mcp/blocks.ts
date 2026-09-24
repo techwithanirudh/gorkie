@@ -1,4 +1,4 @@
-import { oauthStartLink } from '../../../server/oauth';
+import { oauthStartLink } from '../../../server/oauth-link';
 import type { HomeSection, StoredMCPServer } from '../../../types';
 import { PRESETS } from '../presets';
 import { ids } from './ids';

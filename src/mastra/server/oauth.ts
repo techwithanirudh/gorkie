@@ -35,27 +35,6 @@ const cookie = {
 const redirectUri = (provider: OAuthProvider) =>
   `${env.PUBLIC_BASE_URL}/oauth/${provider}/callback`;
 
-export function oauthStartLink({
-  provider,
-  slackUserId,
-  target,
-}: {
-  provider: OAuthProvider;
-  slackUserId: string;
-  target?: string;
-}): string | undefined {
-  if (!env.PUBLIC_BASE_URL) {
-    return;
-  }
-  const { signed } = signOAuthToken({
-    provider,
-    purpose: 'start',
-    slackUserId,
-    ...(target ? { target } : {}),
-  });
-  return `${env.PUBLIC_BASE_URL}/oauth/${provider}/start?t=${signed}`;
-}
-
 async function verifiedStart({ c, ticket }: { c: Context; ticket?: string }) {
   const provider = oauthProviderSchema.safeParse(c.req.param('provider')).data;
   const handler = provider ? providers[provider] : undefined;
