@@ -39,13 +39,33 @@ export async function setFocus({
 }): Promise<{ ok: boolean; text: string }> {
   const owner = await threadOwner(threadId);
   const actor = rawId(actorId);
-  // No owner yet means nobody has talked to gorkie here, so the first person
-  // to set focus is the one who will own the thread anyway.
-  if (owner && owner !== actor && !isModerator(actor)) {
-    return {
-      ok: false,
-      text: `only <@${owner}>, who brought me into this thread, or a gorkie moderator can change focus here.`,
-    };
+  if (!isModerator(actor)) {
+    // No owner yet means nobody has talked to gorkie here. The Slack thread's
+    // root author stands in, so a stranger cannot claim it by focusing first.
+    const { channel, threadTs } = slack.decodeThreadId(threadId);
+    const starter =
+      owner ??
+      (threadTs
+        ? await slack.webClient.conversations
+            .replies({ channel, limit: 1, ts: threadTs })
+            .then(
+              ({ messages }) => messages?.[0]?.user,
+              (error: unknown) => {
+                logger.warn('[focus] could not look up the thread root', {
+                  error,
+                  threadId,
+                });
+              }
+            )
+        : undefined);
+    if (starter !== actor) {
+      return {
+        ok: false,
+        text: starter
+          ? `only <@${starter}> or a gorkie moderator can change focus here.`
+          : 'only whoever started this thread or a gorkie moderator can change focus here.',
+      };
+    }
   }
   if (userIds.length === 0) {
     await setThreadState({ thread: { id: threadId }, patch: { focus: [] } });

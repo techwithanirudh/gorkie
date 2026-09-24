@@ -74,12 +74,23 @@ async function downloadSlackFile({
       await sandbox.e2b.files.remove(mergePath).catch(() => undefined);
     });
   };
+  // fetchSlackFile attaches the token only for Slack's own hosts, and
+  // `redirect: 'manual'` keeps a redirect from carrying it anywhere else.
   const expectedSize =
     fileInfo?.size ??
-    (await fetch(url, {
-      headers: { authorization: `Bearer ${env.SLACK_BOT_TOKEN}` },
-      method: 'HEAD',
-      signal: abortSignal,
+    (await fetchSlackFile({
+      fetch: Object.assign(
+        (input: URL | RequestInfo, init?: RequestInit) =>
+          fetch(input, {
+            ...init,
+            method: 'HEAD',
+            redirect: 'manual',
+            signal: abortSignal,
+          }),
+        { preconnect: fetch.preconnect }
+      ),
+      token: env.SLACK_BOT_TOKEN,
+      url,
     })
       .then((response) => Number(response.headers.get('content-length')))
       .then((size) => (Number.isFinite(size) && size >= 0 ? size : undefined))
@@ -130,7 +141,12 @@ async function downloadSlackFile({
         if (resumeOffset > 0) {
           headers.set('range', `bytes=${resumeOffset}-`);
         }
-        return fetch(input, { ...init, headers, signal: abortSignal });
+        return fetch(input, {
+          ...init,
+          headers,
+          redirect: 'manual',
+          signal: abortSignal,
+        });
       },
       { preconnect: fetch.preconnect }
     ),

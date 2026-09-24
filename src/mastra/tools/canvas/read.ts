@@ -1,3 +1,4 @@
+import { fetchSlackFile } from '@chat-adapter/slack/api';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { env } from '@/env';
@@ -39,12 +40,17 @@ export const readCanvasTool = createTool({
         `Could not resolve a content URL for canvas ${canvasId}. It may have been deleted, or the bot may not have access to it.`
       );
     }
-    const response = await fetch(url, {
-      headers: { authorization: `Bearer ${env.SLACK_BOT_TOKEN}` },
+    // fetchSlackFile attaches the token only for Slack's own hosts, and
+    // `redirect: 'manual'` keeps a redirect from carrying it anywhere else.
+    const response = await fetchSlackFile({
+      fetch: Object.assign(
+        (input: URL | RequestInfo, init?: RequestInit) =>
+          fetch(input, { ...init, redirect: 'manual' }),
+        { preconnect: fetch.preconnect }
+      ),
+      token: env.SLACK_BOT_TOKEN,
+      url,
     });
-    if (!response.ok) {
-      throw new Error(`Failed to read canvas ${canvasId}: ${response.status}`);
-    }
     const html = await response.text();
     const truncated = html.length > canvasConfig.maxReadChars;
     return {

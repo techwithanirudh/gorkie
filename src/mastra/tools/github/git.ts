@@ -3,6 +3,7 @@ import { CommandExitError } from 'e2b';
 import { sandbox as sandboxConfig } from '../../config';
 import { githubAccessToken } from '../../lib/github';
 import { logger } from '../../lib/logger';
+import { sh } from '../../lib/utils';
 import { baseRules } from '../../workspace/network';
 
 // github_push_branch finds the clone github_checkout made by this path.
@@ -19,20 +20,44 @@ export const git = async ({
   sandbox: E2BSandbox;
 }): Promise<string> => {
   try {
-    const { stdout } = await sandbox.e2b.commands.run(command, {
-      ...(cwd ? { cwd } : {}),
-      // These run inside the credential window, so hooks or an fsmonitor the
-      // agent wrote into the checkout must not run with GitHub auth attached.
-      // Env config reaches every git in a compound command, unlike `-c`.
-      envs: {
-        GIT_CONFIG_COUNT: '2',
-        GIT_CONFIG_KEY_0: 'core.hooksPath',
-        GIT_CONFIG_VALUE_0: '/dev/null',
-        GIT_CONFIG_KEY_1: 'core.fsmonitor',
-        GIT_CONFIG_VALUE_1: 'false',
-      },
-      timeoutMs: sandboxConfig.gitTimeout,
-    });
+    // These run inside the credential window, so config the agent wrote must
+    // not run a program or redirect a push while GitHub auth is attached.
+    // Env config beats repo config and reaches every git in a compound command,
+    // unlike `-c`. Keys it cannot pin (url.<x>.insteadOf and filter.<x>.*,
+    // including ones pulled in by include.path) are refused instead.
+    const pins = [
+      ['core.hooksPath', '/dev/null'],
+      ['core.fsmonitor', 'false'],
+      // Empty stops git falling back to GIT_ASKPASS-style programs.
+      ['core.askPass', ''],
+      // Empty resets the helper list.
+      ['credential.helper', ''],
+      // Only https; ext::, file:// and ssh run programs or skip the proxy.
+      ['protocol.allow', 'never'],
+      ['protocol.https.allow', 'always'],
+      ['submodule.recurse', 'false'],
+      ['fetch.recurseSubmodules', 'false'],
+      ['push.recurseSubmodules', 'no'],
+    ];
+    const { stdout } = await sandbox.e2b.commands.run(
+      `if git config -z --list --name-only 2>/dev/null | grep -qizE ${sh(String.raw`^(url\..*\.(push)?insteadof|filter\.)`)}; then echo 'refused: git config sets url.*.insteadOf or filter.*, remove it first' >&2; exit 97; fi; ${command}`,
+      {
+        ...(cwd ? { cwd } : {}),
+        envs: {
+          // The agent can write ~/.gitconfig and /etc/gitconfig too.
+          GIT_CONFIG_NOSYSTEM: '1',
+          GIT_CONFIG_GLOBAL: '/dev/null',
+          GIT_CONFIG_COUNT: `${pins.length}`,
+          ...Object.fromEntries(
+            pins.flatMap(([key, value], index) => [
+              [`GIT_CONFIG_KEY_${index}`, key],
+              [`GIT_CONFIG_VALUE_${index}`, value],
+            ])
+          ),
+        },
+        timeoutMs: sandboxConfig.gitTimeout,
+      }
+    );
     return stdout.trim();
   } catch (error) {
     if (error instanceof CommandExitError) {

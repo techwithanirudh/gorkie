@@ -57,18 +57,23 @@ export async function repoAccess({
 }: {
   repository: string;
   token: string;
-}): Promise<{ needsCredential: boolean; push: boolean } | { error: string }> {
+}): Promise<
+  | { defaultBranch?: string; needsCredential: boolean; push: boolean }
+  | { error: string }
+> {
   const body = await githubApi({ path: `/repos/${repository}`, token });
   if ('error' in body) {
     return body;
   }
   const parsed = z
     .object({
+      default_branch: z.string().min(1).optional(),
       private: z.boolean().optional(),
       permissions: z.object({ push: z.boolean() }).optional(),
     })
     .safeParse(body.data).data;
   return {
+    ...(parsed?.default_branch ? { defaultBranch: parsed.default_branch } : {}),
     needsCredential: parsed?.private !== false,
     push: parsed?.permissions?.push === true,
   };

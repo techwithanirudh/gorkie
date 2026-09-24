@@ -3,7 +3,7 @@ import { registerApiRoute } from '@mastra/core/server';
 import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { env } from '@/env';
-import { resolveUserProfile } from '../chat/names';
+import { slack } from '../chat/client';
 import { isUserAllowed } from '../lib/allowed-users';
 import { signOAuthToken, verifyOAuthToken } from '../lib/crypto';
 import { logger } from '../lib/logger';
@@ -35,7 +35,19 @@ const cookie = {
 const redirectUri = (provider: OAuthProvider) =>
   `${env.PUBLIC_BASE_URL}/oauth/${provider}/callback`;
 
-async function verifiedStart({ c, ticket }: { c: Context; ticket?: string }) {
+// Start tickets are single use. Held in memory, which covers this single-process
+// bot; a restart forgets them, but a ticket still dies with its 10-minute expiry.
+const usedStartNonces = new Map<string, number>();
+
+async function verifiedStart({
+  c,
+  consume,
+  ticket,
+}: {
+  c: Context;
+  consume: boolean;
+  ticket?: string;
+}) {
   const provider = oauthProviderSchema.safeParse(c.req.param('provider')).data;
   const handler = provider ? providers[provider] : undefined;
   const token = verifyOAuthToken({ purpose: 'start', signed: ticket });
@@ -52,7 +64,8 @@ async function verifiedStart({ c, ticket }: { c: Context; ticket?: string }) {
   if (
     !token ||
     token.provider !== provider ||
-    !(await isUserAllowed(token.slackUserId))
+    !(await isUserAllowed(token.slackUserId)) ||
+    usedStartNonces.has(token.nonce)
   ) {
     return {
       response: await oauthPage({
@@ -60,10 +73,19 @@ async function verifiedStart({ c, ticket }: { c: Context; ticket?: string }) {
         status: 400,
         title: 'Link expired',
         paragraphs: [
-          'This sign-in link is no longer valid. Open the Gorkie Home tab in Slack and start again.',
+          'This sign-in link expired or was already used. Open the Gorkie Home tab in Slack and start again.',
         ],
       }),
     };
+  }
+  if (consume) {
+    const now = Date.now();
+    for (const [nonce, expiresAt] of usedStartNonces) {
+      if (expiresAt < now) {
+        usedStartNonces.delete(nonce);
+      }
+    }
+    usedStartNonces.set(token.nonce, now + 600_000);
   }
   return { handler, provider, token };
 }
@@ -75,17 +97,19 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
         requiresAuth: false,
         handler: async (c) => {
           const ticket = c.req.query('t') ?? '';
-          const started = await verifiedStart({ c, ticket });
+          const started = await verifiedStart({ c, consume: false, ticket });
           if ('response' in started) {
             return started.response;
           }
-          const profile = await resolveUserProfile(
-            started.token.slackUserId
-          ).catch(() => undefined);
-          const who =
-            profile?.displayName ??
-            profile?.realName ??
-            started.token.slackUserId;
+          const { slackUserId } = started.token;
+          // The handle and id, not only the display name, which anyone can set
+          // to match someone else's.
+          const { user } = await slack.webClient.users
+            .info({ user: slackUserId })
+            .catch(() => ({ user: undefined }));
+          const name = user?.profile?.display_name || user?.real_name;
+          const handle = user?.name ? `@${user.name} ` : '';
+          const who = `${name ? `${name}, ` : ''}${handle}(${slackUserId})`;
           const target = started.token.target
             ? ` (${started.token.target})`
             : '';
@@ -106,6 +130,7 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
           const form = await c.req.parseBody();
           const started = await verifiedStart({
             c,
+            consume: true,
             ticket: typeof form.t === 'string' ? form.t : undefined,
           });
           if ('response' in started) {

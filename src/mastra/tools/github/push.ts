@@ -1,5 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+import { githubAccessToken } from '../../lib/github';
+import { repoAccess } from '../../lib/github/api';
 import { sh } from '../../lib/utils';
 import { branchSchema, repositorySchema } from '../../types';
 import { requireSandbox } from '../../workspace';
@@ -15,7 +17,7 @@ export const pushTool = ({
   createTool({
     id: 'github_push_branch',
     description:
-      'Push a committed branch of a sandbox checkout to GitHub. The branch must already exist locally with the work committed; the default branch, main, and master are refused. Use this when a change spans more than a couple of files, then open the pull request with github_create_pull_request. To push to a fork the app is installed on (for example their own fork), set `checkout` to the repo you cloned and `repository` to the fork. Gorkie cannot create forks.',
+      'Push a committed branch of a sandbox checkout to GitHub. The branch must already exist locally with the work committed; the default branch, main, and master are refused. Then open the pull request with github_create_pull_request. To push to a fork the app is installed on (for example their own fork), set `checkout` to the repo you cloned and `repository` to the fork. Gorkie cannot create forks.',
     requireApproval: approval,
     inputSchema: z.strictObject({
       repository: repositorySchema.describe(
@@ -35,19 +37,20 @@ export const pushTool = ({
     }),
     execute: async ({ repository, branch, checkout }, context) => {
       const sandbox = await requireSandbox(context.requestContext);
-      const source = checkout ?? repository;
-      const path = checkoutPath(source);
-      const defaultBranch = await git({
-        command: 'git symbolic-ref --short refs/remotes/origin/HEAD',
-        cwd: path,
-        sandbox,
-      }).then(
-        (ref) => ref.replace(/^origin\//, ''),
-        () => undefined
-      );
-      if (branch === defaultBranch) {
+      const path = checkoutPath(checkout ?? repository);
+      // Ask GitHub, not the checkout: the agent can rewrite origin/HEAD.
+      const token = await githubAccessToken(userId);
+      const access = token
+        ? await repoAccess({ repository, token })
+        : undefined;
+      if (!access || 'error' in access || !access.defaultBranch) {
         throw new Error(
-          `${branch} is the default branch of ${source}, and direct pushes to it are not allowed. Push a feature branch and open a pull request.`
+          `Could not confirm the default branch of ${repository}${access && 'error' in access ? ` (${access.error})` : ''}, so the push was not attempted.`
+        );
+      }
+      if (branch === access.defaultBranch) {
+        throw new Error(
+          `${branch} is the default branch of ${repository}, and direct pushes to it are not allowed. Push a feature branch and open a pull request.`
         );
       }
       const remote = `https://github.com/${repository}.git`;

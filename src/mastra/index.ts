@@ -16,10 +16,12 @@ import { registerEvents } from './chat/events';
 import { setMastra } from './chat/mastra-instance';
 import { isBanned } from './chat/moderation';
 import { TurnDrainWorker } from './chat/turn-drain';
+import { claimTurn } from './chat/usage';
 import { postgresStore, runMigrations } from './db';
 import { buildAllowlist } from './lib/allowed-users';
 import { channelSchema } from './lib/context';
 import { verifyLiveViewTicket } from './lib/crypto';
+import { rawId } from './lib/ids';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
@@ -128,9 +130,21 @@ export const mastra = new Mastra({
               ? current.ifIdle?.streamOptions?.requestContext
               : undefined
           ).data?.channel.userId ?? current.resourceId;
-      if (creator && (await isBanned(creator))) {
+      if (!creator) {
+        return;
+      }
+      if (await isBanned(creator)) {
         logger.info("[schedules] skipped a banned user's fire", {
           scheduleId: schedule.id,
+        });
+        return null;
+      }
+      // A task or wait fire is a turn the creator asked for, so it spends
+      // their allowance like a message would.
+      if (await claimTurn(rawId(creator))) {
+        logger.info('[schedules] skipped a fire over the turn limit', {
+          scheduleId: schedule.id,
+          userId: creator,
         });
         return null;
       }
