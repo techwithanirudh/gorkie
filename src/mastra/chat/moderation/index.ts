@@ -18,7 +18,7 @@ export { banNotice } from './cards';
 
 import { isModerator } from './moderators';
 
-export { isModerator };
+export { isModerator } from './moderators';
 
 const DURATION: Record<Exclude<BanDuration, 'perm'>, Duration> = {
   '1h': { hours: 1 },
