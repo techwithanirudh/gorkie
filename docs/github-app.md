@@ -56,11 +56,17 @@ Set only these; leave everything else "No access".
 | Checks | Read-only |
 | Commit statuses | Read-only |
 
-Write access is narrower than the table looks. Of the 33 GitHub tools, none
-needs Contents write: their exact requirement, derived from the SDK's own
-per-tool scope catalog, is `contents:read`, `metadata:read`,
-`pull_requests:read`, `pull_requests:write`, `issues:read`, `issues:write`,
-`actions:read`, `checks:read`, `statuses:read`. Contents write is here for one
+Write access is narrower than the table looks. Of the 32 SDK tools in
+`src/mastra/tools/github/allowlist.ts`, none needs Contents write: their exact
+requirement, derived from the SDK's own per-tool scope catalog, is
+`contents:read`, `metadata:read`, `pull_requests:read`, `pull_requests:write`,
+`issues:read`, `issues:write`, `actions:read`, `checks:read`, `statuses:read`.
+Recompute it after changing the allowlist (last run 2026-09-24, `@github-tools/sdk` 1.11.1,
+matching the list above):
+
+```sh
+bun -e "import { connectGithubScopesForTools } from '@github-tools/sdk/connect'; import { ALLOWLIST } from './src/mastra/tools/github/allowlist'; console.log(connectGithubScopesForTools(ALLOWLIST))"
+``` Contents write is here for one
 reason only, `github_push_branch`, which pushes commits and cannot work
 without it. Drop Contents to Read-only if you do not want gorkie pushing
 branches, and everything else keeps working.

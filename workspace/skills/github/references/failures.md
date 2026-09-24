@@ -2,11 +2,11 @@
 
 Quote the real error rather than guessing between these.
 
-**No GitHub tools at all** means that person has not connected. Send them to the Home tab. Do not report GitHub as broken or unsupported.
+**No GitHub tools at all** usually means they are not loaded yet: search for them with `search_tools`. If the GitHub prompt block says the person has not connected, send them to the Home tab. Do not report GitHub as broken or unsupported.
 
 **A plain `git clone`, `git fetch`, or `git push` failing** in the sandbox is expected. The sandbox holds no credentials, and only `github_checkout` and `github_push_branch` borrow one, for the length of a single command. The failure reads like a network problem rather than a missing credential.
 
-**A 401** means their sign-in lapsed and could not be renewed. Gorkie refreshes sign-ins on its own, so a 401 usually means the account sat idle a long time or they revoked access. They reconnect the same way.
+**A 401** means their sign-in lapsed and could not be renewed. Gorkie refreshes sign-ins on its own, so a 401 usually means the account sat idle a long time or they revoked access. Gorkie records it, and the Home tab shows it next to a **Reconnect** button. They reconnect the same way.
 
 **A 404 on a repo that exists** usually means the repo was not in the list they picked. GitHub reports that as "not found" rather than "forbidden". Send them to <https://github.com/settings/installations> to add it.
 

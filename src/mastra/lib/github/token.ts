@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { env } from '@/env';
 import {
   getGitHubCredential,
-  removeGitHubCredential,
+  setGitHubCredentialError,
   updateRefreshedGitHubCredential,
 } from '../../db/queries/github';
 import type { GitHubAccount } from '../../types';
@@ -70,9 +70,15 @@ async function refreshAccount({
     if (current && current.refreshToken !== spent) {
       return current.token;
     }
-    // Only this code means the refresh token is dead; a transient failure must not log the user out.
+    // Only this code means the refresh token is dead; a transient failure must
+    // not mark the sign-in expired. The row stays so App Home can say why.
     if (code === 'bad_refresh_token') {
-      await removeGitHubCredential(userId);
+      await setGitHubCredentialError({
+        error:
+          'GitHub sign-in expired and could not be renewed. Reconnect to keep using GitHub.',
+        forgetRefreshToken: true,
+        userId,
+      });
       return;
     }
     return current?.token;
@@ -86,10 +92,14 @@ export async function githubAccessToken(
   if (!account) {
     return;
   }
-  const expiresSoon =
-    account.expiresAt !== undefined &&
-    account.expiresAt.getTime() - Date.now() < 5 * 60 * 1000;
-  if (!(expiresSoon && account.refreshToken)) {
+  const expiresIn =
+    account.expiresAt === undefined
+      ? Number.POSITIVE_INFINITY
+      : account.expiresAt.getTime() - Date.now();
+  if (!account.refreshToken) {
+    return expiresIn > 0 ? account.token : undefined;
+  }
+  if (expiresIn >= 5 * 60 * 1000) {
     return account.token;
   }
 
@@ -119,4 +129,18 @@ export async function revokeGitHubGrant(token: string): Promise<void> {
       status: z.object({ status: z.number() }).safeParse(error).data?.status,
     });
   }
+}
+
+export async function recordGitHubUnauthorized(userId: string): Promise<void> {
+  await setGitHubCredentialError({
+    error:
+      'GitHub rejected the stored sign-in (401), so it was revoked or has lapsed. Reconnect to keep using GitHub.',
+    forgetRefreshToken: false,
+    userId,
+  }).catch((error: unknown) =>
+    logger.warn('[github] could not record the connection error', {
+      error,
+      userId,
+    })
+  );
 }

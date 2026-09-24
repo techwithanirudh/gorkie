@@ -3,7 +3,6 @@ import type { CoreSystemMessage } from '@mastra/core/llm';
 import {
   ProviderHistoryCompat,
   TokenLimiterProcessor,
-  ToolSearchProcessor,
 } from '@mastra/core/processors';
 import type { RequestContext } from '@mastra/core/request-context';
 import { Memory } from '@mastra/memory';
@@ -34,9 +33,11 @@ import { userMCPTools } from '../mcp/user-servers';
 import { profileSchema } from '../memory/profile';
 import { delegatedTools } from '../processors/delegated-tools';
 import { sandbox } from '../processors/sandbox';
+import { staleMessages } from '../processors/stale-messages';
 import { stepGuard } from '../processors/step-guard';
 import { toolDisplay } from '../processors/tool-display';
 import { moveToolImages } from '../processors/tool-media';
+import { searchOnly, toolSearch } from '../processors/tool-search';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
 import { instructions } from '../prompts';
@@ -48,7 +49,7 @@ import {
 } from '../providers';
 import { workspaceCodeModePrompt } from '../tools/code-mode/slack';
 import { githubTools } from '../tools/github';
-import { deferredTools, orchestratorTools } from '../tools/toolsets';
+import { orchestratorTools } from '../tools/toolsets';
 import { mastraToolDisplay } from '../types';
 import { pauseSandbox, workspace } from '../workspace';
 import { explore } from './explore';
@@ -98,10 +99,24 @@ async function orchestratorInstructions({
   const failedServers = mcpServers
     .filter((server) => server.lastError)
     .map((server) => server.name);
+  const liveServers = mcpServers
+    .filter((server) => !server.lastError)
+    .map((server) => server.name);
+  const mcpLines: string[] = [];
+  if (liveServers.length > 0) {
+    mcpLines.push(
+      `The user connected MCP server(s) ${liveServers.join(', ')}. Their tools are named after the server (\`<server>_<tool>\`) and load through search_tools, like the github_ tools: search by the server name or the task before the first call, and again if one drops out of your tool list.`
+    );
+  }
   if (failedServers.length > 0) {
+    mcpLines.push(
+      `The user's MCP server(s) ${failedServers.join(', ')} failed to connect. If they ask about missing tools or the request calls for one of these servers, mention casually that it looks down and they may want to check it in App Home.`
+    );
+  }
+  if (mcpLines.length > 0) {
     messages.push({
       role: 'system',
-      content: `<mcps>The user's MCP server(s) ${failedServers.join(', ')} failed to connect. If they ask about missing tools or the request calls for one of these servers, mention casually that it looks down and they may want to check it in App Home.</mcps>`,
+      content: `<mcps>${mcpLines.join('\n')}</mcps>`,
     });
   }
   // Last so the reply-format rule sits closest to the output instead of decaying
@@ -158,14 +173,8 @@ export const orchestrator = new Agent({
   }),
   workspace,
   inputProcessors: [
-    new ToolSearchProcessor({
-      tools: deferredTools,
-      storage: 'context',
-      search: {
-        topK: 4,
-        autoLoad: true,
-      },
-    }),
+    staleMessages,
+    toolSearch,
     new TokenLimiterProcessor({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
@@ -197,6 +206,12 @@ export const orchestrator = new Agent({
         userId,
       }),
     ]);
+    searchOnly({
+      names: Object.keys({ ...userTools, ...github }).filter(
+        (name) => !(name in base)
+      ),
+      requestContext,
+    });
     return { ...userTools, ...github, ...base };
   },
   agents: { research, explore },

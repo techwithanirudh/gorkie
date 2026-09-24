@@ -1,11 +1,7 @@
 import type { RequestContext } from '@mastra/core/request-context';
 import { getGitHubCredential } from '../../db/queries/github';
-import { getGitHubSettings } from '../../db/queries/settings';
-import type {
-  GitHubCredential,
-  GitHubPermission,
-  GitHubSettings,
-} from '../../types';
+import { getGitHubPermission } from '../../db/queries/settings';
+import type { GitHubCredential, GitHubPermission } from '../../types';
 import { logger } from '../logger';
 
 type GitHubAccess =
@@ -14,64 +10,42 @@ type GitHubAccess =
   | {
       state: 'connected';
       credential: GitHubCredential;
-      direct: boolean;
       level: GitHubPermission;
     };
 
-export function levelsFor(outsideDM: boolean): GitHubPermission[] {
-  return outsideDM ? ['all', 'write'] : ['all', 'write', 'never'];
-}
-
-async function read({
-  isDM,
-  userId,
-}: {
-  isDM: boolean;
-  userId: string;
-}): Promise<GitHubAccess> {
-  let credential: GitHubCredential | undefined;
-  let settings: GitHubSettings;
+async function read(userId: string): Promise<GitHubAccess> {
   try {
-    [credential, settings] = await Promise.all([
+    const [credential, level] = await Promise.all([
       getGitHubCredential(userId),
-      getGitHubSettings(userId),
+      getGitHubPermission(userId),
     ]);
+    if (!credential) {
+      return { state: 'disconnected' };
+    }
+    return { state: 'connected', credential, level };
   } catch (error) {
     logger.warn('[github] could not read the connection', { error, userId });
     return { state: 'unreadable' };
   }
-  if (!credential) {
-    return { state: 'disconnected' };
-  }
-  return {
-    state: 'connected',
-    credential,
-    direct: isDM || settings.threads,
-    level: levelsFor(!isDM).includes(settings.permission)
-      ? settings.permission
-      : 'write',
-  };
 }
 
 const perRequest = new WeakMap<RequestContext, Promise<GitHubAccess>>();
 
 export function githubAccess({
-  isDM,
   requestContext,
   userId,
 }: {
-  isDM: boolean;
   requestContext?: RequestContext;
   userId: string;
 }): Promise<GitHubAccess> {
   if (!requestContext) {
-    return read({ isDM, userId });
+    return read(userId);
   }
   const cached = perRequest.get(requestContext);
   if (cached) {
     return cached;
   }
-  const started = read({ isDM, userId });
+  const started = read(userId);
   perRequest.set(requestContext, started);
   return started;
 }

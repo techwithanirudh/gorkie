@@ -60,6 +60,10 @@ export const workingModel = {
   ttl: 5 * 60 * 1000,
 };
 
+export const github = {
+  installUrl: `https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`,
+};
+
 export const mcp = {
   maxServers: 10,
 };

@@ -1,5 +1,4 @@
 import {
-  boolean,
   foreignKey,
   index,
   pgTable,
@@ -22,6 +21,7 @@ export const githubCredentials = pgTable('github_credentials', {
   token: text('token').notNull(),
   refreshToken: text('refresh_token'),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
+  lastError: text('last_error'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -72,7 +72,6 @@ export const userSettings = pgTable('user_settings', {
   userId: text('user_id').primaryKey(),
   instructions: text('instructions'),
   githubPermission: text('github_permission').$type<GitHubPermission>(),
-  githubThreads: boolean('github_threads'),
   toolDisplay: text('tool_display').$type<ToolDisplayMode>(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()

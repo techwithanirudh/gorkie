@@ -9,19 +9,15 @@ const GITHUB_PERMISSIONS = [
 
 export interface GitHubCredential {
   expiresAt: Date | undefined;
+  lastError: string | undefined;
   login: string;
   refreshToken: string | undefined;
   token: string;
 }
 
-export type GitHubAccount = Omit<GitHubCredential, 'login'>;
+export type GitHubAccount = Omit<GitHubCredential, 'lastError' | 'login'>;
 
 export type GitHubPermission = (typeof GITHUB_PERMISSIONS)[number];
-
-export interface GitHubSettings {
-  permission: GitHubPermission;
-  threads: boolean;
-}
 
 export const githubPermissionSchema = z.enum(GITHUB_PERMISSIONS).catch('all');
 

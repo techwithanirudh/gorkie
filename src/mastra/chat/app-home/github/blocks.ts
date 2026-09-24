@@ -1,5 +1,4 @@
-import { env } from '@/env';
-import { levelsFor } from '../../../lib/github';
+import { github as githubConfig } from '../../../config';
 import { oauthStartLink } from '../../../server/oauth';
 import type {
   GitHubCredential,
@@ -13,27 +12,17 @@ export function githubBlocks({
   credential,
   installations,
   permission,
-  threads,
   unreadable,
   userId,
 }: {
   credential: GitHubCredential | undefined;
   installations: number;
   permission: GitHubPermission;
-  threads: boolean;
   unreadable: boolean;
   userId: string;
 }): HomeSection {
   const signIn = oauthStartLink({ provider: 'github', slackUserId: userId });
 
-  const scope = threads ? '  ·  `runs in shared threads`' : '';
-  const threadLevel = levelsFor(true).includes(permission)
-    ? permission
-    : 'write';
-  let access = `${PRESETS[permission].status}${scope}`;
-  if (threads && threadLevel !== permission) {
-    access = `${PRESETS[permission].status} in DMs  ·  ${PRESETS[threadLevel].status} in shared threads`;
-  }
   let status = 'Not connected';
   let detail = signIn
     ? 'Sign in with GitHub for access scoped to the repositories you pick.'
@@ -42,12 +31,15 @@ export function githubBlocks({
     status = '*Unavailable*';
     detail =
       'Gorkie could not read your stored connection, so GitHub tools will not run. Disconnect and sign in again to replace it.';
+  } else if (credential?.lastError) {
+    status = `*${credential.login}*  ·  :warning: needs reconnecting`;
+    detail = credential.lastError;
   } else if (credential && installations > 0) {
     status = `*${credential.login}*`;
-    detail = `${access}  ·  Gorkie uses your GitHub account`;
+    detail = `${PRESETS[permission].status}  ·  Gorkie uses your GitHub account, in DMs only`;
   } else if (credential) {
     status = `*${credential.login}*`;
-    detail = `Not installed on any repositories, so Gorkie cannot reach code${scope}  ·  <https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new|choose repositories>`;
+    detail = `Not installed on any repositories, so Gorkie cannot reach code  ·  <${githubConfig.installUrl}|choose repositories>`;
   }
 
   const connected = Boolean(credential) || unreadable;
@@ -66,7 +58,7 @@ export function githubBlocks({
 
   const elements = connected
     ? [
-        ...connect('Reconnect', false),
+        ...connect('Reconnect', Boolean(credential?.lastError)),
         {
           type: 'button',
           text: { type: 'plain_text', text: 'Configure' },

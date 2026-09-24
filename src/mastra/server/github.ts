@@ -4,6 +4,7 @@ import {
 } from '@octokit/oauth-methods';
 import { env } from '@/env';
 import { publishHome } from '../chat/app-home/view';
+import { github as githubConfig } from '../config';
 import { setGitHubCredential } from '../db/queries/github';
 import { countInstallations, githubUser, toAccount } from '../lib/github';
 import { logger } from '../lib/logger';
@@ -56,10 +57,9 @@ export const githubOAuth: OAuthProviderHandler = {
         userId: token.slackUserId,
       })
     );
-    if ((await countInstallations(account.token)) === 0) {
-      return {
-        redirect: `https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`,
-      };
+    const installations = await countInstallations(account.token);
+    if ('count' in installations && installations.count === 0) {
+      return { redirect: githubConfig.installUrl };
     }
     return {
       page: {

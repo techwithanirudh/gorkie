@@ -4,5 +4,4 @@ export const ids = {
   connect: 'app_home_connect_github',
   disconnect: 'app_home_disconnect_github',
   permission: 'app_home_github_permission',
-  scope: 'app_home_github_scope',
 };

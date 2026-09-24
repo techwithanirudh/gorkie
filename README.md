@@ -49,7 +49,10 @@ runs commands and inspects files without touching the host machine.
   Each run posts back into the conversation where it was scheduled.
 - AI image generation, uploaded back into the Slack thread as a file.
 - Most tools load on demand through tool search, so the base tool list and the
-  prompt stay small.
+  prompt stay small. That includes a person's GitHub tools and
+their own MCP servers' tools; the Slack core tools stay loaded
+(`processors/tool-search.ts`). GitHub tools run only in a DM with the connected
+person.
 - [Observational Memory][om] compresses a long conversation into an
   observation log instead of carrying the full raw history, and working memory
   keeps each person's stated reply preferences. See [Memory](#memory).

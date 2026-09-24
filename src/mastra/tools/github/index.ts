@@ -1,7 +1,12 @@
 import { createGithubTools, GITHUB_WRITE_TOOLS } from '@github-tools/sdk';
 import type { RequestContext } from '@mastra/core/request-context';
+import { z } from 'zod';
 import { asksBefore } from '../../lib/approval';
-import { githubAccess, githubAccessToken } from '../../lib/github';
+import {
+  githubAccess,
+  githubAccessToken,
+  recordGitHubUnauthorized,
+} from '../../lib/github';
 import { logger } from '../../lib/logger';
 import { ALLOWLIST } from './allowlist';
 import { checkoutTool } from './checkout';
@@ -22,11 +27,11 @@ export async function githubTools({
   userId: string;
 }): Promise<Record<string, unknown>> {
   try {
-    const access = await githubAccess({ isDM, requestContext, userId });
+    const access = await githubAccess({ requestContext, userId });
     if (access.state !== 'connected') {
       return {};
     }
-    const { direct, level } = access;
+    const { level } = access;
 
     const built = createGithubTools({
       token: async () => {
@@ -43,15 +48,19 @@ export async function githubTools({
     const tools: Record<string, unknown> = {};
     for (const name of ALLOWLIST) {
       // The SDK's formatter is AI SDK shaped; Mastra hands it the result alone.
-      const { toModelOutput: format, ...tool } = built[name];
+      const { toModelOutput: format, execute, ...tool } = built[name];
+      // An explicit id: Mastra otherwise ids an AI SDK tool as
+      // `tool-<hash of description>`, and tool search returns and loads it
+      // under that id instead of this key.
       const id = `github_${name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()}`;
-      if (!direct) {
+      if (!isDM) {
         // Replace the tool outright rather than layering the handoff over the
         // SDK's formatter: those assume a GitHub API result, and
         // listPullRequestFiles maps over it unguarded, so a handoff message
         // throws instead of reaching the model.
         tools[id] = {
           ...tool,
+          id,
           needsApproval: false,
           execute: () => handoff({ channelId, threadId, userId }),
         };
@@ -59,10 +68,21 @@ export async function githubTools({
       }
       tools[id] = {
         ...tool,
+        id,
         needsApproval: asksBefore({
           kind: name in GITHUB_WRITE_TOOLS ? 'write' : 'read',
           level,
         }),
+        execute: async (...args: Parameters<NonNullable<typeof execute>>) => {
+          try {
+            return await execute?.(...args);
+          } catch (error) {
+            if (z.object({ status: z.literal(401) }).safeParse(error).success) {
+              await recordGitHubUnauthorized(userId);
+            }
+            throw error;
+          }
+        },
         ...(format && {
           toModelOutput: (result: unknown) =>
             result === undefined
@@ -71,9 +91,9 @@ export async function githubTools({
         }),
       };
     }
-    if (direct && threadId) {
+    if (isDM && threadId) {
       tools.github_checkout = checkoutTool({
-        approval: !isDM || asksBefore({ kind: 'read', level }),
+        approval: asksBefore({ kind: 'read', level }),
         userId,
       });
       tools.github_push_branch = pushTool({

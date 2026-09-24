@@ -8,10 +8,14 @@ export const connections: CommandHandler = async ({ message, thread }) => {
   const items = ['• context7 (built in)'];
 
   try {
-    const github = await githubAccess({ isDM: thread.isDM, userId });
-    items.push(
-      `• github: ${github.state === 'connected' ? `connected as ${github.credential.login}` : 'not connected'}`
-    );
+    const github = await githubAccess({ userId });
+    let status = 'not connected';
+    if (github.state === 'connected') {
+      status = github.credential.lastError
+        ? `failed (${github.credential.lastError})`
+        : `connected as ${github.credential.login}`;
+    }
+    items.push(`• github: ${status}`);
   } catch (error) {
     logger.warn('[commands] failed to read github status', { error, userId });
   }

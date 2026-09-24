@@ -3,17 +3,17 @@ import { getGitHubCredential } from '../../db/queries/github';
 import { listMCPServers } from '../../db/queries/mcps';
 import { activeBan } from '../../db/queries/moderation';
 import {
-  getGitHubSettings,
+  getGitHubPermission,
   getInstructions,
   getToolDisplay,
 } from '../../db/queries/settings';
-import { countInstallations } from '../../lib/github';
-import { logger } from '../../lib/logger';
 import {
-  type GitHubCredential,
-  githubPermissionSchema,
-  type HomeSection,
-} from '../../types';
+  countInstallations,
+  githubAccessToken,
+  recordGitHubUnauthorized,
+} from '../../lib/github';
+import { logger } from '../../lib/logger';
+import type { GitHubCredential, HomeSection } from '../../types';
 import { slack } from '../client';
 import { content } from '../content';
 import { banNotice } from '../moderation/cards';
@@ -38,6 +38,21 @@ async function settled<T>({
   } catch (error) {
     logger.error('[app-home] section failed to load', { error, label, userId });
   }
+}
+
+async function installationsFor(userId: string): Promise<number> {
+  const token = await githubAccessToken(userId);
+  if (!token) {
+    return 0;
+  }
+  const installations = await countInstallations(token);
+  if ('count' in installations) {
+    return installations.count;
+  }
+  if (installations.status === 401) {
+    await recordGitHubUnauthorized(userId);
+  }
+  return 0;
 }
 
 export async function publishHome(userId: string): Promise<void> {
@@ -74,7 +89,7 @@ export async function publishHome(userId: string): Promise<void> {
     mcpServers,
     { credential, unreadable },
     installations,
-    github,
+    permission,
     scheduled,
     display,
   ] = await Promise.all([
@@ -82,9 +97,9 @@ export async function publishHome(userId: string): Promise<void> {
     settled({ label: 'mcp', userId, work: listMCPServers(userId) }),
     credentialResult,
     credentialResult.then(({ credential }) =>
-      credential ? countInstallations(credential.token) : 0
+      credential && !credential.lastError ? installationsFor(userId) : 0
     ),
-    settled({ label: 'settings', userId, work: getGitHubSettings(userId) }),
+    settled({ label: 'settings', userId, work: getGitHubPermission(userId) }),
     settled({
       label: 'scheduled',
       userId,
@@ -100,8 +115,7 @@ export async function publishHome(userId: string): Promise<void> {
     githubBlocks({
       credential,
       installations,
-      permission: githubPermissionSchema.parse(github?.permission),
-      threads: github?.threads === true,
+      permission: permission ?? 'all',
       unreadable,
       userId,
     }),

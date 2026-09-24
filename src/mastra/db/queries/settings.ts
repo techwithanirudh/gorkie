@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { rawId } from '../../lib/ids';
 import {
-  type GitHubSettings,
+  type GitHubPermission,
   githubPermissionSchema,
   type ToolDisplayMode,
   toolDisplayModeSchema,
@@ -33,46 +33,34 @@ export async function setInstructions({
     .onConflictDoUpdate({ target: userSettings.userId, set });
 }
 
-export async function getGitHubSettings(
+export async function getGitHubPermission(
   userId: string
-): Promise<GitHubSettings> {
+): Promise<GitHubPermission> {
   const [row] = await db
-    .select({
-      permission: userSettings.githubPermission,
-      threads: userSettings.githubThreads,
-    })
+    .select({ permission: userSettings.githubPermission })
     .from(userSettings)
     .where(eq(userSettings.userId, rawId(userId)));
-  return {
-    permission: githubPermissionSchema.parse(row?.permission),
-    threads: row?.threads === true,
-  };
+  return githubPermissionSchema.parse(row?.permission);
 }
 
-export async function setGitHubSettings({
+export async function setGitHubPermission({
   permission,
-  threads,
   userId,
-}: GitHubSettings & { userId: string }): Promise<void> {
-  const set = {
-    githubPermission: permission,
-    githubThreads: threads,
-    updatedAt: new Date(),
-  };
+}: {
+  permission: GitHubPermission;
+  userId: string;
+}): Promise<void> {
+  const set = { githubPermission: permission, updatedAt: new Date() };
   await db
     .insert(userSettings)
     .values({ ...set, instructions: null, userId: rawId(userId) })
     .onConflictDoUpdate({ target: userSettings.userId, set });
 }
 
-export async function clearGitHubSettings(userId: string): Promise<void> {
+export async function clearGitHubPermission(userId: string): Promise<void> {
   await db
     .update(userSettings)
-    .set({
-      githubPermission: null,
-      githubThreads: null,
-      updatedAt: new Date(),
-    })
+    .set({ githubPermission: null, updatedAt: new Date() })
     .where(eq(userSettings.userId, rawId(userId)));
 }
 
