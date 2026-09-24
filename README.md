@@ -19,7 +19,13 @@ runs commands and inspects files without touching the host machine.
 ## Features
 
 - Slack-native replies for mentions, DMs, and subscribed thread follow-ups,
-  streamed as they generate, with a typing indicator.
+  streamed into the thread as they generate, with a typing indicator.
+- Tool display per person or per thread: Hidden (typing status only), Compact
+  (one live checklist of tool calls per reply) or Detailed (a card per call),
+  set from the Home tab or with `!display`.
+- Thread commands: `!help`, `!stop`, `!compact`, `!display`, `!focus` and
+  `!connections` (alias `!mcps`), handled before the agent runs
+  (`chat/commands/`).
 - Optional opt-in allowlist (`OPT_IN_CHANNEL`): gate access to members of one
   channel, with an in-Slack opt-in card for everyone else.
 - Moderator bans: `/ban @user [1h|1d|7d|30d|perm] [reason]` and `/unban`,
@@ -40,8 +46,9 @@ runs commands and inspects files without touching the host machine.
   for query-driven or exhaustive conversation analysis.
 - Slack-native tools: read/summarize conversation history, list threads and
   channels, inspect channels and users, post to another thread/channel/DM,
-  upload and download files, react, join or leave a thread. It reads only the current
-  conversation and public channels, and DMs only the person who asked.
+  upload and download files, react, join or leave a thread, and add custom
+  emoji (`upload_emoji`, when `EMOJI_PROXY_TOKEN` is set). It reads only the
+  current conversation and public channels, and DMs only the person who asked.
 - Slack Canvas tools: create, list, read, edit, and look up sections.
 - Turn control: `skip` ends a turn without replying (acknowledgements, noise,
   messages meant for someone else), and `wait` resumes the thread later.
@@ -49,18 +56,27 @@ runs commands and inspects files without touching the host machine.
   Each run posts back into the conversation where it was scheduled.
 - AI image generation, uploaded back into the Slack thread as a file.
 - Most tools load on demand through tool search, so the base tool list and the
-  prompt stay small. That includes a person's GitHub tools and
-their own MCP servers' tools; the Slack core tools stay loaded
-(`processors/tool-search.ts`). GitHub tools run only in a DM with the connected
-person.
+  prompt stay small. That includes a person's GitHub tools and their own MCP
+  servers' tools; the Slack core tools stay loaded
+  (`processors/tool-search.ts`). A loaded tool unloads once Observational
+  Memory observes the search that loaded it, and the model searches again.
+- GitHub tools act as the connected person. They work in a DM with that
+  person, and in shared threads only if they enabled shared threads in App
+  Home, with approvals following their App Home settings. Code changes go
+  through `github_checkout` and `github_push_branch`, which borrow the person's
+  token at the sandbox firewall for one git command; see
+  [docs/brokered-git.md](./docs/brokered-git.md).
 - [Observational Memory][om] compresses a long conversation into an
   observation log instead of carrying the full raw history, and working memory
   keeps each person's stated reply preferences. See [Memory](#memory).
 - Runtime skills in [`workspace/skills/`](./workspace/skills/): `67ify`,
   `agent-browser`, `agentmail`, `artifacts` (a single HTML page on a temporary
-  Cloudflare Worker), `github`, `mermaid-diagrams`, `taste-skill`, `unslop`,
-  `voice` and `wrangler`.
-- Mastra Observability tracing, stored locally in DuckDB.
+  Cloudflare Worker), `github`, `mermaid-diagrams`, `plain-english`,
+  `taste-skill`, `topic-summaries`, `unslop`, `voice` and `wrangler`.
+- Mastra Observability tracing exported to [Langfuse][langfuse], with each
+  Slack thread as one Langfuse session and thumbs ratings sent as scores. In
+  development, traces are also written to a local [DuckDB][duckdb] file
+  (`observability.duckdb`).
 
 See [TODO.md](./TODO.md) for open work and known issues.
 
@@ -74,7 +90,8 @@ See [TODO.md](./TODO.md) for open work and known issues.
 - [E2B][e2b] sandbox sessions
 - [Exa][exa] for web search and page fetching
 - [PostgreSQL][postgres] via `@mastra/pg`
-- Mastra Observability, exported to local [DuckDB][duckdb]
+- Mastra Observability, exported to [Langfuse][langfuse] (plus local
+  [DuckDB][duckdb] in development)
 
 ## Getting started
 
@@ -164,6 +181,8 @@ local database named `gorkie`. Mastra creates its tables on first run.
 | `GITHUB_APP_CLIENT_SECRET` | yes | GitHub App client secret, for the sign-in code exchange, token refresh and revoking on disconnect |
 | `EXA_API_KEY` | yes | Exa key, powers `search_web`/`fetch_url` |
 | `AGENTMAIL_API_KEY` | no | Lets the sandbox reach the AgentMail API as `gorkie@agentmail.to`, without the key entering the sandbox |
+| `EMOJI_PROXY_TOKEN` | no | Token for the Hack Club Slack emoji proxy. Enables `upload_emoji`; unset, the tool reports that emoji upload is not configured |
+| `NODE_ENV` | no | `development` (default), `production` or `test`. Production requires `GORKIE_API_TOKEN`, an https `PUBLIC_BASE_URL`, and skips the local DuckDB trace store |
 
 See [`.env.example`](./.env.example) for the full annotated list.
 
@@ -294,12 +313,13 @@ src/
     agents/orchestrator.ts      The agent: model, instructions, memory, tools, channels
     agents/research.ts          Delegated Slack/web research helper agent
     agents/explore.ts           Delegated read-only codebase exploration helper agent
+    agents/summarizer.ts        Summarizes Slack threads for the summary tool
     chat/                       Chat SDK client, handlers, typing status
     workspace/                  E2B sandbox workspace (per-thread, isolated)
-    tools/                      Tool registry: Slack, canvas, scheduled tasks, sandbox, web, code mode
-    processors/                 Input/output processors (delegated tools, sandbox, tool media)
+    tools/                      Tool registry: Slack, canvas, scheduled tasks, GitHub, web, code mode, images, background jobs
+    processors/                 Input/output processors (delegated tools, output budget, sandbox, stale messages, step guard, tool display, tool media, tool search, turn footer, working model)
     prompts/                    System prompt sections (core, personality, Slack, tools, guardrails)
-    mcp/                        MCPClient scaffold for connecting external MCP servers
+    mcp/                        Built-in MCP servers, per-person MCP servers from App Home, their OAuth sign-in and URL checks
 ```
 
 Constructing the Mastra instance registers the agent and its Slack webhook route
@@ -330,5 +350,6 @@ bun run check:spelling
 [opencode]: https://opencode.ai/docs/zen
 [postgres]: https://www.postgresql.org
 [duckdb]: https://duckdb.org
+[langfuse]: https://langfuse.com
 [bun]: https://bun.sh
 [om]: https://mastra.ai/docs/memory/observational-memory

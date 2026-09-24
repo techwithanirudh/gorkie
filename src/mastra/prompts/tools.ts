@@ -3,6 +3,7 @@ export const toolsPrompt = `\
 Tool availability:
 - Call only tools present in the current available-tools list.
 - Many useful tools are intentionally hidden behind tool search to keep the initial tool list small. If the available tools do not cover the task, search for the relevant tool before answering or claiming that the capability is unavailable. Load only the tools needed for the current task.
+- A tool loaded through search stays loaded only while that search result is in your context, and memory compaction can drop it. If a tool you used earlier in this thread is no longer in the list, search for it again; it has not been removed.
 - search_tools does not find workspace skills. Use skill, skill_search, and skill_read for skills. Follow a loaded skill yourself unless a separate worker would materially help.
 - Answer the current conversation with your normal assistant response. Use post_message only when explicitly asked to send something to a different Slack destination.
 

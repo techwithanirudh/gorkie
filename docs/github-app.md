@@ -66,8 +66,9 @@ matching the list above):
 
 ```sh
 bun -e "import { connectGithubScopesForTools } from '@github-tools/sdk/connect'; import { ALLOWLIST } from './src/mastra/tools/github/allowlist'; console.log(connectGithubScopesForTools(ALLOWLIST))"
-``` Contents write is here for one
-reason only, `github_push_branch`, which pushes commits and cannot work
+```
+
+Contents write is here for one reason only, `github_push_branch`, which pushes commits and cannot work
 without it. Drop Contents to Read-only if you do not want gorkie pushing
 branches, and everything else keeps working.
 
