@@ -3,6 +3,7 @@ import { Chat } from 'chat';
 import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
+import { search } from '../../config';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
@@ -55,7 +56,7 @@ const searchResponseSchema = z.looseObject({
                 ? chatChannelId(message.channel_id)
                 : undefined,
               channelName: message.channel_name,
-              text: (message.content ?? '').slice(0, 1200),
+              text: (message.content ?? '').slice(0, search.snippetChars),
               before: (message.context_messages?.before ?? []).slice(-3),
               after: (message.context_messages?.after ?? []).slice(0, 3),
               permalink: message.permalink,

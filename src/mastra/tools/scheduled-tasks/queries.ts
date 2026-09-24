@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { agent as agentConfig } from '../../config';
 import { channelContext } from '../../lib/context';
 import { rawId } from '../../lib/ids';
-import { WAIT_SCHEDULE_KIND } from '../../types';
+
+const WAIT_SCHEDULE_KIND = 'wait';
 
 export const waitMetadata = { kind: WAIT_SCHEDULE_KIND };
 

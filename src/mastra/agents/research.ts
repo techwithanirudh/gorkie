@@ -55,7 +55,7 @@ export const research = new Agent({
   ],
   defaultOptions: {
     modelSettings: {
-      maxOutputTokens: 16_384,
+      maxOutputTokens: config.maxTokens.subagentOutput,
       maxRetries: 5,
       reasoning: 'medium',
       timeout: config.modelTimeout,

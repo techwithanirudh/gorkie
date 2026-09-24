@@ -64,6 +64,7 @@ async function refresh(threadId: string): Promise<void> {
   if (!card) {
     return;
   }
+  // The URL is only the card's caption, so the card still updates without it.
   const url = await browser.getCurrentUrl(threadId).catch(() => null);
   await slack.webClient.chat.update({
     channel: card.channel,
@@ -73,7 +74,7 @@ async function refresh(threadId: string): Promise<void> {
   });
 }
 
-export async function startLiveView({
+async function startLiveView({
   threadId,
 }: {
   threadId: string;
@@ -82,6 +83,7 @@ export async function startLiveView({
     return;
   }
   const { channel, threadTs } = slack.decodeThreadId(threadId);
+  // The URL is only the card's caption, so the card still posts without it.
   const url = await browser.getCurrentUrl(threadId).catch(() => null);
   const posted = await slack.webClient.chat.postMessage({
     channel,

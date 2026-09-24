@@ -1,6 +1,10 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { sandboxPath as p, requireSandbox } from '../../workspace';
+import {
+  sandboxPath as p,
+  requireSandbox,
+  writeSandboxFile,
+} from '../../workspace';
 import { requestImages } from './request';
 
 export const generateImageTool = createTool({
@@ -55,9 +59,6 @@ export const generateImageTool = createTool({
             )
           ).flat();
 
-    const dir = p('downloads');
-    await sandbox.retryOnDead(() => sandbox.e2b.files.makeDir(dir));
-
     const batch =
       context.agent?.toolCallId.replace(/[^\w-]/g, '').slice(-8) ||
       Date.now().toString(36);
@@ -68,9 +69,11 @@ export const generateImageTool = createTool({
           'downloads',
           `gorkie-image-${batch}-${index + 1}.${ext}`
         );
-        await sandbox.retryOnDead(() =>
-          sandbox.e2b.files.write(path, new Uint8Array(data).buffer)
-        );
+        await writeSandboxFile({
+          data: new Uint8Array(data).buffer,
+          path,
+          sandbox,
+        });
         return path;
       })
     );

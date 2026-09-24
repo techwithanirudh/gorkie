@@ -205,9 +205,12 @@ export function registerMCPServers({
   });
 
   bot.onModalSubmit(ids.configureModal, async (event) => {
-    if (event.privateMetadata) {
+    const name = mcpServerSchema.shape.name.safeParse(
+      event.privateMetadata
+    ).data;
+    if (name) {
       await setMCPServerPermission({
-        name: event.privateMetadata,
+        name,
         permission: toolPermissionSchema.parse(event.values.permission),
         userId: event.user.userId,
       });

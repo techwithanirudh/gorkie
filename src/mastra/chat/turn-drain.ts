@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import type { WorkerStopOptions } from '@mastra/core/worker';
 import { MastraWorker } from '@mastra/core/worker';
-import { agent as agentConfig } from '../config';
+import { agent as agentConfig, shutdown } from '../config';
 import { logger } from '../lib/logger';
 
 async function pollWhile<T>({
@@ -44,7 +44,7 @@ export class TurnDrainWorker extends MastraWorker {
     this.#running = false;
     const drainTimeout = options?.drainTimeout ?? 0;
     const deadline = Date.now() + drainTimeout;
-    const abortAt = deadline - Math.min(10_000, drainTimeout / 2);
+    const abortAt = deadline - Math.min(shutdown.abortLeadMs, drainTimeout / 2);
     const orchestrator = this.mastra?.getAgentById(agentConfig.id);
     if (!orchestrator) {
       return;
@@ -58,6 +58,8 @@ export class TurnDrainWorker extends MastraWorker {
           orchestrator
             .listSuspendedRuns({ threadId: run.threadId })
             .then(({ runs }) => runs.some(({ runId }) => runId === run.runId))
+            // Unknown counts as running: waiting on or aborting a parked run
+            // costs less than leaving a live one to be cut off mid-answer.
             .catch(() => false)
         )
       );

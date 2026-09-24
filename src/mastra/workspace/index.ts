@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 import { RequestContext } from '@mastra/core/request-context';
 import {
   LocalSkillSource,
@@ -77,7 +77,22 @@ export async function requireSandbox(
   return sandbox;
 }
 
-export async function getSandbox(
+export async function writeSandboxFile({
+  data,
+  path,
+  sandbox,
+}: {
+  data: string | ArrayBuffer;
+  path: string;
+  sandbox: E2BSandbox;
+}): Promise<void> {
+  await sandbox.retryOnDead(async () => {
+    await sandbox.e2b.files.makeDir(posix.dirname(path));
+    await sandbox.e2b.files.write(path, data);
+  });
+}
+
+async function getSandbox(
   requestContext: RequestContext
 ): Promise<E2BSandbox | undefined> {
   const sandbox = await workspace.resolveSandbox({ requestContext });

@@ -1,7 +1,7 @@
 import { logger } from '../../lib/logger';
 import type { CommandHandler } from '../../types';
 import { setFocus } from '../focus';
-import { rawText, withoutLeadingMentions } from '../message';
+import { rawText, userMention, withoutLeadingMentions } from '../message';
 import { notify } from '../notify';
 import { threadState } from '../state';
 
@@ -28,7 +28,7 @@ export const focus: CommandHandler = async ({ message, thread }) => {
   }
 
   const mentioned = Array.from(
-    argument.matchAll(/<@([UW][A-Z0-9]+)(?:\|[^>]*)?>/g),
+    argument.matchAll(new RegExp(userMention, 'g')),
     ([, id]) => id
   ).filter((id) => id !== undefined);
   const off = /^(off|clear|reset)$/i.test(argument);

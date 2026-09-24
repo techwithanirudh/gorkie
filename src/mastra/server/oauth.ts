@@ -14,7 +14,8 @@ import {
 } from '../types';
 import { githubOAuth } from './github';
 import { mcpOAuth } from './mcp';
-import { oauthPage } from './page';
+import { oauthRedirectUri } from './oauth-link';
+import { oauthPage, privateHeaders } from './page';
 
 const providers: Record<OAuthProvider, OAuthProviderHandler> = {
   github: githubOAuth,
@@ -32,8 +33,14 @@ const cookie = {
   },
 } as const;
 
-const redirectUri = (provider: OAuthProvider) =>
-  `${env.PUBLIC_BASE_URL}/oauth/${provider}/callback`;
+function providerNotFound(c: Context): Promise<Response> {
+  return oauthPage({
+    c,
+    status: 404,
+    title: 'Not found',
+    paragraphs: ['This sign-in link is not available.'],
+  });
+}
 
 // Start tickets are single use. Held in memory, which covers this single-process
 // bot; a restart forgets them, but a ticket still dies with its 10-minute expiry.
@@ -52,14 +59,7 @@ async function verifiedStart({
   const handler = provider ? providers[provider] : undefined;
   const token = verifyOAuthToken({ purpose: 'start', signed: ticket });
   if (!(provider && handler)) {
-    return {
-      response: await oauthPage({
-        c,
-        status: 404,
-        title: 'Not found',
-        paragraphs: ['This sign-in link is not available.'],
-      }),
-    };
+    return { response: await providerNotFound(c) };
   }
   if (
     !token ||
@@ -103,7 +103,7 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
           }
           const { slackUserId } = started.token;
           // The handle and id, not only the display name, which anyone can set
-          // to match someone else's.
+          // to match someone else's. A failed lookup still shows the id.
           const { user } = await slack.webClient.users
             .info({ user: slackUserId })
             .catch(() => ({ user: undefined }));
@@ -142,13 +142,12 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
           });
           try {
             const location = await started.handler.authorizeUrl({
-              redirectUri: redirectUri(started.provider),
+              redirectUri: oauthRedirectUri(started.provider),
               state,
               token: started.token,
             });
             setCookie(c, cookie.name(started.provider), nonce, cookie.options);
-            c.header('Cache-Control', 'no-store');
-            c.header('Referrer-Policy', 'no-referrer');
+            privateHeaders(c);
             return c.redirect(location, 303);
           } catch (error) {
             logger.warn('[oauth] could not start sign-in', {
@@ -176,12 +175,7 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
           ).data;
           const handler = provider ? providers[provider] : undefined;
           if (!(provider && handler)) {
-            return oauthPage({
-              c,
-              status: 404,
-              title: 'Not found',
-              paragraphs: ['This sign-in link is not available.'],
-            });
+            return providerNotFound(c);
           }
           const token = verifyOAuthToken({
             purpose: 'state',
@@ -209,12 +203,11 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
           try {
             const outcome = await handler.complete({
               query: c.req.query(),
-              redirectUri: redirectUri(provider),
+              redirectUri: oauthRedirectUri(provider),
               token,
             });
             if ('redirect' in outcome) {
-              c.header('Cache-Control', 'no-store');
-              c.header('Referrer-Policy', 'no-referrer');
+              privateHeaders(c);
               return c.redirect(outcome.redirect, 303);
             }
             return oauthPage({ c, ...outcome.page });

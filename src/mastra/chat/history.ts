@@ -1,5 +1,6 @@
 import type { Message, Thread } from 'chat';
 import { parseMarkdown, stringifyMarkdown } from 'chat';
+import { history as config } from '../config';
 import { focusFilter } from './focus';
 import { isComment } from './message';
 import { threadState } from './state';
@@ -25,7 +26,7 @@ export async function withHistory({
     if (previous.id === state?.lastSeenMessage) {
       break;
     }
-    if (scanned >= 30) {
+    if (scanned >= config.maxScannedMessages) {
       truncated = true;
       break;
     }
@@ -61,7 +62,7 @@ export async function withHistory({
     lines.push(
       `[${author} (${mention})${bot}] (msg:${previous.id}): ${text}${files}`
     );
-    if (lines.length >= 10) {
+    if (lines.length >= config.maxUnseenMessages) {
       truncated = true;
       break;
     }

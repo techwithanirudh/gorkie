@@ -1,14 +1,7 @@
 import { formatDistanceToNowStrict } from 'date-fns';
 import { recordTurn, turnUsage } from '../db/queries/usage';
 import { logger } from '../lib/logger';
-import type { TurnUsage } from '../types';
 import { isModerator } from './moderation/moderators';
-
-export async function usageFor(
-  userId: string
-): Promise<TurnUsage | 'unlimited'> {
-  return isModerator(userId) ? 'unlimited' : await turnUsage(userId);
-}
 
 // Returns the notice to show when the person is over a limit, otherwise counts
 // the turn against them.

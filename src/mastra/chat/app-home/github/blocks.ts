@@ -52,7 +52,7 @@ export function githubBlocks({
   }
 
   const connected = Boolean(credential) || unreadable;
-  const connect = (label: string, primary: boolean) =>
+  const connect = ({ label, primary }: { label: string; primary: boolean }) =>
     signIn
       ? [
           {
@@ -67,7 +67,10 @@ export function githubBlocks({
 
   const elements = connected
     ? [
-        ...connect('Reconnect', Boolean(credential?.lastError)),
+        ...connect({
+          label: 'Reconnect',
+          primary: Boolean(credential?.lastError),
+        }),
         {
           type: 'button',
           text: { type: 'plain_text', text: 'Configure' },
@@ -89,7 +92,7 @@ export function githubBlocks({
           },
         },
       ]
-    : connect('Connect GitHub', true);
+    : connect({ label: 'Connect GitHub', primary: true });
 
   return {
     fixed: [

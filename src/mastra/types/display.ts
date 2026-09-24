@@ -4,6 +4,8 @@ export const toolDisplayModeSchema = z.enum(['hidden', 'compact', 'detailed']);
 
 export type ToolDisplayMode = z.infer<typeof toolDisplayModeSchema>;
 
+export type ToolDisplaySource = 'thread' | 'you' | 'default';
+
 // Gorkie's own names are what gets stored, so a Mastra rename never strands a
 // saved setting; this is the one place that knows Mastra's words for them.
 export const mastraToolDisplay = {

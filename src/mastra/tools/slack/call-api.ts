@@ -1,11 +1,16 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
+import { slack as slackConfig } from '../../config';
 import { channelContext } from '../../lib/context';
 import { parseSlackId, rawId } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { sandboxPath as p, requireSandbox } from '../../workspace';
+import {
+  sandboxPath as p,
+  requireSandbox,
+  writeSandboxFile,
+} from '../../workspace';
 import { assertReadableChannel, joinChannel } from './utils';
 
 const slackId = z.string().min(1).transform(rawId);
@@ -82,8 +87,6 @@ const responseSchema = z.looseObject({
     .optional(),
 });
 
-const previewLimit = 16_384;
-
 export const callSlackApiTool = createTool({
   id: 'call_slack_api',
   description: `Call one of a fixed set of read-only Slack Web API methods and get its raw JSON, for data the dedicated tools do not expose. Allowed methods and their params:
@@ -155,16 +158,13 @@ Responses can be large, so the full JSON is written to a file in the thread sand
       await slack.webClient.apiCall(method, args)
     );
     const body = JSON.stringify(response, null, 2);
-    const truncated = body.length > previewLimit;
+    const truncated = body.length > slackConfig.apiPreviewChars;
     let path: string | undefined;
     if (truncated && context.requestContext) {
       try {
         const sandbox = await requireSandbox(context.requestContext);
         const target = p('slack-api', `${method}-${Date.now()}.json`);
-        await sandbox.retryOnDead(async () => {
-          await sandbox.e2b.files.makeDir(p('slack-api'));
-          await sandbox.e2b.files.write(target, body);
-        });
+        await writeSandboxFile({ data: body, path: target, sandbox });
         path = target;
       } catch (error) {
         // The spilled copy is best effort: without it the capped preview is
@@ -182,7 +182,7 @@ Responses can be large, so the full JSON is written to a file in the thread sand
       path,
       size: body.length,
       truncated,
-      preview: truncated ? body.slice(0, previewLimit) : body,
+      preview: truncated ? body.slice(0, slackConfig.apiPreviewChars) : body,
       nextCursor: response.response_metadata?.next_cursor || undefined,
     };
   },

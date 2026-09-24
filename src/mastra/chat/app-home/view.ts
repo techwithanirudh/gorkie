@@ -8,17 +8,18 @@ import {
   getMCPThreads,
   getToolDisplay,
 } from '../../db/queries/settings';
+import { turnUsage } from '../../db/queries/usage';
 import {
   countInstallations,
   githubAccessToken,
   recordGitHubUnauthorized,
 } from '../../lib/github';
 import { logger } from '../../lib/logger';
-import type { GitHubCredential, HomeSection } from '../../types';
+import type { GitHubCredential, HomeSection, TurnUsage } from '../../types';
 import { slack } from '../client';
 import { content } from '../content';
 import { banNotice } from '../moderation/cards';
-import { usageFor } from '../usage';
+import { isModerator } from '../moderation/moderators';
 import { githubBlocks } from './github';
 import { customInstructionsBlocks } from './instructions';
 import { fitHome } from './limit';
@@ -41,21 +42,6 @@ async function settled<T>({
   } catch (error) {
     logger.error('[app-home] section failed to load', { error, label, userId });
   }
-}
-
-async function installationsFor(userId: string): Promise<number> {
-  const token = await githubAccessToken(userId);
-  if (!token) {
-    return 0;
-  }
-  const installations = await countInstallations(token);
-  if ('count' in installations) {
-    return installations.count;
-  }
-  if (installations.status === 401) {
-    await recordGitHubUnauthorized(userId);
-  }
-  return 0;
 }
 
 export async function publishHome(userId: string): Promise<void> {
@@ -102,9 +88,23 @@ export async function publishHome(userId: string): Promise<void> {
     settled({ label: 'mcp', userId, work: listMCPServers(userId) }),
     settled({ label: 'mcp threads', userId, work: getMCPThreads(userId) }),
     credentialResult,
-    credentialResult.then(({ credential }) =>
-      credential && !credential.lastError ? installationsFor(userId) : 0
-    ),
+    credentialResult.then(async ({ credential }) => {
+      const token =
+        credential && !credential.lastError
+          ? await githubAccessToken(userId)
+          : undefined;
+      if (!token) {
+        return 0;
+      }
+      const installations = await countInstallations(token);
+      if ('count' in installations) {
+        return installations.count;
+      }
+      if (installations.status === 401) {
+        await recordGitHubUnauthorized(userId);
+      }
+      return 0;
+    }),
     settled({ label: 'settings', userId, work: getGitHubSettings(userId) }),
     settled({
       label: 'scheduled',
@@ -112,7 +112,13 @@ export async function publishHome(userId: string): Promise<void> {
       work: scheduledTasksBlocks(userId),
     }),
     settled({ label: 'display', userId, work: getToolDisplay(userId) }),
-    settled({ label: 'usage', userId, work: usageFor(userId) }),
+    settled<TurnUsage | 'unlimited'>({
+      label: 'usage',
+      userId,
+      work: isModerator(userId)
+        ? Promise.resolve('unlimited')
+        : turnUsage(userId),
+    }),
   ]);
 
   const sections: HomeSection[] = [

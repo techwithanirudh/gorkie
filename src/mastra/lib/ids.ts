@@ -1,9 +1,6 @@
-const PREFIX = 'slack:';
+import type { SlackId } from '../types';
 
-interface SlackId {
-  channel: string | undefined;
-  ts: string | undefined;
-}
+const PREFIX = 'slack:';
 
 function timestamp(value: string | undefined): string | undefined {
   if (!value) {

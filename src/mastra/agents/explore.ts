@@ -51,7 +51,7 @@ export const explore = new Agent({
       'save_artifact',
     ],
     modelSettings: {
-      maxOutputTokens: 16_384,
+      maxOutputTokens: config.maxTokens.subagentOutput,
       maxRetries: 5,
       reasoning: 'medium',
       topP: 0.95,

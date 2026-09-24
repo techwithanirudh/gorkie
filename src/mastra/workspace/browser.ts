@@ -34,9 +34,11 @@ async function readVersion({
   headers: Record<string, string>;
   origin: URL;
 }): Promise<string | undefined> {
+  // CloakServe is still starting until this answers, so a refused connection
+  // or a half-written body only means waitForVersion polls again.
   const response = await fetch(new URL('/json/version', origin), {
     headers,
-    signal: AbortSignal.timeout(5000),
+    signal: AbortSignal.timeout(config.versionProbeTimeoutMs),
   }).catch(() => undefined);
   if (!response?.ok) {
     return;

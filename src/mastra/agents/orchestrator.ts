@@ -76,7 +76,7 @@ async function orchestratorInstructions({
   }
   const userInstructions = userId
     ? await getInstructions(userId).catch((error: unknown) => {
-        logger.debug('[orchestrator] failed to load user instructions', {
+        logger.warn('[orchestrator] failed to load user instructions', {
           error,
           userId,
         });
@@ -91,7 +91,7 @@ async function orchestratorInstructions({
   const [mcpServers, mcpHere] = userId
     ? await Promise.all([
         listMCPServers(userId).catch((error: unknown) => {
-          logger.debug('[orchestrator] failed to load mcp server status', {
+          logger.warn('[orchestrator] failed to load mcp server status', {
             error,
             userId,
           });
@@ -99,7 +99,7 @@ async function orchestratorInstructions({
         }),
         isDM === true ||
           getMCPThreads(userId).catch((error: unknown) => {
-            logger.debug('[orchestrator] failed to load mcp thread setting', {
+            logger.warn('[orchestrator] failed to load mcp thread setting', {
               error,
               userId,
             });

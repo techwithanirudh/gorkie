@@ -6,6 +6,7 @@ import {
   setGitHubSettings,
 } from '../../../db/queries/settings';
 import { githubAccessToken, revokeGitHubGrant } from '../../../lib/github';
+import { logger } from '../../../lib/logger';
 import { githubPermissionSchema, type PublishHome } from '../../../types';
 import { ids } from './ids';
 import { configureModal } from './views';
@@ -34,8 +35,15 @@ export function registerSettings({
 
   bot.onAction(ids.disconnect, async (event) => {
     // Refreshed first because GitHub only revokes with a live token.
+    // Disconnecting must not depend on GitHub being reachable, so a failed
+    // refresh only skips the revoke below.
     const token = await githubAccessToken(event.user.userId).catch(
-      () => undefined
+      (error: unknown) => {
+        logger.warn('[github] could not refresh before revoking', {
+          error,
+          userId: event.user.userId,
+        });
+      }
     );
     await removeGitHubCredential(event.user.userId);
     // Revoking the grant makes the next sign-in show GitHub's consent screen

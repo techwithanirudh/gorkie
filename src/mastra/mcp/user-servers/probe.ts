@@ -1,4 +1,5 @@
 import { MCPClient } from '@mastra/mcp';
+import { mcp as mcpConfig } from '../../config';
 import { logger } from '../../lib/logger';
 import type { MCPServerConfig } from '../../types';
 import { describeMCPError } from '../errors';
@@ -16,7 +17,7 @@ export async function findMCPConnectionError({
     id: `mcp-probe-${userId}-${server.name}`,
     servers: {
       [server.name]: {
-        connectTimeout: 2000,
+        connectTimeout: mcpConfig.probeTimeoutMs,
         ...serverConnection({ server, url }),
       },
     },

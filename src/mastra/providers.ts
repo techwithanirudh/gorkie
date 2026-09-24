@@ -4,7 +4,7 @@ import { env } from '@/env';
 import { channelContext } from './lib/context';
 import { recallModel, slugOf } from './lib/working-model';
 
-export const hackclub = createOpenRouter({
+const hackclub = createOpenRouter({
   apiKey: env.HACKCLUB_API_KEY,
   baseURL: 'https://ai.hackclub.com/proxy/v1',
 });

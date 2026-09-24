@@ -74,7 +74,7 @@ export async function userMCPTools({
     );
     return tools;
   } catch (error) {
-    logger.debug('[mcp] failed to list user servers', { error, userId });
+    logger.warn('[mcp] failed to list user servers', { error, userId });
     return {};
   }
 }

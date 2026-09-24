@@ -32,7 +32,7 @@ This extracts readable article content, so it fails on anything that isn't a pla
     const [result] = (
       await withExaTimeout({
         request: exa.getContents([url], {
-          text: { maxCharacters: 8000 },
+          text: { maxCharacters: exaConfig.fetchMaxChars },
           livecrawl: 'preferred',
           livecrawlTimeout: exaConfig.livecrawlTimeoutMs,
         }),

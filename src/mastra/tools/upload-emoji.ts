@@ -54,6 +54,14 @@ export const uploadEmojiTool = createTool({
     if (path) {
       const filePath = confinePath({ inputPath: path });
       const sandbox = await requireSandbox(context.requestContext);
+      const { size } = await sandbox.retryOnDead(() =>
+        sandbox.e2b.files.getInfo(filePath)
+      );
+      if (size > emoji.maxUploadBytes) {
+        throw new Error(
+          `${path} is ${Math.round(size / 1_000_000)}MB, too large for an emoji. Shrink it first.`
+        );
+      }
       const bytes = await sandbox.retryOnDead(() =>
         sandbox.e2b.files.read(filePath, { format: 'bytes' })
       );

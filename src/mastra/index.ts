@@ -17,6 +17,7 @@ import { setMastra } from './chat/mastra-instance';
 import { isBanned } from './chat/moderation';
 import { TurnDrainWorker } from './chat/turn-drain';
 import { claimTurn } from './chat/usage';
+import { observability as observabilityConfig, shutdown } from './config';
 import { postgresStore, runMigrations } from './db';
 import { buildAllowlist } from './lib/allowed-users';
 import { channelSchema } from './lib/context';
@@ -60,10 +61,10 @@ if (traceStore) {
   const prune = () =>
     traceStore
       .prune({
-        logs: { maxAge: '7d' },
-        metrics: { maxAge: '7d' },
-        scores: { maxAge: '7d' },
-        spans: { maxAge: '7d' },
+        logs: { maxAge: observabilityConfig.traceRetention },
+        metrics: { maxAge: observabilityConfig.traceRetention },
+        scores: { maxAge: observabilityConfig.traceRetention },
+        spans: { maxAge: observabilityConfig.traceRetention },
       })
       .catch((error: unknown) => {
         logger.warn('[observability] pruning old traces failed', { error });
@@ -99,10 +100,7 @@ export const mastra = new Mastra({
     host: env.HOST,
     port: env.PORT,
     cors: false,
-    // How long SIGTERM waits for Slack turns to finish (TurnDrainWorker) before
-    // aborting them. systemd's TimeoutStopSec must exceed twice this plus 5s:
-    // Mastra spends up to one window on HTTP, then another on its own shutdown.
-    drainTimeout: isProduction ? 120_000 : 10_000,
+    drainTimeout: shutdown.drainTimeoutMs,
     build: { openAPIDocs: false, swaggerUI: false },
     apiRoutes: [...oauthRoutes, ...liveViewRoutes],
     ...(env.GORKIE_API_TOKEN

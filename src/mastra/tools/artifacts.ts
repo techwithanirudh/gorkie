@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { artifacts as config } from '../config';
-import { sandboxPath as p, requireSandbox } from '../workspace';
+import {
+  sandboxPath as p,
+  requireSandbox,
+  writeSandboxFile,
+} from '../workspace';
 
 const kinds = ['findings', 'report', 'plan', 'review'] as const;
 
@@ -40,10 +44,7 @@ export const saveArtifactTool = createTool({
     const id = `${kind}-${randomUUID().replaceAll('-', '').slice(0, 12)}`;
     const path = p('.artifacts', `${id}.md`);
     const content = `# ${title}\n\n${body}\n`;
-    await sandbox.retryOnDead(async () => {
-      await sandbox.e2b.files.makeDir(p('.artifacts'));
-      await sandbox.e2b.files.write(path, content);
-    });
+    await writeSandboxFile({ data: content, path, sandbox });
     return { id, path, chars: content.length };
   },
 });

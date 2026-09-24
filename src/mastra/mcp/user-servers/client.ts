@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { MCPClient } from '@mastra/mcp';
 import { env } from '@/env';
 import { logger } from '../../lib/logger';
+import { oauthRedirectUri } from '../../server/oauth-link';
 import type { MCPServerConfig, StoredMCPServer } from '../../types';
 import { findMCPOAuthHostError, MCPServerOAuth, mcpOAuthHosts } from '../oauth';
 import { findMCPUrlError } from '../security';
@@ -89,7 +90,7 @@ async function buildClient({
         return { server, error: `Sign-in server rejected: ${hostError}` };
       }
       const provider = new MCPServerOAuth({
-        redirectUri: `${env.PUBLIC_BASE_URL}/oauth/mcp/callback`,
+        redirectUri: oauthRedirectUri('mcp'),
         server,
         userId,
       });

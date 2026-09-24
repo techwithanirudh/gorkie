@@ -2,7 +2,7 @@ import type { ToolsInput } from '@mastra/core/agent';
 import type { RequestContext } from '@mastra/core/request-context';
 import { createCodeMode, createCodeModeTool } from '@mastra/core/tools';
 import { E2BCodeModeTransport } from '@mastra/e2b';
-import { sandbox as sandboxConfig } from '../../config';
+import { sandbox as sandboxConfig, slack as slackConfig } from '../../config';
 import { channelContext } from '../../lib/context';
 import { logger } from '../../lib/logger';
 import { mcpTools } from '../../mcp';
@@ -81,12 +81,12 @@ async function createCodeModeInstance({
     const outcome = await execute(input, context);
     const size = JSON.stringify(outcome ?? null)?.length ?? 0;
     const result =
-      size <= 60_000
+      size <= slackConfig.codeModeMaxResultChars
         ? outcome
         : {
             success: false,
             error: {
-              message: `The program returned ${size} characters, over the 60000 limit, so nothing was kept. Return a summary computed inside the program (counts, the few records that matter, a written answer) rather than the rows you read, or write the full data to a file and return its path.`,
+              message: `The program returned ${size} characters, over the ${slackConfig.codeModeMaxResultChars} limit, so nothing was kept. Return a summary computed inside the program (counts, the few records that matter, a written answer) rather than the rows you read, or write the full data to a file and return its path.`,
               name: 'ResultTooLarge',
             },
           };

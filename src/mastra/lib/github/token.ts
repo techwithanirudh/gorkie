@@ -1,6 +1,7 @@
 import { deleteAuthorization, refreshToken } from '@octokit/oauth-methods';
 import { z } from 'zod';
 import { env } from '@/env';
+import { github as githubConfig } from '../../config';
 import {
   getGitHubCredential,
   setGitHubCredentialError,
@@ -99,7 +100,7 @@ export async function githubAccessToken(
   if (!account.refreshToken) {
     return expiresIn > 0 ? account.token : undefined;
   }
-  if (expiresIn >= 5 * 60 * 1000) {
+  if (expiresIn >= githubConfig.refreshBeforeExpiryMs) {
     return account.token;
   }
 

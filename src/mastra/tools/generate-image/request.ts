@@ -2,6 +2,7 @@ import { detectMediaType } from '@ai-sdk/provider-utils';
 import type { E2BSandbox } from '@mastra/e2b';
 import { z } from 'zod';
 import { env } from '@/env';
+import { image } from '../../config';
 import { images } from '../../providers';
 import { confinePath } from '../../workspace/filesystem';
 
@@ -44,9 +45,9 @@ export async function requestImages({
       const { size } = await sandbox.retryOnDead(() =>
         sandbox.e2b.files.getInfo(filePath)
       );
-      if (size > 8 * 1024 * 1024) {
+      if (size > image.maxEditBytes) {
         throw new Error(
-          `"${path}" is ${Math.round(size / 1024 / 1024)}MB, too large to send for editing. Resize it below 8MB first.`
+          `"${path}" is ${Math.round(size / 1024 / 1024)}MB, too large to send for editing. Resize it below ${image.maxEditBytes / 1024 / 1024}MB first.`
         );
       }
       const data = Buffer.from(

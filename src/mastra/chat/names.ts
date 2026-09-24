@@ -1,4 +1,5 @@
 import { Chat } from 'chat';
+import { slack as slackConfig } from '../config';
 import { rawId } from '../lib/ids';
 import { logger } from '../lib/logger';
 import { type UserProfile, userProfileSchema } from '../types';
@@ -19,8 +20,7 @@ export async function resolveUserProfile(
 
   const user = await bot.getUser(userId);
   let profile: UserProfile;
-  // A transient Slack failure is cached only briefly so it is retried soon.
-  let ttl = 86_400_000;
+  let ttl = slackConfig.profileTtlMs;
   try {
     const [{ profile: raw }, { user: info }] = await Promise.all([
       slack.webClient.users.profile.get({
@@ -51,7 +51,7 @@ export async function resolveUserProfile(
       return;
     }
     profile = { fields: [] };
-    ttl = 60_000;
+    ttl = slackConfig.failedProfileTtlMs;
   }
 
   const resolved = {

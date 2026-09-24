@@ -162,8 +162,8 @@ export const runBackgroundTool = createTool({
       return {
         exitCode: result.exitCode,
         timedOut: deadline.aborted,
-        stdout: result.stdout.slice(-10_000),
-        stderr: result.stderr.slice(-10_000),
+        stdout: result.stdout.slice(-sandboxConfig.background.outputTailChars),
+        stderr: result.stderr.slice(-sandboxConfig.background.outputTailChars),
       };
     } finally {
       endJob(id);

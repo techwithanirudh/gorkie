@@ -1,5 +1,7 @@
 import { SlackAdapter } from '@chat-adapter/slack';
 import { z } from 'zod';
+import { slack as config } from '../config';
+import type { MemberLeftEvent } from '../types';
 
 const mentionPattern = /<@([A-Z0-9_]+)(?:\|([^<>]+))?>/g;
 
@@ -23,10 +25,7 @@ const postedThreadSchema = z.object({
 export class SlackAgentAdapter extends SlackAdapter {
   private readonly recipients = new Map<string, Recipient>();
 
-  private memberLeftHandler?: (event: {
-    channel: string;
-    userId: string;
-  }) => Promise<void>;
+  private memberLeftHandler?: (event: MemberLeftEvent) => Promise<void>;
   // Threads whose root is gone: Slack posts a reply to a deleted root at the
   // channel root instead of rejecting it, so later posts there would too.
   private readonly unthreaded = new Set<string>();
@@ -57,7 +56,7 @@ export class SlackAgentAdapter extends SlackAdapter {
       const known = this.recipients.get(threadId);
       if (!(known?.userId === userId && known.teamId === teamId)) {
         const recipient: Recipient = { userId, teamId };
-        if (!known && this.recipients.size >= 10_000) {
+        if (!known && this.recipients.size >= config.maxCachedThreads) {
           const oldestThreadId = this.recipients.keys().next().value;
           if (oldestThreadId) {
             this.recipients.delete(oldestThreadId);
@@ -68,7 +67,7 @@ export class SlackAgentAdapter extends SlackAdapter {
         // is not held up on it, and a failed write just loses that hint.
         chat
           .getState()
-          .set(this.recipientKey(threadId), recipient, 30 * 24 * 60 * 60 * 1000)
+          .set(this.recipientKey(threadId), recipient, config.recipientTtlMs)
           .catch(() => undefined);
       }
     }
@@ -110,7 +109,7 @@ export class SlackAgentAdapter extends SlackAdapter {
 
   // Chat SDK has onMemberJoinedChannel but nothing for leaving.
   onMemberLeftChannel(
-    handler: (event: { channel: string; userId: string }) => Promise<void>
+    handler: (event: MemberLeftEvent) => Promise<void>
   ): void {
     this.memberLeftHandler = handler;
   }
@@ -153,7 +152,10 @@ export class SlackAgentAdapter extends SlackAdapter {
     if (!(threadTs && posted) || posted.message.thread_ts) {
       return false;
     }
-    if (!this.unthreaded.has(threadId) && this.unthreaded.size >= 10_000) {
+    if (
+      !this.unthreaded.has(threadId) &&
+      this.unthreaded.size >= config.maxCachedThreads
+    ) {
       const oldest = this.unthreaded.values().next().value;
       if (oldest) {
         this.unthreaded.delete(oldest);
@@ -221,7 +223,7 @@ export class SlackAgentAdapter extends SlackAdapter {
     }
 
     const lookup = (async () => {
-      if (this.activeLookups >= 4) {
+      if (this.activeLookups >= config.userLookupConcurrency) {
         await new Promise<void>((resolve) => this.waitingLookups.push(resolve));
       } else {
         this.activeLookups++;
@@ -231,7 +233,10 @@ export class SlackAgentAdapter extends SlackAdapter {
         if (user) {
           this.unresolvedUntil.delete(userId);
         } else {
-          this.unresolvedUntil.set(userId, Date.now() + 60_000);
+          this.unresolvedUntil.set(
+            userId,
+            Date.now() + config.unresolvedUserTtlMs
+          );
         }
         return user;
       } finally {

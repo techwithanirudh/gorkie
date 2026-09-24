@@ -2,6 +2,13 @@ import type { Context } from 'hono';
 import { html } from 'hono/html';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
+// Sign-in pages and redirects carry tickets and codes in their URLs, so they
+// are never cached and never leak through a Referer.
+export function privateHeaders(c: Context): void {
+  c.header('Cache-Control', 'no-store');
+  c.header('Referrer-Policy', 'no-referrer');
+}
+
 export async function oauthPage({
   c,
   form,
@@ -15,8 +22,7 @@ export async function oauthPage({
   status?: ContentfulStatusCode;
   title: string;
 }): Promise<Response> {
-  c.header('Cache-Control', 'no-store');
-  c.header('Referrer-Policy', 'no-referrer');
+  privateHeaders(c);
   c.header(
     'Content-Security-Policy',
     "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https:; frame-ancestors 'none'"

@@ -1,4 +1,8 @@
-import { type CommandHandler, toolDisplayModeSchema } from '../../types';
+import {
+  type CommandHandler,
+  type ToolDisplaySource,
+  toolDisplayModeSchema,
+} from '../../types';
 import { rawText, withoutLeadingMentions } from '../message';
 import { notify } from '../notify';
 import { setThreadState } from '../state';
@@ -8,7 +12,7 @@ const sources = {
   default: 'the default',
   thread: 'this thread',
   you: 'your home tab setting',
-};
+} satisfies Record<ToolDisplaySource, string>;
 
 export const display: CommandHandler = async ({ message, thread }) => {
   const argument = withoutLeadingMentions(rawText(message))

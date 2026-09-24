@@ -5,6 +5,7 @@ import type {
 } from '@mastra/core/processors';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
+import { reasoningMarkers } from '../prompts/reasoning';
 
 interface Scan {
   carry: string;
@@ -20,7 +21,11 @@ const markupTags = [
   'arg_key',
   'arg_value',
 ].flatMap((name) => [`<${name}>`, `</${name}>`]);
-const narrationLine = /^(?:→|↺|\?|●|◐|○|⚠️?)\s/;
+// The emoji variation selector is optional: models emit ⚠ both with and
+// without it.
+const narrationLine = new RegExp(
+  `^(?:${reasoningMarkers.map((marker) => marker.replace(/[?]/g, '\\$&')).join('|')})\uFE0F?\\s`
+);
 const turns = new WeakMap<object, { scan: Scan; retried: boolean }>();
 
 function freshScan(): Scan {

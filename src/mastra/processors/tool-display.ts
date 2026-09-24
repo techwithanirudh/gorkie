@@ -24,13 +24,17 @@ export const toolDisplay = {
     }
     args.state.toolDisplayResolved = true;
     const render = args.requestContext?.get(renderKey);
-    if (typeof render !== 'object' || render === null) {
+    if (
+      typeof render !== 'object' ||
+      render === null ||
+      !('toolDisplay' in render)
+    ) {
       return args.part;
     }
     const { threadId, userId } = channelContext(args.requestContext);
     try {
       const { mode } = await resolveToolDisplay({ threadId, userId });
-      Reflect.set(render, 'toolDisplay', mastraToolDisplay[mode]);
+      render.toolDisplay = mastraToolDisplay[mode];
     } catch (error) {
       logger.warn('[tool-display] could not resolve mode', { error, threadId });
     }

@@ -1,3 +1,4 @@
+import type { Duration } from '@mastra/core/storage';
 import { env } from '@/env';
 import type { ToolDisplayMode } from './types';
 export const sandbox = {
@@ -6,7 +7,11 @@ export const sandbox = {
   timeout: 16 * 60 * 1000,
   // A job outlives its turn, so the VM lifetime is re-armed while one runs.
   // The cap matches E2B Hobby's one-hour sandbox limit.
-  background: { maxTimeoutSeconds: 60 * 60, keepaliveMs: 10 * 60 * 1000 },
+  background: {
+    maxTimeoutSeconds: 60 * 60,
+    keepaliveMs: 10 * 60 * 1000,
+    outputTailChars: 10_000,
+  },
   // A cold clone or a large push runs well past E2B's 60s request default, and
   // a timeout there retries the whole clone inside the credential window.
   cloneDepth: 50,
@@ -18,6 +23,7 @@ export const liveView = {
   cdpPort: 9222,
   cloakServe: { path: '/usr/local/bin/cloakserve', version: '0.5.10' },
   startupTimeoutMs: 30_000,
+  versionProbeTimeoutMs: 5000,
   refreshMs: 15_000,
 };
 
@@ -27,6 +33,7 @@ export const upload = {
 
 export const file = {
   maxReadBytes: 10 * 1024 * 1024,
+  maxGrepOutputBytes: 16 * 1024 * 1024,
 };
 
 export const canvas = {
@@ -39,6 +46,7 @@ export const artifacts = {
 
 export const image = {
   maxViewBytes: 10 * 1024 * 1024,
+  maxEditBytes: 8 * 1024 * 1024,
   // Vision models cap inline images per request (GLM: 8 images, 64 MiB total,
   // non-retryable 400 over that). Keep only the most recent within these bounds.
   maxContextImages: 8,
@@ -47,7 +55,7 @@ export const image = {
 
 export const agent = {
   id: 'orchestrator',
-  maxTokens: { input: 950_000, output: 65_536 },
+  maxTokens: { input: 950_000, output: 65_536, subagentOutput: 16_384 },
   maxSteps: 1000,
   modelTimeout: { firstChunkMs: 2 * 60 * 1000, stepMs: 5 * 60 * 1000 },
 };
@@ -70,14 +78,23 @@ export const workingModel = {
 
 export const github = {
   installUrl: `https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`,
+  refreshBeforeExpiryMs: 5 * 60 * 1000,
 };
 
 export const mcp = {
   maxServers: 10,
+  refreshBeforeExpiryMs: 60 * 1000,
+  oauthRequestTimeoutMs: 10_000,
+  // Connect and OAuth-discovery probes run while describing a failure to the
+  // model, so they give up quickly rather than stall the turn.
+  probeTimeoutMs: 2000,
 };
 
 export const emoji = {
   listTtl: 5 * 60 * 1000,
+  // Bounds what the host reads into memory; Slack's own emoji limits still
+  // apply on the proxy's side.
+  maxUploadBytes: 10 * 1024 * 1024,
   proxyUrl: 'https://hackclub-slack-emoji-proxy.vercel.app/api/emoji',
 };
 
@@ -90,4 +107,40 @@ export const usage = {
 export const exa = {
   timeoutMs: 30_000,
   livecrawlTimeoutMs: 15_000,
+  fetchMaxChars: 8000,
+};
+
+export const search = {
+  snippetChars: 1200,
+};
+
+export const slack = {
+  // Per-process caches keyed by thread evict their oldest entry past this.
+  maxCachedThreads: 10_000,
+  recipientTtlMs: 30 * 24 * 60 * 60 * 1000,
+  userLookupConcurrency: 4,
+  unresolvedUserTtlMs: 60 * 1000,
+  profileTtlMs: 24 * 60 * 60 * 1000,
+  // A transient Slack failure is cached only briefly so it is retried soon.
+  failedProfileTtlMs: 60 * 1000,
+  callsPerTurn: 200,
+  apiPreviewChars: 16_384,
+  codeModeMaxResultChars: 60_000,
+};
+
+export const history = {
+  maxScannedMessages: 30,
+  maxUnseenMessages: 10,
+};
+
+export const shutdown = {
+  // How long SIGTERM waits for Slack turns to finish (TurnDrainWorker) before
+  // aborting them. systemd's TimeoutStopSec must exceed twice this plus 5s:
+  // Mastra spends up to one window on HTTP, then another on its own shutdown.
+  drainTimeoutMs: env.NODE_ENV === 'production' ? 120_000 : 10_000,
+  abortLeadMs: 10_000,
+};
+
+export const observability: { traceRetention: Duration } = {
+  traceRetention: '7d',
 };

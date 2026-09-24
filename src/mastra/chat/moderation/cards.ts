@@ -1,4 +1,4 @@
-import { Actions, Button, Card, CardText, Field, Fields, Modal } from 'chat';
+import { Actions, Button, Card, CardText, Field, Fields } from 'chat';
 import type { ModerationEvent } from '../../types';
 import { moderationIds } from './ids';
 
@@ -41,18 +41,6 @@ export function decisionCard({
           : []),
         Button({ id: moderationIds.info, label: 'More info' }),
       ]),
-    ],
-  });
-}
-
-export function infoModal() {
-  return Modal({
-    callbackId: moderationIds.infoModal,
-    title: 'gorkie bans',
-    children: [
-      CardText(
-        "Moderators can ban people from gorkie when they break gorkie's terms or the community guidelines. A banned person cannot use gorkie anywhere, and their scheduled tasks are skipped until the ban ends.\n\nBans can be temporary or permanent. If a ban looks like a mistake, talk to a moderator directly."
-      ),
     ],
   });
 }

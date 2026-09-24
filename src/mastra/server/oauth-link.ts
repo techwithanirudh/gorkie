@@ -22,3 +22,7 @@ export function oauthStartLink({
   });
   return `${env.PUBLIC_BASE_URL}/oauth/${provider}/start?t=${signed}`;
 }
+
+export function oauthRedirectUri(provider: OAuthProvider): string {
+  return `${env.PUBLIC_BASE_URL}/oauth/${provider}/callback`;
+}

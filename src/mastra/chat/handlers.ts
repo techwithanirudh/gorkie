@@ -123,10 +123,12 @@ function declined({
 
 async function runTurn({
   defaultHandler,
+  follow = false,
   message,
   thread,
 }: {
   defaultHandler: Parameters<ChannelHandler>[2];
+  follow?: boolean;
   message: Message;
   thread: Thread;
 }): Promise<void> {
@@ -162,6 +164,11 @@ async function runTurn({
     });
     return;
   }
+  // Only once the turn is really going to run: a command, a dropped message or
+  // one over the limit must not leave gorkie answering the whole thread.
+  if (follow) {
+    await setThreadState({ thread, patch: { respondOnThreadMessages: true } });
+  }
   await defaultHandler(thread, prompt);
   if (!thread.isDM) {
     await setThreadState({ thread, patch: { lastSeenMessage: message.id } });
@@ -190,13 +197,15 @@ export const onMention: ChannelHandler = async (
   if (await turnAwayUnfocused({ message, thread })) {
     return;
   }
-  if (slack.decodeThreadId(message.threadId).threadTs === message.id) {
-    await setThreadState({ thread, patch: { respondOnThreadMessages: true } });
-  }
   if (await handleCommand({ message, thread })) {
     return;
   }
-  await runTurn({ defaultHandler, message, thread });
+  await runTurn({
+    defaultHandler,
+    follow: slack.decodeThreadId(message.threadId).threadTs === message.id,
+    message,
+    thread,
+  });
 };
 
 export const onSubscribedMessage: ChannelHandler = async (

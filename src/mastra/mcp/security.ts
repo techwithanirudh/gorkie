@@ -1,5 +1,6 @@
 import { promises as dns } from 'node:dns';
 import ipaddr from 'ipaddr.js';
+import { mcp as mcpConfig } from '../config';
 
 function isPublicAddress(address: string): boolean {
   return ipaddr.process(address).range() === 'unicast';
@@ -49,9 +50,10 @@ export async function guardedFetch(
   if (error) {
     throw new Error(`Blocked OAuth request: ${error}`);
   }
+  const timeout = AbortSignal.timeout(mcpConfig.oauthRequestTimeoutMs);
   return fetch(input, {
     ...init,
     redirect: 'manual',
-    signal: AbortSignal.timeout(10_000),
+    signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout,
   });
 }

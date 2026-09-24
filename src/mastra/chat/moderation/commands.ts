@@ -3,14 +3,14 @@ import { z } from 'zod';
 import { activeBans } from '../../db/queries/moderation';
 import { logger } from '../../lib/logger';
 import { banDurationSchema } from '../../types';
+import { userMention } from '../message';
 import { banGuard, decide, isModerator } from '.';
 import { until } from './cards';
 
 const BAN_COMMANDS = new Set(['/ban', '/dev-ban']);
 const UNBAN_COMMANDS = new Set(['/unban', '/dev-unban']);
 
-// Slack sends escaped mentions as <@U123|name> when the command sets should_escape.
-const MENTION = /^<@([UW][A-Z0-9]+)(?:\|[^>]*)?>\s*(.*)$/s;
+const MENTION = new RegExp(`^${userMention.source}\\s*(.*)$`, 's');
 
 const rawSchema = z.looseObject({
   response_url: z.url({ hostname: /^hooks\.slack\.com$/ }),

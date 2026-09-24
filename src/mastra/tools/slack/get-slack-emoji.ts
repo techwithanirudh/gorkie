@@ -3,7 +3,11 @@ import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { emoji as emojiConfig, image } from '../../config';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { sandboxPath as p, requireSandbox } from '../../workspace';
+import {
+  sandboxPath as p,
+  requireSandbox,
+  writeSandboxFile,
+} from '../../workspace';
 import { viewableImageType } from '../view-image';
 
 let cachedList:
@@ -127,10 +131,7 @@ export const getSlackEmojiTool = createTool({
       'emoji',
       `${name.replace(/[^\w+-]/g, '_')}.${mediaType.split('/')[1]}`
     );
-    await sandbox.retryOnDead(async () => {
-      await sandbox.e2b.files.makeDir(p('emoji'));
-      await sandbox.e2b.files.write(path, bytes.buffer);
-    });
+    await writeSandboxFile({ data: bytes.buffer, path, sandbox });
 
     return {
       custom: true as const,

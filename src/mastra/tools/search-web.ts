@@ -1,5 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+import { search } from '../config';
 import { exa, withExaTimeout } from '../lib/exa';
 
 export const searchWebTool = createTool({
@@ -36,7 +37,7 @@ export const searchWebTool = createTool({
       request: exa.search(query, {
         type: 'auto',
         numResults: 8,
-        contents: { text: { maxCharacters: 1200 } },
+        contents: { text: { maxCharacters: search.snippetChars } },
       }),
       signal: abortSignal,
     });

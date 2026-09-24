@@ -71,6 +71,7 @@ async function thumbnail(c: Context): Promise<Response> {
   if (!live) {
     return expired(c);
   }
+  // A closed or dead browser session reads the same as an expired link.
   const image = await browser.screenshot(live.threadId).catch(() => undefined);
   if (!image) {
     return expired(c);

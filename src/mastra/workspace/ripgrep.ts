@@ -5,6 +5,7 @@ import type {
   FilesystemGrepResult,
 } from '@mastra/core/workspace';
 import { z } from 'zod';
+import { file as fileConfig } from '../config';
 import { sh } from '../lib/utils';
 
 const arbitraryData = z.union([
@@ -91,7 +92,7 @@ export function ripgrepCommand({
     maxTotalMatches === undefined
       ? []
       : [`head -n ${maxTotalMatches * (2 * contextLines + 3) + 1}`];
-  caps.push(`head -c ${16 * 1024 * 1024}`);
+  caps.push(`head -c ${fileConfig.maxGrepOutputBytes}`);
 
   // Exit 1 is "no matches" and 141 is SIGPIPE from `head` closing early; both
   // are successful searches. $PIPESTATUS is bash-only, which E2B runs.

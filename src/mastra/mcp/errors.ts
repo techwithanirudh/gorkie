@@ -3,6 +3,7 @@ import {
   type MCPDiscoveryErrorDetails,
 } from '@mastra/mcp';
 import { z } from 'zod';
+import { mcp as mcpConfig } from '../config';
 import type { MCPServerConfig } from '../types';
 
 const errorBodySchema = z.object({
@@ -51,18 +52,23 @@ const oauthLookups = new Map<string, Promise<boolean>>();
 
 // Manual redirects keep the probe on the already-validated host. Missing or
 // unreachable metadata means "unknown", which reads the same as no OAuth.
-// Cached per URL because a server stuck on 401 is re-described every turn.
+// Cached per URL because a server stuck on 401 is re-described every turn. A
+// failed lookup is dropped so a server that was only briefly down is asked
+// again next time.
 export function advertisesOAuth(url: string): Promise<boolean> {
   let lookup = oauthLookups.get(url);
   if (!lookup) {
-    const signal = AbortSignal.timeout(2000);
+    const signal = AbortSignal.timeout(mcpConfig.probeTimeoutMs);
     lookup = discoverOAuthProtectedResourceMetadata(
       url,
       undefined,
       (input, init) => fetch(input, { ...init, redirect: 'manual', signal })
     ).then(
       () => true,
-      () => false
+      () => {
+        oauthLookups.delete(url);
+        return false;
+      }
     );
     oauthLookups.set(url, lookup);
   }

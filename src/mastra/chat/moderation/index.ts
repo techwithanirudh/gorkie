@@ -1,4 +1,4 @@
-import { type CardElement, Chat } from 'chat';
+import { CardText, Chat, Modal } from 'chat';
 import { add, type Duration } from 'date-fns';
 import { env } from '@/env';
 import {
@@ -12,7 +12,7 @@ import type { BanDuration, ModerationEvent } from '../../types';
 import { publishHome } from '../app-home/view';
 import { slack } from '../client';
 import { notify } from '../notify';
-import { decisionCard, infoModal } from './cards';
+import { decisionCard } from './cards';
 import { moderationIds } from './ids';
 
 export { banNotice } from './cards';
@@ -35,30 +35,6 @@ export async function isBanned(userId: string) {
     // Fail open: a database hiccup must not lock everyone out of gorkie.
     logger.error('[moderation] ban lookup failed', { error, userId });
   }
-}
-
-async function postToLogs(card: CardElement): Promise<void> {
-  if (!env.LOGS_CHANNEL) {
-    logger.warn('[moderation] LOGS_CHANNEL is not set, card not posted');
-    return;
-  }
-  await Chat.getSingleton()
-    .channel(chatChannelId(env.LOGS_CHANNEL))
-    .post(card)
-    .catch((error: unknown) =>
-      logger.error('[moderation] could not post to the logs channel', { error })
-    );
-}
-
-function refreshHome(userId: string): void {
-  // Fire and forget: the decision is already recorded, and a stale Home tab
-  // only lasts until the person next opens it.
-  publishHome(rawId(userId)).catch((error: unknown) =>
-    logger.warn('[moderation] could not refresh the Home tab', {
-      error,
-      userId,
-    })
-  );
 }
 
 export function banGuard({
@@ -106,8 +82,26 @@ export async function decide({
         : undefined,
   });
   logger.info(`[moderation] ${action}`, { actorId, duration, userId });
-  await postToLogs(decisionCard({ event }));
-  refreshHome(userId);
+  if (env.LOGS_CHANNEL) {
+    await Chat.getSingleton()
+      .channel(chatChannelId(env.LOGS_CHANNEL))
+      .post(decisionCard({ event }))
+      .catch((error: unknown) =>
+        logger.error('[moderation] could not post to the logs channel', {
+          error,
+        })
+      );
+  } else {
+    logger.warn('[moderation] LOGS_CHANNEL is not set, card not posted');
+  }
+  // Fire and forget: the decision is already recorded, and a stale Home tab
+  // only lasts until the person next opens it.
+  publishHome(rawId(userId)).catch((error: unknown) =>
+    logger.warn('[moderation] could not refresh the Home tab', {
+      error,
+      userId,
+    })
+  );
   return event;
 }
 
@@ -149,7 +143,17 @@ export function registerModeration(): void {
 
   bot.onAction(moderationIds.info, async (event) => {
     await event
-      .openModal(infoModal())
+      .openModal(
+        Modal({
+          callbackId: moderationIds.infoModal,
+          title: 'gorkie bans',
+          children: [
+            CardText(
+              "Moderators can ban people from gorkie when they break gorkie's terms or the community guidelines. A banned person cannot use gorkie anywhere, and their scheduled tasks are skipped until the ban ends.\n\nBans can be temporary or permanent. If a ban looks like a mistake, talk to a moderator directly."
+            ),
+          ],
+        })
+      )
       .catch((error: unknown) =>
         logger.warn('[moderation] could not open the info modal', { error })
       );

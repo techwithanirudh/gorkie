@@ -14,7 +14,7 @@ export const oauthTokenSchema = z.object({
 
 export type OAuthToken = z.infer<typeof oauthTokenSchema>;
 
-export type OAuthOutcome =
+type OAuthOutcome =
   | { redirect: string }
   | { page: { paragraphs: string[]; title: string } };
 

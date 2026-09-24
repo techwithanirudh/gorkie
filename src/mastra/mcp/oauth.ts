@@ -7,6 +7,7 @@ import {
 } from '@mastra/mcp';
 import * as oauth from 'oauth4webapi';
 import { z } from 'zod';
+import { mcp as mcpConfig } from '../config';
 import {
   clearMCPOAuth,
   mcpOAuthStorage,
@@ -123,7 +124,8 @@ export class MCPServerOAuth extends MCPOAuthClientProvider {
     if (
       !(this.#onRedirect === undefined && tokens?.refresh_token && savedAt) ||
       tokens.expires_in === undefined ||
-      savedAt + tokens.expires_in * 1000 - Date.now() > 60_000
+      savedAt + tokens.expires_in * 1000 - Date.now() >
+        mcpConfig.refreshBeforeExpiryMs
     ) {
       return tokens;
     }
