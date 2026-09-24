@@ -23,7 +23,7 @@ export async function instructions(
   const { userId } = ctx;
   const [codeMode, github, userInstructions, mcps] = await Promise.all([
     codeModeInstructions({ workspaceAccess: true }),
-    githubPrompt({ isDM, requestContext, userId }),
+    userId ? githubPrompt({ isDM, requestContext, userId }) : undefined,
     userId
       ? getUserSettings(userId)
           .then(({ instructions }) => instructions)

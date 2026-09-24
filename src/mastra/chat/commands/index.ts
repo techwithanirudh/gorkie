@@ -42,6 +42,6 @@ export async function handleCommand({
     });
     return true;
   }
-  await command({ message, thread });
+  await command({ message, state, thread });
   return true;
 }

@@ -14,7 +14,7 @@ import {
   setMCPOAuthStatus,
 } from '../db/queries/mcp-oauth';
 import { logger } from '../lib/logger';
-import type { MCPServerConfig } from '../types';
+import { type MCPServerConfig, storedJson } from '../types';
 import { guardedFetch } from './security';
 
 type DiscoveryState = Parameters<
@@ -23,30 +23,23 @@ type DiscoveryState = Parameters<
 
 const refreshing = new Map<string, Promise<void>>();
 
-const storedJson = z.string().transform((raw, ctx) => {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    ctx.addIssue({ code: 'custom', message: 'not JSON' });
-    return z.NEVER;
-  }
-});
-
-const discoverySchema = z.looseObject({
-  authorizationServerUrl: z.url(),
-  authorizationServerMetadata: z
-    .looseObject({
-      authorization_endpoint: z.url(),
-      issuer: z.string(),
-      registration_endpoint: z.url().optional(),
-      response_types_supported: z.array(z.string()),
-      revocation_endpoint: z.url().optional(),
-      token_endpoint: z.url(),
-    })
-    .optional(),
-  resourceMetadata: z.looseObject({ resource: z.string() }).optional(),
-  resourceMetadataUrl: z.string().optional(),
-});
+const discoverySchema = storedJson.pipe(
+  z.looseObject({
+    authorizationServerUrl: z.url(),
+    authorizationServerMetadata: z
+      .looseObject({
+        authorization_endpoint: z.url(),
+        issuer: z.string(),
+        registration_endpoint: z.url().optional(),
+        response_types_supported: z.array(z.string()),
+        revocation_endpoint: z.url().optional(),
+        token_endpoint: z.url(),
+      })
+      .optional(),
+    resourceMetadata: z.looseObject({ resource: z.string() }).optional(),
+    resourceMetadataUrl: z.string().optional(),
+  })
+);
 
 const clientSchema = z.looseObject({
   client_id: z.string(),
@@ -100,9 +93,7 @@ export class MCPServerOAuth extends MCPOAuthClientProvider {
   }
 
   async discoveryState(): Promise<DiscoveryState | undefined> {
-    return storedJson
-      .pipe(discoverySchema)
-      .safeParse(await this.#store.get('discovery')).data;
+    return discoverySchema.safeParse(await this.#store.get('discovery')).data;
   }
 
   async saveResourceUrl(resourceUrl: string): Promise<void> {
@@ -213,9 +204,9 @@ export async function mcpOAuthHosts({
   name: string;
   userId: string;
 }): Promise<string[]> {
-  const discovery = storedJson
-    .pipe(discoverySchema)
-    .safeParse(await mcpOAuthStorage({ name, userId }).get('discovery')).data;
+  const discovery = discoverySchema.safeParse(
+    await mcpOAuthStorage({ name, userId }).get('discovery')
+  ).data;
   if (!discovery) {
     return [];
   }
@@ -247,8 +238,8 @@ export async function revokeMCPOAuth({
       store.get('client_info'),
       store.get('tokens'),
     ]);
-    const metadata = storedJson.pipe(discoverySchema).safeParse(rawDiscovery)
-      .data?.authorizationServerMetadata;
+    const metadata =
+      discoverySchema.safeParse(rawDiscovery).data?.authorizationServerMetadata;
     const client = storedJson.pipe(clientSchema).safeParse(rawClient).data;
     const tokens = storedJson
       .pipe(

@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { Mastra } from '@mastra/core/mastra';
 import { SpanType } from '@mastra/core/observability';
+import type { SchedulePrepareContext } from '@mastra/core/schedules';
 import { SimpleAuth } from '@mastra/core/server';
 import { MastraCompositeStore } from '@mastra/core/storage';
 import { DuckDBStore } from '@mastra/duckdb';
@@ -103,10 +104,7 @@ async function deleteFiredWait({
 async function gateScheduledFire({
   mastra: runtime,
   schedule,
-}: {
-  mastra: Mastra;
-  schedule: { id: string };
-}): Promise<null | undefined> {
+}: SchedulePrepareContext<Mastra>): Promise<null | undefined> {
   const current = await runtime.schedules.get(schedule.id);
   if (!current) {
     return null;

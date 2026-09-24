@@ -12,14 +12,6 @@ import type { ChannelContext } from '../types';
 import { requireSandbox } from '../workspace';
 import { startJob } from '../workspace/jobs';
 
-interface ThreadOnlyChannelContext {
-  channelId: string;
-  isDM: boolean;
-  platform: 'slack';
-  threadId: string;
-  userId?: never;
-}
-
 // The completion callback gets only the task record, whose `threadId` is the
 // memory thread. The woken run needs the Slack channel context the way `wait`
 // carries it, so the job hands it over by task id. In memory: a restart loses
@@ -33,7 +25,7 @@ async function wakeThread(task: BackgroundTask): Promise<void> {
   if (!(threadId && resourceId)) {
     return;
   }
-  let channel: ChannelContext | ThreadOnlyChannelContext;
+  let channel: ChannelContext;
   try {
     channel = saved ?? {
       platform: 'slack',

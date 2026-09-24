@@ -95,22 +95,17 @@ const deriveSigner = (key: Buffer): StateSigner =>
   );
 const signer = deriveSigner(current.key);
 const fallbackSigner = previous ? deriveSigner(previous.key) : undefined;
-const stateSigner: Pick<StateSigner, 'sign' | 'verify'> = {
-  sign: (...args) => signer.sign(...args),
-  verify: (signed) =>
-    signer.verify(signed) ?? fallbackSigner?.verify(signed) ?? null,
-};
 
 export function signOAuthToken(token: Omit<OAuthToken, 'nonce'>): {
   nonce: string;
   signed: string;
 } {
-  const signed = stateSigner.sign(
+  const signed = signer.sign(
     `${token.purpose}:${token.provider}`,
     token.slackUserId,
     token.target ? { factoryProjectId: token.target } : undefined
   );
-  const tenant = stateSigner.verify(signed);
+  const tenant = signer.verify(signed);
   if (!tenant) {
     throw new Error('State signer rejected its own state.');
   }
@@ -124,7 +119,7 @@ export function verifyOAuthToken({
   purpose: OAuthToken['purpose'];
   signed: string | undefined;
 }): OAuthToken | undefined {
-  const tenant = stateSigner.verify(signed);
+  const tenant = signer.verify(signed) ?? fallbackSigner?.verify(signed);
   if (!tenant) {
     return;
   }

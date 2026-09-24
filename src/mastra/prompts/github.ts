@@ -8,11 +8,8 @@ export async function githubPrompt({
 }: {
   isDM: boolean;
   requestContext: RequestContext;
-  userId: string | undefined;
+  userId: string;
 }): Promise<string | undefined> {
-  if (!userId) {
-    return;
-  }
   const access = await githubAccess({ isDM, requestContext, userId });
   if (access.state === 'unreadable') {
     return '<github>\nWhether GitHub is connected could not be checked just now, and the github_ tools are missing for the same reason. Say the connection could not be checked and that they should try again shortly. Do not tell them to connect: they may already be.\n</github>';

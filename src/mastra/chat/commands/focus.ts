@@ -3,9 +3,8 @@ import type { CommandHandler } from '../../types';
 import { setFocus } from '../focus';
 import { rawText, userMention, withoutLeadingMentions } from '../message';
 import { notify } from '../notify';
-import { threadStateOrNull } from '../state';
 
-export const focus: CommandHandler = async ({ message, thread }) => {
+export const focus: CommandHandler = async ({ message, state, thread }) => {
   const reply = (text: string) =>
     notify({ text, thread, user: message.author });
   if (thread.isDM) {
@@ -18,7 +17,7 @@ export const focus: CommandHandler = async ({ message, thread }) => {
     .replace(/^!focus\b/i, '')
     .trim();
   if (!argument) {
-    const current = (await threadStateOrNull(thread))?.focusedUserIds ?? [];
+    const current = state?.focusedUserIds ?? [];
     await reply(
       current.length > 0
         ? `focused on ${current.map((id) => `<@${id}>`).join(', ')}, plus whoever brought me into this thread and gorkie moderators. \`!focus off\` undoes it.`

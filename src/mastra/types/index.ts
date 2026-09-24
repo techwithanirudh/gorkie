@@ -4,6 +4,7 @@ export * from './channel';
 export * from './command';
 export * from './display';
 export * from './github';
+export * from './json';
 export * from './mcp';
 export * from './moderation';
 export * from './oauth';
