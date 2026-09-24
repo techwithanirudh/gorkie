@@ -11,6 +11,8 @@ product backlog and is not expected to survive a fork.
 
 ## CRITICAL (2026-09-13)
 
+- [x] **Detailed tool display showed no task cards (2026-09-24).** Root cause: the per-run mode lost a race. `ChatChannelOutputProcessor` (`node_modules/@mastra/core/dist/agent-DwtTO5Px.js:21427`, `processDataParts = true`) opens its driver on the first chunk it sees and copies `render.toolDisplay` into `runStreamingDriver` then (`:21494-21498`; `groupTasks` is fixed at `:20784`). Observational Memory writes `data-om-status` from `processInputStep` on every step (`@mastra/memory` `src-zTE4189S.js:29482`, via `emitProgress` at `:30725`), before the model streams, and that part goes through the output processors (`agent-DwtTO5Px.js:29468`). Our `tool-display` processor had no `processDataParts`, so Mastra skipped it for data parts (`:4736`) and the render processor opened with the adapter default `hidden`; the later rewrite to `timeline` changed nothing. Fix in `src/mastra/processors/tool-display.ts`: `processDataParts: true`, and the lookup is memoised as a promise on `state` that every chunk awaits, because OM also writes some parts without awaiting (`src-zTE4189S.js:27190` and others). Ruled out: settings persistence (`setToolDisplay`/`getToolDisplay` both key on `rawId`), processor order (configured processors run before channel ones, `agent-DwtTO5Px.js:35641-35645`), recipient context for native streaming in channel threads (Chat SDK fills `recipientUserId`/`recipientTeamId` from the current message, `chat` `Thread.handleStream`). No patch needed. Needs a live test by the owner.
+
 
 
 
