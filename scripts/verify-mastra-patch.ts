@@ -15,12 +15,28 @@ const markers = [
   '"__mastra_chat_channel_render"',
 ];
 
-const missing = ['agent-DwtTO5Px.js', 'agent-DVnXHd4C.cjs'].flatMap((file) => {
-  const source = readFileSync(join(dist, file), 'utf8');
-  return markers
-    .filter((marker) => !source.includes(marker))
-    .map((marker) => `${file}: ${marker}`);
-});
+// The live view reaches a restricted E2B sandbox only with its traffic token,
+// which the browser-viewer patch forwards to connectOverCDP.
+const viewerDist = join(root, 'node_modules/@mastra/browser-viewer/dist');
+
+const missing = [
+  ...['agent-DwtTO5Px.js', 'agent-DVnXHd4C.cjs'].flatMap((file) => {
+    const source = readFileSync(join(dist, file), 'utf8');
+    return markers
+      .filter((marker) => !source.includes(marker))
+      .map((marker) => `${file}: ${marker}`);
+  }),
+  ...['index.js', 'index.cjs']
+    .filter(
+      (file) =>
+        !readFileSync(join(viewerDist, file), 'utf8').includes(
+          'connectOverCDP(cdpUrl, cdpOptions)'
+        )
+    )
+    .map(
+      (file) => `browser-viewer ${file}: connectOverCDP(cdpUrl, cdpOptions)`
+    ),
+];
 
 if (missing.length > 0) {
   console.error(`[verify-mastra-patch] missing:\n${missing.join('\n')}`);

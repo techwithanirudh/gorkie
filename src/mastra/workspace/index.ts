@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { RequestContext } from '@mastra/core/request-context';
+import { RequestContext } from '@mastra/core/request-context';
 import {
   LocalSkillSource,
   WORKSPACE_TOOLS,
@@ -10,6 +10,7 @@ import { env } from '@/env';
 import { sandbox as config } from '../config';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
+import { SandboxBrowser } from './browser';
 import { E2BFilesystem } from './filesystem';
 import { createSandbox } from './sandbox';
 import {
@@ -74,6 +75,11 @@ export async function pauseSandbox(
     return;
   }
   const { threadId } = channelContext(requestContext);
+  if (threadId) {
+    // Dynamic: the Slack card module imports this one for the browser.
+    const { endLiveView } = await import('../chat/live-view');
+    await endLiveView({ threadId });
+  }
   try {
     const sandbox = await getSandbox(requestContext);
     await sandbox?.retryOnDead(() => sandbox.e2b.pause());
@@ -87,6 +93,17 @@ export async function pauseSandbox(
 
 export { sandboxPath } from './path';
 export { codeModeToolNames, workspaceToolNames } from './tool-names';
+
+// Keyed by the memory thread id, which resolveThreadId makes the Slack thread
+// id the sandbox is keyed by.
+export const browser = new SandboxBrowser({
+  sandboxFor: (threadId) =>
+    requireSandbox(new RequestContext([['channel', { threadId }]])),
+  onConnected: async (threadId) => {
+    const { startLiveView } = await import('../chat/live-view');
+    await startLiveView({ threadId });
+  },
+});
 
 export const workspace: Workspace = new Workspace({
   id: 'main-workspace',
@@ -111,6 +128,7 @@ export const workspace: Workspace = new Workspace({
     });
   },
   sandboxCacheKey: ({ requestContext }) => sandboxKey(requestContext),
+  browser,
   skillSource: new LocalSkillSource({
     basePath: join(env.PROJECT_ROOT, 'workspace/skills'),
   }),

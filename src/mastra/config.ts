@@ -1,7 +1,7 @@
 import { env } from '@/env';
 import type { ToolDisplayMode } from './types';
 export const sandbox = {
-  template: 'gorkie-workspace:2.0',
+  template: 'gorkie-workspace:2.1',
   executionTimeout: 15 * 60 * 1000,
   timeout: 16 * 60 * 1000,
   // A cold clone or a large push runs well past E2B's 60s request default, and
@@ -9,6 +9,13 @@ export const sandbox = {
   cloneDepth: 50,
   gitTimeout: 5 * 60 * 1000,
   workdir: '/home/user',
+};
+
+export const liveView = {
+  cdpPort: 9222,
+  cloakServe: { path: '/usr/local/bin/cloakserve', version: '0.5.5' },
+  startupTimeoutMs: 30_000,
+  refreshMs: 15_000,
 };
 
 export const upload = {

@@ -9,7 +9,12 @@ import {
   type StateTenant,
 } from '@mastra/factory/state-signing';
 import { env } from '@/env';
-import { type OAuthToken, oauthTokenSchema } from '../types';
+import {
+  type LiveViewTicket,
+  liveViewTicketSchema,
+  type OAuthToken,
+  oauthTokenSchema,
+} from '../types';
 
 export const encryptedPrefix = 'v1.';
 const IV_BYTES = 12;
@@ -90,4 +95,25 @@ export function verifyOAuthToken({
   return parsed.success && parsed.data.purpose === purpose
     ? parsed.data
     : undefined;
+}
+
+// A separate key, so a live-view link can never pass as an OAuth state.
+const liveViewSigner = createStateSigner(
+  Buffer.from(hkdfSync('sha256', key, '', 'gorkie-live-view', 32)).toString(
+    'hex'
+  )
+);
+
+export function signLiveViewTicket(ticket: LiveViewTicket): string {
+  return liveViewSigner.sign('live', ticket.threadId);
+}
+
+export function verifyLiveViewTicket(
+  signed: string | undefined
+): LiveViewTicket | undefined {
+  const tenant: StateTenant | null = liveViewSigner.verify(signed);
+  if (tenant?.orgId !== 'live') {
+    return;
+  }
+  return liveViewTicketSchema.safeParse({ threadId: tenant.userId }).data;
 }

@@ -32,7 +32,8 @@
         "usage_hint": "@user [reason]",
         "should_escape": true
       }
-    ]
+    ],
+    "unfurl_domains": ["<YOUR-TUNNEL-URL>"]
   },
   "oauth_config": {
     "scopes": {
@@ -58,6 +59,7 @@
         "im:history",
         "im:read",
         "im:write",
+        "links.embed:write",
         "links:read",
         "lists:read",
         "mpim:history",

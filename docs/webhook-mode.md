@@ -37,9 +37,12 @@ Three layers, so one mistake does not expose the agent API:
    `127.0.0.1:4111` is correct. `*:4111` or `0.0.0.0:4111` means the whole API
    (`/api/agents/*`, memory, workflows) is reachable by anyone who can reach
    the port; firewall it until the new build is deployed.
-2. **Allowlist at the tunnel.** Only the Slack webhook, `/health`, and the
-   OAuth routes under `/oauth/` are forwarded. Everything else gets a
-   404 before it reaches the process.
+2. **Allowlist at the tunnel.** Only the Slack webhook, `/health`, the
+   OAuth routes under `/oauth/`, the live browser view under `/live/`, and its
+   screencast WebSocket are forwarded. Everything else gets a 404 before it
+   reaches the process. The WebSocket (`/browser/orchestrator/stream`) has no
+   Mastra auth of its own, so the proxy guard below only lets it through with a
+   signed live-view ticket (`t`) for the same `threadId`.
 3. **Token on everything else.** With `GORKIE_API_TOKEN` set, `SimpleAuth`
    requires `Authorization: Bearer <token>` on every non-public route. A server
    middleware also returns 404 for any non-public request that carries
@@ -79,6 +82,15 @@ ingress:
   # GET /oauth/github/installed.
   - hostname: <your-host>
     path: ^/oauth/(github|mcp)/(start|callback|installed)$
+    service: http://127.0.0.1:4111
+  # Live browser view: GET /live/<ticket>, GET /live/<ticket>/thumb.jpg, and the
+  # screencast WebSocket. Cloudflare tunnels pass WebSocket upgrades through
+  # with no extra config.
+  - hostname: <your-host>
+    path: ^/live/[A-Za-z0-9._-]+(/thumb\.jpg)?$
+    service: http://127.0.0.1:4111
+  - hostname: <your-host>
+    path: ^/browser/orchestrator/stream$
     service: http://127.0.0.1:4111
   - service: http_status:404
 ```

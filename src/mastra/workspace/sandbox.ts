@@ -17,7 +17,9 @@ export function createSandbox(threadId: string): E2BSandbox {
     id,
     apiKey: env.E2B_API_KEY,
     template: config.template,
-    network: { rules: baseRules() },
+    // Ports are reachable only with the sandbox's traffic token, which stays on
+    // the host; the live view's CDP port must not be public.
+    network: { rules: baseRules(), allowPublicTraffic: false },
     env: {
       SSL_CERT_FILE: '/usr/lib/ssl/cert.pem',
       GIT_TERMINAL_PROMPT: '0',

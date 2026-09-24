@@ -1,0 +1,128 @@
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -354,21 +354,21 @@
+ 	* @param cdpUrl - The external CDP WebSocket URL (wss://... or ws://...)
+ 	* @param threadId - Thread ID to associate the session with
+ 	*/
+-	async connectToExternalCdp(cdpUrl, threadId) {
++	async connectToExternalCdp(cdpUrl, threadId, cdpOptions) {
+ 		if (this.getViewerSession(threadId)) if (this.usesSharedSlot(threadId)) await this.closeSharedBrowser();
+ 		else await this.closeThreadBrowser(threadId);
+-		return this.connectToCdp(cdpUrl, threadId);
++		return this.connectToCdp(cdpUrl, threadId, cdpOptions);
+ 	}
+ 	/**
+ 	* Connect to a browser via CDP URL and create a session.
+ 	* Shared implementation for createSharedSessionFromCdp and connectToExternalCdp.
+ 	*/
+-	async connectToCdp(cdpUrl, threadId) {
++	async connectToCdp(cdpUrl, threadId, cdpOptions) {
+ 		const effectiveThreadId = this.usesSharedSlot(threadId) ? DEFAULT_THREAD_ID : threadId;
+ 		this.logger?.debug?.(`Connecting to CDP for thread ${effectiveThreadId}: ${cdpUrl}`);
+ 		let browser = null;
+ 		try {
+-			browser = await chromium.connectOverCDP(cdpUrl);
++			browser = await chromium.connectOverCDP(cdpUrl, cdpOptions);
+ 			const context = browser.contexts()[0] ?? await browser.newContext();
+ 			let pages = context.pages();
+ 			if (pages.length === 0) {
+@@ -613,9 +613,9 @@
+ 	* @param cdpUrl - The external CDP WebSocket URL (wss://... or ws://...)
+ 	* @param threadId - Thread ID to associate the session with
+ 	*/
+-	async connectToExternalCdp(cdpUrl, threadId) {
++	async connectToExternalCdp(cdpUrl, threadId, cdpOptions) {
+ 		const effectiveThreadId = threadId ?? this.getCurrentThread();
+-		await this.threadManager.connectToExternalCdp(cdpUrl, effectiveThreadId);
++		await this.threadManager.connectToExternalCdp(cdpUrl, effectiveThreadId, cdpOptions);
+ 		this.status = "ready";
+ 	}
+ 	async getActivePage(threadId) {
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -355,21 +355,21 @@
+ 	* @param cdpUrl - The external CDP WebSocket URL (wss://... or ws://...)
+ 	* @param threadId - Thread ID to associate the session with
+ 	*/
+-	async connectToExternalCdp(cdpUrl, threadId) {
++	async connectToExternalCdp(cdpUrl, threadId, cdpOptions) {
+ 		if (this.getViewerSession(threadId)) if (this.usesSharedSlot(threadId)) await this.closeSharedBrowser();
+ 		else await this.closeThreadBrowser(threadId);
+-		return this.connectToCdp(cdpUrl, threadId);
++		return this.connectToCdp(cdpUrl, threadId, cdpOptions);
+ 	}
+ 	/**
+ 	* Connect to a browser via CDP URL and create a session.
+ 	* Shared implementation for createSharedSessionFromCdp and connectToExternalCdp.
+ 	*/
+-	async connectToCdp(cdpUrl, threadId) {
++	async connectToCdp(cdpUrl, threadId, cdpOptions) {
+ 		const effectiveThreadId = this.usesSharedSlot(threadId) ? _mastra_core_browser.DEFAULT_THREAD_ID : threadId;
+ 		this.logger?.debug?.(`Connecting to CDP for thread ${effectiveThreadId}: ${cdpUrl}`);
+ 		let browser = null;
+ 		try {
+-			browser = await playwright_core.chromium.connectOverCDP(cdpUrl);
++			browser = await playwright_core.chromium.connectOverCDP(cdpUrl, cdpOptions);
+ 			const context = browser.contexts()[0] ?? await browser.newContext();
+ 			let pages = context.pages();
+ 			if (pages.length === 0) {
+@@ -614,9 +614,9 @@
+ 	* @param cdpUrl - The external CDP WebSocket URL (wss://... or ws://...)
+ 	* @param threadId - Thread ID to associate the session with
+ 	*/
+-	async connectToExternalCdp(cdpUrl, threadId) {
++	async connectToExternalCdp(cdpUrl, threadId, cdpOptions) {
+ 		const effectiveThreadId = threadId ?? this.getCurrentThread();
+-		await this.threadManager.connectToExternalCdp(cdpUrl, effectiveThreadId);
++		await this.threadManager.connectToExternalCdp(cdpUrl, effectiveThreadId, cdpOptions);
+ 		this.status = "ready";
+ 	}
+ 	async getActivePage(threadId) {
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -179,7 +179,9 @@
+    * @param cdpUrl - The external CDP WebSocket URL (wss://... or ws://...)
+    * @param threadId - Thread ID to associate the session with
+    */
+-  connectToExternalCdp(cdpUrl: string, threadId: string): Promise<BrowserViewerSession>;
++  connectToExternalCdp(cdpUrl: string, threadId: string, cdpOptions?: {
++    headers?: Record<string, string>;
++  }): Promise<BrowserViewerSession>;
+   /**
+    * Connect to a browser via CDP URL and create a session.
+    * Shared implementation for createSharedSessionFromCdp and connectToExternalCdp.
+@@ -296,7 +298,9 @@
+    * @param cdpUrl - The external CDP WebSocket URL (wss://... or ws://...)
+    * @param threadId - Thread ID to associate the session with
+    */
+-  connectToExternalCdp(cdpUrl: string, threadId?: string): Promise<void>;
++  connectToExternalCdp(cdpUrl: string, threadId?: string, cdpOptions?: {
++    headers?: Record<string, string>;
++  }): Promise<void>;
+   protected getActivePage(threadId?: string): Promise<Page | null>;
+   protected getBrowserStateForThread(threadId?: string): BrowserState | null;
+   /**
+--- a/dist/index.d.cts
++++ b/dist/index.d.cts
+@@ -179,7 +179,9 @@
+    * @param cdpUrl - The external CDP WebSocket URL (wss://... or ws://...)
+    * @param threadId - Thread ID to associate the session with
+    */
+-  connectToExternalCdp(cdpUrl: string, threadId: string): Promise<BrowserViewerSession>;
++  connectToExternalCdp(cdpUrl: string, threadId: string, cdpOptions?: {
++    headers?: Record<string, string>;
++  }): Promise<BrowserViewerSession>;
+   /**
+    * Connect to a browser via CDP URL and create a session.
+    * Shared implementation for createSharedSessionFromCdp and connectToExternalCdp.
+@@ -296,7 +298,9 @@
+    * @param cdpUrl - The external CDP WebSocket URL (wss://... or ws://...)
+    * @param threadId - Thread ID to associate the session with
+    */
+-  connectToExternalCdp(cdpUrl: string, threadId?: string): Promise<void>;
++  connectToExternalCdp(cdpUrl: string, threadId?: string, cdpOptions?: {
++    headers?: Record<string, string>;
++  }): Promise<void>;
+   protected getActivePage(threadId?: string): Promise<Page | null>;
+   protected getBrowserStateForThread(threadId?: string): BrowserState | null;
+   /**

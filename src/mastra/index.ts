@@ -18,9 +18,11 @@ import { isBanned } from './chat/moderation';
 import { postgresStore, runMigrations } from './db';
 import { buildAllowlist } from './lib/allowed-users';
 import { channelSchema } from './lib/context';
+import { verifyLiveViewTicket } from './lib/crypto';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
+import { liveViewRoutes } from './server/live-view';
 import { oauthRoutes } from './server/oauth';
 import { isWaitSchedule } from './tools/scheduled-tasks/queries';
 
@@ -80,7 +82,7 @@ export const mastra = new Mastra({
     port: env.PORT,
     cors: false,
     build: { openAPIDocs: false, swaggerUI: false },
-    apiRoutes: oauthRoutes,
+    apiRoutes: [...oauthRoutes, ...liveViewRoutes],
     ...(env.GORKIE_API_TOKEN
       ? {
           auth: new SimpleAuth({
@@ -99,7 +101,14 @@ export const mastra = new Mastra({
         handler: async (c, next) => {
           const proxied =
             c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for');
-          if (proxied && c.req.path !== '/health') {
+          // Mastra registers the screencast WebSocket with no auth of its own,
+          // so a proxied viewer needs a live-view ticket for that exact thread.
+          const ticket = verifyLiveViewTicket(c.req.query('t'));
+          const liveViewer =
+            c.req.path === `/browser/${orchestrator.id}/stream` &&
+            ticket !== undefined &&
+            ticket.threadId === c.req.query('threadId');
+          if (proxied && c.req.path !== '/health' && !liveViewer) {
             return c.text('Not found', 404);
           }
           await next();
