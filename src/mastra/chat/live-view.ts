@@ -70,7 +70,13 @@ async function startLiveView({
 }: {
   threadId: string;
 }): Promise<void> {
-  if (!env.PUBLIC_BASE_URL || cards.has(threadId)) {
+  if (cards.has(threadId)) {
+    return;
+  }
+  if (!env.PUBLIC_BASE_URL) {
+    logger.warn('[live-view] PUBLIC_BASE_URL is unset, no live view posted', {
+      threadId,
+    });
     return;
   }
   const { channel, threadTs } = slack.decodeThreadId(threadId);

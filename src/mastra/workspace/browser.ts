@@ -109,7 +109,7 @@ async function sandboxCdp({
   // Never open a CDP port on those: agent-browser keeps its own browser there.
   const token = sandbox.e2b.trafficAccessToken;
   if (!token) {
-    logger.debug('[live-view] sandbox predates restricted traffic, skipped', {
+    logger.warn('[live-view] sandbox predates restricted traffic, skipped', {
       threadId,
     });
     return;
