@@ -1,5 +1,5 @@
 import { createTool } from '@mastra/core/tools';
-import { computeNextFireAt, validateCron } from '@mastra/core/workflows';
+import { computeNextFireAt } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { agent as agentConfig, scheduledTasks } from '../../config';
 import { channelContext } from '../../lib/context';
@@ -13,7 +13,6 @@ function assertMinimumInterval({
   cron: string;
   timezone?: string;
 }): void {
-  validateCron(cron, timezone);
   let previous = computeNextFireAt(cron, { timezone });
   for (let i = 1; i < 5; i += 1) {
     let fire: number;

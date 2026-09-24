@@ -6,6 +6,7 @@ import {
   Workspace,
 } from '@mastra/core/workspace';
 import { E2BSandbox } from '@mastra/e2b';
+import { z } from 'zod';
 import { env } from '@/env';
 import { sandbox as config } from '../config';
 import { channelContext } from '../lib/context';
@@ -33,8 +34,17 @@ function sandboxKey(requestContext: RequestContext): string {
   return channelContext(requestContext).threadId || unscopedSandboxKey;
 }
 
-export function usedSandbox(requestContext: RequestContext): boolean {
-  return reached.has(requestContext);
+// A sandbox not attached yet gets the full timeout when it connects, so only
+// an attached one needs pushing out.
+async function extendSandbox(sandbox: E2BSandbox): Promise<void> {
+  if (!sandbox.sandboxId) {
+    return;
+  }
+  try {
+    await sandbox.retryOnDead(() => sandbox.e2b.setTimeout(config.timeout));
+  } catch (error) {
+    logger.debug('[sandbox] failed to extend lifetime', { error });
+  }
 }
 
 export async function requireSandbox(
@@ -50,6 +60,7 @@ export async function requireSandbox(
     throw new Error('No sandbox available.');
   }
   await sandbox.ensureRunning();
+  await extendSandbox(sandbox);
   return sandbox;
 }
 
@@ -71,7 +82,7 @@ export async function getSandbox(
 export async function pauseSandbox(
   requestContext: RequestContext
 ): Promise<void> {
-  if (!usedSandbox(requestContext)) {
+  if (!reached.has(requestContext)) {
     return;
   }
   const { threadId } = channelContext(requestContext);
@@ -92,7 +103,7 @@ export async function pauseSandbox(
 }
 
 export { sandboxPath } from './path';
-export { codeModeToolNames, workspaceToolNames } from './tool-names';
+export { codeModeToolNames } from './tool-names';
 
 // Keyed by the memory thread id, which resolveThreadId makes the Slack thread
 // id the sandbox is keyed by.
@@ -134,6 +145,18 @@ export const workspace: Workspace = new Workspace({
   }),
   skills: ['.'],
   tools: {
+    // Custom sandbox tools extend through requireSandbox instead.
+    hooks: {
+      beforeToolCall: async ({ context }) => {
+        const requestContext = z
+          .object({ requestContext: z.instanceof(RequestContext) })
+          .safeParse(context).data?.requestContext;
+        const sandbox = requestContext && (await getSandbox(requestContext));
+        if (sandbox) {
+          await extendSandbox(sandbox);
+        }
+      },
+    },
     [WORKSPACE_TOOLS.FILESYSTEM.READ_FILE]: {
       name: READ_FILE,
       // Images go through view_image (which types by magic bytes), not read_file:

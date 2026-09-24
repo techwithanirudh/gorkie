@@ -2,7 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { agent as agentConfig } from '../config';
 import { channelContext } from '../lib/context';
-import { isWaitSchedule, waitMetadata } from './scheduled-tasks/queries';
+import { waitMetadata } from './scheduled-tasks/queries';
 
 export const waitTool = createTool({
   id: 'wait',
@@ -41,16 +41,6 @@ export const waitTool = createTool({
     if (!(threadId && memoryResourceId)) {
       throw new Error('No current Slack thread/resource to wait in.');
     }
-
-    const previous = await schedules.list({
-      agentId: agentConfig.id,
-      threadId,
-    });
-    await Promise.all(
-      previous
-        .filter((task) => isWaitSchedule(task) && task.lastFireAt !== undefined)
-        .map((task) => schedules.delete(task.id))
-    );
 
     const fireAt = new Date(Date.now() + seconds * 1000);
     if (Number.isNaN(fireAt.getTime()) || fireAt.getUTCFullYear() > 9999) {

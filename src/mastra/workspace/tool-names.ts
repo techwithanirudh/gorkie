@@ -19,9 +19,3 @@ export const codeModeToolNames = new Set([
   FILE_STAT,
   EXECUTE_COMMAND,
 ]);
-
-export const workspaceToolNames = new Set([
-  ...codeModeToolNames,
-  GET_PROCESS_OUTPUT,
-  KILL_PROCESS,
-]);

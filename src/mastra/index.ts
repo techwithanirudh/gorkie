@@ -77,6 +77,20 @@ if (traceStore) {
 // migration is renaming.
 await runMigrations();
 
+// A wait's cron recurs yearly, so the row goes once it has fired however the
+// run ended. `onFinish` alone misses runs that errored or were aborted.
+async function deleteFiredWait({
+  mastra: runtime,
+  schedule,
+}: {
+  mastra: Mastra;
+  schedule: { id: string; metadata?: unknown };
+}): Promise<void> {
+  if (isWaitSchedule(schedule)) {
+    await runtime.schedules.delete(schedule.id);
+  }
+}
+
 export const mastra = new Mastra({
   agents: { orchestrator, summarizer, research, explore },
   server: {
@@ -128,9 +142,6 @@ export const mastra = new Mastra({
       if (!current) {
         return;
       }
-      if (isWaitSchedule(current)) {
-        await runtime.schedules.delete(schedule.id);
-      }
       // Skip rather than delete, so lifting the ban resumes the person's tasks.
       const creator =
         z
@@ -147,6 +158,9 @@ export const mastra = new Mastra({
         return null;
       }
     },
+    onFinish: deleteFiredWait,
+    onError: deleteFiredWait,
+    onAbort: deleteFiredWait,
   },
   workers: [new TurnDrainWorker()],
   storage: traceStore

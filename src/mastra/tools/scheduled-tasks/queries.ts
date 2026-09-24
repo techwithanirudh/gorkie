@@ -1,11 +1,15 @@
 import type { AgentSchedule, AnySchedule } from '@mastra/core/schedules';
+import { z } from 'zod';
 import { agent as agentConfig } from '../../config';
 import { WAIT_SCHEDULE_KIND } from '../../types';
 
 export const waitMetadata = { kind: WAIT_SCHEDULE_KIND };
 
-export function isWaitSchedule(schedule: AnySchedule): boolean {
-  return schedule.metadata?.kind === WAIT_SCHEDULE_KIND;
+// Schedule hooks get the row as an untyped `ScheduleRef`, hence the parse.
+export function isWaitSchedule(schedule: { metadata?: unknown }): boolean {
+  return z
+    .object({ kind: z.literal(WAIT_SCHEDULE_KIND) })
+    .safeParse(schedule.metadata).success;
 }
 
 // Waits are one-shot agent schedules too, so without the kind check they
