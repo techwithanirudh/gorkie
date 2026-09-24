@@ -3,6 +3,7 @@ import { computeNextFireAt } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { agent as agentConfig, scheduledTasks } from '../../config';
 import { channelContext } from '../../lib/context';
+import { ownResourceId } from './queries';
 
 const minMinutes = scheduledTasks.minInterval / 60_000;
 
@@ -59,9 +60,9 @@ export const createScheduledTaskTool = createTool({
   execute: async ({ task, cron, name, timezone }, context) => {
     const service = context.mastra?.schedules;
     const threadId = context.agent?.threadId;
-    const resourceId = context.agent?.resourceId;
-    if (!(threadId && resourceId)) {
-      throw new Error('No current Slack thread/resource to schedule into.');
+    const resourceId = ownResourceId(context);
+    if (!threadId) {
+      throw new Error('No current Slack thread to schedule into.');
     }
     if (!service) {
       throw new Error('No Mastra schedule service is available.');

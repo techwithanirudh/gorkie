@@ -1,6 +1,9 @@
 import type { AgentSchedule, AnySchedule } from '@mastra/core/schedules';
+import type { ToolExecutionContext } from '@mastra/core/tools';
 import { z } from 'zod';
 import { agent as agentConfig } from '../../config';
+import { channelContext } from '../../lib/context';
+import { rawId } from '../../lib/ids';
 import { WAIT_SCHEDULE_KIND } from '../../types';
 
 export const waitMetadata = { kind: WAIT_SCHEDULE_KIND };
@@ -18,4 +21,21 @@ export function isScheduledTask(
   schedule: AnySchedule
 ): schedule is AgentSchedule {
   return schedule.agentId === agentConfig.id && !isWaitSchedule(schedule);
+}
+
+// A thread's memory resource is whoever started it, so in a shared thread
+// anyone else talking would otherwise list, change, or add to that person's
+// schedules, including their DM tasks.
+export function ownResourceId(context: ToolExecutionContext): string {
+  const resourceId = context.agent?.resourceId;
+  const { userId } = channelContext(context.requestContext);
+  if (!resourceId) {
+    throw new Error('No current Slack resource for scheduled tasks.');
+  }
+  if (!userId || rawId(userId) !== rawId(resourceId)) {
+    throw new Error(
+      'Only the person who started this conversation can manage its scheduled tasks. Ask them, or start your own thread or DM.'
+    );
+  }
+  return resourceId;
 }

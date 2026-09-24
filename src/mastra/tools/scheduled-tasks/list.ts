@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { agent as agentConfig } from '../../config';
-import { isScheduledTask } from './queries';
+import { isScheduledTask, ownResourceId } from './queries';
 
 export const listScheduledTasksTool = createTool({
   id: 'list_scheduled_tasks',
@@ -11,10 +11,7 @@ export const listScheduledTasksTool = createTool({
   outputSchema: z.strictObject({ schedules: z.array(z.unknown()) }),
   execute: async (_input, context) => {
     const service = context.mastra?.schedules;
-    const resourceId = context.agent?.resourceId;
-    if (!resourceId) {
-      throw new Error('No current Slack resource to list schedules for.');
-    }
+    const resourceId = ownResourceId(context);
     if (!service) {
       throw new Error('No Mastra schedule service is available.');
     }

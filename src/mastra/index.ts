@@ -112,29 +112,6 @@ export const mastra = new Mastra({
           }),
         }
       : {}),
-    // Mastra skips server middleware for public routes (the Slack webhook), so
-    // this only sees routes that need a token. Those are for operators on the
-    // host, never for anything that arrived through the tunnel or a proxy.
-    middleware: [
-      {
-        path: '*',
-        handler: async (c, next) => {
-          const proxied =
-            c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for');
-          // Mastra registers the screencast WebSocket with no auth of its own,
-          // so a proxied viewer needs a live-view ticket for that exact thread.
-          const ticket = verifyLiveViewTicket(c.req.query('t'));
-          const liveViewer =
-            c.req.path === `/browser/${orchestrator.id}/stream` &&
-            ticket !== undefined &&
-            ticket.threadId === c.req.query('threadId');
-          if (proxied && c.req.path !== '/health' && !liveViewer) {
-            return c.text('Not found', 404);
-          }
-          await next();
-        },
-      },
-    ],
   },
   schedules: {
     prepare: async ({ mastra: runtime, schedule }) => {
@@ -205,6 +182,32 @@ export const mastra = new Mastra({
   }),
   logger,
 });
+
+// Operator routes are for the host, never for anything that arrived through the
+// tunnel or a proxy. Set here rather than as `server.middleware`: that runs
+// after Mastra registers the screencast WebSocket and its browser session and
+// close routes, which then answer before the guard sees them. Mastra skips this
+// for public routes (the Slack webhook, OAuth and live view pages).
+mastra.setServerMiddleware([
+  {
+    path: '*',
+    handler: async (c, next) => {
+      const proxied =
+        c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for');
+      // Mastra registers the screencast WebSocket with no auth of its own,
+      // so a proxied viewer needs a live-view ticket for that exact thread.
+      const ticket = verifyLiveViewTicket(c.req.query('t'));
+      const liveViewer =
+        c.req.path === `/browser/${orchestrator.id}/stream` &&
+        ticket !== undefined &&
+        ticket.threadId === c.req.query('threadId');
+      if (proxied && c.req.path !== '/health' && !liveViewer) {
+        return c.text('Not found', 404);
+      }
+      await next();
+    },
+  },
+]);
 
 // Before anything awaits: channels may already be handing Slack messages to
 // handlers that call getMastra().
