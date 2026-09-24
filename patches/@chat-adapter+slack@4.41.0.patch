@@ -1,0 +1,139 @@
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1002,6 +1002,7 @@
+ var DEFAULT_STREAM_SEGMENT_MAX_AGE_MS = 24e4;
+ var STREAM_SEGMENT_ROTATION_GRACE_MS = 3e4;
+ var STREAM_EXPIRED_ERROR = "message_not_in_streaming_state";
++var STREAM_GONE_ERROR = "message_not_found";
+ var FENCE_LINE_PATTERN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+ var TABLE_ROW_PATTERN = /^\|.*\|$/;
+ var TABLE_SEPARATOR_PATTERN = /^\|[\s:]*-+[\s:]*(?:\|[\s:]*-+[\s:]*)*\|$/;
+@@ -4989,6 +4990,19 @@
+       );
+     };
+     const isStreamExpired = (error) => slackPlatformErrorCode(error) === STREAM_EXPIRED_ERROR;
++    let segmentBase = "";
++    // An expired segment keeps the text Slack confirmed; a segment Slack
++    // reports as not found has lost everything since it started. Either way
++    // the reply resumes in a new message instead of vanishing.
++    const resumePoint = (error) => {
++      if (isStreamExpired(error)) {
++        return lastFlushed;
++      }
++      if (slackPlatformErrorCode(error) === STREAM_GONE_ERROR) {
++        return segmentBase;
++      }
++      return void 0;
++    };
+     const markSegmentStarted = () => {
+       segment.startedAt ??= Date.now();
+       segment.flushNextAppend = false;
+@@ -5028,6 +5042,8 @@
+     };
+     const startNextSegment = async (sent) => {
+       segment.streamer = createStreamer();
++      segmentBase = sent;
++      lastFlushed = sent;
+       segment.startedAt = void 0;
+       segment.flushNextAppend = true;
+       const fence = openFenceIn(sent);
+@@ -5092,15 +5108,16 @@
+           ageMs
+         });
+       } catch (error) {
+-        if (!isStreamExpired(error)) {
++        const resumed = resumePoint(error);
++        if (resumed === void 0) {
+           throw error;
+         }
+         this.logger.warn(
+-          "Slack: stream segment expired before rotation, continuing in a new message",
+-          { channel, ageMs }
++          "Slack: stream segment lost before rotation, continuing in a new message",
++          { channel, ageMs, error: slackPlatformErrorCode(error) }
+         );
+-        tail = lastAppended.slice(lastFlushed.length) + delta;
+-        sent = lastFlushed;
++        tail = lastAppended.slice(resumed.length) + delta;
++        sent = resumed;
+       }
+       await startNextSegment(sent);
+       return tail;
+@@ -5134,7 +5151,18 @@
+         await sendDelta(delta, false);
+       } catch (error) {
+         if (fallback.nativeRendered) {
+-          throw error;
++          const resumed = resumePoint(error);
++          if (resumed === void 0) {
++            throw error;
++          }
++          this.logger.warn(
++            "Slack: stream segment lost mid-reply, continuing in a new message",
++            { channel, error: slackPlatformErrorCode(error) }
++          );
++          await startNextSegment(resumed);
++          lastAppended = resumed;
++          await sendDelta(resolvedCommitted.slice(resumed.length), false);
++          return;
+         }
+         switchToFallback(error);
+         await flushFallback(force);
+@@ -5159,7 +5187,20 @@
+         lastFlushed = lastAppended;
+         rememberStructuredChunk(chunk);
+       } catch (error) {
+-        disableStructuredChunks(chunk.type, error);
++        const resumed = resumePoint(error);
++        if (resumed === void 0) {
++          disableStructuredChunks(chunk.type, error);
++          return;
++        }
++        this.logger.warn(
++          "Slack: stream segment lost on a structured chunk, continuing in a new message",
++          { channel, chunkType: chunk.type, error: slackPlatformErrorCode(error) }
++        );
++        // Remembered first so the new segment's replay carries this chunk.
++        rememberStructuredChunk(chunk);
++        await startNextSegment(resumed);
++        lastAppended = resumed;
++        await sendDelta(resolvedCommitted.slice(resumed.length), false);
+       }
+     };
+     for await (const chunk of textStream) {
+@@ -5213,10 +5254,11 @@
+         await this.endTyping(threadId, options?.sessionStatus ?? "active");
+         return fallback.message;
+       }
+-      if (!isStreamExpired(error)) {
++      const resumed = resumePoint(error);
++      if (resumed === void 0) {
+         throw error;
+       }
+-      const unconfirmed = lastAppended.slice(lastFlushed.length);
++      const unconfirmed = lastAppended.slice(resumed.length);
+       if (unconfirmed.length === 0) {
+         const expiredTs = segment.streamer.ts;
+         if (!expiredTs) {
+@@ -5226,6 +5268,7 @@
+           "Slack: stream expired before stop, stream-end blocks skipped",
+           {
+             channel,
++            error: slackPlatformErrorCode(error),
+             messageId: expiredTs,
+             skippedBlocks: stopBlocks.length
+           }
+@@ -5236,10 +5279,11 @@
+       this.logger.warn(
+         "Slack: stream expired before stop, delivering the rest in a new message",
+         {
+-          channel
++          channel,
++          error: slackPlatformErrorCode(error)
+         }
+       );
+-      await startNextSegment(lastFlushed);
++      await startNextSegment(resumed);
+       result = await segment.streamer.stop({
+         ...stopArgs,
+         markdown_text: withSegmentPrefix(unconfirmed)

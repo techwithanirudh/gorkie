@@ -60,7 +60,7 @@
  			});
  			continue;
  		}
-@@ -22227,6 +22248,7 @@
+@@ -22227,12 +22248,16 @@
  						let runId;
  						let toolName;
  						let toolArgs;
@@ -68,32 +68,52 @@
  						const stashed = this.pendingApprovalCards.get(toolCallId);
  						if (stashed?.runId) {
  							runId = stashed.runId;
-@@ -22251,6 +22273,7 @@
- 										runId = toolData.parentRunId ?? toolData.runId;
- 										toolName = toolData.toolName;
- 										toolArgs = toolData.args;
-+										persistedRequesterId = toolData.requesterId;
+ 							toolName = stashed.toolName;
+ 							toolArgs = stashed.args;
+-						} else {
++						}
++						// Runs rendered without an inbound message (schedule fires, wait and
++						// background wakes) stash no requester, so the persisted one is read too.
++						if (!stashed?.requesterId) {
+ 							const storage = mastra.getStorage();
+ 							const memoryStore = storage ? await storage.getStore("memory") : void 0;
+ 							if (!memoryStore) throw new Error("Storage is required for tool approval lookups");
+@@ -22248,12 +22273,13 @@
+ 								const pending = msg.content?.metadata?.pendingToolApprovals;
+ 								if (pending) {
+ 									for (const toolData of Object.values(pending)) if (toolData.toolCallId === toolCallId) {
+-										runId = toolData.parentRunId ?? toolData.runId;
+-										toolName = toolData.toolName;
+-										toolArgs = toolData.args;
++										runId ??= toolData.parentRunId ?? toolData.runId;
++										toolName ??= toolData.toolName;
++										toolArgs ??= toolData.args;
++										persistedRequesterId = toolData.requesterId ?? null;
  										break;
  									}
- 									if (runId) break;
-@@ -22261,6 +22284,16 @@
+-									if (runId) break;
++									if (persistedRequesterId !== void 0) break;
+ 								}
+ 							}
+ 						}
+@@ -22261,6 +22287,16 @@
  							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
  							return;
  						}
-+						// After a restart the in-memory stash is empty, so the requester comes from
-+						// what was persisted with the suspended run. With none, refuse the click
++						// The requester comes from the in-memory stash, else from what was
++						// persisted with the suspended run (the run's creator: the person who
++						// asked, scheduled, or started the wait). With neither, refuse the click
 +						// rather than let anyone in the channel answer.
-+						const fromMemoryStore = !stashed?.runId;
-+						const approvalRequesterId = fromMemoryStore ? persistedRequesterId : stashed.requesterId;
++						const approvalRequesterId = stashed?.requesterId ?? persistedRequesterId ?? void 0;
 +						const actingUserId = event.user?.userId;
-+						if ((fromMemoryStore || approvalRequesterId) && (!approvalRequesterId || !actingUserId || approvalRequesterId !== actingUserId)) {
++						if (!approvalRequesterId || !actingUserId || approvalRequesterId !== actingUserId) {
 +							this.log("info", `Ignoring tool approval action from ${actingUserId}: only ${approvalRequesterId} may answer toolCallId=${toolCallId}`);
 +							return;
 +						}
  						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
  						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
  						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -22281,7 +22314,7 @@
+@@ -22281,7 +22317,7 @@
  							});
  							const { requestContext } = handlerContext;
  							requestContext.set("channel", channelContext);
@@ -102,7 +122,7 @@
  							requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  							try {
  								await this.dispatchDecline({
-@@ -22318,7 +22351,7 @@
+@@ -22318,7 +22354,7 @@
  						const renderContext = this._buildRenderContext(chatThread, platform, {
  							toolCallId,
  							messageId
@@ -111,7 +131,7 @@
  						requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  						await this.dispatchApproval({
  							runId,
-@@ -22754,7 +22787,7 @@
+@@ -22754,7 +22790,7 @@
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -120,7 +140,7 @@
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -22816,14 +22849,17 @@
+@@ -22816,14 +22852,17 @@
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -140,7 +160,7 @@
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -27353,6 +27389,16 @@
+@@ -27353,6 +27392,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -157,7 +177,7 @@
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -27373,7 +27419,11 @@
+@@ -27373,7 +27422,11 @@
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -170,7 +190,7 @@
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -27401,7 +27451,7 @@
+@@ -27401,7 +27454,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -179,7 +199,7 @@
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
-@@ -28331,10 +28381,12 @@
+@@ -28331,10 +28384,12 @@
  				const suspendTransform = getTransformedToolPayload(toolStateTransformMetadata, "transcript", "suspend");
  				const transformedArgs = type === "approval" ? hasTransformedToolPayload(approvalTransform) ? approvalTransform.transformed : hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : args : hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : args;
  				const transformedSuspendPayload = type === "suspension" ? hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : suspendPayload : void 0;
@@ -254,7 +274,7 @@
  			});
  			continue;
  		}
-@@ -22229,6 +22250,7 @@
+@@ -22229,12 +22250,16 @@
  						let runId;
  						let toolName;
  						let toolArgs;
@@ -262,32 +282,52 @@
  						const stashed = this.pendingApprovalCards.get(toolCallId);
  						if (stashed?.runId) {
  							runId = stashed.runId;
-@@ -22253,6 +22275,7 @@
- 										runId = toolData.parentRunId ?? toolData.runId;
- 										toolName = toolData.toolName;
- 										toolArgs = toolData.args;
-+										persistedRequesterId = toolData.requesterId;
+ 							toolName = stashed.toolName;
+ 							toolArgs = stashed.args;
+-						} else {
++						}
++						// Runs rendered without an inbound message (schedule fires, wait and
++						// background wakes) stash no requester, so the persisted one is read too.
++						if (!stashed?.requesterId) {
+ 							const storage = mastra.getStorage();
+ 							const memoryStore = storage ? await storage.getStore("memory") : void 0;
+ 							if (!memoryStore) throw new Error("Storage is required for tool approval lookups");
+@@ -22250,12 +22275,13 @@
+ 								const pending = msg.content?.metadata?.pendingToolApprovals;
+ 								if (pending) {
+ 									for (const toolData of Object.values(pending)) if (toolData.toolCallId === toolCallId) {
+-										runId = toolData.parentRunId ?? toolData.runId;
+-										toolName = toolData.toolName;
+-										toolArgs = toolData.args;
++										runId ??= toolData.parentRunId ?? toolData.runId;
++										toolName ??= toolData.toolName;
++										toolArgs ??= toolData.args;
++										persistedRequesterId = toolData.requesterId ?? null;
  										break;
  									}
- 									if (runId) break;
-@@ -22263,6 +22286,16 @@
+-									if (runId) break;
++									if (persistedRequesterId !== void 0) break;
+ 								}
+ 							}
+ 						}
+@@ -22263,6 +22289,16 @@
  							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
  							return;
  						}
-+						// After a restart the in-memory stash is empty, so the requester comes from
-+						// what was persisted with the suspended run. With none, refuse the click
++						// The requester comes from the in-memory stash, else from what was
++						// persisted with the suspended run (the run's creator: the person who
++						// asked, scheduled, or started the wait). With neither, refuse the click
 +						// rather than let anyone in the channel answer.
-+						const fromMemoryStore = !stashed?.runId;
-+						const approvalRequesterId = fromMemoryStore ? persistedRequesterId : stashed.requesterId;
++						const approvalRequesterId = stashed?.requesterId ?? persistedRequesterId ?? void 0;
 +						const actingUserId = event.user?.userId;
-+						if ((fromMemoryStore || approvalRequesterId) && (!approvalRequesterId || !actingUserId || approvalRequesterId !== actingUserId)) {
++						if (!approvalRequesterId || !actingUserId || approvalRequesterId !== actingUserId) {
 +							this.log("info", `Ignoring tool approval action from ${actingUserId}: only ${approvalRequesterId} may answer toolCallId=${toolCallId}`);
 +							return;
 +						}
  						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
  						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
  						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -22283,7 +22316,7 @@
+@@ -22283,7 +22319,7 @@
  							});
  							const { requestContext } = handlerContext;
  							requestContext.set("channel", channelContext);
@@ -296,7 +336,7 @@
  							requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  							try {
  								await this.dispatchDecline({
-@@ -22320,7 +22353,7 @@
+@@ -22320,7 +22356,7 @@
  						const renderContext = this._buildRenderContext(chatThread, platform, {
  							toolCallId,
  							messageId
@@ -305,7 +345,7 @@
  						requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  						await this.dispatchApproval({
  							runId,
-@@ -22756,7 +22789,7 @@
+@@ -22756,7 +22792,7 @@
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -314,7 +354,7 @@
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -22818,14 +22851,17 @@
+@@ -22818,14 +22854,17 @@
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -334,7 +374,7 @@
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -27355,6 +27391,16 @@
+@@ -27355,6 +27394,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -351,7 +391,7 @@
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -27375,7 +27421,11 @@
+@@ -27375,7 +27424,11 @@
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -364,7 +404,7 @@
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -27403,7 +27453,7 @@
+@@ -27403,7 +27456,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -373,7 +413,7 @@
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
-@@ -28333,10 +28383,12 @@
+@@ -28333,10 +28386,12 @@
  				const suspendTransform = require_payload_transform.getTransformedToolPayload(toolStateTransformMetadata, "transcript", "suspend");
  				const transformedArgs = type === "approval" ? require_payload_transform.hasTransformedToolPayload(approvalTransform) ? approvalTransform.transformed : require_payload_transform.hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : args : require_payload_transform.hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : require_payload_transform.hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : args;
  				const transformedSuspendPayload = type === "suspension" ? require_payload_transform.hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : suspendPayload : void 0;

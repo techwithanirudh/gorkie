@@ -9,6 +9,7 @@ const dist = join(root, 'node_modules/@mastra/core/dist');
 // must fail the build rather than silently drop a guard.
 const markers = [
   'approvalRequesterId',
+  'stashed?.requesterId ?? persistedRequesterId',
   'advanceFallbackModel',
   'droppedTaskIds',
   'shown?.summary',
@@ -18,6 +19,10 @@ const markers = [
 // The live view reaches a restricted E2B sandbox only with its traffic token,
 // which the browser-viewer patch forwards to connectOverCDP.
 const viewerDist = join(root, 'node_modules/@mastra/browser-viewer/dist');
+
+// Native streaming depends on the adapter patch that continues a reply in a
+// new message when Slack reports the streamed one as message_not_found.
+const slackDist = join(root, 'node_modules/@chat-adapter/slack/dist/index.js');
 
 const missing = [
   ...['agent-DwtTO5Px.js', 'agent-DVnXHd4C.cjs'].flatMap((file) => {
@@ -36,6 +41,9 @@ const missing = [
     .map(
       (file) => `browser-viewer ${file}: connectOverCDP(cdpUrl, cdpOptions)`
     ),
+  ...(readFileSync(slackDist, 'utf8').includes('STREAM_GONE_ERROR')
+    ? []
+    : ['@chat-adapter/slack index.js: STREAM_GONE_ERROR']),
 ];
 
 if (missing.length > 0) {

@@ -13,7 +13,7 @@ const placeholder = Buffer.from(
 export function createSandbox(threadId: string): E2BSandbox {
   const id = `gorkie-${createHash('sha256').update(threadId).digest('hex').slice(0, 32)}`;
 
-  return new E2BSandbox({
+  const sandbox: E2BSandbox = new E2BSandbox({
     id,
     apiKey: env.E2B_API_KEY,
     template: config.template,
@@ -32,5 +32,14 @@ export function createSandbox(threadId: string): E2BSandbox {
     metadata: { 'thread-id': threadId },
     instructions: sandboxPrompt,
     timeout: config.timeout,
+    // Reconnect and resume keep the old network rules, so a host that died
+    // inside a GitHub credential window would leave the token live. A throw
+    // fails the start, which is the safe outcome.
+    onStart: async ({ outcome }) => {
+      if (outcome !== 'created') {
+        await sandbox.e2b.updateNetwork({ rules: baseRules() });
+      }
+    },
   });
+  return sandbox;
 }

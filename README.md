@@ -283,7 +283,10 @@ carries six fixes:
 - **Only the requester answers an approval.** A tool approval card records who
   triggered it, and clicks from anyone else in the thread are ignored. The
   requester is stored with the pending approval, so after a restart the check
-  still holds, and a card with no recorded requester is refused.
+  still holds. Runs with no inbound message (a schedule firing, a `wait` or
+  background wake) stash no requester in memory, so the check falls back to the
+  stored one, the run's creator. It fails closed: a card with no recorded
+  requester is refused.
 - **Plan widgets stay under Slack's cap.** A Compact (grouped) turn rolls into a
   new message at a step boundary once it has 40 tasks, and never sends more than
   Slack's 50, so long turns no longer crash the stream.
@@ -293,8 +296,21 @@ carries six fixes:
 [`patches/@mastra+browser-viewer@0.2.4.patch`](./patches/@mastra+browser-viewer@0.2.4.patch)
 adds an optional options argument to `connectToExternalCdp`, forwarded to
 Playwright's `connectOverCDP`, so the live view can send E2B's
-`e2b-traffic-access-token` header. `scripts/verify-mastra-patch.ts` checks
-both patches after every build.
+`e2b-traffic-access-token` header.
+
+[`patches/@chat-adapter+slack@4.41.0.patch`](./patches/@chat-adapter+slack@4.41.0.patch)
+patches the Slack adapter's `dist/index.js`, which native streaming needs:
+
+- **A lost streamed message continues in a new one.** On a long turn Slack can
+  drop the streaming message, and the next append or `chat.stopStream` returns
+  `message_not_found`. Stock rethrows, and the whole reply vanishes. The patch
+  treats it like the expired-stream case it already handles: it starts a new
+  segment and resends everything since the lost segment began (for an expired
+  segment, everything Slack had not confirmed), at rotation, mid-reply, on a
+  plan or task chunk, and at the final stop. Nothing already shown in an earlier
+  segment is sent twice.
+
+`scripts/verify-mastra-patch.ts` checks all three patches after every build.
 
 The upstream issue for the first two is mastra-ai/mastra#21280. Rollup
 content-hashes the bundle file names, so a version bump makes the patch fail to

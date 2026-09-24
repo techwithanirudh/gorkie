@@ -3,7 +3,7 @@ import { computeNextFireAt } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { agent as agentConfig, scheduledTasks } from '../../config';
 import { channelContext } from '../../lib/context';
-import { ownResourceId } from './queries';
+import { isScheduledTask, ownResourceId } from './queries';
 
 const minMinutes = scheduledTasks.minInterval / 60_000;
 
@@ -69,6 +69,14 @@ export const createScheduledTaskTool = createTool({
     }
 
     assertMinimumInterval({ cron, timezone });
+    const active = (
+      await service.list({ agentId: agentConfig.id, resourceId })
+    ).filter(isScheduledTask);
+    if (active.length >= scheduledTasks.maxActivePerUser) {
+      throw new Error(
+        `You already have ${active.length} scheduled tasks, the most allowed. Delete one first.`
+      );
+    }
 
     return {
       schedule: await service.create({

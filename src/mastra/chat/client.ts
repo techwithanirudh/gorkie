@@ -9,11 +9,6 @@ export const slack = new SlackAgentAdapter({
   botToken: env.SLACK_BOT_TOKEN,
   signingSecret: env.SLACK_SIGNING_SECRET,
   logger: chatLogger,
-  // Native streaming silently loses the whole reply when a long turn's
-  // placeholder is expired by Slack (chat.stopStream -> message_not_found; the
-  // buffered fallback posts nothing). Disabled until the adapter is patched to
-  // re-post on finalize failure. See the CRITICAL item in TODO.md.
-  nativeStreaming: false,
   suggestedPrompts: { prompts: content.starters },
   webClientOptions: {
     logger: slackWebLogger,

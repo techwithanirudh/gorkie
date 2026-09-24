@@ -16,7 +16,7 @@ export const sandbox = {
 
 export const liveView = {
   cdpPort: 9222,
-  cloakServe: { path: '/usr/local/bin/cloakserve', version: '0.5.5' },
+  cloakServe: { path: '/usr/local/bin/cloakserve', version: '0.5.10' },
   startupTimeoutMs: 30_000,
   refreshMs: 15_000,
 };
@@ -47,7 +47,7 @@ export const image = {
 
 export const agent = {
   id: 'orchestrator',
-  maxTokens: { input: 1_000_000, output: 65_536 },
+  maxTokens: { input: 950_000, output: 65_536 },
   maxSteps: 1000,
   modelTimeout: { firstChunkMs: 2 * 60 * 1000, stepMs: 5 * 60 * 1000 },
 };
@@ -61,6 +61,7 @@ export const summarizer = {
 
 export const scheduledTasks = {
   minInterval: env.NODE_ENV === 'production' ? 30 * 60 * 1000 : 60 * 1000,
+  maxActivePerUser: 10,
 };
 
 export const workingModel = {

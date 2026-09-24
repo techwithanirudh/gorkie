@@ -4,6 +4,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../chat/client';
 import { getMastra } from '../chat/mastra-instance';
+import { claimTurn } from '../chat/usage';
 import { agent as agentConfig, sandbox as sandboxConfig } from '../config';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
@@ -41,6 +42,12 @@ async function wakeThread(task: BackgroundTask): Promise<void> {
       error,
       taskId: task.id,
       threadId,
+    });
+    return;
+  }
+  if (saved?.userId && (await claimTurn(saved.userId))) {
+    logger.info('[run_background] wake skipped, over the turn limit', {
+      taskId: task.id,
     });
     return;
   }
