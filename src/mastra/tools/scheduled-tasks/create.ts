@@ -19,6 +19,7 @@ function assertMinimumInterval({
     let fire: number;
     try {
       fire = computeNextFireAt(cron, { timezone, after: previous });
+    // TODO(slopradar): CODING_STANDARDS: no swallowed catch | `catch { break; }` hides why a throw is expected (computeNextFireAt throws when there is no later fire) | add that why, or narrow to the specific error
     } catch {
       break;
     }

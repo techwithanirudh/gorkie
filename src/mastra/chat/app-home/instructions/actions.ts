@@ -46,6 +46,7 @@ export function registerCustomInstructions({
       userId: event.user.userId,
       instructions: instructions || undefined,
     });
+    // TODO(slopradar): review: performance | awaited publishHome inside a modal submit delays Slack's view_submission ack; publishHome calls GitHub (see mcp/actions.ts L83) | fire it without awaiting, with a why-comment
     await publishHome(event.user.userId);
   });
 }

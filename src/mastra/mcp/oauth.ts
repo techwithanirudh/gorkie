@@ -88,6 +88,7 @@ export class MCPServerOAuth extends MCPOAuthClientProvider {
 
   async discoveryState(): Promise<DiscoveryState | undefined> {
     const stored = await this.#store.get('discovery');
+    // TODO(slopradar): CODING_STANDARDS: Zod at boundaries | JSON.parse returns `any` from a DB row and flows out typed as DiscoveryState unchecked (it later feeds refreshAuthorization) | parse with discoverySchema (widened to match DiscoveryState) like mcpOAuthHosts does
     return stored ? JSON.parse(stored) : undefined;
   }
 
@@ -121,6 +122,7 @@ export class MCPServerOAuth extends MCPOAuthClientProvider {
   override async tokens(): Promise<OAuthTokens | undefined> {
     const tokens = await super.tokens();
     const savedAt = Number(await this.#store.get('tokens_saved_at'));
+    // TODO(slopradar): CODING_STANDARDS: small functions, early returns | one negated compound condition mixes the mode check (an absent #onRedirect silently means "background turn"), token presence and expiry maths, which is hard to verify | split into guard clauses: `if (this.#onRedirect) return tokens;`, then missing refresh_token/savedAt/expires_in, then the remaining-time check
     if (
       !(this.#onRedirect === undefined && tokens?.refresh_token && savedAt) ||
       tokens.expires_in === undefined ||
@@ -193,6 +195,7 @@ export async function mcpOAuthHosts({
   userId: string;
 }): Promise<string[]> {
   const stored = await mcpOAuthStorage({ name, userId }).get('discovery');
+  // TODO(slopradar): review: correctness + simplification: duplication | `raw ? JSON.parse(raw) : undefined` then safeParse is repeated 4 times in this file, and here JSON.parse (and `new URL(url)` below) is outside any try, so one corrupt row throws out of buildClient's Promise.all and drops every MCP server for the user | one shared stored-JSON read (e.g. a `z.string().transform` with safe JSON parse, or a typed getter on mcpOAuthStorage) that returns undefined on bad data
   const discovery = discoverySchema.safeParse(
     stored ? JSON.parse(stored) : undefined
   ).data;

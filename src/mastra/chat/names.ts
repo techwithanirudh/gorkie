@@ -18,6 +18,7 @@ export async function resolveUserProfile(
     return cached.data;
   }
 
+  // TODO(slopradar): review: performance | bot.getUser goes through SlackAdapter.lookupUser, which calls users.info on a cache miss (dist/index.js:1954), and L30 calls users.info again for tz, so a cold profile costs two users.info calls | drop bot.getUser and take displayName/realName from the users.info result already fetched
   const user = await bot.getUser(userId);
   let profile: UserProfile;
   let ttl = slackConfig.profileTtlMs;
@@ -47,6 +48,7 @@ export async function resolveUserProfile(
       title: raw?.title || undefined,
     };
   } catch {
+    // TODO(slopradar): CODING_STANDARDS: no swallowed catch | the profile/info failure is dropped with no log, then an empty profile is cached for failedProfileTtlMs | log it (warn, with userId) before falling back
     if (!user) {
       return;
     }

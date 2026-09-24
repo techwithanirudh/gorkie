@@ -148,6 +148,7 @@ export class E2BFilesystem extends MastraFilesystem {
       throw new FileExistsError(inputPath);
     }
 
+    // TODO(slopradar): CODING_STANDARDS: small functions | expectedMtime is tested twice across two statements | `if (options?.expectedMtime) { const current = await this.infoOrAbsent(filePath); if (current && modifiedTime(current).getTime() !== ...) throw ... }`
     const current = options?.expectedMtime
       ? await this.infoOrAbsent(filePath)
       : undefined;
@@ -163,6 +164,7 @@ export class E2BFilesystem extends MastraFilesystem {
     );
   }
 
+  // TODO(slopradar): review: performance | appendFile and copyFile (below) pull the whole file across the E2B API to the host and write it back, with no fileLimits.maxReadBytes cap (readFile enforces one) | run `cat >> file` / `cp -- src dest` inside the sandbox via e2b.commands.run with sh() quoting
   async appendFile(inputPath: string, content: FileContent): Promise<void> {
     await this.ensureReady();
     const filePath = this.resolve(inputPath);
@@ -410,6 +412,7 @@ export class E2BFilesystem extends MastraFilesystem {
     };
   }
 
+  // TODO(slopradar): prefer libraries / review: performance | E2BFilesystem implements the optional native grep but not the optional `walk` (node_modules/@mastra/core/dist/workspace/filesystem/filesystem.d.ts:307), so list_files' tree falls back to one E2B readdir round trip per directory (workspace-7sOfqqzx.js:9527-9560), while readdir's recursive branch above already lists a whole tree in one files.list call | add `walk` built on files.list(dirPath, { depth: maxDepth }) and drop the recursive branch from readdir if nothing else uses it
   // One ripgrep run inside the sandbox. Without this, Mastra's grep walks the
   // tree and reads every file over the E2B API one request at a time.
   async grep(options: FilesystemGrepOptions): Promise<FilesystemGrepResult[]> {

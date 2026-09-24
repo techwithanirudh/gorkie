@@ -1,5 +1,6 @@
 import { sandbox } from '../../config';
 
+// TODO(slopradar): CODING_STANDARDS: no one-use constants | filesSection is referenced once, in codeModePrompt | inline it in the template as `${files ? `...` : ''}`
 const filesSection = `
 <files>
 Ignore the rule above about having no filesystem access. Your program runs as Node inside this thread's E2B sandbox, the same one the direct file tools and execute_command act on, and external_read_file, external_write_file, external_edit_file, external_list_files, external_file_stat, external_delete_file, external_grep, and external_execute_command take the same arguments there as their direct counterparts.

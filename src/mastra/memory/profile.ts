@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+// TODO(slopradar): CODING_STANDARDS: no one-use constants | `dated` is referenced once (preferences record) | inline it into z.record(z.string(), ...)
 const dated = z
   .string()
   .describe(

@@ -8,6 +8,7 @@ import { branchSchema, repositorySchema } from '../../types';
 import { requireSandbox } from '../../workspace';
 import { checkoutPath, git, withCredential } from './git';
 
+// TODO(slopradar): simplification: duplicate + review: performance | the token + repoAccess lookup here repeats push.ts:21-22, and an approved checkout runs it twice (requireApproval line 39 and execute line 56), two GitHub API round trips | move one `repoAccessFor({ repository, userId })` into lib/github/api and reuse it; pass the approval-time result through or accept one call
 const inspectRepository = async ({
   repository,
   userId,

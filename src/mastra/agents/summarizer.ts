@@ -6,8 +6,10 @@ import { moveToolImages } from '../processors/tool-media';
 import { summarizer as summarizerModel } from '../providers';
 
 export const summarizer = new Agent({
+  // TODO(slopradar): CODING_STANDARDS: config for tuneable values | agent id in config.ts (see config.ts annotation) | inline 'summarizer'
   id: config.id,
   name: 'Summarizer',
+  // TODO(slopradar): simplification: ownership | description and instructions are prompt copy inline, while research/explore keep theirs in prompts/agents/ | move to prompts/agents/summarizer.ts exporting `description` and `prompt`
   description:
     'Summarizes a Slack conversation transcript concisely, preserving decisions, open questions, and action items.',
   instructions: `You produce faithful, information-dense Slack thread summaries.

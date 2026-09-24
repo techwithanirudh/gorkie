@@ -117,6 +117,7 @@ export async function onFeedbackClick(event: ActionEvent): Promise<void> {
           }),
         ],
         notifyOnClose: true,
+        // TODO(slopradar): CODING_STANDARDS: private_metadata minimal | stores direction and userId, which metadataSchema strips on read (direction is always 'down' here and userId comes from the submit event) | store only { messageId, threadId, traceId }
         privateMetadata: JSON.stringify(rating),
         submitLabel: 'Send',
         title: 'Bad response',

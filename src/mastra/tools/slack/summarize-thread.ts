@@ -49,10 +49,12 @@ export const summarizeThreadTool = createTool({
 
     spendSlackCall(context.requestContext);
 
+    // TODO(slopradar): review: correctness (owner question) | `##` side comments are dropped by read_conversation_history (line 97) and the history backfill (chat/history.ts:34) but fed to the summarizer here | filter with `isComment` too, or document that summaries include side comments
     const result = await slack.fetchMessages(target, {
       limit: 100,
       direction: 'backward',
     });
+    // TODO(slopradar): simplification: duplicate | same focus filter as read-conversation-history.ts:88-94 | use the shared chat/focus.ts helper
     const sees =
       target === ctx.threadId ? await focusFilter(target) : undefined;
     const messages = sees

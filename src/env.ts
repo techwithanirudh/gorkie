@@ -39,10 +39,12 @@ export const env = createEnv({
       .pipe(z.array(z.string().regex(/^[UW][A-Z0-9]+$/))),
 
     HACKCLUB_API_KEY: z.string().min(1),
+    // TODO(slopradar): review: config single source | validated here but never read as env.OPENCODE_API_KEY: Mastra's model router pulls it from process.env itself (provider-registry.json opencode-go.apiKeyEnvVar), so the rule 'only env.ts reads process.env' holds only by accident | pass it explicitly from providers.ts opencode() as `model: { id: `opencode-go/${modelId}`, apiKey: env.OPENCODE_API_KEY }` (OpenAICompatibleConfig), and teach modelSlug to read `.id`
     OPENCODE_API_KEY: z.string().min(1),
 
     DATABASE_URL: z.url(),
 
+    // TODO(slopradar): CODING_STANDARDS: validate at boundaries | a URL validated as z.string(), unlike PUBLIC_BASE_URL and DATABASE_URL beside it | z.url().default('https://cloud.langfuse.com')
     LANGFUSE_BASE_URL: z.string().default('https://cloud.langfuse.com'),
     LANGFUSE_PUBLIC_KEY: z.string().min(1),
     LANGFUSE_SECRET_KEY: z.string().min(1),
@@ -54,6 +56,7 @@ export const env = createEnv({
         'must be an E2B API key: "e2b_" followed by hex characters'
       ),
 
+    // TODO(slopradar): simplification: duplicated logic | CREDENTIALS_KEY and CREDENTIALS_KEY_PREVIOUS repeat the same base64 + 32-byte refine | declare `const aesKey = z.base64().refine((v) => Buffer.from(v, 'base64').length === 32, ...)` above createEnv and use it for both (the second with .optional())
     CREDENTIALS_KEY: z
       .base64()
       .refine((value) => Buffer.from(value, 'base64').length === 32, {

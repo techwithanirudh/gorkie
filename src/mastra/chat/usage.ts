@@ -9,6 +9,7 @@ export async function claimTurn(userId: string): Promise<TurnClaim> {
     return { status: 'claimed' };
   }
   try {
+    // TODO(slopradar): review: correctness (Consider) | check-then-insert: turnUsage and recordTurn are separate statements, so concurrent messages from one user in several threads can all take the last free turn | one conditional insert (INSERT ... SELECT WHERE count < limit) or a per-user advisory lock
     const { day, hour } = await turnUsage(userId);
     const spent = [
       { window: day, span: 'today' },

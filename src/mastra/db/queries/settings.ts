@@ -9,6 +9,7 @@ import {
 import { db } from '../client';
 import { userSettings } from '../schema';
 
+// TODO(slopradar): review: performance + simplification: duplicated shape | getInstructions, getGitHubSettings, getMCPThreads and getToolDisplay each select one column of the same user_settings row; chat/app-home/view.ts:87-114 runs all four per publish and each orchestrator turn runs getInstructions, getMCPThreads and (via githubAccess) getGitHubSettings | one getUserSettings(userId) that reads the row once and returns the parsed fields
 export async function getInstructions(
   userId: string
 ): Promise<string | undefined> {
@@ -19,6 +20,7 @@ export async function getInstructions(
   return row?.instructions ?? undefined;
 }
 
+// TODO(slopradar): simplification: duplicated logic | the same insert().values().onConflictDoUpdate({ target: userSettings.userId, set }) upsert is copied in setInstructions, setGitHubSettings, setMCPThreads and setToolDisplay | one updateUserSettings({ userId, set }) that stamps updatedAt, called directly by the four callers
 export async function setInstructions({
   userId,
   instructions,

@@ -1,3 +1,4 @@
+// TODO(slopradar): review: correctness | the static <github> block is sent on every turn and points at 'the github message below', but prompts/github.ts returns nothing when there is no userId (ThreadOnlyChannelContext wakes after a restart), and the turn then carries two sibling <github> tags when it does | move this block into githubPrompt's connected branch so there is one <github> section, present only when GitHub is
 export const toolsPrompt = `\
 <tools>
 Tool availability:

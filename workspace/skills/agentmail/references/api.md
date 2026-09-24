@@ -13,6 +13,7 @@ inbox = "gorkie@agentmail.to"
 
 `brokered` is a placeholder. It is safe to show in code. The real token stays on the host.
 
+<!-- TODO(slopradar): review: security | inboxes.create/list/delete here and the org-wide client.threads.list (line 143-148) reach every inbox on the account, not just gorkie's | drop inbox administration and org-wide reads -->
 ## Inboxes
 
 ```python
@@ -86,6 +87,7 @@ client.inboxes.messages.update(
 )
 ```
 
+<!-- TODO(slopradar): rulebook contradiction | "delete a message only after explicit user approval" conflicts with prompts/guardrails.ts, which refuses deleting a person's data outright | drop message and inbox deletion -->
 Delete a message only after explicit user approval:
 
 ```python
@@ -203,6 +205,7 @@ Useful labels:
 - `replied`
 - `unreplied`
 
+<!-- TODO(slopradar): review: security | pod administration covers API keys and webhooks; guardrails.ts forbids changing or revealing credentials | delete the Pods section -->
 ## Pods
 
 Pods group inboxes, domains, API keys, and webhooks. Most user tasks do not need pod administration.

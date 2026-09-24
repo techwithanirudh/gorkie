@@ -61,6 +61,7 @@ export async function setThreadState({
   // Unlike a read, a failed read here skips the write: writing the patch
   // alone would erase whatever the unreadable state held.
   try {
+    // TODO(slopradar): review: correctness | read-modify-write with no lock and no store-side merge: stopThread's dropMessagesBefore, runTurn's lastSeenMessage, syncTitle's lastSentSlackTitle and !focus/!display can interleave on one thread, and the later write restores the earlier snapshot, losing a patch | merge in the store (jsonb `||` upsert) or serialize writes per thread id
     const current = await readThreadState(thread);
     const store = await threadStateStore();
     await store.setState({

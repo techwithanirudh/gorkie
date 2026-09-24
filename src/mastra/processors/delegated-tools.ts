@@ -24,6 +24,7 @@ export const delegatedTools = {
       return part;
     }
 
+    // TODO(slopradar): CODING_STANDARDS: validate at boundaries | `output` is `any` (DynamicToolOutputPayload = ToolOutputPayload<any>), yet the spread uses it instead of the parsed value | spread `delegatedTool.data` (looseObject keeps the extra keys) so nothing unvalidated flows on
     return {
       ...output,
       payload: {

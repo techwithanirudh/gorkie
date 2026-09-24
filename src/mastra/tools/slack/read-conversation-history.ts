@@ -85,6 +85,7 @@ export const readConversationHistoryTool = createTool({
       ? await slack.fetchMessages(tid, { limit, cursor })
       : await slack.fetchChannelMessages(chId, { limit, cursor });
 
+    // TODO(slopradar): simplification: duplicate | this focus filter (`isMe || sees(userId)`) is copied in summarize-thread.ts:56-62 | give chat/focus.ts one `focusVisible({ threadId, messages })` that returns the kept messages, used by both
     const sees =
       tid && tid === ctx.threadId ? await focusFilter(tid) : undefined;
     const focused = sees

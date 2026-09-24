@@ -12,6 +12,7 @@ export const threadStateSchema = z
     lastSentSlackTitle: z.string().optional(),
     respondOnThreadMessages: z.boolean().optional(),
     toolDisplay: toolDisplayModeSchema.optional(),
+    // TODO(slopradar): simplification: backwards-compat shim | `focus`/`slackTitle` read-and-rename keeps the old keys in the schema and a transform forever, with no condition for removal | either write a one-off migration over channel state and delete the shim, or date it here so it can be removed once every active thread has been rewritten
     // Pre-rename keys, read so a stored focus survives the rename. The next
     // write for the thread stores the new keys and drops these.
     focus: z.array(z.string()).optional(),

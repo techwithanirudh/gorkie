@@ -87,6 +87,7 @@ export async function githubTools({
           toModelOutput: (result: unknown) =>
             result === undefined
               ? result
+              // TODO(slopradar): CODING_STANDARDS: never fabricate data to satisfy a type | `input: undefined, toolCallId: ''` are invented to call the AI SDK formatter | confirm the SDK formatters read only `output` and type the adapter against that, or drop the SDK formatter and let Mastra serialize the result
               : format({ input: undefined, output: result, toolCallId: '' }),
         }),
       };

@@ -33,6 +33,7 @@ async function uploadToSlack({
       `${path} is ${Math.round(stat.size / 1_000_000)}MB, over the ${upload.maxBytes / 1_000_000}MB upload limit.`
     );
   }
+  // TODO(slopradar): review: weak fallback | `split('/').pop()` never returns undefined, so `?? 'file'` is dead and a trailing slash yields '' | `filename ?? (posix.basename(path) || 'file')`
   const name = filename ?? path.split('/').pop() ?? 'file';
 
   const ctx = channelContext(requestContext);

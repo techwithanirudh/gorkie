@@ -40,6 +40,7 @@ export const lookupCanvasSectionsTool = createTool({
       requestContext: context.requestContext,
     });
 
+    // TODO(slopradar): simplification: duplicate branches | the refine already guarantees one of the two, yet the code re-checks it (line 53) and makes two near-identical lookup calls, plus a tuple rebuild to satisfy the type | make sectionTypes `z.tuple([t]).rest(t)` like edit.ts and issue one call with `{ ...(sectionTypes && { section_types }), ...(containsText && { contains_text }) }`
     if (sectionTypes) {
       const response = await slack.webClient.canvases.sections.lookup({
         canvas_id: canvasId,

@@ -38,6 +38,7 @@ async function addServer({
     token: values.token?.trim() || undefined,
   });
   if (!parsed.success) {
+    // TODO(slopradar): AGENTS: prefer libraries | hand-rolled first-issue-per-field map; zod 4 ships z.flattenError(error).fieldErrors | map fieldErrors to their first message
     const errors: Record<string, string> = {};
     for (const issue of parsed.error.issues) {
       const [field] = issue.path;
@@ -80,6 +81,7 @@ async function addServer({
       errors: { name: `You can connect at most ${mcp.maxServers} servers.` },
     };
   }
+  // TODO(slopradar): review: performance | Chat SDK awaits onModalSubmit handlers before answering Slack (chat dist/index.js processModalSubmit, then the slack adapter builds the Response), and publishHome does DB reads plus a GitHub token refresh and /user/installations call, so the 3 s view_submission window the next comment guards against is spent here first | do not await publishHome in submit handlers: fire it with a why-comment, as probe() already is
   await publishHome(userId);
 
   // The connection probe can outlast Slack's 3 second modal-submit ack window.
@@ -120,6 +122,7 @@ export function registerMCPServers({
 
   bot.onAction(ids.add, async (event) => {
     const servers = await listMCPServers(event.user.userId);
+    // TODO(slopradar): review: correctness | at the limit the Add click silently does nothing while the Home tab still shows Add | hide Add at the limit in blocks.ts, or tell the user; insertMCPServer already enforces the cap
     if (servers.length >= mcp.maxServers) {
       return;
     }
@@ -167,6 +170,7 @@ export function registerMCPServers({
 
   bot.onAction(ids.threads, async (event) => {
     await setMCPThreads({
+      // TODO(slopradar): CODING_STANDARDS: one canonical union | the 'dm' | 'threads' scope literals are spelled in mcp/blocks.ts L106/L117, here, github/views.ts L21/L28 and github/actions.ts L33, with the two radio labels copied between them | export one scope enum (and its labels) from types/ and parse event.value with it
       threads: event.value === 'threads',
       userId: event.user.userId,
     });
@@ -215,6 +219,7 @@ export function registerMCPServers({
         userId: event.user.userId,
       });
     }
+    // TODO(slopradar): review: performance | awaited publishHome inside a modal submit delays Slack's view_submission ack (see L83) | fire it without awaiting, with a why-comment
     await publishHome(event.user.userId);
   });
 

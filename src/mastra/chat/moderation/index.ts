@@ -33,6 +33,7 @@ export async function banStatus(userId: string): Promise<BanStatus> {
   }
 }
 
+// TODO(slopradar): simplification: one-use helper + dead check | only moderation/commands.ts calls banGuard, and it has already rejected non-moderators (commands.ts L62), so L43-45 never fires | inline the three remaining guards into onSlashCommand and drop the export
 export function banGuard({
   actorId,
   userId,
@@ -90,6 +91,7 @@ export async function decide({
   } else {
     logger.warn('[moderation] LOGS_CHANNEL is not set, card not posted');
   }
+  // TODO(slopradar): CODING_STANDARDS: fire-and-forget needs a why | publishHome is deliberately not awaited but nothing says why | add the reason (the Home refresh does DB and GitHub work and must not hold the slash command or button ack)
   publishHome(rawId(userId)).catch((error: unknown) =>
     logger.warn('[moderation] could not refresh the Home tab', {
       error,

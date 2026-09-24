@@ -32,9 +32,11 @@ Fetch the **latest** information before writing or reviewing Wrangler commands a
 | Source | How to retrieve | Use for |
 |--------|----------------|---------|
 | Wrangler docs | `https://developers.cloudflare.com/workers/wrangler/` | CLI commands, flags, config reference |
+<!-- TODO(slopradar): accuracy | wrangler is installed globally in the template (build-template.ts:55), so node_modules/wrangler/config-schema.json (here and in the $schema at line 68) only resolves in a project with a local wrangler | point at /usr/local/lib/node_modules/wrangler/config-schema.json or `npm root -g` -->
 | Wrangler config schema | `node_modules/wrangler/config-schema.json` | Config fields, binding shapes, allowed values |
 | Cloudflare docs | Search tool or `https://developers.cloudflare.com/workers/` | API reference, compatibility dates/flags |
 
+<!-- TODO(slopradar): internal contradiction | `wrangler init` and create-cloudflare are interactive and offer an account deploy, against "No Auth" (line 12) | show a hand-written wrangler.jsonc + src/index.ts instead -->
 ## Quick Start: New Worker
 
 ```bash
@@ -47,6 +49,7 @@ npx create-cloudflare@latest my-app
 
 ## Quick Reference: Core Commands
 
+<!-- TODO(slopradar): internal contradiction | `wrangler deploy` without --temporary, `wrangler tail` and `wrangler delete` all need an account, and `wrangler dev` is unreachable for the user (sandbox allowPublicTraffic: false) | keep only commands that work account-less -->
 | Task | Command |
 |------|---------|
 | Start local dev server | `wrangler dev` |
@@ -79,6 +82,7 @@ For anything past a basic deploy, load the detail files (retrieval-first, confir
 - [config-and-bindings.md](references/config-and-bindings.md): full `wrangler.jsonc` config, type generation, static assets, and the CLI for every binding a temporary account supports (KV, D1, Durable Objects, Hyperdrive, Queues).
 - [operations.md](references/operations.md): local dev, deployment (secrets, versions/rollback), observability/tail, testing, and troubleshooting.
 
+<!-- TODO(slopradar): sediment | best practices 5-11 (environments, .dev.vars, secret put/bulk, CI type checks, auto-provisioning) assume an owned account and a repo; none apply to a 60-minute throwaway deploy | cut to the few that do -->
 ## Best Practices
 
 1. **Use Wrangler over raw API calls**: it is preinstalled (`wrangler --version`, v4.x+); prefer it to hand-built requests.

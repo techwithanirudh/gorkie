@@ -150,6 +150,7 @@ async function runTurn({
     })),
   });
 
+  // TODO(slopradar): review: performance | withHistory pages Slack history (up to history.maxScannedMessages) and runs focusFilter before the cheap sentBeforeStop and claimTurn checks, so a dropped or over-limit message still pays for the whole scan | check sentBeforeStop and claimTurn first, then build the prompt
   const prompt = await withHistory({ message: attachments(message), thread });
   if (sentBeforeStop({ message, state: await threadState(thread) })) {
     declined({ message, reason: 'sent before a stop or leave', thread });
@@ -225,6 +226,7 @@ export const onSubscribedMessage: ChannelHandler = async (
     });
     return;
   }
+  // TODO(slopradar): review: performance | one subscribed message reads thread state up to five times (here, focusFilter in turnAwayUnfocused, handleCommand, withHistory, runTurn L154) and runs memoryThread's listThreads twice through focusFilter | read state and the focus filter once in the channel handler and pass them down
   const state = await threadState(thread);
   const isFollowingThread = state?.respondOnThreadMessages === true;
   if (!(isFollowingThread || message.isMention)) {

@@ -88,6 +88,7 @@ export async function publishHome(userId: string): Promise<void> {
     settled({ label: 'mcp', userId, work: listMCPServers(userId) }),
     settled({ label: 'mcp threads', userId, work: getMCPThreads(userId) }),
     credentialResult,
+    // TODO(slopradar): review: correctness | the only section not wrapped in settled(): githubAccessToken reads the DB and refreshes the token (lib/github/token.ts L87), so a DB blip rejects the Promise.all and the whole Home tab fails to publish; it also calls GitHub /user/installations on every Home open | wrap it in settled({ label: 'installations', ... }) and default to 0; Consider caching the count
     credentialResult.then(async ({ credential }) => {
       const token =
         credential && !credential.lastError
@@ -129,6 +130,7 @@ export async function publishHome(userId: string): Promise<void> {
     githubBlocks({
       credential,
       installations,
+      // TODO(slopradar): CODING_STANDARDS: canonical default | 'all' repeats githubPermissionSchema's .catch('all') (types/github.ts:37) | use githubPermissionSchema.parse(undefined) or export the default from types/
       permission: github?.permission ?? 'all',
       threads: github?.threads === true,
       unreadable,

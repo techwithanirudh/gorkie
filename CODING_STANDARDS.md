@@ -164,9 +164,11 @@ before renaming or splitting anything, never from vibes.
 
 ## Config & secrets
 
+<!-- TODO(slopradar): rulebook vs code | drizzle.config.ts:19 reads process.env.DATABASE_URL, a known owner-approved exception (IMPLEMENTED step 4) that this absolute rule does not mention | add the exception with its reason (drizzle-kit must not require every app secret) -->
 - Never read `process.env` outside `src/env.ts`. Every environment
   variable is declared once there with a Zod schema (see the `createEnv`
   block) and imported as `env.WHATEVER` everywhere else.
+<!-- TODO(slopradar): rulebook contradiction | a deployment-tunable literal used once must be inlined ("No one-use constants", line 68) and must also live in config.ts (this line) | state that config.ts wins for deployment-tunable values -->
 - Magic numbers or strings that could plausibly change per deployment
   belong in `src/mastra/config.ts`, not inlined at the call site.
 - Model keys, Slack tokens, and DB credentials never enter the E2B
@@ -179,6 +181,7 @@ them is a correctness bug, not a style nit.
 
 - Never run user- or agent-generated code on the host. All execution goes
   through the E2B sandbox.
+<!-- TODO(slopradar): rulebook contradiction | same as AGENTS.md:63: thread-history backfill is hand-rolled in chat/history.ts with channels' threadContext.maxMessages: 0 | carve out the exception or change the code -->
 - Never hand-roll what Mastra `channels` already provides: streaming,
   thread-history backfill, multi-user prefixing, typing status. Shape it
   through `handlers`, `threadContext`, and subscription state instead of
@@ -186,6 +189,7 @@ them is a correctness bug, not a style nit.
 - Ask before: dependency changes, schema-shape changes, destructive git
   operations.
 
+<!-- TODO(slopradar): accuracy: stale rules | this section is written for raw Bolt (view.private_metadata, body.view.state.values, client.views.update with hash); the code uses Chat SDK modals (event.openModal, bot.onModalSubmit, event.privateMetadata and event.values in chat/app-home/mcp/actions.ts:207-209, github/actions.ts:32) and calls views.update nowhere | rewrite against the Chat SDK API, drop the hash rule -->
 ## Slack modal conventions
 
 - `private_metadata` is minimal and Zod-parsed. Persist only what can't be

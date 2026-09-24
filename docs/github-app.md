@@ -115,6 +115,7 @@ on GitHub somewhere to return to. The page it lands on changes nothing and
 never trusts the `installation_id` GitHub appends; the Home tab re-reads
 installations the next time it opens.
 
+<!-- TODO(slopradar): sediment | "Gorkie used to sign people in with a device code... Turn it off once this version is deployed" is migration-era history; a new install never had device flow | keep "Enable Device Flow: unchecked" in the table and drop this paragraph -->
 **Device Flow off.** Gorkie used to sign people in with a device code. The web
 flow replaced it, so leaving device flow on only widens what the client id can
 do. Turn it off once this version is deployed.
@@ -141,6 +142,7 @@ whose nonce matches the cookie in the same browser, so a sign-in link forwarded
 to someone else cannot attach their GitHub account to another Slack user.
 Tickets and states expire after ten minutes.
 
+<!-- TODO(slopradar): sediment | the Classic tokens section describes a finished migration (drizzle 20260924043047_drop_github_classic_tokens) that a new install never sees; connecting.md already says classic tokens are unsupported | move to IMPLEMENTED.md -->
 ## Classic tokens
 
 Classic personal access tokens are no longer supported, and a migration
@@ -152,6 +154,7 @@ to.
 
 Set the values in `.env`:
 
+<!-- TODO(slopradar): docs consistency | GITHUB_APP_SLUG placeholder is "gorkie" here but "gorkie-ai" in .env.example:84 | use one placeholder -->
 ```bash
 PUBLIC_BASE_URL="https://gorkie.example.com"
 GITHUB_APP_SLUG="gorkie"

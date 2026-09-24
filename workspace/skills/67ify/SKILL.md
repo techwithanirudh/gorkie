@@ -3,6 +3,7 @@ name: 67ify
 description: Convert local image files into 67ify-style animated GIFs by calling the deployed 67ify REST API. Use when the user asks an agent to turn an image, emoji, avatar, sticker, or other image file into a 67 or 55 GIF using the 67ify API, or when integrating with the `/api/convert` endpoint.
 ---
 
+<!-- TODO(slopradar): skill format: trigger | "asks an agent" and "integrating with the /api/convert endpoint" are not branches gorkie meets, and the body never says how the image arrives (get_slack_file into /home/user/downloads) or leaves (upload_file) | trigger on "make a 67/55 GIF" and add the Slack in/out steps -->
 # Use 67ify API
 
 ## Overview
@@ -12,6 +13,7 @@ API is unauthenticated and accepts either `mode=67` or `mode=55`.
 
 ## Inputs
 
+<!-- TODO(slopradar): internal contradiction | "Require: API base URL" is an input the user must give, but Workflow step 1 fixes it to https://67ify.vercel.app | drop it from Inputs -->
 Require:
 
 - API base URL, such as `https://67ify.vercel.app`.

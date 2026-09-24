@@ -1,11 +1,13 @@
 import type { AnySpan, SpanOutputProcessor } from '@mastra/core/observability';
 
+// TODO(slopradar): CODING_STANDARDS: no one-use constants | encodedMediaMinLength, encodedMediaPreviewChars and maxTrimDepth are each read once | inline the literals at their single use
 const encodedMediaMinLength = 20_000;
 const encodedMediaPreviewChars = 200;
 const maxTrimDepth = 8;
 
 // Base64 and data URLs carry no whitespace, while prose, code and JSON of this
 // length always do, so a long unbroken string is taken for encoded media.
+// TODO(slopradar): CODING_STANDARDS: inline over extract | one-use helper, only trim() calls it | inline the check into trim() and move the why-comment with it
 function isEncodedMedia(value: string): boolean {
   return value.length > encodedMediaMinLength && !/\s/.test(value);
 }

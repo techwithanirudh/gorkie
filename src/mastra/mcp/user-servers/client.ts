@@ -52,6 +52,7 @@ async function buildClient({
   servers: StoredMCPServer[];
   stale: Promise<UserClient> | undefined;
 }): Promise<UserClient> {
+  // TODO(slopradar): simplification: library already does it + review: correctness | constructing the new MCPClient with the same id `user-mcp-${userId}` and different serverConfigs already disconnects the cached instance (node_modules/@mastra/mcp/dist/index.js:23339-23347); this manual disconnect also cuts off a concurrent turn still mid-tool-call on the old client | drop the manual stale disconnect (and the `stale` param), or defer it until in-flight calls settle
   const staleClient = await stale?.catch(() => undefined);
   if (staleClient) {
     await staleClient.client.disconnect().catch((error: unknown) => {
@@ -61,6 +62,7 @@ async function buildClient({
       });
     });
   }
+  // TODO(slopradar): review: correctness | any throw inside this per-server map (mcpOAuthHosts JSON.parse / new URL, a DB read) rejects the whole Promise.all, so one bad server removes every MCP server for the user and tools.ts returns {} | catch per server and return `{ server, error }` like the other rejection paths
   // Re-check at connect: DNS can be re-pointed at an internal address after add.
   const checked = await Promise.all(
     servers.map(async (server) => {

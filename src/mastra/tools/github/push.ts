@@ -18,6 +18,7 @@ async function refuseDefaultBranch({
   repository: string;
   userId: string;
 }): Promise<void> {
+  // TODO(slopradar): simplification: duplicate | same token + repoAccess pair as checkout.ts:18-19 | use the shared `repoAccessFor` from lib/github/api
   const token = await githubAccessToken(userId);
   const access = token ? await repoAccess({ repository, token }) : undefined;
   if (!access || 'error' in access || !access.defaultBranch) {

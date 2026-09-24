@@ -50,8 +50,10 @@ export function defaultErrorProcessors() {
             return /econnreset|socket hang up/i.test(messageOf(error));
           },
           maxRetries: 2,
+          // TODO(slopradar): simplification: dead code | maxRetries is 2, so retryCount is 0 or 1 and the delay is 1s or 2s; the 30_000 cap never applies | drop Math.min
           delayMs: ({ retryCount }) => Math.min(1000 * 2 ** retryCount, 30_000),
         },
+        // TODO(slopradar): simplification: dead code | this matcher's policy (maxRetries 2, delayMs 3000) equals the processor-level defaults, and retryUnknownErrors: true already retries unmatched errors with them (StreamErrorRetryProcessor.processAPIError, node_modules/@mastra/core/dist/agent-DwtTO5Px.js:17884) | delete this entry
         {
           match: (error) =>
             /temporarily rate-limited upstream|too many requests/i.test(

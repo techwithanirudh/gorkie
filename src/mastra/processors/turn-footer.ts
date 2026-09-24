@@ -15,6 +15,7 @@ export const turnFooter = {
     'Closes a turn with how long it took and a thumbs rating for the response.',
   processOutputStream(args: ProcessOutputStreamArgs) {
     args.state.startTime ??= Date.now();
+    // TODO(slopradar): simplification: duplicate branch | two consecutive ifs both test `part.type === 'tool-call'`, and 'run_background'/'skip' are model-facing tool keys hard-coded here (owned by tools/toolsets.ts:34-36) | one `if (part.type !== 'tool-call') return part;` guard, and take the names from the tool definitions' ids
     if (
       args.part.type === 'tool-call' &&
       args.part.payload.toolName === 'run_background'

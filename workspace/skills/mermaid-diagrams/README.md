@@ -1,3 +1,4 @@
+<!-- TODO(slopradar): orphan | a human-facing README inside a runtime skill: no pointer reaches it and it duplicates SKILL.md | delete the file -->
 # Mermaid Diagrams Skill
 
 A comprehensive guide for creating professional software diagrams using Mermaid's text-based syntax. This skill enables you to visualize system architecture, document code structure, model databases, and communicate technical concepts through diagrams.

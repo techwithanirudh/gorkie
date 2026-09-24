@@ -18,6 +18,7 @@ import { startJob } from '../workspace/jobs';
 // the job itself too.
 const wakeChannels = new Map<string, ChannelContext>();
 
+// TODO(slopradar): CODING_STANDARDS: inline over extract | `threadOnlyChannel` has one caller (wakeThread, line 51) | inline the try/catch at the call site
 function threadOnlyChannel({
   taskId,
   threadId,

@@ -2,6 +2,7 @@ import { PinoLogger } from '@mastra/loggers';
 
 export const logger = new PinoLogger({
   name: 'orchestrator',
+  // TODO(slopradar): CODING_STANDARDS: config for tuneable values | log level is hardcoded, so turning on debug logging needs a code change | read it from config.ts or an env LOG_LEVEL declared in src/env.ts
   level: 'info',
   redact: {
     paths: ['', '*.', 'error.', 'err.']

@@ -13,6 +13,7 @@ const rootPkg = packageJsonSchema.parse(
   JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 );
 
+// TODO(slopradar): CODING_STANDARDS: no defensive checks for impossible states | package.json always declares patchedDependencies, and this early exit would also skip copying drizzle/ migrations, which the output needs regardless | delete the guard (parse with patchedDependencies required) or move the drizzle copy above it
 if (!rootPkg.patchedDependencies) {
   console.log(
     '[postbuild] No patchedDependencies in package.json, nothing to do.'

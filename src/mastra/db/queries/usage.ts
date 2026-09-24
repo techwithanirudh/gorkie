@@ -48,6 +48,7 @@ export async function turnUsage(userId: string): Promise<TurnUsage> {
   };
 }
 
+// TODO(slopradar): review: correctness (TOCTOU) | chat/usage.ts runs turnUsage then recordTurn as separate statements, so concurrent turns from one user all pass the check and overshoot the limit | one claimTurn query: pg_advisory_xact_lock(hashtext(userId)) in a transaction that counts, compares and inserts, as insertMCPServer already does
 export async function recordTurn(userId: string): Promise<void> {
   const id = rawId(userId);
   await db.insert(usageTurns).values({ userId: id });

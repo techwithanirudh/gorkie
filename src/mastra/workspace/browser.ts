@@ -152,11 +152,13 @@ export class SandboxBrowser extends BrowserViewer {
     this.sandboxFor = sandboxFor;
   }
 
+  // TODO(slopradar): AGENTS: prefer the library contract | half of this hook set duplicates core's per-thread onBrowserClosed(callback, threadId), and the custom `closed` misses disconnects (see chat/live-view.ts registerLiveView note) | keep only `connected` (core's onBrowserReady callbacks carry no threadId, so that half is justified) and move the end-of-card wiring to browser.onBrowserClosed
   onSession(hooks: BrowserSessionHooks): void {
     this.sessionHooks = hooks;
   }
 
   private async connectThread(threadId: string | undefined): Promise<void> {
+    // TODO(slopradar): review: correctness | check-then-act across long awaits (sandbox resume, up to 30s CloakServe start): two browser tool calls in one step both pass isBrowserRunning, both connect (threadManager.connectToExternalCdp closes the first session) and `connected` fires twice | keep a Map<threadId, Promise<void>> of in-flight connects and return the pending one
     if (!threadId || this.isBrowserRunning(threadId)) {
       return;
     }
@@ -194,6 +196,7 @@ export class SandboxBrowser extends BrowserViewer {
     if (!this.sessionHooks) {
       return;
     }
+    // TODO(slopradar): review: performance | the agent's browser tool call (launch/ensureReady) now waits on one or two Slack postMessage calls, each with 5 retries and a 15s timeout (chat/client.ts), before it can act | fire and forget with a why-comment (the card is a side effect, the tool does not need it)
     await this.sessionHooks.connected(threadId).catch((error: unknown) => {
       logger.warn('[live-view] failed to post the live view', {
         error,
@@ -234,6 +237,7 @@ export class SandboxBrowser extends BrowserViewer {
     return page?.screenshot({ type: 'jpeg', quality: 60 });
   }
 
+  // TODO(slopradar): simplification: dead code | identical to the inherited BrowserViewer.getCurrentUrl: both return the last page's url() of the thread's context (browser-viewer dist/index.js:190 resolveActivePage vs :625 getBrowserStateForThread activeIndex = pages.length - 1) or null | delete the override
   override async getCurrentUrl(threadId?: string): Promise<string | null> {
     const page = await this.getActivePage(threadId ?? this.getCurrentThread());
     return page?.url() ?? null;

@@ -1,5 +1,7 @@
 import { reasoningMarkers } from '../lib/reasoning-markers';
 
+// TODO(slopradar): review: correctness + CODING_STANDARDS: config | the opening paragraph tells the model it owns `gorkie@agentmail.to` unconditionally, but AGENTMAIL_API_KEY is optional in env.ts (features/sandbox.ts correctly says 'when configured'), and the same address is hardcoded again in workspace/sandbox.ts (GIT_AUTHOR_EMAIL, GIT_COMMITTER_EMAIL) and workspace/build-template.ts (git config user.email) | move the inbox to config.ts and add the sentence only when env.AGENTMAIL_API_KEY is set
+// TODO(slopradar): review: correctness (conflicting prompt rules) | 'Think through the work privately; never expose chain-of-thought' sits beside the CRITICAL mandate in 'Work WITH the user' to narrate every step with markers (also reasoning.ts, slack.ts, guardrails.ts 'Visible work'), and TODO.md audit item 1 ties the marker mandate to glm-5.3-flash ending steps on a lone marker line | say once, in reasoning.ts, that markers are short progress notes and not reasoning, and delete the narration restatements elsewhere (see guardrails.ts, slack.ts annotations)
 export const corePrompt = `\
 <core>
 You're gorkie, a capable assistant working with people in Slack. Treat the requester as a collaborator: understand the outcome they need, make concrete progress when authorized, surface meaningful decisions or blockers, and report the result clearly. Your AgentMail inbox is \`gorkie@agentmail.to\`; use it by default for any email work unless the user names another inbox.

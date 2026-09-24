@@ -8,6 +8,7 @@ import { banGuard, decide } from '.';
 import { until } from './cards';
 import { isModerator } from './moderators';
 
+// TODO(slopradar): CODING_STANDARDS: no one-use constants | BAN_COMMANDS, UNBAN_COMMANDS and MENTION are each read once (L57, L58, L69) | inline them at the use site
 const BAN_COMMANDS = new Set(['/ban', '/dev-ban']);
 const UNBAN_COMMANDS = new Set(['/unban', '/dev-unban']);
 
@@ -70,6 +71,7 @@ export const onSlashCommand: SlashCommandChannelHandler = async (event) => {
   if (!userId) {
     await reply({
       raw: event.raw,
+      // TODO(slopradar): CODING_STANDARDS: one canonical union | `[1h|1d|7d|30d|perm]` re-lists banDurationSchema's options by hand | build it from banDurationSchema.options.join('|')
       text: `usage: \`${event.command} @user${isBan ? ' [1h|1d|7d|30d|perm]' : ''} [reason]\`\n\n*active bans*\n${await listBans()}`,
     });
     return;
@@ -94,6 +96,7 @@ export const onSlashCommand: SlashCommandChannelHandler = async (event) => {
   const reason = (duration.success ? words : [first, ...words])
     .join(' ')
     .trim();
+  // TODO(slopradar): simplification: duplicated default | the 'perm' fallback is written here twice (L101, L106) and again as decide()'s default (index.ts L61) | compute it once here and drop decide's default
   await decide({
     action: 'ban',
     actorId,

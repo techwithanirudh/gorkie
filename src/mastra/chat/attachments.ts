@@ -30,6 +30,7 @@ export function attachments(message: Message): Message {
         attachment.name ?? `file-${i + 1}`,
         attachment.mimeType,
         size,
+        // TODO(slopradar): review: correctness | the closing line (L40) tells the model to call get_slack_file with a Slack file id, but this list only gives the url; history.ts L55 extracts the F-id from the url for exactly this | include the file id (share history.ts's extraction) next to or instead of the url
         attachment.url,
         mimeType && inlinedTypes.has(mimeType)
           ? 'attached to this message, so you can already see it'

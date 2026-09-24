@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { slack as config } from '../config';
 import type { MemberLeftEvent } from '../types';
 
+// TODO(slopradar): CODING_STANDARDS: one canonical pattern | third Slack user-mention regex in chat/, each accepting different ids: this `[A-Z0-9_]+`, message.ts userMention `[UW][A-Z0-9]+`, message.ts withoutLeadingMentions `[A-Z0-9][A-Z0-9._-]*` | export one mention pattern from message.ts and derive the global and leading-anchored variants from its source
 const mentionPattern = /<@([A-Z0-9_]+)(?:\|([^<>]+))?>/g;
 
 const recipientSchema = z.object({
@@ -56,6 +57,7 @@ export class SlackAgentAdapter extends SlackAdapter {
       const known = this.recipients.get(threadId);
       if (!(known?.userId === userId && known.teamId === teamId)) {
         const recipient: Recipient = { userId, teamId };
+        // TODO(slopradar): simplification: duplicated logic | the evict-oldest-when-full bound is hand-written twice, here for recipients and again in landedUnthreaded (L153-161) | one bounded-insert helper for both caches
         if (!known && this.recipients.size >= config.maxCachedThreads) {
           const oldestThreadId = this.recipients.keys().next().value;
           if (oldestThreadId) {
@@ -63,6 +65,7 @@ export class SlackAgentAdapter extends SlackAdapter {
           }
         }
         this.recipients.set(threadId, recipient);
+        // TODO(slopradar): CODING_STANDARDS: no swallowed catch | `.catch(() => undefined)` drops a failed recipient write silently, and that write is what lets stream() stay native after a restart | log at debug/warn with threadId, as names.ts does for its cache write
         chat
           .getState()
           .set(this.recipientKey(threadId), recipient, config.recipientTtlMs)
@@ -252,6 +255,7 @@ export class SlackAgentAdapter extends SlackAdapter {
     return lookup;
   }
 
+  // TODO(slopradar): review: correctness | this override replaces the base wholesale; @chat-adapter/slack 4.41 base also resolves `<#C123>` channel mentions (collectMentionIds + lookupMentionNames, dist/index.js:3667), so channel ids now reach the model unnamed | keep the `@name (U123)` user rewrite, then `return super.resolveInlineMentions(rewritten)` so the base still names channels
   protected override async resolveInlineMentions(text: string) {
     const mentionNames = new Map<string, string>();
     const missingIds = new Set<string>();

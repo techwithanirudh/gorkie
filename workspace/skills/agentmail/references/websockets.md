@@ -1,3 +1,4 @@
+<!-- TODO(slopradar): review: correctness | wss://ws.agentmail.to is not covered by the brokered rule (network.ts only rewrites api.agentmail.to), so every example here fails auth; a blocking listener also outlives execute_command | delete the file, or add a ws.agentmail.to rule host-side -->
 # AgentMail WebSockets
 
 Use WebSockets for live inbox events without exposing a public webhook endpoint.

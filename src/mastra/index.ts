@@ -35,6 +35,7 @@ import { isWaitSchedule } from './tools/scheduled-tasks/queries';
 process.on('unhandledRejection', (err: unknown) => {
   logger.error('[process] unhandled rejection', { err });
 });
+// TODO(slopradar): review: correctness | logging and carrying on after an uncaught exception leaves the process in an undefined state (Node docs: not safe to resume), e.g. a half-applied migration or a dead Socket Mode client that never reconnects | log, then process.exit(1) and let the supervisor restart; or record in AGENTS.md that staying up is a deliberate owner call
 process.on('uncaughtException', (err: Error) => {
   logger.error('[process] uncaught exception', { err });
 });
@@ -111,8 +112,10 @@ export const mastra = new Mastra({
       : {}),
   },
   schedules: {
+    // TODO(slopradar): CODING_STANDARDS: no large inline closures | a ~30-line async closure inside the Mastra config literal | move to a named module-scope function (e.g. gateScheduledFire) next to deleteFiredWait
     prepare: async ({ mastra: runtime, schedule }) => {
       const current = await runtime.schedules.get(schedule.id);
+      // TODO(slopradar): review: correctness | per core schedules/types.d.ts:158, `undefined` means "fire with row defaults" and only `null` skips, so a schedule deleted between claim and prepare still fires | return null
       if (!current) {
         return;
       }
@@ -124,6 +127,7 @@ export const mastra = new Mastra({
               ? current.ifIdle?.streamOptions?.requestContext
               : undefined
           ).data?.channel.userId ?? current.resourceId;
+      // TODO(slopradar): review: security | fail open: a schedule whose creator cannot be resolved returns undefined, which fires with no ban check and no usage-limit claim, the opposite of the fail-closed stance used for approvals | return null (skip) and log the scheduleId
       if (!creator) {
         return;
       }

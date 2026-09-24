@@ -23,6 +23,7 @@ export function createSandbox(threadId: string): E2BSandbox {
     env: {
       SSL_CERT_FILE: '/usr/lib/ssl/cert.pem',
       GIT_TERMINAL_PROMPT: '0',
+      // TODO(slopradar): simplification: duplication | the git identity ('gorkie-agent', 'gorkie@agentmail.to') is written here as GIT_AUTHOR_*/GIT_COMMITTER_* and again as `git config --global` in build-template.ts:68-69; the env vars win, so the template lines are dead | keep one (the env vars here), and move the literal into config.ts if it should stay deployment-configurable
       GIT_AUTHOR_NAME: 'gorkie-agent',
       GIT_AUTHOR_EMAIL: 'gorkie@agentmail.to',
       GIT_COMMITTER_NAME: 'gorkie-agent',

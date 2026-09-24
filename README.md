@@ -44,6 +44,7 @@ runs commands and inspects files without touching the host machine.
   out of the main conversation.
 - Web search and page fetching via [Exa][exa], plus a Slack "code mode" tool
   for query-driven or exhaustive conversation analysis.
+<!-- TODO(slopradar): accuracy | "post to another thread/channel/DM" overstates post_message: channel and thread targets must be in the current conversation's channel and user targets must be the requester (tools/slack/post-message.ts:18); search_slack (public-channel search, docs/slack-search.md) is missing from this list | say "post to another thread in this channel or DM the requester" and add search_slack -->
 - Slack-native tools: read/summarize conversation history, list threads and
   channels, inspect channels and users, post to another thread/channel/DM,
   upload and download files, react, join or leave a thread, and add custom
@@ -55,6 +56,7 @@ runs commands and inspects files without touching the host machine.
 - Recurring scheduled tasks (cron-based, create/list/pause/resume/delete).
   Each run posts back into the conversation where it was scheduled.
 - AI image generation, uploaded back into the Slack thread as a file.
+<!-- TODO(slopradar): accuracy | "the Slack core tools stay loaded" is vague and partly false: list_threads, list_channels, get_channel_info, call_slack_api and get_slack_emoji are deferred behind search (tools/toolsets.ts:41-53) | name what stays resident, or point at deferredTools instead of restating it -->
 - Most tools load on demand through tool search, so the base tool list and the
   prompt stay small. That includes a person's GitHub tools and their own MCP
   servers' tools; the Slack core tools stay loaded
@@ -70,6 +72,7 @@ runs commands and inspects files without touching the host machine.
 - [Observational Memory][om] compresses a long conversation into an
   observation log instead of carrying the full raw history, and working memory
   keeps each person's stated reply preferences. See [Memory](#memory).
+<!-- TODO(slopradar): writing-for-agents: cache | the skill list restates `ls workspace/skills` and goes stale on the next skill add | link the directory and describe only the non-obvious ones (artifacts, github) -->
 - Runtime skills in [`workspace/skills/`](./workspace/skills/): `67ify`,
   `agent-browser`, `agentmail`, `artifacts` (a single HTML page on a temporary
   Cloudflare Worker), `github`, `mermaid-diagrams`, `plain-english`,
@@ -79,6 +82,7 @@ runs commands and inspects files without touching the host machine.
   development, traces are also written to a local [DuckDB][duckdb] file
   (`observability.duckdb`).
 
+<!-- TODO(slopradar): accuracy: missing features | per-user usage limits (config.ts:103-104, 40 turns/hour and 300/day via chat/usage.ts claimTurn, also gating scheduled fires in index.ts), the `focus` tool, `run_background` jobs and `submit_feedback` are shipped behaviour with no mention here | add one bullet each -->
 See [TODO.md](./TODO.md) for open work and known issues.
 
 ## Tech stack
@@ -138,6 +142,7 @@ bun run dev:tunnel
 
 Paste the printed tunnel host plus `/api/agents/orchestrator/channels/slack/webhook`
 into both request URLs of the dev app (Event Subscriptions and Interactivity).
+<!-- TODO(slopradar): accuracy + docs consistency | "Through the tunnel only the Slack webhook and /health answer" is false: /oauth/* and /live/* are public apiRoutes (server/oauth.ts:95, server/live-view.ts:88) that the proxy middleware skips (index.ts), and the screencast WebSocket answers with a ticket; docs/webhook-mode.md:204-209 lists them correctly | list the same public routes as webhook-mode.md, or link it -->
 The tunnel URL changes on every run. Through the tunnel only the Slack webhook
 and `/health` answer; every other route returns 404, and the rest of `/api`
 needs `Authorization: Bearer $GORKIE_API_TOKEN` even on the host. The bot logs
@@ -151,6 +156,7 @@ For a production-style run: `bun run build` then `bun run start`.
 
 ### Local Postgres database
 
+<!-- TODO(slopradar): accuracy | "Mastra creates its tables on first run" skips gorkie's own schema: runMigrations() (db/index.ts:146-155) runs postgresStore.init() and then the drizzle migrations in drizzle/ on every boot | say both, and mention `bun run db:migrate` for a stopped bot -->
 The default `DATABASE_URL` in [`.env.example`](./.env.example) points at a
 local database named `gorkie`. Mastra creates its tables on first run.
 
@@ -185,6 +191,7 @@ local database named `gorkie`. Mastra creates its tables on first run.
 | `EMOJI_PROXY_TOKEN` | no | Token for the Hack Club Slack emoji proxy. Enables `upload_emoji`; unset, the tool reports that emoji upload is not configured |
 | `NODE_ENV` | no | `development` (default), `production` or `test`. Production requires `GORKIE_API_TOKEN`, an https `PUBLIC_BASE_URL`, and skips the local DuckDB trace store |
 
+<!-- TODO(slopradar): accuracy | production does not require PUBLIC_BASE_URL: env.ts:88 only rejects a non-https value when one is set | "requires GORKIE_API_TOKEN, rejects a non-https PUBLIC_BASE_URL" -->
 See [`.env.example`](./.env.example) for the full annotated list.
 
 ## Memory
@@ -326,6 +333,7 @@ and keep every hunk.
 
 ## Project structure
 
+<!-- TODO(slopradar): accuracy: stale structure | src/mastra/db/, lib/, memory/, observability/, server/ and types/ are missing, and `chat/` is far more than "client, handlers, typing status" (app-home/, commands/, moderation/, live-view, usage) | regenerate the tree from the real directories or cut it to the directories a newcomer needs -->
 ```text
 src/
   env.ts                        Zod-validated environment

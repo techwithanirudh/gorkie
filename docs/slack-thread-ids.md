@@ -69,6 +69,7 @@ and deploy the previous build.
 These queries only read. Run them in `psql` against the database before
 deploying:
 
+<!-- TODO(slopradar): writing-for-agents: friction | both dry-run queries ship fully commented out and the reader is told to uncomment them, though the doc already says they only read | ship them as runnable SQL; also, once the 20260924024825 migration has run in production, move this runbook to IMPLEMENTED.md -->
 ```sql
 -- Threads that will be renamed (same selection as the migration).
 -- WITH map AS (

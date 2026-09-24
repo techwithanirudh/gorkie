@@ -20,6 +20,7 @@ The reader should get the point in one pass, without a glossary.
 
 - Use the everyday word: "use" not "utilize", "start" not "initialize", "about"
   not "approximately", "so" not "therefore".
+<!-- TODO(slopradar): cross-skill contradiction | the parenthetical gloss taught here ("the cache (a saved copy...)") is what the unslop skill (item 13) bans | pick one rule; a comma gloss satisfies both -->
 - Name a technical term only when the reader will meet it again. Explain it once,
   in a few words, the first time: "the cache (a saved copy, so the page loads
   faster)".

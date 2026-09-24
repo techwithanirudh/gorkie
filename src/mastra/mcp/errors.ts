@@ -47,6 +47,7 @@ function upstreamMessage({ line }: { line: string }): {
   return { text, rpcCode: rpc?.code };
 }
 
+// TODO(slopradar): review: security + performance | discovery uses raw fetch, not guardedFetch, so the resolved IP is never re-checked when this runs from describeMCPError long after the add-time checkMCPUrl; and a `true` is cached forever in an unbounded module Map keyed by user-typed URLs | send it through guardedFetch (with a probe-timeout signal) and give the positive cache a TTL or drop it
 const oauthLookups = new Map<string, Promise<boolean>>();
 
 export function advertisesOAuth(url: string): Promise<boolean> {

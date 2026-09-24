@@ -7,6 +7,7 @@ import { agent } from '../config';
 import { verifyLiveViewTicket } from '../lib/crypto';
 import { browser } from '../workspace';
 
+// TODO(slopradar): simplification: duplicate | Cache-Control/Referrer-Policy are set by hand here and at viewerPage, duplicating privateHeaders in ./page | call privateHeaders(c) in both (the thumbnail's no-store too)
 function expired(c: Context): Response {
   c.header('Cache-Control', 'no-store');
   return c.text('This live view link has expired.', 404);
@@ -15,6 +16,7 @@ function expired(c: Context): Response {
 async function viewerPage(c: Context): Promise<Response> {
   const ticket = c.req.param('ticket') ?? '';
   const live = verifyLiveViewTicket(ticket);
+  // TODO(slopradar): CODING_STANDARDS: no defensive checks for impossible states | these routes are only registered when PUBLIC_BASE_URL is set (liveViewRoutes below), so the env half is only there to narrow the type | build the socket origin once inside the liveViewRoutes branch and pass it in, or parse PUBLIC_BASE_URL once at module scope
   if (!(live && env.PUBLIC_BASE_URL)) {
     return expired(c);
   }
@@ -73,6 +75,7 @@ async function thumbnail(c: Context): Promise<Response> {
   if (!live) {
     return expired(c);
   }
+  // TODO(slopradar): CODING_STANDARDS: no swallowed catch | a screenshot failure is silently reported to Slack as "link expired", so a broken thumbnail pipeline is invisible in logs | log at debug with threadId before falling through
   const image = await browser.screenshot(live.threadId).catch(() => undefined);
   if (!image) {
     return expired(c);

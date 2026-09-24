@@ -34,6 +34,7 @@ Three layers, so one mistake does not expose the agent API:
    ss -ltnp | grep 4111
    ```
 
+<!-- TODO(slopradar): sediment | "firewall it until the new build is deployed" is cutover-era wording | "firewall it and fix HOST" -->
    `127.0.0.1:4111` is correct. `*:4111` or `0.0.0.0:4111` means the whole API
    (`/api/agents/*`, memory, workflows) is reachable by anyone who can reach
    the port; firewall it until the new build is deployed.
@@ -121,10 +122,12 @@ URLs will carry `code` and `state`.
 
 ## Health monitor
 
+<!-- TODO(slopradar): accuracy: dangling reference | `gorkie-monitor.sh` and `gorkie.service` (line 144) are not in the repo, and the unit's required TimeoutStopSec (> 2 x drainTimeoutMs + 5s = 245s in production, config.ts:136-139) is documented only in a code comment | add the systemd unit and monitor probe here, or drop the references -->
 `gorkie-monitor.sh` must probe `http://127.0.0.1:4111/health`, not an `/api`
 route. With `SimpleAuth` on, every `/api` route answers 401, so an unchanged
 probe would put the monitor into a restart loop.
 
+<!-- TODO(slopradar): sediment | the Socket Mode cutover and rollback runbook is a finished one-time migration (both manifests already have socket_mode_enabled: false); rollback to a SLACK_APP_TOKEN build no longer exists in env.ts | move the section to IMPLEMENTED.md -->
 ## Cutover from Socket Mode
 
 Slack sends an app's events over the socket or to the request URL, never both,

@@ -5,6 +5,7 @@ import { agent as agentConfig } from '../../config';
 import { channelContext } from '../../lib/context';
 import { rawId } from '../../lib/ids';
 
+// TODO(slopradar): CODING_STANDARDS: no one-use constants / naming | `WAIT_SCHEDULE_KIND` only builds `waitMetadata` and the literal below; the file holds guards, not queries | `export const waitMetadata = { kind: 'wait' } as const` and `z.literal(waitMetadata.kind)`; rename the file to guards.ts or schedules.ts
 const WAIT_SCHEDULE_KIND = 'wait';
 
 export const waitMetadata = { kind: WAIT_SCHEDULE_KIND };

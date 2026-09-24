@@ -14,6 +14,7 @@ thread, a short list of live topics for a channel.
 - **One thread:** call `summarize_thread`, defaulting to the current thread. It
   reads up to 100 messages. For a longer thread, or when exact wording matters,
   page through `read_conversation_history` with the thread id.
+<!-- TODO(slopradar): accuracy | list_threads (and get_channel_info) sit behind tool search too (tools/toolsets.ts:44-45), but line 50 names only canvas and scheduled-task tools | move the search note up and include them -->
 - **A channel:** call `list_threads` for recent threads (it returns each root
   message, reply count and last reply time), then `summarize_thread` on the few
   that carry the discussion. For "since Monday" or "this week", filter by
@@ -37,6 +38,7 @@ thread, a short list of live topics for a channel.
 ## Deliver it
 
 - **In the thread:** the normal reply. This is the default.
+<!-- TODO(slopradar): accuracy | post_message cannot reach another channel: channel and thread targets must be in the current channel, user targets only the requester (tools/slack/post-message.ts:18) | "another thread in this channel, or a DM to the requester" -->
 - **Somewhere else:** `post_message` to another channel or thread, only when
   asked.
 - **Something that should stay put:** a canvas. `create_canvas` with

@@ -73,6 +73,7 @@ export async function readableFile({
   fileId: string;
   requestContext: RequestContext;
 }) {
+  // TODO(slopradar): review: weak type boundary | `file` stays optional in the return although the empty-channels throw means it exists, so callers optional-chain it (get-slack-file.ts:39,45,61,74; canvas/read.ts:35,46) | throw when `!file` and return it non-optional
   const { file } = await slack.webClient.files.info({ file: fileId });
   const channelIds = [
     ...(file?.channels ?? []),
@@ -176,6 +177,7 @@ export async function slackDestination(
   return destination;
 }
 
+// TODO(slopradar): review: correctness | `joinedChannels` is never invalidated, so after the bot is removed from a channel joinChannel skips the rejoin and reads fail with not_in_channel until restart | drop the cache (conversations.join is idempotent) or delete the id when a call returns not_in_channel
 const joinedChannels = new Set<string>();
 
 export async function joinChannel(channelId: string): Promise<void> {

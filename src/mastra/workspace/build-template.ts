@@ -52,6 +52,7 @@ async function main(): Promise<void> {
         'npm install -g agent-browser wrangler',
         'bash -lc "yes | agent-browser install --with-deps"',
         `python3 -m pip install --no-cache-dir --break-system-packages --no-user 'cloakbrowser[serve]==${liveView.cloakServe.version}'`,
+        // TODO(slopradar): review: security (supply chain, low) | cloakserve is fetched from a mutable git tag with no integrity check and installed as an executable in the image (same shape as the nodesource `curl | bash` above) | pin a commit SHA in liveView.cloakServe and verify a sha256 before chmod
         `curl -fsSL https://raw.githubusercontent.com/CloakHQ/CloakBrowser/v${liveView.cloakServe.version}/bin/cloakserve -o ${liveView.cloakServe.path}`,
         `chmod 755 ${liveView.cloakServe.path}`,
         'mv /usr/local/bin/agent-browser /usr/local/bin/agent-browser-real',
@@ -72,6 +73,7 @@ async function main(): Promise<void> {
     config.template,
     {
       apiKey: env.E2B_API_KEY,
+      // TODO(slopradar): CODING_STANDARDS: config & secrets | cpuCount and memoryMB are per-deployment sizing inlined in a script | move them to the `sandbox` block in config.ts next to template/timeout
       cpuCount: 2,
       memoryMB: 1024,
       onBuildLogs: defaultBuildLogger(),

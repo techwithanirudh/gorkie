@@ -58,11 +58,13 @@ export async function requestImages({
       return {
         data,
         mediaType:
+          // TODO(slopradar): review: correctness | a reference that is not an image is labelled image/png, the mislabel view-image.ts:9-11 says makes the gateway reject the turn | use `viewableImageType(data)` and throw a clear error when it is undefined
           detectMediaType({ data, topLevelType: 'image' }) ?? 'image/png',
       };
     })
   );
 
+  // TODO(slopradar): review: correctness / performance | the completion fetch has no abort signal or timeout, so a hung proxy holds the tool call and a user stop does not cancel it | take `abortSignal` in requestImages (pass `context.abortSignal` from index.ts) and combine it with `AbortSignal.timeout`
   const response = await fetch(`${images.baseURL}/chat/completions`, {
     method: 'POST',
     headers: {

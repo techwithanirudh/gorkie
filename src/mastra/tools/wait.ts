@@ -45,6 +45,7 @@ export const waitTool = createTool({
     const fireAt = new Date(Date.now() + seconds * 1000);
     const cron = `${fireAt.getUTCSeconds()} ${fireAt.getUTCMinutes()} ${fireAt.getUTCHours()} ${fireAt.getUTCDate()} ${fireAt.getUTCMonth() + 1} *`;
 
+    // TODO(slopradar): simplification: duplicate shape | `signalType`/`ifActive: persist`/`ifIdle: wake` with the channel requestContext is copied verbatim in scheduled-tasks/create.ts:83-90 | share one helper (e.g. `channelWake(context)`) returning those fields, used by both
     await schedules.create({
       agentId: agentConfig.id,
       cron,

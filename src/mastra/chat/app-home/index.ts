@@ -13,6 +13,7 @@ export function registerAppHome(): void {
       logger.error('[app-home] publishHome failed', { error })
     )
   );
+  // TODO(slopradar): simplification: injection with one implementation | every register* takes publishHome as a param and PublishHome exists in types/ only for this, while moderation/index.ts imports publishHome directly; it only dodges the view.ts -> <section>/index -> actions import loop, which ESM tolerates for functions called at runtime | import publishHome from './view' in each actions.ts (or have view.ts import blocks.ts files directly) and delete PublishHome
   registerCustomInstructions({ publishHome });
   registerGitHub({ publishHome });
   registerMCPServers({ publishHome });

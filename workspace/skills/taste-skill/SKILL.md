@@ -3,6 +3,7 @@ name: taste-skill
 description: Anti-slop frontend skill for landing pages, portfolios, and redesigns. The agent reads the brief, infers the right design direction, and ships interfaces that do not look templated. Real design systems when applicable, audit-first on redesigns, strict pre-flight check.
 ---
 
+<!-- TODO(slopradar): skill format: trigger | the description has no "Use when" branch; it fires only because prompts/core.ts:38 names it. The body also assumes a React/Tailwind project and never says how the page reaches the user (wrangler --temporary) | add trigger branches and one delivery line pointing at the wrangler skill -->
 # tasteskill: Anti-Slop Frontend Skill
 
 > Landing pages, portfolios, and redesigns. Not dashboards, not data tables, not multi-step product UI.

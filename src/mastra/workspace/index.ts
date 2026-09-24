@@ -142,6 +142,7 @@ export const browser = new SandboxBrowser({
 export const workspace: Workspace = new Workspace({
   id: 'main-workspace',
   name: 'Workspace',
+  // TODO(slopradar): review: security | every run with no threadId maps to the one shared `__unscoped__` sandbox; requireSandbox refuses it, but Mastra's own workspace tools (execute_command, read_file, write_file, ...) resolve through workspace.resolveSandbox and the filesystem factory below, so two unscoped runs (different users, Studio, any path that loses the channel context) share one VM and its files. Already listed as open in IMPLEMENTED.md:289 | in beforeToolCall return `{ proceed: false, output }` when sandboxKey(requestContext) === unscopedSandboxKey, so the shared sandbox is never started
   sandbox: ({ requestContext }) => {
     // Mastra can resolve workspace instructions before a thread is bound, and
     // a throw here fails the turn on every fallback model.
@@ -166,6 +167,7 @@ export const workspace: Workspace = new Workspace({
   skills: ['.'],
   tools: {
     hooks: {
+      // TODO(slopradar): CODING_STANDARDS: no large inline closures | beforeToolCall is ~27 lines inside the Workspace literal (afterToolCall ~20) | move both to named module-scope functions; while there drop the redundant `timeout &&` in the startJob guard, the early return already guarantees it when `background` is true
       beforeToolCall: async ({ context, input, workspaceToolName }) => {
         const background =
           workspaceToolName === WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND &&
@@ -182,6 +184,7 @@ export const workspace: Workspace = new Workspace({
         if (!(call && sandbox)) {
           return;
         }
+        // TODO(slopradar): review: performance | extendSandbox is an E2B setTimeout API round trip before every workspace tool call, and requireSandbox does another, so a step with N tool calls pays N+ extra network calls just to push the same deadline | remember the last extension per sandbox and skip it when it was within a fraction of config.timeout
         await extendSandbox(sandbox);
         const { threadId } = channelContext(call.requestContext);
         if (background && timeout && threadId && call.agent) {

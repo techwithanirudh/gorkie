@@ -4,6 +4,7 @@ import { slack } from '../../chat/client';
 import { emoji as emojiConfig, image } from '../../config';
 import { spendSlackCall } from '../../lib/slack-budget';
 import {
+  // TODO(slopradar): CODING_STANDARDS: direct names | `sandboxPath as p` alias (see artifacts.ts band) | import `sandboxPath` unaliased
   sandboxPath as p,
   requireSandbox,
   writeSandboxFile,

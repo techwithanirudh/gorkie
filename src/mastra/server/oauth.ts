@@ -42,6 +42,7 @@ function providerNotFound(c: Context): Promise<Response> {
   });
 }
 
+// TODO(slopradar): prefer libraries + review: security (low) | hand-rolled in-memory single-use store with a manual sweep; it is emptied on restart, so a consumed start link can be replayed within its 10-minute life after a redeploy | use the Chat state adapter this process already has: `getState().setIfNotExists(`oauth-start:${nonce}`, true, 600_000)` to consume and `get` to check, and drop the Map and sweep loop
 const usedStartNonces = new Map<string, number>();
 
 async function verifiedStart({

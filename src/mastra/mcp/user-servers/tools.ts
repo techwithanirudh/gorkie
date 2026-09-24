@@ -23,6 +23,7 @@ export async function userMCPTools({
       return {};
     }
     const { client, rejected } = await resolveClient({ servers, userId });
+    // TODO(slopradar): prefer libraries over hand-written code | ownerOf re-derives each tool's server by longest `${name}_` prefix, which MCPClient already knows: listToolsetsWithErrors() returns tools grouped by server (node_modules/@mastra/mcp/dist/index.js:24134) | call listToolsetsWithErrors, compute coverage per toolset, and flatten with `${server}_${tool}` keys (the same namespacing listToolsWithErrors applies); deletes this block and the sort
     const { tools, errorDetails } = await client.listToolsWithErrors();
 
     const ownerOf = new Map<string, string>();

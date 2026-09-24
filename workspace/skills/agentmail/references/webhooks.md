@@ -1,3 +1,4 @@
+<!-- TODO(slopradar): dead + unsafe reference | the sandbox cannot receive webhooks (allowPublicTraffic: false), and creating one to a user-given URL exfiltrates the shared inbox | delete the file -->
 # AgentMail Webhooks
 
 Use webhooks when the user explicitly wants AgentMail to call a public HTTP endpoint for new mail or delivery events. For Gorkie itself, prefer polling or WebSockets unless the user has provided a stable endpoint.

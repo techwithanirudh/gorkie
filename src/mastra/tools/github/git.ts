@@ -41,6 +41,7 @@ export const git = async ({
     const { stdout } = await sandbox.e2b.commands.run(
       `if git config -z --list --name-only 2>/dev/null | grep -qizE ${sh(String.raw`^(url\..*\.(push)?insteadof|filter\.)`)}; then echo 'refused: git config sets url.*.insteadOf or filter.*, remove it first' >&2; exit 97; fi; ${command}`,
       {
+        // TODO(slopradar): simplification: weak conditional | `...(cwd ? { cwd } : {})` with no exactOptionalPropertyTypes in tsconfig; `cwd: undefined` is the same | pass `cwd` directly
         ...(cwd ? { cwd } : {}),
         envs: {
           GIT_CONFIG_NOSYSTEM: '1',
@@ -113,6 +114,7 @@ export const withCredential = async <T>({
     work: () =>
       sandbox.retryOnDead(async () => {
         try {
+          // TODO(slopradar): review: security (known open, TODO egress Q3; IMPLEMENTED.md:134) | the github.com Authorization transform applies to the whole sandbox for the window, so a concurrent run_background job (run-background.ts:161) or parallel execute_command can push or clone with the user's token, skipping push.ts approval and refuseDefaultBranch | resolve with the egress decision: refuse to open the window while a live job exists in the sandbox (workspace/jobs hasLiveJob), or scope the rule to the git process
           await sandbox.e2b.updateNetwork({
             rules: {
               ...baseRules(),

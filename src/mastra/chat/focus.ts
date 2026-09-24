@@ -40,6 +40,7 @@ export async function setFocus({
   const actor = rawId(actorId);
   if (!isModerator(actor)) {
     const { channel, threadTs } = slack.decodeThreadId(threadId);
+    // TODO(slopradar): simplification: readability | `??` over a ternary over a two-callback .then holding a logger call, to compute one id | early-return shape: `let starter = owner; if (!starter && threadTs) { try { ... } catch (error) { logger.warn(...) } }`
     const starter =
       owner ??
       (threadTs

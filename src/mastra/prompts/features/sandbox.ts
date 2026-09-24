@@ -1,3 +1,4 @@
+// TODO(slopradar): CODING_STANDARDS: config single source | the prompt hardcodes values config.ts owns: '15 minutes' (sandbox.executionTimeout), 'at most 3600' (sandbox.background.maxTimeoutSeconds), '/home/user' (sandbox.workdir), and '1 GB of RAM and 2 CPUs' (build-template.ts cpuCount/memoryMB), so a config change silently makes the prompt lie; features/code-mode.ts already interpolates sandbox.workdir | interpolate them from config
 export const sandboxPrompt = `\
 <sandbox>
 - You have a persistent E2B Linux sandbox (Debian, Node.js 24, Python 3) for this conversation, driven by \`execute_command\`.

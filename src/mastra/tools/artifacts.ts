@@ -3,6 +3,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { artifacts as config } from '../config';
 import {
+  // TODO(slopradar): CODING_STANDARDS: direct names | every importer (5 files) renames `sandboxPath` to `p`, so the real name never appears at a call site | import `sandboxPath` unaliased (or rename the export) in artifacts, call-api, get-slack-file, get-slack-emoji, generate-image
   sandboxPath as p,
   requireSandbox,
   writeSandboxFile,
@@ -10,6 +11,7 @@ import {
 
 const kinds = ['findings', 'report', 'plan', 'review'] as const;
 
+// TODO(slopradar): CODING_STANDARDS: no one-use constants | `artifactId` is used once (readArtifactTool input) | inline it into the inputSchema
 const artifactId = z
   .string()
   .regex(new RegExp(`^(${kinds.join('|')})-[0-9a-f]{12}$`));
@@ -73,6 +75,7 @@ export const readArtifactTool = createTool({
     const body = await sandbox.retryOnDead(() =>
       sandbox.e2b.files.read(path, { format: 'text' })
     );
+    // TODO(slopradar): CODING_STANDARDS: validate at boundaries, trust internally | the input regex already proved the kind prefix, then the kind is re-parsed from the id | capture kind in the input schema (`.transform` returning `{ id, kind }`) and return it directly
     return { id, kind: z.enum(kinds).parse(id.split('-')[0]), body };
   },
 });

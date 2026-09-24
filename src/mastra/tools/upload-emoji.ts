@@ -70,6 +70,7 @@ export const uploadEmojiTool = createTool({
       form.set(
         'file',
         new Blob([new Uint8Array(bytes)]),
+        // TODO(slopradar): review: weak fallback | `split('/').pop()` never returns undefined, so `?? name` is dead and a trailing-slash path yields an empty filename | `posix.basename(path) || name`
         path.split('/').pop() ?? name
       );
       response = await fetch(`${emoji.proxyUrl}/upload`, {

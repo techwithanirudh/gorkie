@@ -48,6 +48,7 @@ export async function withHistory({
     const text = previous.formatted
       ? stringifyMarkdown(previous.formatted).trim()
       : previous.text;
+    // TODO(slopradar): simplification: duplicated logic | attachments are described again, differently, in attachments.ts (name, mime, size, url); only this copy extracts the F-id get_slack_file needs, inside a nested ternary | one shared attachment description in attachments.ts that yields name + file id, used by both
     const files =
       previous.attachments.length > 0
         ? ` [${previous.attachments.length} attachment${previous.attachments.length === 1 ? '' : 's'}: ${previous.attachments
@@ -72,6 +73,7 @@ export async function withHistory({
     return message;
   }
 
+  // TODO(slopradar): simplification: readability | three spread-ternary arrays to assemble up to four optional lines | push onto an array with plain ifs
   const text = [
     ...(lines.length > 0
       ? [

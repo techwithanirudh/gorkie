@@ -7,6 +7,7 @@ import { parseSlackId, rawId } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 import { spendSlackCall } from '../../lib/slack-budget';
 import {
+  // TODO(slopradar): CODING_STANDARDS: direct names | `sandboxPath as p` alias (see artifacts.ts band) | import `sandboxPath` unaliased
   sandboxPath as p,
   requireSandbox,
   writeSandboxFile,
@@ -162,6 +163,7 @@ Responses can be large, so the full JSON is written to a file in the thread sand
     }
 
     return {
+      // TODO(slopradar): simplification: dead field | per the comment at line 145 apiCall throws on ok:false, so `ok` is always true | drop `ok` from the outputSchema and result
       ok: response.ok,
       path,
       size: body.length,

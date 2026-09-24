@@ -9,6 +9,7 @@ const jobs = new Map<
 >();
 const keepalives = new Map<string, ReturnType<typeof setInterval>>();
 
+// TODO(slopradar): CODING_STANDARDS: inline over extract | pruneExpiredJobs has a single caller (the keepalive interval below) | inline the loop into the interval body
 function pruneExpiredJobs(): void {
   const now = Date.now();
   for (const [id, job] of jobs) {
@@ -97,6 +98,7 @@ export async function killJobs(threadId: string): Promise<number> {
   const kills = await Promise.allSettled(
     running.map(([id, job]) => {
       jobs.delete(id);
+      // TODO(slopradar): simplification: duplicate check | pid/sandbox are re-tested here only because the filter above does not narrow | build `running` with flatMap returning `{ id, pid, sandbox }` once, then map straight to processes.kill
       return job.pid && job.sandbox
         ? job.sandbox.processes.kill(job.pid)
         : false;

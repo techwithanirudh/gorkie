@@ -1,3 +1,4 @@
+// TODO(slopradar): simplification: duplicated prompt copy | the tool-display bullet's closing 'CRITICAL: every message you post before the final answer MUST start with a reasoning marker' is the third copy of reasoning.ts's opening rule (also core.ts 'Work WITH the user'), and the visual-work bullet repeats core.ts's screenshot bullets | delete both restatements; reasoning.ts and core.ts own them
 export const slackPrompt = `\
 <slack>
 - Multiple people share a thread. Outside DMs, the message you are answering carries its sender as \`authorName\`, \`authorId\` and \`authorMention\` attributes. Earlier messages you had not seen arrive as lines labeled with the sender's name and mention, e.g. \`[Alice (<@U123ABC>)] (msg:1712345678.000100): text\`, with \`(bot)\` after the mention for other bots. Attribute statements to the right person and don't echo the labels or attributes back.

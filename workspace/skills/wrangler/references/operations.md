@@ -1,3 +1,4 @@
+<!-- TODO(slopradar): internal contradiction | most of this file needs a real account (secret put/list/bulk, versions, rollback, tail, --env, --remote, remote bindings, plain `wrangler deploy`), against SKILL.md:12 | cut to local dev, --temporary deploy and troubleshooting -->
 # Wrangler: dev, deploy, observability, testing
 
 Local development, deployment, observability, testing, and troubleshooting. Retrieval-first: confirm exact flags against the Cloudflare docs.
@@ -181,6 +182,7 @@ curl http://localhost:8787/__scheduled
 
 | Issue | Solution |
 |-------|----------|
+<!-- TODO(slopradar): accuracy | wrangler is preinstalled globally (build-template.ts:55); `npm install -D wrangler` is the wrong fix | "run `wrangler --version`; it is global" -->
 | `command not found: wrangler` | Install: `npm install -D wrangler` |
 | Auth errors | gorkie has no account; deploy with `wrangler deploy --temporary`, never `wrangler login` |
 | Startup time limit exceeded | Run `wrangler check startup` to profile startup and generate CPU profiles |

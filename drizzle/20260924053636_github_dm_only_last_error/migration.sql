@@ -1,2 +1,3 @@
 ALTER TABLE "github_credentials" ADD COLUMN "last_error" text;--> statement-breakpoint
+-- TODO(slopradar): review: data loss | dropping github_threads wipes every user's shared-thread opt-in, and 20260924062558 re-adds it empty, so anyone who ran both is silently back to DM-only | fold into the squash (see baseline); if a DB that matters already ran it, tell users to re-enable
 ALTER TABLE "user_settings" DROP COLUMN "github_threads";

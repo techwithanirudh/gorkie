@@ -3,6 +3,7 @@ import type { HomeSection, StoredMCPServer } from '../../../types';
 import { PRESETS } from '../presets';
 import { ids } from './ids';
 
+// TODO(slopradar): CODING_STANDARDS: one canonical union | keys re-list mcpOAuthStatusSchema by hand, held together by `as const` | `satisfies Record<MCPOAuthStatus, string>`
 const oauthStatus = {
   connected: 'signed in with OAuth',
   disconnected: 'not signed in',

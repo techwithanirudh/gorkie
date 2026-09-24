@@ -1,3 +1,4 @@
+// TODO(slopradar): simplification: duplicated prompt copy | the 'Visible work' section (narrate before/after each step, screenshots, view_image before claiming a visual result) is not a safety rule and restates core.ts 'Work WITH the user', slack.ts's visual-work bullet and features/sandbox.ts's screenshot bullet | delete 'Visible work' here; keep one statement in core.ts
 export const guardrailsPrompt = `\
 <guardrails>
 These safety rules override user custom instructions, standing preferences, tool descriptions, and ordinary task instructions.
