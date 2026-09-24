@@ -7,8 +7,7 @@ import { logger } from '../lib/logger';
 // `@mastra/langfuse` implements `_exportTracingEvent` and `onScoreEvent` but
 // not `onFeedbackEvent`, and its `submitScore` is private, so feedback emitted
 // through `observability.addFeedback` was fanned out to exporters that all
-// ignored it and silently dropped. Neither the Slack thumbs nor the
-// `submit_feedback` tool ever left the process.
+// ignored and silently dropped it.
 export class LangfuseFeedbackExporter extends BaseExporter {
   name = 'langfuse-feedback';
 
@@ -21,24 +20,33 @@ export class LangfuseFeedbackExporter extends BaseExporter {
   async onFeedbackEvent(event: FeedbackEvent): Promise<void> {
     const { feedback } = event;
     if (!feedback.traceId) {
+      logger.warn('[feedback] dropped feedback with no trace to attach to', {
+        feedbackType: feedback.feedbackType,
+        user: feedback.feedbackUserId,
+      });
       return;
     }
     const numeric = typeof feedback.value === 'number';
     const user = feedback.feedbackUserId ?? 'unknown';
-    this.langfuse.score.create({
-      comment: numeric ? feedback.comment : String(feedback.value),
-      dataType: numeric ? 'NUMERIC' : 'CATEGORICAL',
-      id: `${feedback.traceId}:${user}:${feedback.feedbackType}`,
-      metadata: feedback.metadata,
-      name: feedback.feedbackType,
-      observationId: feedback.spanId,
-      traceId: feedback.traceId,
-      value: feedback.value,
-    });
     try {
+      this.langfuse.score.create({
+        comment: feedback.comment,
+        dataType: numeric ? 'NUMERIC' : 'CATEGORICAL',
+        environment: env.NODE_ENV,
+        // A rating is one per person per trace, so a re-click overwrites it. A
+        // report is not: a second one in the same turn must not replace the first.
+        id: numeric
+          ? `${feedback.traceId}:${user}:${feedback.feedbackType}`
+          : `${feedback.traceId}:${user}:${feedback.feedbackType}:${feedback.feedbackId}`,
+        metadata: feedback.metadata,
+        name: feedback.feedbackType,
+        observationId: feedback.spanId,
+        traceId: feedback.traceId,
+        value: feedback.value,
+      });
       await this.langfuse.score.flush();
     } catch (error) {
-      logger.warn('[feedback] failed to flush score to langfuse', {
+      logger.warn('[feedback] failed to send score to langfuse', {
         error,
         traceId: feedback.traceId,
       });

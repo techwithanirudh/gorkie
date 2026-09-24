@@ -15,6 +15,7 @@ import { summarizer } from './agents/summarizer';
 import { registerEvents } from './chat/events';
 import { setMastra } from './chat/mastra-instance';
 import { isBanned } from './chat/moderation';
+import { TurnDrainWorker } from './chat/turn-drain';
 import { postgresStore, runMigrations } from './db';
 import { buildAllowlist } from './lib/allowed-users';
 import { channelSchema } from './lib/context';
@@ -22,6 +23,7 @@ import { verifyLiveViewTicket } from './lib/crypto';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
+import { trimPayloads } from './observability/trim-payloads';
 import { liveViewRoutes } from './server/live-view';
 import { oauthRoutes } from './server/oauth';
 import { isWaitSchedule } from './tools/scheduled-tasks/queries';
@@ -81,6 +83,10 @@ export const mastra = new Mastra({
     host: env.HOST,
     port: env.PORT,
     cors: false,
+    // How long SIGTERM waits for Slack turns to finish (TurnDrainWorker) before
+    // aborting them. systemd's TimeoutStopSec must exceed twice this plus 5s:
+    // Mastra spends up to one window on HTTP, then another on its own shutdown.
+    drainTimeout: isProduction ? 120_000 : 10_000,
     build: { openAPIDocs: false, swaggerUI: false },
     apiRoutes: [...oauthRoutes, ...liveViewRoutes],
     ...(env.GORKIE_API_TOKEN
@@ -142,6 +148,7 @@ export const mastra = new Mastra({
       }
     },
   },
+  workers: [new TurnDrainWorker()],
   storage: traceStore
     ? new MastraCompositeStore({
         id: 'composite-storage',
@@ -172,7 +179,7 @@ export const mastra = new Mastra({
             secretKey: env.LANGFUSE_SECRET_KEY,
           }),
         ],
-        spanOutputProcessors: [slackIdentity],
+        spanOutputProcessors: [slackIdentity, trimPayloads],
       },
     },
   }),

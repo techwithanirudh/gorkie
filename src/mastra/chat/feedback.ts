@@ -2,8 +2,10 @@ import { buildFeedbackButtonsBlock } from '@chat-adapter/slack';
 import type { ActionEvent, ModalCloseEvent, ModalSubmitEvent } from 'chat';
 import { Modal, TextInput } from 'chat';
 import { z } from 'zod';
+import { optInStatus } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
 import { getMastra } from './mastra-instance';
+import { isBanned } from './moderation';
 
 export const feedbackIds = {
   action: 'message_feedback',
@@ -18,14 +20,11 @@ const metadataSchema = z.object({
   traceId: z.string().optional(),
 });
 
-export function feedbackBlock(
-  traceId: string | undefined
-): Record<string, unknown> {
-  const suffix = traceId ?? '';
+export function feedbackBlock(traceId: string): Record<string, unknown> {
   return buildFeedbackButtonsBlock({
     actionId: feedbackIds.action,
-    positiveValue: `up:${suffix}`,
-    negativeValue: `down:${suffix}`,
+    positiveValue: `up:${traceId}`,
+    negativeValue: `down:${traceId}`,
   });
 }
 
@@ -75,11 +74,31 @@ export async function onFeedbackClick(event: ActionEvent): Promise<void> {
     return;
   }
 
+  if (!traceId) {
+    logger.warn('[feedback] rating has no trace to attach to', {
+      direction,
+      messageId: event.messageId,
+      threadId: event.threadId,
+      userId: event.user.userId,
+    });
+    return;
+  }
+  if (
+    (await isBanned(event.user.userId)) ||
+    (await optInStatus(event.user.userId)) !== 'allowed'
+  ) {
+    logger.info('[feedback] ignored a rating from a blocked user', {
+      threadId: event.threadId,
+      userId: event.user.userId,
+    });
+    return;
+  }
+
   const rating = {
     direction,
     messageId: event.messageId,
     threadId: event.threadId,
-    traceId: traceId || undefined,
+    traceId,
     userId: event.user.userId,
   };
   if (direction === 'up') {

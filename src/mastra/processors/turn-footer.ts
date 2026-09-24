@@ -49,6 +49,11 @@ export const turnFooter = {
         : '';
     const text = `done in ${elapsed || 'under a second'}${tools}`;
     const traceId = args.tracingContext?.currentSpan?.traceId;
+    if (!traceId) {
+      logger.warn('[turn-footer] no trace id, posting without rating buttons', {
+        threadId,
+      });
+    }
     try {
       await slack.postBlocks({
         blocks: [
@@ -56,7 +61,7 @@ export const turnFooter = {
             type: 'context',
             elements: [{ type: 'mrkdwn', text: `_${text}_` }],
           },
-          feedbackBlock(traceId),
+          ...(traceId ? [feedbackBlock(traceId)] : []),
         ],
         text,
         threadId,

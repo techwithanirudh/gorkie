@@ -50,15 +50,16 @@ export const submitFeedbackTool = createTool({
     await observability.addFeedback({
       correlationContext,
       feedback: {
+        comment: body,
         feedbackSource: 'user',
-        feedbackType: kind,
+        feedbackType: 'report',
         feedbackUserId: rawId(ctx.userId),
         metadata: {
           channelId: ctx.channelId ? rawId(ctx.channelId) : undefined,
           messageId: ctx.messageId,
           threadId: ctx.threadId,
         },
-        value: body,
+        value: kind,
       },
     });
 
