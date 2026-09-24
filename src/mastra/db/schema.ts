@@ -97,3 +97,17 @@ export const moderationEvents = pgTable(
     index('moderation_events_user_idx').on(table.userId, table.createdAt),
   ]
 );
+
+// One row per turn a person started, kept for a day: the limits are rolling
+// windows, so they count rows rather than keep counters.
+export const usageTurns = pgTable(
+  'usage_turns',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index('usage_turns_user_idx').on(table.userId, table.createdAt)]
+);

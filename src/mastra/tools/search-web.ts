@@ -1,6 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { exa } from '../lib/exa';
+import { exa, withExaTimeout } from '../lib/exa';
 
 export const searchWebTool = createTool({
   id: 'search_web',
@@ -31,11 +31,14 @@ export const searchWebTool = createTool({
       }),
     },
   },
-  execute: async ({ query }) => {
-    const { results } = await exa.search(query, {
-      type: 'auto',
-      numResults: 8,
-      contents: { text: { maxCharacters: 1200 } },
+  execute: async ({ query }, { abortSignal }) => {
+    const { results } = await withExaTimeout({
+      request: exa.search(query, {
+        type: 'auto',
+        numResults: 8,
+        contents: { text: { maxCharacters: 1200 } },
+      }),
+      signal: abortSignal,
     });
     return {
       links: results.slice(0, 5).map((r) => r.url),

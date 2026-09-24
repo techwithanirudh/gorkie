@@ -11,4 +11,5 @@ export * from './moderation';
 export * from './oauth';
 export * from './thread';
 export * from './tools';
+export * from './usage';
 export * from './user';

@@ -4,6 +4,9 @@ export const sandbox = {
   template: 'gorkie-workspace:2.1',
   executionTimeout: 15 * 60 * 1000,
   timeout: 16 * 60 * 1000,
+  // A job outlives its turn, so the VM lifetime is re-armed while one runs.
+  // The cap matches E2B Hobby's one-hour sandbox limit.
+  background: { maxTimeoutSeconds: 60 * 60, keepaliveMs: 10 * 60 * 1000 },
   // A cold clone or a large push runs well past E2B's 60s request default, and
   // a timeout there retries the whole clone inside the credential window.
   cloneDepth: 50,
@@ -71,4 +74,15 @@ export const mcp = {
 export const emoji = {
   listTtl: 5 * 60 * 1000,
   proxyUrl: 'https://hackclub-slack-emoji-proxy.vercel.app/api/emoji',
+};
+
+export const usage = {
+  turnsPerHour: 40,
+  turnsPerDay: 300,
+  maxOutputTokensPerTurn: 200_000,
+};
+
+export const exa = {
+  timeoutMs: 30_000,
+  livecrawlTimeoutMs: 15_000,
 };

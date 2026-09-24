@@ -32,6 +32,7 @@ import { toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
 import { profileSchema } from '../memory/profile';
 import { delegatedTools } from '../processors/delegated-tools';
+import { outputBudget } from '../processors/output-budget';
 import { sandbox } from '../processors/sandbox';
 import { staleMessages } from '../processors/stale-messages';
 import { stepGuard } from '../processors/step-guard';
@@ -175,6 +176,7 @@ export const orchestrator = new Agent({
   inputProcessors: [
     staleMessages,
     toolSearch,
+    outputBudget,
     new TokenLimiterProcessor({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',

@@ -13,6 +13,7 @@ export default defineConfig({
     'mcp_oauth',
     'mcp_servers',
     'moderation_events',
+    'usage_turns',
     'user_settings',
   ],
   dbCredentials: { url: process.env.DATABASE_URL ?? '' },

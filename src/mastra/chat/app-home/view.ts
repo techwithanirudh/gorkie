@@ -17,12 +17,14 @@ import type { GitHubCredential, HomeSection } from '../../types';
 import { slack } from '../client';
 import { content } from '../content';
 import { banNotice } from '../moderation/cards';
+import { usageFor } from '../usage';
 import { githubBlocks } from './github';
 import { customInstructionsBlocks } from './instructions';
 import { fitHome } from './limit';
 import { mcpServersBlocks } from './mcp';
 import { scheduledTasksBlocks } from './scheduled-tasks';
 import { toolDisplayBlocks } from './tool-display';
+import { usageBlocks } from './usage';
 
 async function settled<T>({
   label,
@@ -92,6 +94,7 @@ export async function publishHome(userId: string): Promise<void> {
     permission,
     scheduled,
     display,
+    usage,
   ] = await Promise.all([
     settled({ label: 'instructions', userId, work: getInstructions(userId) }),
     settled({ label: 'mcp', userId, work: listMCPServers(userId) }),
@@ -106,12 +109,14 @@ export async function publishHome(userId: string): Promise<void> {
       work: scheduledTasksBlocks(userId),
     }),
     settled({ label: 'display', userId, work: getToolDisplay(userId) }),
+    settled({ label: 'usage', userId, work: usageFor(userId) }),
   ]);
 
   const sections: HomeSection[] = [
     { fixed: [...content.home, { type: 'divider' }] },
     customInstructionsBlocks(instructions),
     toolDisplayBlocks(display ?? toolDisplayConfig.default),
+    ...(usage ? [usageBlocks(usage)] : []),
     githubBlocks({
       credential,
       installations,

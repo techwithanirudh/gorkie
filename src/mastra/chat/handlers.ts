@@ -13,9 +13,31 @@ import { isComment } from './message';
 import { banNotice, isBanned } from './moderation';
 import { offerOptIn } from './onboarding';
 import { setThreadState, threadState } from './state';
+import { syncTitle } from './title';
+import { claimTurn } from './usage';
 
 function isFromBot(message: Message): boolean {
   return message.author.isBot === true || message.author.userId === 'USLACKBOT';
+}
+
+async function notify({
+  message,
+  text,
+  thread,
+}: {
+  message: Message;
+  text: string;
+  thread: Thread;
+}): Promise<void> {
+  await (thread.isDM
+    ? thread.post(text)
+    : thread.postEphemeral(message.author, text, { fallbackToDM: false })
+  ).catch((error: unknown) =>
+    logger.warn('[chat] could not send a notice', {
+      error,
+      threadId: thread.id,
+    })
+  );
 }
 
 async function turnAwayBanned({
@@ -30,13 +52,7 @@ async function turnAwayBanned({
     return false;
   }
   declined({ message, reason: 'banned', thread });
-  const notice = banNotice(ban.expiresAt);
-  await (thread.isDM
-    ? thread.post(notice)
-    : thread.postEphemeral(message.author, notice, { fallbackToDM: false })
-  ).catch((error: unknown) =>
-    logger.warn('[chat] could not send the ban notice', { error })
-  );
+  await notify({ message, text: banNotice(ban.expiresAt), thread });
   return true;
 }
 
@@ -68,14 +84,11 @@ async function turnAwayNotOptedIn({
     await offerOptIn({ thread, user: message.author });
     return true;
   }
-  const notice =
-    "i couldn't check whether you've opted in just now. try again in a minute.";
-  await (thread.isDM
-    ? thread.post(notice)
-    : thread.postEphemeral(message.author, notice, { fallbackToDM: false })
-  ).catch((error: unknown) =>
-    logger.warn('[chat] could not send the allow-list notice', { error })
-  );
+  await notify({
+    message,
+    text: "i couldn't check whether you've opted in just now. try again in a minute.",
+    thread,
+  });
   return true;
 }
 
@@ -129,10 +142,20 @@ async function runTurn({
     declined({ message, reason: 'sent before a stop or leave', thread });
     return;
   }
+  const overLimit = await claimTurn(message.author.userId);
+  if (overLimit) {
+    declined({ message, reason: 'over the turn limit', thread });
+    await notify({ message, text: overLimit, thread });
+    return;
+  }
   await defaultHandler(thread, prompt);
   if (!thread.isDM) {
     await setThreadState({ thread, patch: { lastSeenMessage: message.id } });
+    return;
   }
+  // Not awaited: the title is cosmetic and its model call must not hold up the
+  // next message in this thread. syncTitle logs its own failures.
+  syncTitle({ message, thread });
 }
 
 export const onMention: ChannelHandler = async (

@@ -23,7 +23,7 @@ moved; the status table gives the current location.
 | A9 raw `<annotation>` markup | fixed, not live-verified | `processors/step-guard.ts` strips `<think>`, `<annotation>` and tool-call tags; wired in orchestrator, research and explore. |
 | E silent-failure class | diagnosis stands | Root cause (restarts) handled under G. "Finished but never posted" is still open in TODO; native streaming is off (`chat/client.ts:16`), which removes one known cause. |
 | E1 no time budget | fixed | `modelTimeout: { firstChunkMs, stepMs }` (`config.ts:45`), applied on all three agents. |
-| E2 Exa calls have no timeout | open | `tools/fetch-url.ts`, `tools/search-web.ts` and `lib/exa.ts` pass no timeout or signal. Not tracked in TODO. |
+| E2 Exa calls have no timeout | fixed, not live-verified | `withExaTimeout` (`lib/exa.ts`) races each call against `config.exa.timeoutMs` (30s) and the tool's `abortSignal`; `fetch_url` also sends `livecrawlTimeout`. exa-js (2.16.3, and 2.22.2) passes no signal to fetch, so a hung request is abandoned, not cancelled. |
 | E3 wake resolves no render target | open | `tools/wait.ts:63-68` passes only `{ channel }`. Tracked in TODO (Langfuse audit item 11, backgrounding). |
 | E4 render driver swallows write failures | open, upstream | Tool display now defaults to hidden (`config.ts:48`) and native streaming is off. |
 | E5 a thrown run says nothing | partly fixed | Aborted runs post a notice (`onAbort`, `orchestrator.ts:138-153`); `onError` still posts nothing. |
