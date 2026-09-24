@@ -8,9 +8,19 @@ import { claimTurn } from '../chat/usage';
 import { agent as agentConfig, sandbox as sandboxConfig } from '../config';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
-import type { ChannelContext, ThreadOnlyChannelContext } from '../types';
+import type { ChannelContext } from '../types';
 import { requireSandbox } from '../workspace';
 import { startJob } from '../workspace/jobs';
+
+// Rebuilt from the thread id alone, as after a restart: there is no sender to
+// recover, so user-scoped tools stay off for the turn it starts.
+interface ThreadOnlyChannelContext {
+  channelId: string;
+  isDM: boolean;
+  platform: 'slack';
+  threadId: string;
+  userId?: never;
+}
 
 // The completion callback gets only the task record, whose `threadId` is the
 // memory thread. The woken run needs the Slack channel context the way `wait`

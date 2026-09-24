@@ -19,16 +19,6 @@ export type GitHubAccount = Omit<GitHubCredential, 'lastError' | 'login'>;
 
 export type GitHubPermission = (typeof GITHUB_PERMISSIONS)[number];
 
-export type GitHubAccess =
-  | { state: 'unreadable' }
-  | { state: 'disconnected' }
-  | {
-      state: 'connected';
-      credential: GitHubCredential;
-      direct: boolean;
-      level: GitHubPermission;
-    };
-
 export interface GitHubSettings {
   permission: GitHubPermission;
   threads: boolean;

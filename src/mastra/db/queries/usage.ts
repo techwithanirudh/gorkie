@@ -82,16 +82,3 @@ export async function recordTurnWithinLimit(
     return { recorded: true, usage };
   });
 }
-
-export async function recordTurn(userId: string): Promise<void> {
-  const id = rawId(userId);
-  await db.insert(usageTurns).values({ userId: id });
-  await db
-    .delete(usageTurns)
-    .where(
-      and(
-        eq(usageTurns.userId, id),
-        lt(usageTurns.createdAt, new Date(Date.now() - DAY))
-      )
-    );
-}

@@ -3,9 +3,9 @@ import type {
   ChannelHandler,
 } from '@mastra/core/channels';
 import type { Message, Thread } from 'chat';
-import { optInStatus, rebuildAllowlist } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
 import type { ThreadState } from '../types';
+import { optInStatus, rebuildAllowlist } from './allowed-users';
 import { attachments } from './attachments';
 import { slack } from './client';
 import { handleCommand } from './commands';
@@ -206,11 +206,13 @@ export const onMention: ChannelHandler = async (
   if (await turnAwayNotOptedIn({ message, offer: true, thread })) {
     return;
   }
-  const sees = thread.isDM ? undefined : await focusFilter(thread.id);
+  const state = await threadState(thread);
+  const sees = thread.isDM
+    ? undefined
+    : await focusFilter({ state, threadId: thread.id });
   if (await turnAwayUnfocused({ message, sees, thread })) {
     return;
   }
-  const state = await threadState(thread);
   if (await handleCommand({ message, state, thread })) {
     return;
   }
@@ -264,7 +266,9 @@ export const onSubscribedMessage: ChannelHandler = async (
   ) {
     return;
   }
-  const sees = thread.isDM ? undefined : await focusFilter(thread.id);
+  const sees = thread.isDM
+    ? undefined
+    : await focusFilter({ state, threadId: thread.id });
   if (await turnAwayUnfocused({ message, sees, thread })) {
     return;
   }

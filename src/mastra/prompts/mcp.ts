@@ -1,5 +1,5 @@
 import { listMCPServers } from '../db/queries/mcps';
-import { getMCPThreads } from '../db/queries/settings';
+import { getUserSettings } from '../db/queries/settings';
 import { logger } from '../lib/logger';
 
 export async function mcpPrompt({
@@ -18,13 +18,15 @@ export async function mcpPrompt({
       return [];
     }),
     isDM ||
-      getMCPThreads(userId).catch((error: unknown) => {
-        logger.warn('[prompts] failed to load mcp thread setting', {
-          error,
-          userId,
-        });
-        return false;
-      }),
+      getUserSettings(userId)
+        .then(({ mcpThreads }) => mcpThreads)
+        .catch((error: unknown) => {
+          logger.warn('[prompts] failed to load mcp thread setting', {
+            error,
+            userId,
+          });
+          return false;
+        }),
   ]);
   const failed = servers
     .filter((server) => server.lastError)

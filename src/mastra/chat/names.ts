@@ -1,9 +1,22 @@
 import { Chat } from 'chat';
+import { z } from 'zod';
 import { slack as slackConfig } from '../config';
 import { rawId } from '../lib/ids';
 import { logger } from '../lib/logger';
-import { type UserProfile, userProfileSchema } from '../types';
 import { slack } from './client';
+
+const userProfileSchema = z.object({
+  displayName: z.string().optional(),
+  fields: z.array(z.object({ label: z.string(), value: z.string() })),
+  pronouns: z.string().optional(),
+  realName: z.string().optional(),
+  status: z.string().optional(),
+  timezone: z.string().optional(),
+  timezoneLabel: z.string().optional(),
+  title: z.string().optional(),
+});
+
+type UserProfile = z.infer<typeof userProfileSchema>;
 
 export async function resolveUserProfile(
   id: string

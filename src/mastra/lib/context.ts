@@ -1,18 +1,6 @@
 import type { RequestContext } from '@mastra/core/request-context';
-import { z } from 'zod';
-import type { ChannelContext } from '../types';
+import { type ChannelContext, channelSchema } from '../types';
 import { logger } from './logger';
-
-export const channelSchema = z.looseObject({
-  botUserId: z.string().optional(),
-  channelId: z.string().optional(),
-  eventType: z.string().optional(),
-  isDM: z.boolean().optional(),
-  messageId: z.string().optional(),
-  threadId: z.string().optional(),
-  userId: z.string().optional(),
-  userName: z.string().optional(),
-});
 
 export function channelContext(
   requestContext?: RequestContext

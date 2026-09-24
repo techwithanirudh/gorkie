@@ -1,6 +1,6 @@
 import { defaultBuildLogger, Template } from 'e2b';
 import { env } from '@/env';
-import { sandbox as config } from '../config';
+import { agentmail, sandbox as config } from '../config';
 
 async function main(): Promise<void> {
   console.log(`[sandbox] building e2b template: ${config.template}`);
@@ -53,7 +53,6 @@ async function main(): Promise<void> {
         'bash -lc "yes | agent-browser install --with-deps"',
         'python3 -m pip install --no-cache-dir --break-system-packages --no-user cloakbrowser==0.5.10',
         'mv /usr/local/bin/agent-browser /usr/local/bin/agent-browser-real',
-        'python3 -c "from cloakbrowser.download import ensure_binary; ensure_binary()"',
         `chown -R user:user ${config.workdir}`,
       ])
       .copy('workspace/stealth-browser.sh', '/usr/local/bin/agent-browser', {
@@ -65,14 +64,14 @@ async function main(): Promise<void> {
         // from user's cache.
         'python3 -m cloakbrowser install',
         'git config --global user.name gorkie-agent',
-        'git config --global user.email gorkie@agentmail.to',
+        `git config --global user.email ${agentmail.inbox}`,
       ])
       .setWorkdir(config.workdir),
     config.template,
     {
       apiKey: env.E2B_API_KEY,
-      cpuCount: 2,
-      memoryMB: 1024,
+      cpuCount: config.cpuCount,
+      memoryMB: config.memoryMB,
       onBuildLogs: defaultBuildLogger(),
     }
   );

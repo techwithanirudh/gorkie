@@ -1,5 +1,8 @@
 import { Chat, Modal, TextInput } from 'chat';
-import { getInstructions, setInstructions } from '../../../db/queries/settings';
+import {
+  getUserSettings,
+  updateUserSettings,
+} from '../../../db/queries/settings';
 import { publishHome, refreshHome } from '../view';
 import { ids } from './ids';
 
@@ -7,7 +10,7 @@ export function registerCustomInstructions(): void {
   const bot = Chat.getSingleton();
 
   bot.onAction(ids.edit, async (event) => {
-    const instructions = await getInstructions(event.user.userId);
+    const { instructions } = await getUserSettings(event.user.userId);
     await event.openModal(
       Modal({
         callbackId: ids.modal,
@@ -29,18 +32,18 @@ export function registerCustomInstructions(): void {
   });
 
   bot.onAction(ids.clear, async (event) => {
-    await setInstructions({
+    await updateUserSettings({
+      set: { instructions: null },
       userId: event.user.userId,
-      instructions: undefined,
     });
     await publishHome(event.user.userId);
   });
 
   bot.onModalSubmit(ids.modal, async (event) => {
     const instructions = event.values.instructions?.trim();
-    await setInstructions({
+    await updateUserSettings({
+      set: { instructions: instructions || null },
       userId: event.user.userId,
-      instructions: instructions || undefined,
     });
     refreshHome(event.user.userId);
   });

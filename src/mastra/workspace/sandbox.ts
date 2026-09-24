@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { E2BSandbox } from '@mastra/e2b';
 import { env } from '@/env';
-import { sandbox as config } from '../config';
+import { agentmail, sandbox as config } from '../config';
 import { sandboxPrompt } from '../prompts/features/sandbox';
 import { baseRules } from './network';
 
@@ -24,9 +24,9 @@ export function createSandbox(threadId: string): E2BSandbox {
       SSL_CERT_FILE: '/usr/lib/ssl/cert.pem',
       GIT_TERMINAL_PROMPT: '0',
       GIT_AUTHOR_NAME: 'gorkie-agent',
-      GIT_AUTHOR_EMAIL: 'gorkie@agentmail.to',
+      GIT_AUTHOR_EMAIL: agentmail.inbox,
       GIT_COMMITTER_NAME: 'gorkie-agent',
-      GIT_COMMITTER_EMAIL: 'gorkie@agentmail.to',
+      GIT_COMMITTER_EMAIL: agentmail.inbox,
       ...(env.AGENTMAIL_API_KEY ? { AGENTMAIL_API_KEY: placeholder } : {}),
     },
     metadata: { 'thread-id': threadId },

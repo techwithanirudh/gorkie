@@ -1,9 +1,9 @@
 import type { CoreSystemMessage } from '@mastra/core/llm';
 import type { RequestContext } from '@mastra/core/request-context';
-import { getInstructions } from '../db/queries/settings';
+import { getUserSettings } from '../db/queries/settings';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
-import { workspaceCodeModePrompt } from '../tools/code-mode/slack';
+import { codeModeInstructions } from '../tools/code-mode/slack';
 import { commandsPrompt } from './commands';
 import { contextPrompt } from './context';
 import { corePrompt } from './core';
@@ -22,15 +22,17 @@ export async function instructions(
   const isDM = ctx.isDM === true;
   const { userId } = ctx;
   const [codeMode, github, userInstructions, mcps] = await Promise.all([
-    workspaceCodeModePrompt(),
+    codeModeInstructions({ workspaceAccess: true }),
     githubPrompt({ isDM, requestContext, userId }),
     userId
-      ? getInstructions(userId).catch((error: unknown) => {
-          logger.warn('[prompts] failed to load user instructions', {
-            error,
-            userId,
-          });
-        })
+      ? getUserSettings(userId)
+          .then(({ instructions }) => instructions)
+          .catch((error: unknown) => {
+            logger.warn('[prompts] failed to load user instructions', {
+              error,
+              userId,
+            });
+          })
       : undefined,
     userId ? mcpPrompt({ isDM, userId }) : undefined,
   ]);

@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { createEnv } from '@t3-oss/env-core';
 import { z } from 'zod';
+import { slackUserIdSchema } from './mastra/types/user';
 
 const aesKey = z
   .base64()
@@ -14,6 +15,7 @@ export const env = createEnv({
     NODE_ENV: z
       .enum(['development', 'production', 'test'])
       .default('development'),
+    LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 
     HOST: z.string().default('127.0.0.1'),
     PORT: z.coerce.number().int().positive().default(4111),
@@ -43,7 +45,7 @@ export const env = createEnv({
             .map((id) => id.trim())
             .filter(Boolean) ?? []
       )
-      .pipe(z.array(z.string().regex(/^[UW][A-Z0-9]+$/))),
+      .pipe(z.array(slackUserIdSchema)),
 
     HACKCLUB_API_KEY: z.string().min(1),
     OPENCODE_API_KEY: z.string().min(1),

@@ -114,7 +114,11 @@ type CodeModeInstance = Awaited<ReturnType<typeof createCodeModeInstance>>;
 
 const instances = new Map<string, Promise<CodeModeInstance>>();
 
-async function codeMode(workspaceAccess: boolean): Promise<CodeModeInstance> {
+export async function codeMode({
+  workspaceAccess,
+}: {
+  workspaceAccess: boolean;
+}): Promise<CodeModeInstance> {
   // Code mode calls tool.execute() directly, which skips Mastra's
   // requireApproval check, so only tools the server labels read-only go in.
   const mcp = Object.fromEntries(
@@ -134,24 +138,13 @@ async function codeMode(workspaceAccess: boolean): Promise<CodeModeInstance> {
   return started;
 }
 
-export function workspaceCodeMode(): Promise<CodeModeInstance> {
-  return codeMode(true);
-}
-
-export function slackCodeMode(): Promise<CodeModeInstance> {
-  return codeMode(false);
-}
-
-export async function workspaceCodeModePrompt(): Promise<string> {
+export async function codeModeInstructions({
+  workspaceAccess,
+}: {
+  workspaceAccess: boolean;
+}): Promise<string> {
   return codeModePrompt({
-    instructions: (await workspaceCodeMode()).instructions,
-    files: true,
-  });
-}
-
-export async function slackCodeModePrompt(): Promise<string> {
-  return codeModePrompt({
-    instructions: (await slackCodeMode()).instructions,
-    files: false,
+    instructions: (await codeMode({ workspaceAccess })).instructions,
+    files: workspaceAccess,
   });
 }

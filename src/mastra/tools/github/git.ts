@@ -3,7 +3,7 @@ import { CommandExitError } from 'e2b';
 import { sandbox as sandboxConfig } from '../../config';
 import { githubAccessToken, repoAccess } from '../../lib/github';
 import { logger } from '../../lib/logger';
-import { sh } from '../../lib/utils';
+import { sh } from '../../lib/shell';
 import { hasLiveJob } from '../../workspace/jobs';
 import { baseRules } from '../../workspace/network';
 

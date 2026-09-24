@@ -68,7 +68,7 @@ export async function requestImages({
     })
   );
 
-  const timeout = AbortSignal.timeout(5 * 60 * 1000);
+  const timeout = AbortSignal.timeout(image.requestTimeoutMs);
   const response = await fetch(`${images.baseURL}/chat/completions`, {
     method: 'POST',
     signal: abortSignal ? AbortSignal.any([abortSignal, timeout]) : timeout,

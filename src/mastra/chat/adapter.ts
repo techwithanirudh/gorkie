@@ -1,8 +1,12 @@
 import { SlackAdapter } from '@chat-adapter/slack';
 import { z } from 'zod';
 import { slack as config } from '../config';
-import type { MemberLeftEvent } from '../types';
 import { userMention } from './message';
+
+interface MemberLeftEvent {
+  channel: string;
+  userId: string;
+}
 
 const mentionPattern = new RegExp(userMention.source, 'g');
 

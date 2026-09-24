@@ -2,12 +2,7 @@ import { toolDisplay as toolDisplayConfig } from '../../config';
 import { getGitHubCredential } from '../../db/queries/github';
 import { listMCPServers } from '../../db/queries/mcps';
 import { activeBan } from '../../db/queries/moderation';
-import {
-  getGitHubSettings,
-  getInstructions,
-  getMCPThreads,
-  getToolDisplay,
-} from '../../db/queries/settings';
+import { getUserSettings } from '../../db/queries/settings';
 import { turnUsage } from '../../db/queries/usage';
 import {
   countInstallations,
@@ -79,19 +74,15 @@ export async function publishHome(userId: string): Promise<void> {
   );
 
   const [
-    instructions,
+    settings,
     mcpServers,
-    mcpThreads,
     { credential, unreadable },
     installations,
-    github,
     scheduled,
-    display,
     usage,
   ] = await Promise.all([
-    settled({ label: 'instructions', userId, work: getInstructions(userId) }),
+    settled({ label: 'settings', userId, work: getUserSettings(userId) }),
     settled({ label: 'mcp', userId, work: listMCPServers(userId) }),
-    settled({ label: 'mcp threads', userId, work: getMCPThreads(userId) }),
     credentialResult,
     settled({
       label: 'installations',
@@ -114,13 +105,11 @@ export async function publishHome(userId: string): Promise<void> {
         return 0;
       }),
     }),
-    settled({ label: 'settings', userId, work: getGitHubSettings(userId) }),
     settled({
       label: 'scheduled',
       userId,
       work: scheduledTasksBlocks(userId),
     }),
-    settled({ label: 'display', userId, work: getToolDisplay(userId) }),
     settled<TurnUsage | 'unlimited'>({
       label: 'usage',
       userId,
@@ -132,20 +121,20 @@ export async function publishHome(userId: string): Promise<void> {
 
   const sections: HomeSection[] = [
     { fixed: [...content.home, { type: 'divider' }] },
-    customInstructionsBlocks(instructions),
-    toolDisplayBlocks(display ?? toolDisplayConfig.default),
+    customInstructionsBlocks(settings?.instructions),
+    toolDisplayBlocks(settings?.toolDisplay ?? toolDisplayConfig.default),
     ...(usage ? [usageBlocks(usage)] : []),
     githubBlocks({
       credential,
       installations: installations ?? 0,
-      permission: githubPermissionSchema.parse(github?.permission),
-      threads: github?.threads === true,
+      permission: githubPermissionSchema.parse(settings?.github.permission),
+      threads: settings?.github.threads === true,
       unreadable,
       userId,
     }),
     mcpServersBlocks({
       servers: mcpServers ?? [],
-      threads: mcpThreads === true,
+      threads: settings?.mcpThreads === true,
       userId,
     }),
     ...(scheduled ? [scheduled] : []),

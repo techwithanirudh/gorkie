@@ -2,8 +2,8 @@ import { Chat } from 'chat';
 import { removeGitHubCredential } from '../../../db/queries/github';
 import {
   clearGitHubSettings,
-  getGitHubSettings,
-  setGitHubSettings,
+  getUserSettings,
+  updateUserSettings,
 } from '../../../db/queries/settings';
 import { githubAccessToken, revokeGitHubGrant } from '../../../lib/github';
 import { logger } from '../../../lib/logger';
@@ -21,14 +21,18 @@ export function registerGitHub(): void {
 
   bot.onAction(ids.configure, async (event) => {
     await event.openModal(
-      configureModal(await getGitHubSettings(event.user.userId))
+      configureModal((await getUserSettings(event.user.userId)).github)
     );
   });
 
   bot.onModalSubmit(ids.configureModal, async (event) => {
-    await setGitHubSettings({
-      permission: githubPermissionSchema.parse(event.values[ids.permission]),
-      threads: scopeSchema.parse(event.values[ids.scope]) === 'threads',
+    await updateUserSettings({
+      set: {
+        githubPermission: githubPermissionSchema.parse(
+          event.values[ids.permission]
+        ),
+        githubThreads: scopeSchema.parse(event.values[ids.scope]) === 'threads',
+      },
       userId: event.user.userId,
     });
     refreshHome(event.user.userId);

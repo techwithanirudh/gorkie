@@ -9,7 +9,7 @@ import {
   setMCPServerError,
   setMCPServerPermission,
 } from '../../../db/queries/mcps';
-import { setMCPThreads } from '../../../db/queries/settings';
+import { updateUserSettings } from '../../../db/queries/settings';
 import { logger } from '../../../lib/logger';
 import { advertisesOAuth } from '../../../mcp/errors';
 import { revokeMCPOAuth } from '../../../mcp/oauth';
@@ -161,8 +161,8 @@ export function registerMCPServers(): void {
   bot.onAction(ids.connect, () => undefined);
 
   bot.onAction(ids.threads, async (event) => {
-    await setMCPThreads({
-      threads: scopeSchema.parse(event.value) === 'threads',
+    await updateUserSettings({
+      set: { mcpThreads: scopeSchema.parse(event.value) === 'threads' },
       userId: event.user.userId,
     });
     await publishHome(event.user.userId);

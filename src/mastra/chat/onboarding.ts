@@ -8,10 +8,10 @@ import {
   CardText,
 } from 'chat';
 import { env } from '@/env';
-import { setMembership } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
 import { ALREADY_IN_CHANNEL } from '../lib/logger/slack';
 import { slackErrorSchema } from '../types';
+import { setMembership } from './allowed-users';
 import { slack } from './client';
 import { notify } from './notify';
 

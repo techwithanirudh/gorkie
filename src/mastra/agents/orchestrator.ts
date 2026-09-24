@@ -1,4 +1,4 @@
-import { Agent } from '@mastra/core/agent';
+import { Agent, type AgentExecutionOptions } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
 import { skillResultRedactor } from '@mastra/memory/hooks';
 import { Chat } from 'chat';
@@ -39,7 +39,7 @@ import {
 import { models, summarizer as summarizerModel } from '../providers';
 import { githubTools } from '../tools/github';
 import { orchestratorTools } from '../tools/toolsets';
-import { type MastraStopCondition, mastraToolDisplay } from '../types';
+import { mastraToolDisplay } from '../types';
 import { endSandboxTurn, workspace } from '../workspace';
 import { explore } from './explore';
 import { research } from './research';
@@ -49,6 +49,11 @@ import {
   historyProcessors,
   runDefaults,
 } from './shared';
+
+type StopCondition = Exclude<
+  NonNullable<AgentExecutionOptions['stopWhen']>,
+  unknown[]
+>;
 
 export const orchestrator = new Agent({
   id: config.id,
@@ -74,12 +79,12 @@ export const orchestrator = new Agent({
           });
       },
     },
-    stopWhen: (({ steps }) =>
+    stopWhen: ({ steps }: Parameters<StopCondition>[0]) =>
       steps
         .at(-1)
         ?.toolResults?.some(
           ({ toolName }) => toolName === 'skip' || toolName === 'wait'
-        ) ?? false) satisfies MastraStopCondition,
+        ) ?? false,
     onAbort: async () => {
       await endSandboxTurn(requestContext);
       const { threadId } = channelContext(requestContext);

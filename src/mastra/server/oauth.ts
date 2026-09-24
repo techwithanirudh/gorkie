@@ -4,8 +4,8 @@ import { Chat } from 'chat';
 import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { env } from '@/env';
+import { optInStatus } from '../chat/allowed-users';
 import { slack } from '../chat/client';
-import { optInStatus } from '../lib/allowed-users';
 import { signOAuthToken, verifyOAuthToken } from '../lib/crypto';
 import { logger } from '../lib/logger';
 import {
@@ -131,13 +131,17 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
           if ('response' in started) {
             return started.response;
           }
+          const redirectUri = oauthRedirectUri(started.provider);
+          if (!redirectUri) {
+            return providerNotFound(c);
+          }
           const { nonce, signed: state } = signOAuthToken({
             ...started.token,
             purpose: 'state',
           });
           try {
             const location = await started.handler.authorizeUrl({
-              redirectUri: oauthRedirectUri(started.provider),
+              redirectUri,
               state,
               token: started.token,
             });
@@ -169,7 +173,8 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
             c.req.param('provider')
           ).data;
           const handler = provider ? providers[provider] : undefined;
-          if (!(provider && handler)) {
+          const redirectUri = provider ? oauthRedirectUri(provider) : undefined;
+          if (!(provider && handler && redirectUri)) {
             return providerNotFound(c);
           }
           const token = verifyOAuthToken({
@@ -198,7 +203,7 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
           try {
             const outcome = await handler.complete({
               query: c.req.query(),
-              redirectUri: oauthRedirectUri(provider),
+              redirectUri,
               token,
             });
             if ('redirect' in outcome) {

@@ -1,9 +1,12 @@
 import { Chat } from 'chat';
 import { env } from '@/env';
-import { slack } from '../chat/client';
-import type { OptInStatus } from '../types';
-import { rawId } from './ids';
-import { logger } from './logger';
+import { rawId } from '../lib/ids';
+import { logger } from '../lib/logger';
+import { slack } from './client';
+
+// 'uncached' means the allow-list has not been built yet; the caller decides
+// whether to trigger a rebuild.
+type OptInStatus = 'allowed' | 'not-allowed' | 'unknown' | 'uncached';
 
 function allowlistKey(channel: string): string {
   return `slack:allowed-users:${channel}`;

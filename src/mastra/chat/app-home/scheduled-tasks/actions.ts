@@ -1,6 +1,6 @@
 import { Chat } from 'chat';
 import { chatChannelId } from '../../../lib/ids';
-import { isScheduledTask } from '../../../tools/scheduled-tasks/queries';
+import { isScheduledTask } from '../../../tools/scheduled-tasks/schedules';
 import { getMastra } from '../../mastra-instance';
 import { publishHome } from '../view';
 import { ids } from './ids';

@@ -6,7 +6,7 @@ import type {
 } from '@mastra/core/workspace';
 import { z } from 'zod';
 import { file as fileConfig } from '../config';
-import { sh } from '../lib/utils';
+import { sh } from '../lib/shell';
 
 const arbitraryData = z.union([
   z.object({ text: z.string() }),

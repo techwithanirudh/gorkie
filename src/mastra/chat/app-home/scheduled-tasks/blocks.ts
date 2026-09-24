@@ -1,6 +1,6 @@
 import { agent as agentConfig } from '../../../config';
 import { chatChannelId } from '../../../lib/ids';
-import { isScheduledTask } from '../../../tools/scheduled-tasks/queries';
+import { isScheduledTask } from '../../../tools/scheduled-tasks/schedules';
 import type { HomeSection } from '../../../types';
 import { getMastra } from '../../mastra-instance';
 import { ids } from './ids';

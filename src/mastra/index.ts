@@ -12,6 +12,7 @@ import { explore } from './agents/explore';
 import { orchestrator } from './agents/orchestrator';
 import { research } from './agents/research';
 import { summarizer } from './agents/summarizer';
+import { buildAllowlist } from './chat/allowed-users';
 import { registerEvents } from './chat/events';
 import { setMastra } from './chat/mastra-instance';
 import { banStatus } from './chat/moderation';
@@ -20,14 +21,13 @@ import { claimTurn } from './chat/usage';
 import { observability as observabilityConfig, shutdown } from './config';
 import { runMigrations } from './db';
 import { postgresStore } from './db/client';
-import { buildAllowlist } from './lib/allowed-users';
 import { rawId } from './lib/ids';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
 import { trimPayloads } from './observability/trim-payloads';
 import { oauthRoutes } from './server/oauth';
-import { isWaitSchedule } from './tools/scheduled-tasks/queries';
+import { isWaitSchedule } from './tools/scheduled-tasks/schedules';
 import { channelSchema } from './types';
 
 process.on('unhandledRejection', (err: unknown) => {
@@ -140,6 +140,14 @@ async function gateScheduledFire({
   }
 }
 
+const langfuse = new LangfuseExporter({
+  baseUrl: env.LANGFUSE_BASE_URL,
+  environment: env.NODE_ENV,
+  publicKey: env.LANGFUSE_PUBLIC_KEY,
+  realtime: !isProduction,
+  secretKey: env.LANGFUSE_SECRET_KEY,
+});
+
 export const mastra = new Mastra({
   agents: { orchestrator, summarizer, research, explore },
   server: {
@@ -191,14 +199,8 @@ export const mastra = new Mastra({
         serviceName: 'orchestrator',
         exporters: [
           ...(traceStore ? [new MastraStorageExporter()] : []),
-          new LangfuseFeedbackExporter(),
-          new LangfuseExporter({
-            baseUrl: env.LANGFUSE_BASE_URL,
-            environment: env.NODE_ENV,
-            publicKey: env.LANGFUSE_PUBLIC_KEY,
-            realtime: !isProduction,
-            secretKey: env.LANGFUSE_SECRET_KEY,
-          }),
+          new LangfuseFeedbackExporter(langfuse.client),
+          langfuse,
         ],
         spanOutputProcessors: [slackIdentity, trimPayloads],
       },

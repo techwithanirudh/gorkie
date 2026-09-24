@@ -54,6 +54,7 @@ export const image = {
   // non-retryable 400 over that). Keep only the most recent within these bounds.
   maxContextImages: 8,
   maxContextBytes: 60 * 1024 * 1024,
+  requestTimeoutMs: 5 * 60 * 1000,
 };
 
 export const agent = {

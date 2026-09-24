@@ -1,6 +1,6 @@
 import { Chat } from 'chat';
-import { optInStatus } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
+import { optInStatus } from './allowed-users';
 import { registerAppHome } from './app-home';
 import { slack } from './client';
 import { stopThread } from './commands/stop';

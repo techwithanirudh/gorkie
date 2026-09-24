@@ -1,6 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { isScheduledTask, ownSchedules } from './queries';
+import { isScheduledTask, ownSchedules } from './schedules';
 
 export function manageTool({
   id,

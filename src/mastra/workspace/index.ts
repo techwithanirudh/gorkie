@@ -28,7 +28,9 @@ import {
   WRITE_FILE,
 } from './tool-names';
 
-const reached = new WeakSet<RequestContext>();
+// Keyed by thread, not by context: a delegated subagent runs on a copy of the
+// orchestrator's context, so its sandbox use would be invisible at turn end.
+const reached = new Set<string>();
 const extendedAt = new WeakMap<E2BSandbox, number>();
 const unscopedSandboxKey = '__unscoped__';
 
@@ -111,7 +113,7 @@ async function getSandbox(
   if (!(sandbox instanceof E2BSandbox)) {
     return;
   }
-  reached.add(requestContext);
+  reached.add(sandboxKey(requestContext));
   return sandbox;
 }
 
@@ -120,7 +122,8 @@ async function getSandbox(
 export async function endSandboxTurn(
   requestContext: RequestContext
 ): Promise<void> {
-  if (!reached.has(requestContext)) {
+  const key = sandboxKey(requestContext);
+  if (!reached.has(key)) {
     return;
   }
   const { threadId } = channelContext(requestContext);
@@ -134,6 +137,7 @@ export async function endSandboxTurn(
   } catch (error) {
     logger.debug('[sandbox] failed to pause', { error });
   }
+  reached.delete(key);
   if (threadId) {
     workspace.clearSandboxCache(threadId);
   }

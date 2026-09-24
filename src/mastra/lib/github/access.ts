@@ -1,9 +1,19 @@
 import type { RequestContext } from '@mastra/core/request-context';
 import { getGitHubCredential } from '../../db/queries/github';
 import { getUserSettings } from '../../db/queries/settings';
-import type { GitHubAccess } from '../../types';
+import type { GitHubCredential, GitHubPermission } from '../../types';
 import { levelOutsideDM } from '../approval';
 import { logger } from '../logger';
+
+type GitHubAccess =
+  | { state: 'unreadable' }
+  | { state: 'disconnected' }
+  | {
+      state: 'connected';
+      credential: GitHubCredential;
+      direct: boolean;
+      level: GitHubPermission;
+    };
 
 async function read({
   isDM,

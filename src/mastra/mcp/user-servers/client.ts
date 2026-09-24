@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import { MCPClient } from '@mastra/mcp';
-import { env } from '@/env';
 import { logger } from '../../lib/logger';
 import { oauthRedirectUri } from '../../server/oauth-link';
 import type { MCPServerConfig, StoredMCPServer } from '../../types';
@@ -62,8 +61,12 @@ async function checkServer({
   if (!server.oauth) {
     return { server, url };
   }
-  if (!env.PUBLIC_BASE_URL) {
-    return { server, error: 'OAuth sign-in is not set up on this Gorkie.' };
+  const redirectUri = oauthRedirectUri('mcp');
+  if (!redirectUri) {
+    return {
+      server,
+      error: 'Sign-in is unavailable: PUBLIC_BASE_URL is not set.',
+    };
   }
   if (server.oauth.status !== 'connected') {
     return {
@@ -83,7 +86,7 @@ async function checkServer({
     return { server, error: `Sign-in server rejected: ${hostError}` };
   }
   const provider = new MCPServerOAuth({
-    redirectUri: oauthRedirectUri('mcp'),
+    redirectUri,
     server,
     userId,
   });

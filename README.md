@@ -200,6 +200,7 @@ them without starting the bot, run `bun run db:migrate`.
 | `AGENTMAIL_API_KEY` | no | Lets the sandbox reach the AgentMail API as `gorkie@agentmail.to`, without the key entering the sandbox |
 | `EMOJI_PROXY_TOKEN` | no | Token for the Hack Club Slack emoji proxy. Enables `upload_emoji`; unset, the tool reports that emoji upload is not configured |
 | `NODE_ENV` | no | `development` (default), `production` or `test`. Production requires `GORKIE_API_TOKEN`, rejects a non-https `PUBLIC_BASE_URL`, and skips the local DuckDB trace store |
+| `LOG_LEVEL` | no | `debug`, `info` (default), `warn` or `error` |
 
 See [`.env.example`](./.env.example) for the full annotated list.
 

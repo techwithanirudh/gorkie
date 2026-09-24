@@ -6,5 +6,3 @@ export interface HomeSection {
   rows?: SlackBlock[][];
   trailing?: SlackBlock[];
 }
-
-export type PublishHome = (userId: string) => Promise<void>;

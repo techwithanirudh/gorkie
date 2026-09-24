@@ -2,8 +2,8 @@ import { buildFeedbackButtonsBlock } from '@chat-adapter/slack';
 import type { ActionEvent, ModalCloseEvent, ModalSubmitEvent } from 'chat';
 import { Modal, TextInput } from 'chat';
 import { z } from 'zod';
-import { optInStatus } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
+import { optInStatus } from './allowed-users';
 import { getMastra } from './mastra-instance';
 import { banStatus } from './moderation';
 

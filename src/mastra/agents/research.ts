@@ -6,7 +6,7 @@ import { description, prompt } from '../prompts/agents/research';
 import { slackToolPrompt } from '../prompts/slack';
 import { models } from '../providers';
 import { saveArtifactTool } from '../tools/artifacts';
-import { slackCodeMode, slackCodeModePrompt } from '../tools/code-mode/slack';
+import { codeMode, codeModeInstructions } from '../tools/code-mode/slack';
 import { fetchUrlTool } from '../tools/fetch-url';
 import { searchWebTool } from '../tools/search-web';
 import { slackTools } from '../tools/slack';
@@ -24,13 +24,13 @@ export const research = new Agent({
   instructions: async () => [
     prompt,
     slackToolPrompt,
-    await slackCodeModePrompt(),
+    await codeModeInstructions({ workspaceAccess: false }),
   ],
   model: models.research,
   ...agentDefaults,
   memory: delegationMemory,
   tools: async () => ({
-    slack: (await slackCodeMode()).tool,
+    slack: (await codeMode({ workspaceAccess: false })).tool,
     search_web: searchWebTool,
     fetch_url: fetchUrlTool,
     search_slack: slackTools.search_slack,

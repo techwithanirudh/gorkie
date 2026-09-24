@@ -1,6 +1,6 @@
 import type { AnySpan, SpanOutputProcessor } from '@mastra/core/observability';
 import { SpanType } from '@mastra/core/observability';
-import { channelSchema } from '../lib/context';
+import { channelSchema } from '../types';
 
 export const slackIdentity: SpanOutputProcessor = {
   name: 'slack-identity',

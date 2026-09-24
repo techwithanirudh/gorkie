@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { agent as agentConfig } from '../config';
-import { channelWake, waitMetadata } from './scheduled-tasks/queries';
+import { channelWake, waitMetadata } from './scheduled-tasks/schedules';
 
 export const waitTool = createTool({
   id: 'wait',

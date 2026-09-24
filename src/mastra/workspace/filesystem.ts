@@ -37,7 +37,7 @@ import {
 } from 'e2b';
 import { lookup } from 'mime-types';
 import { file as fileLimits, sandbox as sandboxConfig } from '../config';
-import { sh } from '../lib/utils';
+import { sh } from '../lib/shell';
 import { parseRipgrepJson, ripgrepCommand } from './ripgrep';
 
 function modifiedTime(info: { modifiedTime?: Date }): Date {

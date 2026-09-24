@@ -2,8 +2,8 @@ import type { RequestContext } from '@mastra/core/request-context';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { logger } from '../../lib/logger';
+import { sh } from '../../lib/shell';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { sh } from '../../lib/utils';
 import { requireSandbox, sandboxPath } from '../../workspace';
 import { fetchPrivateSlackFile, readableFile } from './utils';
 

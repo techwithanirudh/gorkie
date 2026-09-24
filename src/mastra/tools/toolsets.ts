@@ -1,6 +1,6 @@
 import { readArtifactTool } from './artifacts';
 import { canvasTools } from './canvas';
-import { workspaceCodeMode } from './code-mode/slack';
+import { codeMode } from './code-mode/slack';
 import { submitFeedbackTool } from './feedback';
 import { fetchUrlTool } from './fetch-url';
 import { focusTool } from './focus';
@@ -16,7 +16,7 @@ import { waitTool } from './wait';
 
 export async function orchestratorTools() {
   return {
-    slack: (await workspaceCodeMode()).tool,
+    slack: (await codeMode({ workspaceAccess: true })).tool,
     react: slackTools.react,
     search_slack: slackTools.search_slack,
     read_conversation_history: slackTools.read_conversation_history,

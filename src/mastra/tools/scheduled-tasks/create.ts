@@ -2,7 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { computeNextFireAt } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { agent as agentConfig, scheduledTasks } from '../../config';
-import { channelWake, isScheduledTask, ownSchedules } from './queries';
+import { channelWake, isScheduledTask, ownSchedules } from './schedules';
 
 const minMinutes = scheduledTasks.minInterval / 60_000;
 

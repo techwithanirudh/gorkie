@@ -1,8 +1,9 @@
 import { PinoLogger } from '@mastra/loggers';
+import { env } from '@/env';
 
 export const logger = new PinoLogger({
   name: 'orchestrator',
-  level: 'info',
+  level: env.LOG_LEVEL,
   redact: {
     paths: ['', '*.', 'error.', 'err.']
       .flatMap((root) =>

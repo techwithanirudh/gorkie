@@ -8,13 +8,19 @@ import {
 } from '../../db/queries/moderation';
 import { chatChannelId, rawId } from '../../lib/ids';
 import { logger } from '../../lib/logger';
-import type { BanDuration, BanStatus, ModerationEvent } from '../../types';
+import type { ActiveBan, BanDuration, ModerationEvent } from '../../types';
 import { refreshHome } from '../app-home/view';
 import { slack } from '../client';
 import { notify } from '../notify';
 import { decisionCard } from './cards';
 import { moderationIds } from './ids';
 import { isModerator } from './moderators';
+
+// 'unknown' means the lookup failed; every caller lets the user through then,
+// so a database outage never locks everyone out.
+type BanStatus =
+  | { status: 'banned'; ban: ActiveBan }
+  | { status: 'clear' | 'unknown' };
 
 const DURATION: Record<Exclude<BanDuration, 'perm'>, Duration> = {
   '1h': { hours: 1 },

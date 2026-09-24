@@ -2,8 +2,8 @@ import {
   defaultTypingStatus,
   type TypingStatusFn,
 } from '@mastra/core/channels';
-import { label } from '../../lib/label';
 import { truncate } from './format';
+import { label } from './label';
 import { toolStatus } from './statuses';
 
 export const status: TypingStatusFn = (chunk, context) => {

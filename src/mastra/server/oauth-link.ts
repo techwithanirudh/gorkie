@@ -23,6 +23,9 @@ export function oauthStartLink({
   return `${env.PUBLIC_BASE_URL}/oauth/${provider}/start?t=${signed}`;
 }
 
-export function oauthRedirectUri(provider: OAuthProvider): string {
+export function oauthRedirectUri(provider: OAuthProvider): string | undefined {
+  if (!env.PUBLIC_BASE_URL) {
+    return;
+  }
   return `${env.PUBLIC_BASE_URL}/oauth/${provider}/callback`;
 }

@@ -1,7 +1,7 @@
 import type { RequireToolApprovalFn } from '@mastra/mcp';
 import { asksBefore, levelOutsideDM } from '../../lib/approval';
-import { channelSchema } from '../../lib/context';
 import type { ToolKind, ToolPermission } from '../../types';
+import { channelSchema } from '../../types';
 
 export function approvalFor(permission: ToolPermission): RequireToolApprovalFn {
   return ({ annotations, requestContext, toolName }) => {

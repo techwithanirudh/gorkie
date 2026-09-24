@@ -1,8 +1,12 @@
 import { formatDistanceToNowStrict } from 'date-fns';
 import { recordTurnWithinLimit } from '../db/queries/usage';
 import { logger } from '../lib/logger';
-import type { TurnClaim } from '../types';
 import { isModerator } from './moderation/moderators';
+
+// 'unchecked' means the usage lookup failed and the turn went ahead unrecorded.
+type TurnClaim =
+  | { status: 'claimed' | 'unchecked' }
+  | { status: 'over-limit'; notice: string };
 
 export async function claimTurn(userId: string): Promise<TurnClaim> {
   if (isModerator(userId)) {

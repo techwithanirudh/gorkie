@@ -1,19 +1,24 @@
 import { rawId } from '../lib/ids';
 import { logger } from '../lib/logger';
+import type { ThreadState } from '../types';
 import { slack } from './client';
 import { memoryThread } from './memory-thread';
 import { isModerator } from './moderation/moderators';
-import { setThreadState, threadState } from './state';
+import { setThreadState } from './state';
 
 async function threadOwner(threadId: string): Promise<string | undefined> {
   const found = await memoryThread(threadId);
   return found ? rawId(found.thread.resourceId) : undefined;
 }
 
-export async function focusFilter(
-  threadId: string
-): Promise<((userId: string) => boolean) | undefined> {
-  const focus = (await threadState({ id: threadId }))?.focusedUserIds;
+export async function focusFilter({
+  state,
+  threadId,
+}: {
+  state: ThreadState | null;
+  threadId: string;
+}): Promise<((userId: string) => boolean) | undefined> {
+  const focus = state?.focusedUserIds;
   if (!focus?.length) {
     return;
   }

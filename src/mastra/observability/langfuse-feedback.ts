@@ -1,4 +1,4 @@
-import { LangfuseClient } from '@langfuse/client';
+import type { LangfuseClient } from '@langfuse/client';
 import type { FeedbackEvent, TracingEvent } from '@mastra/core/observability';
 import { BaseExporter } from '@mastra/observability';
 import { env } from '@/env';
@@ -10,14 +10,20 @@ import { logger } from '../lib/logger';
 export class LangfuseFeedbackExporter extends BaseExporter {
   name = 'langfuse-feedback';
 
-  private readonly langfuse = new LangfuseClient({
-    baseUrl: env.LANGFUSE_BASE_URL,
-    publicKey: env.LANGFUSE_PUBLIC_KEY,
-    secretKey: env.LANGFUSE_SECRET_KEY,
-  });
+  private readonly langfuse: LangfuseClient | undefined;
+
+  // The LangfuseExporter's client, so feedback and traces share one connection.
+  // It is undefined when the exporter disabled itself for missing credentials.
+  constructor(langfuse: LangfuseClient | undefined) {
+    super();
+    this.langfuse = langfuse;
+  }
 
   async onFeedbackEvent(event: FeedbackEvent): Promise<void> {
     const { feedback } = event;
+    if (!this.langfuse) {
+      return;
+    }
     if (!feedback.traceId) {
       logger.warn('[feedback] dropped feedback with no trace to attach to', {
         feedbackType: feedback.feedbackType,

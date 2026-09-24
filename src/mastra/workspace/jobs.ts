@@ -1,7 +1,12 @@
 import type { E2BSandbox } from '@mastra/e2b';
 import { sandbox as config } from '../config';
 import { logger } from '../lib/logger';
-import type { BackgroundJob } from '../types';
+
+interface BackgroundJob {
+  attachPid: (pid: string) => void;
+  attachSandbox: (sandbox: E2BSandbox) => void;
+  end: () => void;
+}
 
 const jobs = new Map<
   string,

@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { channelContext } from '../../lib/context';
-import { sh } from '../../lib/utils';
+import { sh } from '../../lib/shell';
 import { branchSchema, repositorySchema } from '../../types';
 import { requireSandbox } from '../../workspace';
 import { checkoutPath, git, repoAccessFor, withCredential } from './git';
