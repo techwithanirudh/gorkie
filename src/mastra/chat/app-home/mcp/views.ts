@@ -2,7 +2,7 @@ import { CardText, Modal, RadioSelect } from 'chat';
 import {
   coverageKey,
   unlabelledServers,
-} from '../../../mcp/user-servers/approval';
+} from '../../../mcp/user-servers/tools';
 import { type MCPServerConfig, toolPermissionSchema } from '../../../types';
 import { PRESETS } from '../presets';
 import { ids } from './ids';

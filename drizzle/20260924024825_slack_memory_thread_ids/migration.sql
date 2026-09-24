@@ -40,7 +40,6 @@ BEGIN
 
   -- (threadId, type) is the primary key: keep a row already under the Slack id.
   IF to_regclass('mastra_thread_state') IS NOT NULL THEN
-    -- TODO(slopradar): review: correctness | a thread_state row whose type already exists under the Slack id stays under old_id, and old_id is renamed away in mastra_threads below, so the row is orphaned for good | after this UPDATE, DELETE FROM mastra_thread_state s USING gorkie_thread_id_map m WHERE s."threadId" = m.old_id
     UPDATE mastra_thread_state s
     SET "threadId" = m.new_id
     FROM gorkie_thread_id_map m

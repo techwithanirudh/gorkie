@@ -3,8 +3,19 @@ import { listMCPServers, setMCPServerError } from '../../db/queries/mcps';
 import { getMCPThreads } from '../../db/queries/settings';
 import { logger } from '../../lib/logger';
 import { describeMCPError } from '../errors';
-import { coverageKey, unlabelledServers } from './approval';
 import { dropClient, resolveClient } from './client';
+
+// Process memory, so the Home warning is gone after a restart until the
+// user's next turn lists tools again.
+export const unlabelledServers = new Set<string>();
+
+export const coverageKey = ({
+  serverName,
+  userId,
+}: {
+  serverName: string;
+  userId: string;
+}): string => `${userId}:${serverName}`;
 
 export async function userMCPTools({
   isDM,
@@ -23,26 +34,12 @@ export async function userMCPTools({
       return {};
     }
     const { client, rejected } = await resolveClient({ servers, userId });
-    // TODO(slopradar): prefer libraries over hand-written code | ownerOf re-derives each tool's server by longest `${name}_` prefix, which MCPClient already knows: listToolsetsWithErrors() returns tools grouped by server (node_modules/@mastra/mcp/dist/index.js:24134) | call listToolsetsWithErrors, compute coverage per toolset, and flatten with `${server}_${tool}` keys (the same namespacing listToolsWithErrors applies); deletes this block and the sort
-    const { tools, errorDetails } = await client.listToolsWithErrors();
-
-    const ownerOf = new Map<string, string>();
-    for (const id of Object.keys(tools)) {
-      const [owner] = servers
-        .map((server) => server.name)
-        .filter((name) => id.startsWith(`${name}_`))
-        .sort((left, right) => right.length - left.length);
-      if (owner) {
-        ownerOf.set(id, owner);
-      }
-    }
+    const { toolsets, errorDetails } = await client.listToolsetsWithErrors();
 
     for (const server of servers) {
-      const own = Object.keys(tools).filter(
-        (id) => ownerOf.get(id) === server.name
-      );
+      const own = Object.values(toolsets[server.name] ?? {});
       const labelled = own.some(
-        (id) => tools[id]?.mcp?.annotations?.readOnlyHint !== undefined
+        (tool) => tool.mcp?.annotations?.readOnlyHint !== undefined
       );
       const key = coverageKey({ serverName: server.name, userId });
       if (own.length > 0 && !labelled) {
@@ -77,7 +74,14 @@ export async function userMCPTools({
         });
       })
     );
-    return tools;
+    return Object.fromEntries(
+      Object.entries(toolsets).flatMap(([serverName, tools]) =>
+        Object.entries(tools).map(([toolName, tool]) => [
+          `${serverName}_${toolName}`,
+          tool,
+        ])
+      )
+    );
   } catch (error) {
     logger.warn('[mcp] failed to list user servers', { error, userId });
     return {};

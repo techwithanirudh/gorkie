@@ -43,67 +43,78 @@ const clients = new Map<
   { key: string; promise: Promise<UserClient> }
 >();
 
+// Re-check at connect: DNS can be re-pointed at an internal address after add.
+async function checkServer({
+  server,
+  userId,
+}: {
+  server: StoredMCPServer;
+  userId: string;
+}) {
+  if (server.credentialError) {
+    return { server, error: server.credentialError };
+  }
+  const urlCheck = await checkMCPUrl(server.url);
+  if (urlCheck.error !== undefined) {
+    return { server, error: urlCheck.error };
+  }
+  const { url } = urlCheck;
+  if (!server.oauth) {
+    return { server, url };
+  }
+  if (!env.PUBLIC_BASE_URL) {
+    return { server, error: 'OAuth sign-in is not set up on this Gorkie.' };
+  }
+  if (server.oauth.status !== 'connected') {
+    return {
+      server,
+      error:
+        server.oauth.status === 'needs-auth'
+          ? 'Sign-in expired or was revoked. Press Reconnect on this server in the Home tab.'
+          : 'Not signed in yet. Press Connect on this server in the Home tab.',
+    };
+  }
+  const hosts = await mcpOAuthHosts({ name: server.name, userId });
+  const hostErrors = await Promise.all(
+    hosts.map(async (host) => (await checkMCPUrl(`https://${host}`)).error)
+  );
+  const hostError = hostErrors.find(Boolean);
+  if (hostError) {
+    return { server, error: `Sign-in server rejected: ${hostError}` };
+  }
+  const provider = new MCPServerOAuth({
+    redirectUri: oauthRedirectUri('mcp'),
+    server,
+    userId,
+  });
+  return { server, url, oauth: { hosts, provider } };
+}
+
+// A new MCPClient under the same id disconnects the previous one itself,
+// because the fresh approval functions never compare equal.
 async function buildClient({
   userId,
   servers,
-  stale,
 }: {
   userId: string;
   servers: StoredMCPServer[];
-  stale: Promise<UserClient> | undefined;
 }): Promise<UserClient> {
-  // TODO(slopradar): simplification: library already does it + review: correctness | constructing the new MCPClient with the same id `user-mcp-${userId}` and different serverConfigs already disconnects the cached instance (node_modules/@mastra/mcp/dist/index.js:23339-23347); this manual disconnect also cuts off a concurrent turn still mid-tool-call on the old client | drop the manual stale disconnect (and the `stale` param), or defer it until in-flight calls settle
-  const staleClient = await stale?.catch(() => undefined);
-  if (staleClient) {
-    await staleClient.client.disconnect().catch((error: unknown) => {
-      logger.debug('[mcp] failed to disconnect stale client', {
-        error,
-        userId,
-      });
-    });
-  }
-  // TODO(slopradar): review: correctness | any throw inside this per-server map (mcpOAuthHosts JSON.parse / new URL, a DB read) rejects the whole Promise.all, so one bad server removes every MCP server for the user and tools.ts returns {} | catch per server and return `{ server, error }` like the other rejection paths
-  // Re-check at connect: DNS can be re-pointed at an internal address after add.
   const checked = await Promise.all(
-    servers.map(async (server) => {
-      if (server.credentialError) {
-        return { server, error: server.credentialError };
-      }
-      const urlCheck = await checkMCPUrl(server.url);
-      if (urlCheck.error !== undefined) {
-        return { server, error: urlCheck.error };
-      }
-      const { url } = urlCheck;
-      if (!server.oauth) {
-        return { server, url };
-      }
-      if (!env.PUBLIC_BASE_URL) {
-        return { server, error: 'OAuth sign-in is not set up on this Gorkie.' };
-      }
-      if (server.oauth.status !== 'connected') {
-        return {
-          server,
-          error:
-            server.oauth.status === 'needs-auth'
-              ? 'Sign-in expired or was revoked. Press Reconnect on this server in the Home tab.'
-              : 'Not signed in yet. Press Connect on this server in the Home tab.',
-        };
-      }
-      const hosts = await mcpOAuthHosts({ name: server.name, userId });
-      const hostErrors = await Promise.all(
-        hosts.map(async (host) => (await checkMCPUrl(`https://${host}`)).error)
-      );
-      const hostError = hostErrors.find(Boolean);
-      if (hostError) {
-        return { server, error: `Sign-in server rejected: ${hostError}` };
-      }
-      const provider = new MCPServerOAuth({
-        redirectUri: oauthRedirectUri('mcp'),
-        server,
-        userId,
-      });
-      return { server, url, oauth: { hosts, provider } };
-    })
+    servers.map((server) =>
+      checkServer({ server, userId }).catch(
+        (error: unknown): Awaited<ReturnType<typeof checkServer>> => {
+          logger.warn('[mcp] failed to prepare server', {
+            error,
+            name: server.name,
+            userId,
+          });
+          return {
+            server,
+            error: "Could not load this server's saved settings.",
+          };
+        }
+      )
+    )
   );
   const rejected = new Map<string, string>();
   for (const { server, error } of checked) {
@@ -184,7 +195,7 @@ export function resolveClient({
   if (cached && cached.key === key) {
     return cached.promise;
   }
-  const promise = buildClient({ servers, stale: cached?.promise, userId });
+  const promise = buildClient({ servers, userId });
   const entry = { key, promise };
   clients.set(userId, entry);
 

@@ -1,4 +1,3 @@
-// TODO(slopradar): simplification: misplaced single-consumer helper | only chat/status/index.ts calls label() | move it into chat/status/ so lib/ holds only cross-cutting helpers
 export function label(value: string): string {
   const words = value
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')

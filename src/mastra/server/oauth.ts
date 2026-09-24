@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { registerApiRoute } from '@mastra/core/server';
+import { Chat } from 'chat';
 import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { env } from '@/env';
@@ -42,9 +43,6 @@ function providerNotFound(c: Context): Promise<Response> {
   });
 }
 
-// TODO(slopradar): prefer libraries + review: security (low) | hand-rolled in-memory single-use store with a manual sweep; it is emptied on restart, so a consumed start link can be replayed within its 10-minute life after a redeploy | use the Chat state adapter this process already has: `getState().setIfNotExists(`oauth-start:${nonce}`, true, 600_000)` to consume and `get` to check, and drop the Map and sweep loop
-const usedStartNonces = new Map<string, number>();
-
 async function verifiedStart({
   c,
   consume,
@@ -60,11 +58,18 @@ async function verifiedStart({
   if (!(provider && handler)) {
     return { response: await providerNotFound(c) };
   }
+  const state = Chat.getSingleton().getState();
   if (
     !token ||
     token.provider !== provider ||
     (await optInStatus(token.slackUserId)) !== 'allowed' ||
-    usedStartNonces.has(token.nonce)
+    (consume
+      ? !(await state.setIfNotExists(
+          `oauth-start:${token.nonce}`,
+          true,
+          600_000
+        ))
+      : (await state.get(`oauth-start:${token.nonce}`)) !== null)
   ) {
     return {
       response: await oauthPage({
@@ -76,15 +81,6 @@ async function verifiedStart({
         ],
       }),
     };
-  }
-  if (consume) {
-    const now = Date.now();
-    for (const [nonce, expiresAt] of usedStartNonces) {
-      if (expiresAt < now) {
-        usedStartNonces.delete(nonce);
-      }
-    }
-    usedStartNonces.set(token.nonce, now + 600_000);
   }
   return { handler, provider, token };
 }

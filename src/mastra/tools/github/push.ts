@@ -1,11 +1,10 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { githubAccessToken } from '../../lib/github';
-import { repoAccess } from '../../lib/github/api';
+import { channelContext } from '../../lib/context';
 import { sh } from '../../lib/utils';
 import { branchSchema, repositorySchema } from '../../types';
 import { requireSandbox } from '../../workspace';
-import { checkoutPath, git, withCredential } from './git';
+import { checkoutPath, git, repoAccessFor, withCredential } from './git';
 
 // The schema only knows main and master; a repo whose default is anything else
 // is caught only by asking GitHub, so a push that cannot confirm it is refused.
@@ -18,12 +17,10 @@ async function refuseDefaultBranch({
   repository: string;
   userId: string;
 }): Promise<void> {
-  // TODO(slopradar): simplification: duplicate | same token + repoAccess pair as checkout.ts:18-19 | use the shared `repoAccessFor` from lib/github/api
-  const token = await githubAccessToken(userId);
-  const access = token ? await repoAccess({ repository, token }) : undefined;
-  if (!access || 'error' in access || !access.defaultBranch) {
+  const access = await repoAccessFor({ repository, userId });
+  if ('error' in access || !access.defaultBranch) {
     throw new Error(
-      `Could not confirm the default branch of ${repository}${access && 'error' in access ? ` (${access.error})` : ''}, so the push was not attempted.`
+      `Could not confirm the default branch of ${repository}${'error' in access ? ` (${access.error})` : ''}, so the push was not attempted.`
     );
   }
   if (branch === access.defaultBranch) {
@@ -106,6 +103,7 @@ This GitHub App connection cannot push to ${repository}, because an app only rea
           };
         },
         sandbox,
+        threadId: channelContext(context.requestContext).threadId,
         userId,
       });
     },

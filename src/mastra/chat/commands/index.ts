@@ -1,8 +1,8 @@
 import type { Message, Thread } from 'chat';
 import { logger } from '../../lib/logger';
-import type { CommandHandler } from '../../types';
+import type { CommandHandler, ThreadState } from '../../types';
 import { rawText, withoutLeadingMentions } from '../message';
-import { sentBeforeStop, threadState } from '../state';
+import { sentBeforeStop } from '../state';
 import { compact } from './compact';
 import { connections } from './connections';
 import { display } from './display';
@@ -22,9 +22,11 @@ const commands = new Map<string, CommandHandler>([
 
 export async function handleCommand({
   message,
+  state,
   thread,
 }: {
   message: Message;
+  state: ThreadState | null;
   thread: Thread;
 }): Promise<boolean> {
   const body = withoutLeadingMentions(rawText(message)).trim();
@@ -33,10 +35,7 @@ export async function handleCommand({
   if (!command) {
     return false;
   }
-  if (
-    command !== stop &&
-    sentBeforeStop({ message, state: await threadState(thread) })
-  ) {
+  if (command !== stop && sentBeforeStop({ message, state })) {
     logger.debug('[commands] dropped, sent before a stop or leave', {
       messageId: message.id,
       threadId: thread.id,

@@ -1,19 +1,20 @@
-import type { AgentSchedule, AnySchedule } from '@mastra/core/schedules';
+import type {
+  AgentSchedule,
+  AnySchedule,
+  ScheduleEffective,
+} from '@mastra/core/schedules';
 import type { ToolExecutionContext } from '@mastra/core/tools';
 import { z } from 'zod';
 import { agent as agentConfig } from '../../config';
 import { channelContext } from '../../lib/context';
 import { rawId } from '../../lib/ids';
 
-// TODO(slopradar): CODING_STANDARDS: no one-use constants / naming | `WAIT_SCHEDULE_KIND` only builds `waitMetadata` and the literal below; the file holds guards, not queries | `export const waitMetadata = { kind: 'wait' } as const` and `z.literal(waitMetadata.kind)`; rename the file to guards.ts or schedules.ts
-const WAIT_SCHEDULE_KIND = 'wait';
-
-export const waitMetadata = { kind: WAIT_SCHEDULE_KIND };
+export const waitMetadata = { kind: 'wait' } as const;
 
 // Schedule hooks get the row as an untyped `ScheduleRef`, hence the parse.
 export function isWaitSchedule(schedule: { metadata?: unknown }): boolean {
   return z
-    .object({ kind: z.literal(WAIT_SCHEDULE_KIND) })
+    .object({ kind: z.literal(waitMetadata.kind) })
     .safeParse(schedule.metadata).success;
 }
 
@@ -21,6 +22,21 @@ export function isScheduledTask(
   schedule: AnySchedule
 ): schedule is AgentSchedule {
   return schedule.agentId === agentConfig.id && !isWaitSchedule(schedule);
+}
+
+export function channelWake(
+  context: ToolExecutionContext
+): Pick<ScheduleEffective, 'ifActive' | 'ifIdle' | 'signalType'> {
+  return {
+    signalType: 'notification',
+    ifActive: { behavior: 'persist' },
+    ifIdle: {
+      behavior: 'wake',
+      streamOptions: {
+        requestContext: { channel: channelContext(context.requestContext) },
+      },
+    },
+  };
 }
 
 export function ownSchedules(context: ToolExecutionContext) {

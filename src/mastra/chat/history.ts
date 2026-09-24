@@ -1,23 +1,25 @@
 import type { Message, Thread } from 'chat';
 import { parseMarkdown, stringifyMarkdown } from 'chat';
 import { history as config } from '../config';
-import { focusFilter } from './focus';
+import type { ThreadState } from '../types';
+import { attachmentLabel } from './attachments';
 import { isComment } from './message';
-import { threadState } from './state';
 
 export async function withHistory({
   message,
+  sees,
+  state,
   thread,
 }: {
   message: Message;
+  sees: ((userId: string) => boolean) | undefined;
+  state: ThreadState | null;
   thread: Thread;
 }): Promise<Message> {
   if (thread.isDM) {
     return message;
   }
 
-  const state = await threadState(thread);
-  const sees = await focusFilter(thread.id);
   const lines: string[] = [];
   let scanned = 0;
   let comments = 0;
@@ -48,20 +50,12 @@ export async function withHistory({
     const text = previous.formatted
       ? stringifyMarkdown(previous.formatted).trim()
       : previous.text;
-    // TODO(slopradar): simplification: duplicated logic | attachments are described again, differently, in attachments.ts (name, mime, size, url); only this copy extracts the F-id get_slack_file needs, inside a nested ternary | one shared attachment description in attachments.ts that yields name + file id, used by both
-    const files =
-      previous.attachments.length > 0
-        ? ` [${previous.attachments.length} attachment${previous.attachments.length === 1 ? '' : 's'}: ${previous.attachments
-            .map((file) => {
-              const id = file.url?.match(/\bF[A-Z0-9]{6,}\b/)?.[0];
-              return [file.name ?? file.type, id ?? file.url]
-                .filter(Boolean)
-                .join(' ');
-            })
-            .join(', ')}]`
-        : '';
+    const count = previous.attachments.length;
+    const files = previous.attachments
+      .map((attachment, index) => attachmentLabel({ attachment, index }))
+      .join(', ');
     lines.push(
-      `[${author} (${mention})${bot}] (msg:${previous.id}): ${text}${files}`
+      `[${author} (${mention})${bot}] (msg:${previous.id}): ${text}${count > 0 ? ` [${count} attachment${count === 1 ? '' : 's'}: ${files}]` : ''}`
     );
     if (lines.length >= config.maxUnseenMessages) {
       truncated = true;
@@ -73,27 +67,24 @@ export async function withHistory({
     return message;
   }
 
-  // TODO(slopradar): simplification: readability | three spread-ternary arrays to assemble up to four optional lines | push onto an array with plain ifs
-  const text = [
-    ...(lines.length > 0
-      ? [
-          '[Recent messages in this thread, oldest first, that you have not seen yet]',
-          ...(truncated
-            ? [
-                '[Older unseen messages were left out. Read them with read_conversation_history if they matter.]',
-              ]
-            : []),
-          ...lines.reverse(),
-        ]
-      : []),
-    ...(comments > 0
-      ? [
-          `[${comments} ${comments === 1 ? 'message' : 'messages'} starting with ## were left out. They are side comments nobody addressed to you, so act on them only if asked. Read them with read_conversation_history and includeComments if you need them.]`,
-        ]
-      : []),
-    '',
-    message.text,
-  ].join('\n');
+  const header: string[] = [];
+  if (lines.length > 0) {
+    header.push(
+      '[Recent messages in this thread, oldest first, that you have not seen yet]'
+    );
+    if (truncated) {
+      header.push(
+        '[Older unseen messages were left out. Read them with read_conversation_history if they matter.]'
+      );
+    }
+    header.push(...lines.reverse());
+  }
+  if (comments > 0) {
+    header.push(
+      `[${comments} ${comments === 1 ? 'message' : 'messages'} starting with ## were left out. They are side comments nobody addressed to you, so act on them only if asked. Read them with read_conversation_history and includeComments if you need them.]`
+    );
+  }
+  const text = [...header, '', message.text].join('\n');
   message.text = text;
   message.formatted = parseMarkdown(text);
   return message;

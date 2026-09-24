@@ -1,14 +1,18 @@
+import { mcp } from '../../../config';
 import { oauthStartLink } from '../../../server/oauth-link';
-import type { HomeSection, StoredMCPServer } from '../../../types';
-import { PRESETS } from '../presets';
+import type {
+  HomeSection,
+  MCPOAuthStatus,
+  StoredMCPServer,
+} from '../../../types';
+import { PRESETS, SCOPE_LABELS, scopeSchema } from '../presets';
 import { ids } from './ids';
 
-// TODO(slopradar): CODING_STANDARDS: one canonical union | keys re-list mcpOAuthStatusSchema by hand, held together by `as const` | `satisfies Record<MCPOAuthStatus, string>`
 const oauthStatus = {
   connected: 'signed in with OAuth',
   disconnected: 'not signed in',
   'needs-auth': 'sign-in expired',
-} as const;
+} satisfies Record<MCPOAuthStatus, string>;
 
 function oauthButtons({
   server,
@@ -70,13 +74,15 @@ export function mcpServersBlocks({
     type: 'section',
     text: {
       type: 'mrkdwn',
-      text: `*MCP Servers*${servers.length > 0 ? ` (${servers.length})` : ''}`,
+      text: `*MCP Servers*${servers.length > 0 ? ` (${servers.length} of ${mcp.maxServers})` : ''}`,
     },
-    accessory: {
-      type: 'button',
-      text: { type: 'plain_text', text: 'Add' },
-      action_id: ids.add,
-    },
+    ...(servers.length < mcp.maxServers && {
+      accessory: {
+        type: 'button',
+        text: { type: 'plain_text', text: 'Add' },
+        action_id: ids.add,
+      },
+    }),
   };
 
   if (servers.length === 0) {
@@ -97,27 +103,18 @@ export function mcpServersBlocks({
     };
   }
 
-  const scopes = [
-    {
-      text: { type: 'plain_text', text: 'Only in a DM with you' },
-      description: {
-        type: 'plain_text',
-        text: 'Shared threads get none of these servers.',
-      },
-      value: 'dm',
-    },
-    {
+  const scopes = scopeSchema.unwrap().options.map((value) => ({
+    text: { type: 'plain_text', text: SCOPE_LABELS[value] },
+    description: {
+      type: 'plain_text',
       text: {
-        type: 'plain_text',
-        text: 'Anywhere, including shared threads (dangerous)',
-      },
-      description: {
-        type: 'plain_text',
-        text: 'Anyone in the thread can steer them, and they always ask before writing there.',
-      },
-      value: 'threads',
+        dm: 'Shared threads get none of these servers.',
+        threads:
+          'Anyone in the thread can steer them, and they always ask before writing there.',
+      }[value],
     },
-  ];
+    value,
+  }));
 
   return {
     fixed: [

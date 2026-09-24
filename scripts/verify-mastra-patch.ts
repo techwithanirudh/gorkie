@@ -1,18 +1,21 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = process.argv[2] ?? process.cwd();
 const dist = join(root, 'node_modules/@mastra/core/dist');
 
-// TODO(slopradar): review: correctness | the list mixes one stock contract (`"__mastra_chat_channel_render"`, which processors/tool-display.ts depends on, not a patch hunk) with patch markers, and two core patch hunks have no marker at all (`stepIsContinued` in the plan-close path and the `channelRequesterId` persisted with suspended tool calls), so losing either passes the check | add 'stepIsContinued' and 'channelRequesterId', and split the stock contract into its own labelled list
 const markers = [
   'approvalRequesterId',
   'stashed?.requesterId ?? persistedRequesterId',
+  'channelRequesterId',
   'advanceFallbackModel',
   'droppedTaskIds',
   'shown?.summary',
-  '"__mastra_chat_channel_render"',
+  'stepIsContinued',
 ];
+
+// Not a patch hunk: stock code that processors/tool-display.ts depends on.
+const stockContracts = ['"__mastra_chat_channel_render"'];
 
 // The live view reaches a restricted E2B sandbox only with its traffic token,
 // which the browser-viewer patch forwards to connectOverCDP.
@@ -23,12 +26,23 @@ const viewerDist = join(root, 'node_modules/@mastra/browser-viewer/dist');
 const slackDist = join(root, 'node_modules/@chat-adapter/slack/dist/index.js');
 
 const missing = [
-  // TODO(slopradar): review: error path | the content-hashed bundle names throw a raw ENOENT from readFileSync after any @mastra/core bump instead of saying the patch detached | check existsSync first and report 'patched bundle not found, rebuild the patch for the new version'
   ...['agent-DwtTO5Px.js', 'agent-DVnXHd4C.cjs'].flatMap((file) => {
-    const source = readFileSync(join(dist, file), 'utf8');
-    return markers
-      .filter((marker) => !source.includes(marker))
-      .map((marker) => `${file}: ${marker}`);
+    const path = join(dist, file);
+    // The bundle names are content hashes, so any @mastra/core bump renames them.
+    if (!existsSync(path)) {
+      return [
+        `${file}: patched bundle not found, rebuild the patch for the new @mastra/core version`,
+      ];
+    }
+    const source = readFileSync(path, 'utf8');
+    return [
+      ...markers
+        .filter((marker) => !source.includes(marker))
+        .map((marker) => `${file}: ${marker}`),
+      ...stockContracts
+        .filter((contract) => !source.includes(contract))
+        .map((contract) => `${file}: stock contract ${contract}`),
+    ];
   }),
   ...['index.js', 'index.cjs']
     .filter(

@@ -9,16 +9,6 @@ const jobs = new Map<
 >();
 const keepalives = new Map<string, ReturnType<typeof setInterval>>();
 
-// TODO(slopradar): CODING_STANDARDS: inline over extract | pruneExpiredJobs has a single caller (the keepalive interval below) | inline the loop into the interval body
-function pruneExpiredJobs(): void {
-  const now = Date.now();
-  for (const [id, job] of jobs) {
-    if (job.deadline <= now) {
-      jobs.delete(id);
-    }
-  }
-}
-
 export function hasLiveJob(threadId: string): boolean {
   const now = Date.now();
   return [...jobs.values()].some(
@@ -63,7 +53,12 @@ export function startJob({
   jobs.set(id, { threadId, deadline: Date.now() + timeoutMs, sandbox });
   if (!keepalives.has(threadId)) {
     const timer = setInterval(() => {
-      pruneExpiredJobs();
+      const now = Date.now();
+      for (const [jobId, job] of jobs) {
+        if (job.deadline <= now) {
+          jobs.delete(jobId);
+        }
+      }
       if (!hasLiveJob(threadId)) {
         clearInterval(timer);
         keepalives.delete(threadId);
@@ -92,16 +87,14 @@ export function findJob(id: string): BackgroundJob | undefined {
 }
 
 export async function killJobs(threadId: string): Promise<number> {
-  const running = [...jobs].filter(
-    ([, job]) => job.threadId === threadId && job.pid && job.sandbox
+  const running = [...jobs].flatMap(
+    ([id, { threadId: owner, pid, sandbox }]) =>
+      owner === threadId && pid && sandbox ? [{ id, pid, sandbox }] : []
   );
   const kills = await Promise.allSettled(
-    running.map(([id, job]) => {
+    running.map(({ id, pid, sandbox }) => {
       jobs.delete(id);
-      // TODO(slopradar): simplification: duplicate check | pid/sandbox are re-tested here only because the filter above does not narrow | build `running` with flatMap returning `{ id, pid, sandbox }` once, then map straight to processes.kill
-      return job.pid && job.sandbox
-        ? job.sandbox.processes.kill(job.pid)
-        : false;
+      return sandbox.processes.kill(pid);
     })
   );
   for (const kill of kills) {

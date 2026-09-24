@@ -1,4 +1,3 @@
--- TODO(slopradar): review: migration churn (owner question) | main has no drizzle folder and no github_credentials table, yet this chain adds kind/scopes here and drops them in 20260924043047, drops tool_display (20260912171950) and re-adds it (20260924044806), drops github_threads (20260924053636) and re-adds it (20260924062558) | if only dev DBs ran these, squash into one baseline generated from schema.ts (keep the IF NOT EXISTS adoption of main's kysely tables and the thread-id rewrite) before merge
 CREATE TABLE IF NOT EXISTS "github_credentials" (
 	"user_id" text PRIMARY KEY NOT NULL,
 	"kind" text NOT NULL,

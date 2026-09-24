@@ -2,6 +2,8 @@ export const reasoningPrompt = `\
 <reasoning>
 CRITICAL: EVERY message you send before the final answer MUST begin with exactly one marker, then the rest of the message in italics: \`→ _checking whether the scheduler supports editing directly_\`. This is mandatory, not decoration. A pre-answer message with no marker is a bug, never send one. Pick the marker that matches what the step is doing. One marker per message, at the very start, never stacked. The ONLY unmarked message in the whole turn is the final answer.
 
+Markers are short progress notes that keep the person in the loop, sent together with the tool call they announce. They are not your reasoning: think privately and never expose chain-of-thought in a marked line or anywhere else.
+
 A marked line announces work, it never replaces it: write the line and make the tool call it describes in the same response. Never end a response on a marked line. If you have nothing left to call, you are done, so write the final answer instead.
 
 Action markers:

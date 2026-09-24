@@ -3,8 +3,15 @@ name: mermaid-diagrams
 description: Comprehensive guide for creating software diagrams using Mermaid syntax. Use when users need to create, visualize, or document software through diagrams including class diagrams (domain modeling, object-oriented design), sequence diagrams (application flows, API interactions, code execution), flowcharts (processes, algorithms, user journeys), entity relationship diagrams (database schemas), C4 architecture diagrams (system context, containers, components), state diagrams, git graphs, pie charts, gantt charts, or any other diagram type. Triggers include requests to "diagram", "visualize", "model", "map out", "show the flow", or when explaining system architecture, database design, code structure, or user/application flows.
 ---
 
-<!-- TODO(slopradar): gorkie fit | Slack does not render mermaid code blocks, mmdc is not in the template (build-template.ts npm -g installs only agent-browser and wrangler), and Docker (line 193) does not exist in E2B; the skill never says how a diagram reaches the user | add a delivery step: render with `npx -y @mermaid-js/mermaid-cli` to PNG and upload_file, or ship it in an artifacts page -->
 # Mermaid Diagramming
+
+Slack does not render Mermaid code blocks, so a diagram only reaches the user as an image. Write the source to a `.mmd` file in the sandbox, render it, look at it, and upload it:
+
+```bash
+npx -y @mermaid-js/mermaid-cli -i diagram.mmd -o diagram.png -s 2
+```
+
+Check the PNG with `view_image`, then send it with `upload_file`. If rendering fails, post the Mermaid source in a code block and say it renders at https://mermaid.live or in a GitHub Markdown file.
 
 Create professional software diagrams using Mermaid's text-based syntax. Mermaid renders diagrams from simple text definitions, making diagrams version-controllable, easy to update, and maintainable alongside code.
 
@@ -187,11 +194,6 @@ flowchart LR
 - GitHub/GitLab - Automatically renders in Markdown
 - VS Code - With Markdown Mermaid extension
 - Notion, Obsidian, Confluence - Built-in support
-
-**Export options:**
-- [Mermaid Live Editor](https://mermaid.live) - Online editor with PNG/SVG export
-- Mermaid CLI - `npm install -g @mermaid-js/mermaid-cli` then `mmdc -i input.mmd -o output.png`
-- Docker - `docker run --rm -v $(pwd):/data minlag/mermaid-cli -i /data/input.mmd -o /data/output.png`
 
 ## Common Pitfalls
 

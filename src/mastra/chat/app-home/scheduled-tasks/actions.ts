@@ -1,15 +1,11 @@
 import { Chat } from 'chat';
 import { chatChannelId } from '../../../lib/ids';
 import { isScheduledTask } from '../../../tools/scheduled-tasks/queries';
-import type { PublishHome } from '../../../types';
 import { getMastra } from '../../mastra-instance';
+import { publishHome } from '../view';
 import { ids } from './ids';
 
-export function registerScheduledTasks({
-  publishHome,
-}: {
-  publishHome: PublishHome;
-}): void {
+export function registerScheduledTasks(): void {
   Chat.getSingleton().onAction(ids.cancel, async (event) => {
     const id = event.value;
     if (!id) {

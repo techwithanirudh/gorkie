@@ -32,7 +32,7 @@ export const readCanvasTool = createTool({
       fileId: canvasId,
       requestContext: context.requestContext,
     });
-    const url = canvas?.url_private_download ?? canvas?.url_private;
+    const url = canvas.url_private_download ?? canvas.url_private;
     if (!url) {
       throw new Error(
         `Could not resolve a content URL for canvas ${canvasId}. It may have been deleted, or the bot may not have access to it.`
@@ -43,7 +43,7 @@ export const readCanvasTool = createTool({
     const truncated = html.length > canvasConfig.maxReadChars;
     return {
       canvasId,
-      title: canvas?.title,
+      title: canvas.title,
       html: truncated
         ? `${html.slice(0, canvasConfig.maxReadChars)}\n<!-- Truncated: showed ${canvasConfig.maxReadChars} of ${html.length} characters. Use lookup_canvas_sections to find the part you need. -->`
         : html,

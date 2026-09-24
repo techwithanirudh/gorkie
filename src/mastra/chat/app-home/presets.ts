@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { ApprovalLevel } from '../../types';
 
 export const PRESETS = {
@@ -25,3 +26,11 @@ export const PRESETS = {
   ApprovalLevel,
   { description: string; label: string; status: string }
 >;
+
+// A radio that sends anything unexpected falls back to the DM-only scope.
+export const scopeSchema = z.enum(['dm', 'threads']).catch('dm');
+
+export const SCOPE_LABELS = {
+  dm: 'Only in a DM with you',
+  threads: 'Anywhere, including shared threads (dangerous)',
+} satisfies Record<z.infer<typeof scopeSchema>, string>;

@@ -9,18 +9,42 @@ import {
 import { db } from '../client';
 import { userSettings } from '../schema';
 
-// TODO(slopradar): review: performance + simplification: duplicated shape | getInstructions, getGitHubSettings, getMCPThreads and getToolDisplay each select one column of the same user_settings row; chat/app-home/view.ts:87-114 runs all four per publish and each orchestrator turn runs getInstructions, getMCPThreads and (via githubAccess) getGitHubSettings | one getUserSettings(userId) that reads the row once and returns the parsed fields
+export async function getUserSettings(userId: string) {
+  const [row] = await db
+    .select()
+    .from(userSettings)
+    .where(eq(userSettings.userId, rawId(userId)));
+  return {
+    instructions: row?.instructions ?? undefined,
+    github: {
+      permission: githubPermissionSchema.parse(row?.githubPermission),
+      threads: row?.githubThreads === true,
+    } satisfies GitHubSettings,
+    mcpThreads: row?.mcpThreads === true,
+    toolDisplay: toolDisplayModeSchema.safeParse(row?.toolDisplay).data,
+  };
+}
+
+export async function updateUserSettings({
+  set,
+  userId,
+}: {
+  set: Omit<typeof userSettings.$inferInsert, 'userId' | 'updatedAt'>;
+  userId: string;
+}): Promise<void> {
+  const stamped = { ...set, updatedAt: new Date() };
+  await db
+    .insert(userSettings)
+    .values({ ...stamped, userId: rawId(userId) })
+    .onConflictDoUpdate({ target: userSettings.userId, set: stamped });
+}
+
 export async function getInstructions(
   userId: string
 ): Promise<string | undefined> {
-  const [row] = await db
-    .select({ instructions: userSettings.instructions })
-    .from(userSettings)
-    .where(eq(userSettings.userId, rawId(userId)));
-  return row?.instructions ?? undefined;
+  return (await getUserSettings(userId)).instructions;
 }
 
-// TODO(slopradar): simplification: duplicated logic | the same insert().values().onConflictDoUpdate({ target: userSettings.userId, set }) upsert is copied in setInstructions, setGitHubSettings, setMCPThreads and setToolDisplay | one updateUserSettings({ userId, set }) that stamps updatedAt, called directly by the four callers
 export async function setInstructions({
   userId,
   instructions,
@@ -28,27 +52,16 @@ export async function setInstructions({
   userId: string;
   instructions: string | undefined;
 }): Promise<void> {
-  const set = { instructions: instructions ?? null, updatedAt: new Date() };
-  await db
-    .insert(userSettings)
-    .values({ ...set, userId: rawId(userId) })
-    .onConflictDoUpdate({ target: userSettings.userId, set });
+  await updateUserSettings({
+    set: { instructions: instructions ?? null },
+    userId,
+  });
 }
 
 export async function getGitHubSettings(
   userId: string
 ): Promise<GitHubSettings> {
-  const [row] = await db
-    .select({
-      permission: userSettings.githubPermission,
-      threads: userSettings.githubThreads,
-    })
-    .from(userSettings)
-    .where(eq(userSettings.userId, rawId(userId)));
-  return {
-    permission: githubPermissionSchema.parse(row?.permission),
-    threads: row?.threads === true,
-  };
+  return (await getUserSettings(userId)).github;
 }
 
 export async function setGitHubSettings({
@@ -56,15 +69,10 @@ export async function setGitHubSettings({
   threads,
   userId,
 }: GitHubSettings & { userId: string }): Promise<void> {
-  const set = {
-    githubPermission: permission,
-    githubThreads: threads,
-    updatedAt: new Date(),
-  };
-  await db
-    .insert(userSettings)
-    .values({ ...set, userId: rawId(userId) })
-    .onConflictDoUpdate({ target: userSettings.userId, set });
+  await updateUserSettings({
+    set: { githubPermission: permission, githubThreads: threads },
+    userId,
+  });
 }
 
 export async function clearGitHubSettings(userId: string): Promise<void> {
@@ -75,11 +83,7 @@ export async function clearGitHubSettings(userId: string): Promise<void> {
 }
 
 export async function getMCPThreads(userId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ threads: userSettings.mcpThreads })
-    .from(userSettings)
-    .where(eq(userSettings.userId, rawId(userId)));
-  return row?.threads === true;
+  return (await getUserSettings(userId)).mcpThreads;
 }
 
 export async function setMCPThreads({
@@ -89,21 +93,13 @@ export async function setMCPThreads({
   threads: boolean;
   userId: string;
 }): Promise<void> {
-  const set = { mcpThreads: threads, updatedAt: new Date() };
-  await db
-    .insert(userSettings)
-    .values({ ...set, userId: rawId(userId) })
-    .onConflictDoUpdate({ target: userSettings.userId, set });
+  await updateUserSettings({ set: { mcpThreads: threads }, userId });
 }
 
 export async function getToolDisplay(
   userId: string
 ): Promise<ToolDisplayMode | undefined> {
-  const [row] = await db
-    .select({ toolDisplay: userSettings.toolDisplay })
-    .from(userSettings)
-    .where(eq(userSettings.userId, rawId(userId)));
-  return toolDisplayModeSchema.safeParse(row?.toolDisplay).data;
+  return (await getUserSettings(userId)).toolDisplay;
 }
 
 export async function setToolDisplay({
@@ -113,9 +109,5 @@ export async function setToolDisplay({
   toolDisplay: ToolDisplayMode;
   userId: string;
 }): Promise<void> {
-  const set = { toolDisplay, updatedAt: new Date() };
-  await db
-    .insert(userSettings)
-    .values({ ...set, userId: rawId(userId) })
-    .onConflictDoUpdate({ target: userSettings.userId, set });
+  await updateUserSettings({ set: { toolDisplay }, userId });
 }

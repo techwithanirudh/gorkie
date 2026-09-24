@@ -3,17 +3,6 @@ import { asksBefore, levelOutsideDM } from '../../lib/approval';
 import { channelSchema } from '../../lib/context';
 import type { ToolKind, ToolPermission } from '../../types';
 
-// TODO(slopradar): review: architecture | a process-memory Set owned by the approval module but written only by tools.ts and read by app-home/mcp/views.ts; it has nothing to do with approval and is empty after every restart until the user's next turn lists tools, so the Home warning disappears | store the flag with the server row next to lastError (schema change: ask owner), or at least move the Set and coverageKey into tools.ts
-export const unlabelledServers = new Set<string>();
-
-export const coverageKey = ({
-  serverName,
-  userId,
-}: {
-  serverName: string;
-  userId: string;
-}): string => `${userId}:${serverName}`;
-
 export function approvalFor(permission: ToolPermission): RequireToolApprovalFn {
   return ({ annotations, requestContext, toolName }) => {
     const isDM =

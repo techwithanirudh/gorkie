@@ -2,19 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { artifacts as config } from '../config';
-import {
-  // TODO(slopradar): CODING_STANDARDS: direct names | every importer (5 files) renames `sandboxPath` to `p`, so the real name never appears at a call site | import `sandboxPath` unaliased (or rename the export) in artifacts, call-api, get-slack-file, get-slack-emoji, generate-image
-  sandboxPath as p,
-  requireSandbox,
-  writeSandboxFile,
-} from '../workspace';
+import { requireSandbox, sandboxPath, writeSandboxFile } from '../workspace';
 
 const kinds = ['findings', 'report', 'plan', 'review'] as const;
-
-// TODO(slopradar): CODING_STANDARDS: no one-use constants | `artifactId` is used once (readArtifactTool input) | inline it into the inputSchema
-const artifactId = z
-  .string()
-  .regex(new RegExp(`^(${kinds.join('|')})-[0-9a-f]{12}$`));
 
 export const saveArtifactTool = createTool({
   id: 'save_artifact',
@@ -39,7 +29,7 @@ export const saveArtifactTool = createTool({
   execute: async ({ kind, title, body }, context) => {
     const sandbox = await requireSandbox(context.requestContext);
     const id = `${kind}-${randomUUID().replaceAll('-', '').slice(0, 12)}`;
-    const path = p('.artifacts', `${id}.md`);
+    const path = sandboxPath('.artifacts', `${id}.md`);
     const content = `# ${title}\n\n${body}\n`;
     await writeSandboxFile({ data: content, path, sandbox });
     return { id, path, chars: content.length };
@@ -51,11 +41,13 @@ export const readArtifactTool = createTool({
   description:
     "Read a Markdown artifact a subagent saved with save_artifact, by the id it returned. Read one only when the subagent's short answer is not enough. The file also sits at .artifacts/<id>.md in the sandbox, so it can be uploaded or grepped without reading it here.",
   inputSchema: z.strictObject({
-    id: artifactId.describe('Artifact id, e.g. findings-0123456789ab.'),
+    id: z
+      .string()
+      .regex(new RegExp(`^(${kinds.join('|')})-[0-9a-f]{12}$`))
+      .describe('Artifact id, e.g. findings-0123456789ab.'),
   }),
   outputSchema: z.strictObject({
     id: z.string(),
-    kind: z.enum(kinds),
     body: z.string(),
   }),
   transform: {
@@ -65,7 +57,7 @@ export const readArtifactTool = createTool({
   },
   execute: async ({ id }, context) => {
     const sandbox = await requireSandbox(context.requestContext);
-    const path = p('.artifacts', `${id}.md`);
+    const path = sandboxPath('.artifacts', `${id}.md`);
     const exists = await sandbox.retryOnDead(() =>
       sandbox.e2b.files.exists(path)
     );
@@ -75,7 +67,6 @@ export const readArtifactTool = createTool({
     const body = await sandbox.retryOnDead(() =>
       sandbox.e2b.files.read(path, { format: 'text' })
     );
-    // TODO(slopradar): CODING_STANDARDS: validate at boundaries, trust internally | the input regex already proved the kind prefix, then the kind is re-parsed from the id | capture kind in the input schema (`.transform` returning `{ id, kind }`) and return it directly
-    return { id, kind: z.enum(kinds).parse(id.split('-')[0]), body };
+    return { id, body };
   },
 });

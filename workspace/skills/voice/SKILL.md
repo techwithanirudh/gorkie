@@ -59,7 +59,6 @@ PY
 - Use `get_slack_file` first when the audio came from Slack, then work with the downloaded path.
 - Use `upload_file` when the user wants the generated audio sent back to Slack.
 - Mention when transcription uses Google's free recognizer, because it sends audio to an external service.
-<!-- TODO(slopradar): sediment | "If an API key or local model is later available" describes a hypothetical future | delete the sentence -->
-- For private or sensitive audio, ask before using network transcription. If an API key or local model is later available, prefer that path.
+- For private or sensitive audio, ask before using network transcription.
 - Use ffmpeg for conversion, trimming, sample-rate changes, and audio diagnostics.
 - If transcription fails, report whether the problem appears to be format conversion, silence/noise, or recognizer/API failure.

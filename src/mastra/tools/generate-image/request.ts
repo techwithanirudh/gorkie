@@ -5,6 +5,7 @@ import { env } from '@/env';
 import { image } from '../../config';
 import { images } from '../../providers';
 import { confinePath } from '../../workspace/filesystem';
+import { viewableImageType } from '../view-image';
 
 const completionSchema = z.looseObject({
   choices: z
@@ -31,10 +32,12 @@ const completionSchema = z.looseObject({
 // provider's imageModel posts to `/images`, a route the Hack Club proxy does
 // not serve: it answers 404 for every model id.
 export async function requestImages({
+  abortSignal,
   prompt,
   referenceImages,
   sandbox,
 }: {
+  abortSignal?: AbortSignal;
   prompt: string;
   referenceImages: string[];
   sandbox: E2BSandbox;
@@ -55,18 +58,20 @@ export async function requestImages({
           sandbox.e2b.files.read(filePath, { format: 'bytes' })
         )
       );
-      return {
-        data,
-        mediaType:
-          // TODO(slopradar): review: correctness | a reference that is not an image is labelled image/png, the mislabel view-image.ts:9-11 says makes the gateway reject the turn | use `viewableImageType(data)` and throw a clear error when it is undefined
-          detectMediaType({ data, topLevelType: 'image' }) ?? 'image/png',
-      };
+      const mediaType = viewableImageType(data);
+      if (!mediaType) {
+        throw new Error(
+          `"${path}" is not a png, jpeg, gif or webp image, so it cannot be sent for editing.`
+        );
+      }
+      return { data, mediaType };
     })
   );
 
-  // TODO(slopradar): review: correctness / performance | the completion fetch has no abort signal or timeout, so a hung proxy holds the tool call and a user stop does not cancel it | take `abortSignal` in requestImages (pass `context.abortSignal` from index.ts) and combine it with `AbortSignal.timeout`
+  const timeout = AbortSignal.timeout(5 * 60 * 1000);
   const response = await fetch(`${images.baseURL}/chat/completions`, {
     method: 'POST',
+    signal: abortSignal ? AbortSignal.any([abortSignal, timeout]) : timeout,
     headers: {
       Authorization: `Bearer ${env.HACKCLUB_API_KEY}`,
       'Content-Type': 'application/json',

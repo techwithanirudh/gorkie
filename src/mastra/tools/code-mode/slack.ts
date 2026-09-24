@@ -114,19 +114,6 @@ type CodeModeInstance = Awaited<ReturnType<typeof createCodeModeInstance>>;
 
 const instances = new Map<string, Promise<CodeModeInstance>>();
 
-// Keyed on the MCP tool set as well as the access level, so an instance built
-// while an MCP server was down is rebuilt once its tools come back.
-// TODO(slopradar): CODING_STANDARDS: inline over extract | `instanceKey` has one caller, and the comparator equals the default string sort (which also mutates its argument) | inline `${workspaceAccess ? 'workspace' : 'slack'}:${Object.keys(mcp).sort().join(',')}` in codeMode
-function instanceKey({
-  mcpToolNames,
-  workspaceAccess,
-}: {
-  mcpToolNames: string[];
-  workspaceAccess: boolean;
-}): string {
-  return `${workspaceAccess ? 'workspace' : 'slack'}:${mcpToolNames.sort((a, b) => (a < b ? -1 : 1)).join(',')}`;
-}
-
 async function codeMode(workspaceAccess: boolean): Promise<CodeModeInstance> {
   // Code mode calls tool.execute() directly, which skips Mastra's
   // requireApproval check, so only tools the server labels read-only go in.
@@ -135,10 +122,9 @@ async function codeMode(workspaceAccess: boolean): Promise<CodeModeInstance> {
       ([, tool]) => tool.mcp?.annotations?.readOnlyHint === true
     )
   );
-  const key = instanceKey({
-    mcpToolNames: Object.keys(mcp),
-    workspaceAccess,
-  });
+  // Keyed on the MCP tool set as well as the access level, so an instance built
+  // while an MCP server was down is rebuilt once its tools come back.
+  const key = `${workspaceAccess ? 'workspace' : 'slack'}:${Object.keys(mcp).sort().join(',')}`;
   const existing = instances.get(key);
   if (existing) {
     return existing;
@@ -148,7 +134,6 @@ async function codeMode(workspaceAccess: boolean): Promise<CodeModeInstance> {
   return started;
 }
 
-// TODO(slopradar): CODING_STANDARDS: direct names / boolean flag | four one-line wrappers (workspaceCodeMode, slackCodeMode, and the two *Prompt functions) only fix a boolean | export `codeMode({ workspaceAccess })` and `codeModeInstructions({ workspaceAccess })` (passing `files: workspaceAccess`), called from toolsets.ts, orchestrator.ts and research.ts
 export function workspaceCodeMode(): Promise<CodeModeInstance> {
   return codeMode(true);
 }

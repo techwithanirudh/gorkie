@@ -3,12 +3,7 @@ import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { emoji as emojiConfig, image } from '../../config';
 import { spendSlackCall } from '../../lib/slack-budget';
-import {
-  // TODO(slopradar): CODING_STANDARDS: direct names | `sandboxPath as p` alias (see artifacts.ts band) | import `sandboxPath` unaliased
-  sandboxPath as p,
-  requireSandbox,
-  writeSandboxFile,
-} from '../../workspace';
+import { requireSandbox, sandboxPath, writeSandboxFile } from '../../workspace';
 import { viewableImageType } from '../view-image';
 
 let cachedList:
@@ -127,7 +122,7 @@ export const getSlackEmojiTool = createTool({
     }
 
     const sandbox = await requireSandbox(context.requestContext);
-    const path = p(
+    const path = sandboxPath(
       'emoji',
       `${name.replace(/[^\w+-]/g, '_')}.${mediaType.split('/')[1]}`
     );

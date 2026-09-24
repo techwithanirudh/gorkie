@@ -73,7 +73,6 @@ async function main(): Promise<void> {
     config.template,
     {
       apiKey: env.E2B_API_KEY,
-      // TODO(slopradar): CODING_STANDARDS: config & secrets | cpuCount and memoryMB are per-deployment sizing inlined in a script | move them to the `sandbox` block in config.ts next to template/timeout
       cpuCount: 2,
       memoryMB: 1024,
       onBuildLogs: defaultBuildLogger(),

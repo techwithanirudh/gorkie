@@ -9,7 +9,7 @@ Your knowledge of Wrangler flags and config may be outdated. **Prefer retrieval 
 
 ## No Auth
 
-gorkie has **no Cloudflare account and cannot log in**. Never run `wrangler login` or `wrangler whoami`: they will hang waiting for a browser. For static sites, serve them as a Worker with static assets instead (see [config-and-bindings.md](references/config-and-bindings.md)) and deploy with `wrangler deploy`.
+gorkie has **no Cloudflare account and cannot log in**. Never run `wrangler login` or `wrangler whoami`: they will hang waiting for a browser. For static sites, serve them as a Worker with static assets instead (see [config-and-bindings.md](references/config-and-bindings.md)) and deploy with `wrangler deploy --temporary`.
 
 Instead use **Temporary Accounts for Agents** (`--temporary`), which only works with `wrangler deploy`:
 
@@ -32,67 +32,55 @@ Fetch the **latest** information before writing or reviewing Wrangler commands a
 | Source | How to retrieve | Use for |
 |--------|----------------|---------|
 | Wrangler docs | `https://developers.cloudflare.com/workers/wrangler/` | CLI commands, flags, config reference |
-<!-- TODO(slopradar): accuracy | wrangler is installed globally in the template (build-template.ts:55), so node_modules/wrangler/config-schema.json (here and in the $schema at line 68) only resolves in a project with a local wrangler | point at /usr/local/lib/node_modules/wrangler/config-schema.json or `npm root -g` -->
-| Wrangler config schema | `node_modules/wrangler/config-schema.json` | Config fields, binding shapes, allowed values |
+| Wrangler config schema | `/usr/local/lib/node_modules/wrangler/config-schema.json` (wrangler is installed globally) | Config fields, binding shapes, allowed values |
 | Cloudflare docs | Search tool or `https://developers.cloudflare.com/workers/` | API reference, compatibility dates/flags |
 
-<!-- TODO(slopradar): internal contradiction | `wrangler init` and create-cloudflare are interactive and offer an account deploy, against "No Auth" (line 12) | show a hand-written wrangler.jsonc + src/index.ts instead -->
 ## Quick Start: New Worker
 
-```bash
-# Initialize new project
-npx wrangler init my-worker
-
-# Or with a framework
-npx create-cloudflare@latest my-app
-```
-
-## Quick Reference: Core Commands
-
-<!-- TODO(slopradar): internal contradiction | `wrangler deploy` without --temporary, `wrangler tail` and `wrangler delete` all need an account, and `wrangler dev` is unreachable for the user (sandbox allowPublicTraffic: false) | keep only commands that work account-less -->
-| Task | Command |
-|------|---------|
-| Start local dev server | `wrangler dev` |
-| Deploy to Cloudflare | `wrangler deploy` |
-| Deploy dry run | `wrangler deploy --dry-run` |
-| Generate TypeScript types | `wrangler types` |
-| Profile Worker startup time | `wrangler check startup` |
-| View live logs | `wrangler tail` |
-| Delete Worker | `wrangler delete` |
-
----
-
-## Configuration (wrangler.jsonc)
-
-### Minimal Config
+`wrangler init` and `create-cloudflare` are interactive and offer an account deploy, so write the two files by hand:
 
 ```jsonc
+// wrangler.jsonc
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
+  "$schema": "/usr/local/lib/node_modules/wrangler/config-schema.json",
   "name": "my-worker",
   "main": "src/index.ts",
   "compatibility_date": "2026-01-01"
 }
 ```
 
+```ts
+// src/index.ts
+export default {
+  async fetch(request: Request): Promise<Response> {
+    return new Response('Hello from gorkie');
+  },
+};
+```
+
+## Quick Reference: Core Commands
+
+These all work without an account.
+
+| Task | Command |
+|------|---------|
+| Deploy (live 60 minutes) | `wrangler deploy --temporary` |
+| Deploy dry run | `wrangler deploy --dry-run` |
+| Local dev server, for your own `curl localhost:8787` checks (the user cannot reach it) | `wrangler dev` |
+| Generate TypeScript types | `wrangler types` |
+| Profile Worker startup time | `wrangler check startup` |
+
 ## References
 
 For anything past a basic deploy, load the detail files (retrieval-first, confirm exact flags against the Cloudflare docs):
 
 - [config-and-bindings.md](references/config-and-bindings.md): full `wrangler.jsonc` config, type generation, static assets, and the CLI for every binding a temporary account supports (KV, D1, Durable Objects, Hyperdrive, Queues).
-- [operations.md](references/operations.md): local dev, deployment (secrets, versions/rollback), observability/tail, testing, and troubleshooting.
+- [operations.md](references/operations.md): local dev, temporary deploys, and troubleshooting.
 
-<!-- TODO(slopradar): sediment | best practices 5-11 (environments, .dev.vars, secret put/bulk, CI type checks, auto-provisioning) assume an owned account and a repo; none apply to a 60-minute throwaway deploy | cut to the few that do -->
 ## Best Practices
 
-1. **Use Wrangler over raw API calls**: it is preinstalled (`wrangler --version`, v4.x+); prefer it to hand-built requests.
-2. **Version control `wrangler.jsonc`**: prefer JSON over TOML (newer features are JSON-only) and treat it as source of truth for Worker config.
-3. **Set `compatibility_date`**: use a recent date and update it periodically to pick up new runtime features. Check https://developers.cloudflare.com/workers/configuration/compatibility-dates/
-4. **Generate types (`wrangler types`)**: after every config change, and again in CI to catch binding mismatches.
-5. **Use automatic provisioning**: omit resource IDs for auto-creation on deploy.
-6. **Use environments**: separate staging/production with `env.staging`, `env.production`.
-7. **Local dev defaults to local storage**: bindings use local simulation unless `remote: true`; test locally with `wrangler dev` before deploying.
-8. **Use `.dev.vars` for local secrets**: never commit secrets to config.
-9. **Use `--dry-run` before major deploys**: validate changes without deploying.
-10. **Profile Worker startup**: run `wrangler check startup` to measure startup time and catch scripts that exceed the startup time limit.
-11. **Never embed secrets in commands**: use interactive prompts (`wrangler secret put`), file-based input (`wrangler secret bulk`), or secure CI environment variables. Never echo, log, or pass secret values as CLI arguments.
+1. **Use Wrangler over raw API calls**: it is preinstalled globally (`wrangler --version`, v4.x+); prefer it to hand-built requests.
+2. **Prefer `wrangler.jsonc`** over TOML: newer features are JSON-only.
+3. **Set a recent `compatibility_date`**. Check https://developers.cloudflare.com/workers/configuration/compatibility-dates/
+4. **Omit resource IDs** for bindings and let the deploy create them.
+5. **Never embed secrets** in code, config, or commands: a temporary Worker is public.

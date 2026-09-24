@@ -2,16 +2,21 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { summarizer } from '../../agents/summarizer';
 import { slack } from '../../chat/client';
-import { focusFilter } from '../../chat/focus';
+import { isComment } from '../../chat/message';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { assertReadableChannel, joinChannel, slackThreadId } from './utils';
+import {
+  assertReadableChannel,
+  focusedMessages,
+  joinChannel,
+  slackThreadId,
+} from './utils';
 
 export const summarizeThreadTool = createTool({
   id: 'summarize_thread',
   description:
-    'Summarize up to 100 messages from one Slack thread without returning its full transcript to the caller. Defaults to the current thread. The current conversation is always readable; other threads must be in a public channel, which is joined automatically. Use read_conversation_history when exact wording or message metadata matters, and Slack code mode for exhaustive or cross-thread analysis.',
+    'Summarize up to 100 messages from one Slack thread without returning its full transcript to the caller. Defaults to the current thread. The current conversation is always readable; other threads must be in a public channel, which is joined automatically. Messages starting with ## are side comments and are left out. Use read_conversation_history when exact wording or message metadata matters, and Slack code mode for exhaustive or cross-thread analysis.',
   inputSchema: z.strictObject({
     threadId: z
       .string()
@@ -49,19 +54,17 @@ export const summarizeThreadTool = createTool({
 
     spendSlackCall(context.requestContext);
 
-    // TODO(slopradar): review: correctness (owner question) | `##` side comments are dropped by read_conversation_history (line 97) and the history backfill (chat/history.ts:34) but fed to the summarizer here | filter with `isComment` too, or document that summaries include side comments
     const result = await slack.fetchMessages(target, {
       limit: 100,
       direction: 'backward',
     });
-    // TODO(slopradar): simplification: duplicate | same focus filter as read-conversation-history.ts:88-94 | use the shared chat/focus.ts helper
-    const sees =
-      target === ctx.threadId ? await focusFilter(target) : undefined;
-    const messages = sees
-      ? result.messages.filter(
-          (message) => message.author.isMe || sees(message.author.userId)
-        )
-      : result.messages;
+    const messages = (
+      await focusedMessages({
+        currentThreadId: ctx.threadId,
+        messages: result.messages,
+        threadId: target,
+      })
+    ).filter((message) => !isComment(message));
     if (messages.length === 0) {
       throw new Error('No messages found in the thread.');
     }

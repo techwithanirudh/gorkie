@@ -9,7 +9,7 @@ import {
 import { chatChannelId, rawId } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 import type { BanDuration, BanStatus, ModerationEvent } from '../../types';
-import { publishHome } from '../app-home/view';
+import { refreshHome } from '../app-home/view';
 import { slack } from '../client';
 import { notify } from '../notify';
 import { decisionCard } from './cards';
@@ -33,33 +33,11 @@ export async function banStatus(userId: string): Promise<BanStatus> {
   }
 }
 
-// TODO(slopradar): simplification: one-use helper + dead check | only moderation/commands.ts calls banGuard, and it has already rejected non-moderators (commands.ts L62), so L43-45 never fires | inline the three remaining guards into onSlashCommand and drop the export
-export function banGuard({
-  actorId,
-  userId,
-}: {
-  actorId: string;
-  userId: string;
-}): string | undefined {
-  if (!isModerator(actorId)) {
-    return 'only gorkie moderators can do that.';
-  }
-  if (rawId(userId) === rawId(actorId)) {
-    return "you can't ban yourself.";
-  }
-  if (isModerator(userId)) {
-    return "moderators can't be banned. remove them from MODERATORS first.";
-  }
-  if (slack.botUserId && rawId(userId) === slack.botUserId) {
-    return "gorkie can't ban itself.";
-  }
-}
-
 export async function decide({
   action,
   actorId,
   userId,
-  duration = 'perm',
+  duration,
   reason,
 }: {
   action: ModerationEvent['action'];
@@ -74,7 +52,7 @@ export async function decide({
     userId,
     reason,
     expiresAt:
-      action === 'ban' && duration !== 'perm'
+      action === 'ban' && duration && duration !== 'perm'
         ? add(new Date(), DURATION[duration])
         : undefined,
   });
@@ -91,13 +69,7 @@ export async function decide({
   } else {
     logger.warn('[moderation] LOGS_CHANNEL is not set, card not posted');
   }
-  // TODO(slopradar): CODING_STANDARDS: fire-and-forget needs a why | publishHome is deliberately not awaited but nothing says why | add the reason (the Home refresh does DB and GitHub work and must not hold the slash command or button ack)
-  publishHome(rawId(userId)).catch((error: unknown) =>
-    logger.warn('[moderation] could not refresh the Home tab', {
-      error,
-      userId,
-    })
-  );
+  refreshHome(rawId(userId));
   return event;
 }
 

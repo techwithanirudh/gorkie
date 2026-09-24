@@ -7,15 +7,13 @@ import {
 } from '../../../db/queries/settings';
 import { githubAccessToken, revokeGitHubGrant } from '../../../lib/github';
 import { logger } from '../../../lib/logger';
-import { githubPermissionSchema, type PublishHome } from '../../../types';
+import { githubPermissionSchema } from '../../../types';
+import { scopeSchema } from '../presets';
+import { publishHome, refreshHome } from '../view';
 import { ids } from './ids';
 import { configureModal } from './views';
 
-export function registerGitHub({
-  publishHome,
-}: {
-  publishHome: PublishHome;
-}): void {
+export function registerGitHub(): void {
   const bot = Chat.getSingleton();
 
   // Connect is a link button; Slack still sends its click, which needs no work.
@@ -30,11 +28,10 @@ export function registerGitHub({
   bot.onModalSubmit(ids.configureModal, async (event) => {
     await setGitHubSettings({
       permission: githubPermissionSchema.parse(event.values[ids.permission]),
-      threads: event.values[ids.scope] === 'threads',
+      threads: scopeSchema.parse(event.values[ids.scope]) === 'threads',
       userId: event.user.userId,
     });
-    // TODO(slopradar): review: performance | awaited publishHome inside a modal submit delays Slack's view_submission ack; publishHome calls GitHub (see mcp/actions.ts L83) | fire it without awaiting, with a why-comment
-    await publishHome(event.user.userId);
+    refreshHome(event.user.userId);
   });
 
   bot.onAction(ids.disconnect, async (event) => {

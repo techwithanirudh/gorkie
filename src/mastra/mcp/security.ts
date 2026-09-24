@@ -46,7 +46,6 @@ export async function checkMCPUrl(
     : { url };
 }
 
-// TODO(slopradar): review: security | DNS-rebinding TOCTOU: checkMCPUrl resolves the host, then fetch resolves it again, so a TTL-0 record can answer public for the check and private for the request (same gap for the MCP transport after client.ts re-check) | pin the vetted address for the connection (resolve once, connect to that IP) or record this as an accepted residual risk in IMPLEMENTED.md
 // OAuth discovery, registration, token and revocation URLs come from the
 // server's own metadata, so each hop is re-validated and never auto-followed.
 export async function guardedFetch(

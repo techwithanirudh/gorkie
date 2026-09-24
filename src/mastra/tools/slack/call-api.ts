@@ -6,12 +6,7 @@ import { channelContext } from '../../lib/context';
 import { parseSlackId, rawId } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 import { spendSlackCall } from '../../lib/slack-budget';
-import {
-  // TODO(slopradar): CODING_STANDARDS: direct names | `sandboxPath as p` alias (see artifacts.ts band) | import `sandboxPath` unaliased
-  sandboxPath as p,
-  requireSandbox,
-  writeSandboxFile,
-} from '../../workspace';
+import { requireSandbox, sandboxPath, writeSandboxFile } from '../../workspace';
 import { assertReadableChannel, joinChannel } from './utils';
 
 const slackId = z.string().min(1).transform(rawId);
@@ -99,7 +94,6 @@ Responses can be large, so the full JSON is written to a file in the thread sand
       .describe('Method arguments as documented by Slack.'),
   }),
   outputSchema: z.strictObject({
-    ok: z.boolean(),
     path: z.string().optional(),
     size: z.number(),
     truncated: z.boolean(),
@@ -151,7 +145,7 @@ Responses can be large, so the full JSON is written to a file in the thread sand
     if (truncated) {
       try {
         const sandbox = await requireSandbox(context.requestContext);
-        const target = p('slack-api', `${method}-${Date.now()}.json`);
+        const target = sandboxPath('slack-api', `${method}-${Date.now()}.json`);
         await writeSandboxFile({ data: body, path: target, sandbox });
         path = target;
       } catch (error) {
@@ -163,8 +157,6 @@ Responses can be large, so the full JSON is written to a file in the thread sand
     }
 
     return {
-      // TODO(slopradar): simplification: dead field | per the comment at line 145 apiCall throws on ok:false, so `ok` is always true | drop `ok` from the outputSchema and result
-      ok: response.ok,
       path,
       size: body.length,
       truncated,

@@ -36,8 +36,8 @@ the rest is judgment applied consistently.
   external boundary (e.g. a library return type you've confirmed matches).
 - Parse all external input with Zod: Slack `private_metadata`, tool
   arguments, webhook payloads, env vars. Never `JSON.parse(...) as T`.
-- Shared types live in `src/mastra/types/`, not scattered inline across
-  modules. If two files need the same shape, it belongs there.
+- Shared or exported types live in `src/mastra/types/`. A private shape
+  used by one file stays inline in that file.
 - When an SDK type carries more fields than a function needs, define a
   smaller internal type and convert at the boundary rather than threading
   the full SDK type through your own code.
@@ -66,13 +66,18 @@ the rest is judgment applied consistently.
   from more than one place, or is genuinely complex enough to need a name
   of its own.
 - **No one-use constants.** Inline literals that are only referenced once;
-  don't name a value just to use it a single time.
+  don't name a value just to use it a single time. A value that could
+  plausibly change per deployment is the exception: it goes in
+  `src/mastra/config.ts` even when used once (see
+  [Config & secrets](#config--secrets)).
 - **Small functions, early returns.** Prefer guard clauses over nested
   conditionals. If a function needs a comment to explain its shape, it
   probably needs to be flattened instead.
 - **No large inline closures.** An async closure longer than ~20 lines
-  inside an object literal (tool `execute`, event handler, etc.) belongs in
-  a named function at module scope with explicit parameter types.
+  inside an object literal (tool `execute`, event handler, etc.) may move to
+  a named function at module scope with explicit parameter types, even with
+  one caller. This is the only exception to inline over extract; shorter
+  one-use helpers stay inline.
 
   ```ts
   // bad
@@ -118,8 +123,8 @@ before renaming or splitting anything, never from vibes.
 - Keep schemas terse. Add `.describe()` only for fields whose contract
   isn't obvious from the name.
 - Type ownership: a private, single-file shape stays inline. A shared or
-  exported shape lives in the nearest clear owner's `types/` folder.
-  Tool-owned shared shapes live under `types/tools/<tool>.ts`.
+  exported shape lives in `src/mastra/types/`. Tool-owned shared shapes live
+  under `types/tools/<tool>.ts`.
 - After a rename or file move, search for the old name across source,
   prompts, and docs and update every reference before handoff. Stale
   references in prompts are easy to miss and silently wrong at runtime.
@@ -143,13 +148,17 @@ before renaming or splitting anything, never from vibes.
 
 - No what-comments and no JSDoc blocks. Well-named identifiers should make
   the "what" obvious.
-- Write a comment only when it explains a non-obvious *why*: a hidden
-  constraint, a workaround for a specific external bug, an invariant that
-  isn't visible from the code itself.
+- Write a comment only for a vendor or platform fact the code cannot show:
+  a library quirk, an API limit, a workaround for a specific external bug.
+  The two other allowed comments are the short why on a fire-and-forget
+  promise and on an intentionally ignored catch (see
+  [Async & error handling](#async--error-handling)).
 - Don't reference the current task, PR, or issue number in a comment. That
   belongs in the commit message and rots as the code evolves.
 - No em dashes anywhere: code, comments, docs, chat replies. Use a comma,
   colon, or period.
+- Runtime skills under `workspace/skills/` follow the `unslop` skill on
+  dashes: no hyphen or parenthesis standing in for a dash either.
 
 ## Async & error handling
 
@@ -164,13 +173,15 @@ before renaming or splitting anything, never from vibes.
 
 ## Config & secrets
 
-<!-- TODO(slopradar): rulebook vs code | drizzle.config.ts:19 reads process.env.DATABASE_URL, a known owner-approved exception (IMPLEMENTED step 4) that this absolute rule does not mention | add the exception with its reason (drizzle-kit must not require every app secret) -->
 - Never read `process.env` outside `src/env.ts`. Every environment
   variable is declared once there with a Zod schema (see the `createEnv`
-  block) and imported as `env.WHATEVER` everywhere else.
-<!-- TODO(slopradar): rulebook contradiction | a deployment-tunable literal used once must be inlined ("No one-use constants", line 68) and must also live in config.ts (this line) | state that config.ts wins for deployment-tunable values -->
+  block) and imported as `env.WHATEVER` everywhere else. One exception:
+  `drizzle.config.ts` reads `process.env.DATABASE_URL` directly, because
+  importing `env` would make `drizzle-kit` require every bot secret just to
+  generate or run a migration.
 - Magic numbers or strings that could plausibly change per deployment
-  belong in `src/mastra/config.ts`, not inlined at the call site.
+  belong in `src/mastra/config.ts`, not inlined at the call site. This wins
+  over "no one-use constants".
 - Model keys, Slack tokens, and DB credentials never enter the E2B
   sandbox. They live on the host only.
 
@@ -181,35 +192,42 @@ them is a correctness bug, not a style nit.
 
 - Never run user- or agent-generated code on the host. All execution goes
   through the E2B sandbox.
-<!-- TODO(slopradar): rulebook contradiction | same as AGENTS.md:63: thread-history backfill is hand-rolled in chat/history.ts with channels' threadContext.maxMessages: 0 | carve out the exception or change the code -->
 - Never hand-roll what Mastra `channels` already provides: streaming,
-  thread-history backfill, multi-user prefixing, typing status. Shape it
-  through `handlers`, `threadContext`, and subscription state instead of
-  reimplementing it.
+  multi-user prefixing, typing status. Shape it through `handlers`,
+  `threadContext`, and subscription state instead of reimplementing it. One
+  exception: thread-history backfill. Channels backfills only on the first
+  mention, so `threadContext.maxMessages` is `0` and `chat/history.ts`
+  fetches the messages the agent has not seen yet on every turn.
 - Ask before: dependency changes, schema-shape changes, destructive git
   operations.
 
-<!-- TODO(slopradar): accuracy: stale rules | this section is written for raw Bolt (view.private_metadata, body.view.state.values, client.views.update with hash); the code uses Chat SDK modals (event.openModal, bot.onModalSubmit, event.privateMetadata and event.values in chat/app-home/mcp/actions.ts:207-209, github/actions.ts:32) and calls views.update nowhere | rewrite against the Chat SDK API, drop the hash rule -->
 ## Slack modal conventions
 
-- `private_metadata` is minimal and Zod-parsed. Persist only what can't be
-  re-derived from view state or a DB lookup; parse it with a schema, never
-  cast.
+Modals go through the Chat SDK, not raw Bolt: `event.openModal(...)` from an
+action, `bot.onModalSubmit(id, ...)` and `bot.onModalClose(id, ...)` to
+handle them, `event.privateMetadata` and `event.values` to read them.
+
+- `privateMetadata` is minimal and Zod-parsed. Persist only what can't be
+  re-derived from the submitted values or a DB lookup; parse it with a
+  schema, never cast.
 
   ```ts
   // bad
-  const meta = JSON.parse(view.private_metadata || '{}') as SomeMeta;
+  const meta = JSON.parse(event.privateMetadata || '{}') as SomeMeta;
   // good
-  const meta = someMetaSchema.parse(JSON.parse(view.private_metadata || '{}'));
+  const meta = someMetaSchema.parse(JSON.parse(event.privateMetadata || '{}'));
   ```
 
-- Don't scrape `body.view.state.values` to reconstruct a structure just to
-  re-render it. That structure should already be in `private_metadata`.
-  Only read view state for values the user actively changed in this
-  action.
-- Every `block_actions` handler that calls `client.views.update` mid-session
-  must pass `hash: view.hash`, to avoid clobbering a view a concurrent
-  action already updated.
+- Parse each `event.values` entry you use with Zod. Only read values the
+  user submitted; don't rebuild a structure from them that should already
+  be in `privateMetadata`.
+- Report field errors by returning `{ action: 'errors', errors }` from the
+  submit handler.
+- The Chat SDK awaits the submit handler before it answers Slack, which has
+  a 3 second window. Don't await slow work (the App Home refresh does DB
+  reads and GitHub calls) inside it; fire it with a why-comment.
+- App Home is rebuilt from the DB on every `publishHomeView`, so the last
+  publish wins; there is no view `hash` to pass.
 - Check ownership before any DB mutation triggered by a modal action. A
   user should only be able to affect their own resources.
 

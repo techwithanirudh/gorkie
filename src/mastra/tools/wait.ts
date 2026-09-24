@@ -1,8 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { agent as agentConfig } from '../config';
-import { channelContext } from '../lib/context';
-import { waitMetadata } from './scheduled-tasks/queries';
+import { channelWake, waitMetadata } from './scheduled-tasks/queries';
 
 export const waitTool = createTool({
   id: 'wait',
@@ -45,7 +44,6 @@ export const waitTool = createTool({
     const fireAt = new Date(Date.now() + seconds * 1000);
     const cron = `${fireAt.getUTCSeconds()} ${fireAt.getUTCMinutes()} ${fireAt.getUTCHours()} ${fireAt.getUTCDate()} ${fireAt.getUTCMonth() + 1} *`;
 
-    // TODO(slopradar): simplification: duplicate shape | `signalType`/`ifActive: persist`/`ifIdle: wake` with the channel requestContext is copied verbatim in scheduled-tasks/create.ts:83-90 | share one helper (e.g. `channelWake(context)`) returning those fields, used by both
     await schedules.create({
       agentId: agentConfig.id,
       cron,
@@ -53,15 +51,8 @@ export const waitTool = createTool({
       prompt: `Your ${seconds}s wait is over (waiting for: ${reason}). Continue and respond in this same Slack conversation with the result.`,
       threadId,
       resourceId: memoryResourceId,
-      signalType: 'notification',
       tagName: 'wait-resume',
-      ifActive: { behavior: 'persist' },
-      ifIdle: {
-        behavior: 'wake',
-        streamOptions: {
-          requestContext: { channel: channelContext(context.requestContext) },
-        },
-      },
+      ...channelWake(context),
       metadata: waitMetadata,
     });
 

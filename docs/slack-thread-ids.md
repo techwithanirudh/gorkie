@@ -69,43 +69,42 @@ and deploy the previous build.
 These queries only read. Run them in `psql` against the database before
 deploying:
 
-<!-- TODO(slopradar): writing-for-agents: friction | both dry-run queries ship fully commented out and the reader is told to uncomment them, though the doc already says they only read | ship them as runnable SQL; also, once the 20260924024825 migration has run in production, move this runbook to IMPLEMENTED.md -->
 ```sql
 -- Threads that will be renamed (same selection as the migration).
--- WITH map AS (
---   SELECT DISTINCT ON (t.meta ->> 'channel_externalThreadId')
---     t.id AS old_id, t.meta ->> 'channel_externalThreadId' AS new_id
---   FROM (SELECT id, "createdAt", metadata::jsonb AS meta FROM mastra_threads) t
---   WHERE t.meta ->> 'channel_platform' = 'slack'
---     AND coalesce(t.meta ->> 'channel_externalThreadId', '') <> ''
---     AND t.id <> t.meta ->> 'channel_externalThreadId'
---     AND coalesce(t.meta ->> 'channel_ownerId', 'orchestrator') = 'orchestrator'
---     AND NOT EXISTS (
---       SELECT 1 FROM mastra_threads x
---       WHERE x.id = t.meta ->> 'channel_externalThreadId'
---     )
---   ORDER BY t.meta ->> 'channel_externalThreadId',
---     (t.meta ? 'channel_ownerId') DESC,
---     CASE WHEN t.meta ? 'channel_ownerId' THEN t."createdAt" END DESC,
---     t."createdAt" ASC
--- )
--- SELECT
---   (SELECT count(*) FROM map) AS threads,
---   (SELECT count(*) FROM mastra_messages m JOIN map ON m.thread_id = map.old_id) AS messages,
---   (SELECT count(*) FROM mastra_observational_memory o JOIN map ON o."threadId" = map.old_id) AS observational_memory,
---   (SELECT count(*) FROM mastra_schedules s JOIN map ON s.target ->> 'threadId' = map.old_id) AS schedules;
+WITH map AS (
+  SELECT DISTINCT ON (t.meta ->> 'channel_externalThreadId')
+    t.id AS old_id, t.meta ->> 'channel_externalThreadId' AS new_id
+  FROM (SELECT id, "createdAt", metadata::jsonb AS meta FROM mastra_threads) t
+  WHERE t.meta ->> 'channel_platform' = 'slack'
+    AND coalesce(t.meta ->> 'channel_externalThreadId', '') <> ''
+    AND t.id <> t.meta ->> 'channel_externalThreadId'
+    AND coalesce(t.meta ->> 'channel_ownerId', 'orchestrator') = 'orchestrator'
+    AND NOT EXISTS (
+      SELECT 1 FROM mastra_threads x
+      WHERE x.id = t.meta ->> 'channel_externalThreadId'
+    )
+  ORDER BY t.meta ->> 'channel_externalThreadId',
+    (t.meta ? 'channel_ownerId') DESC,
+    CASE WHEN t.meta ? 'channel_ownerId' THEN t."createdAt" END DESC,
+    t."createdAt" ASC
+)
+SELECT
+  (SELECT count(*) FROM map) AS threads,
+  (SELECT count(*) FROM mastra_messages m JOIN map ON m.thread_id = map.old_id) AS messages,
+  (SELECT count(*) FROM mastra_observational_memory o JOIN map ON o."threadId" = map.old_id) AS observational_memory,
+  (SELECT count(*) FROM mastra_schedules s JOIN map ON s.target ->> 'threadId' = map.old_id) AS schedules;
 ```
 
-Uncomment and run it. Drop a subquery if its table does not exist yet. Also
+Drop a subquery if its table does not exist yet. Also
 check which Mastra columns the migration will find:
 
 ```sql
--- SELECT table_name, column_name
--- FROM information_schema.columns
--- WHERE table_schema = current_schema()
---   AND table_name LIKE 'mastra\_%'
---   AND column_name IN ('threadId', 'thread_id', 'sourceThreadId')
--- ORDER BY 1, 2;
+SELECT table_name, column_name
+FROM information_schema.columns
+WHERE table_schema = current_schema()
+  AND table_name LIKE 'mastra\_%'
+  AND column_name IN ('threadId', 'thread_id', 'sourceThreadId')
+ORDER BY 1, 2;
 ```
 
 ## Not covered

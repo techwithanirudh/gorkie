@@ -5,22 +5,21 @@ import { spendSlackCall } from '../../lib/slack-budget';
 import { readableFile } from '../slack/utils';
 import { canvasIdSchema } from './utils';
 
+const sectionType = z.enum(['any_header', 'h1', 'h2', 'h3']);
+
 export const lookupCanvasSectionsTool = createTool({
   id: 'lookup_canvas_sections',
   description:
     'Find section ids in one Slack canvas by header type, contained text, or both. Use this before edit_canvas when changing a specific section rather than replacing the whole canvas.',
-  inputSchema: z
-    .strictObject({
-      canvasId: canvasIdSchema,
-      sectionTypes: z
-        .array(z.enum(['any_header', 'h1', 'h2', 'h3']))
-        .min(1)
-        .optional(),
-      containsText: z.string().min(1).optional(),
-    })
-    .refine(({ sectionTypes, containsText }) => sectionTypes || containsText, {
-      message: 'Provide sectionTypes, containsText, or both.',
-    }),
+  inputSchema: z.strictObject({
+    canvasId: canvasIdSchema,
+    sectionTypes: z
+      .tuple([sectionType])
+      .rest(sectionType)
+      .optional()
+      .describe('Header types to match. Give this, containsText, or both.'),
+    containsText: z.string().min(1).optional(),
+  }),
   outputSchema: z.strictObject({
     canvasId: z.string(),
     sections: z.array(z.unknown()),
@@ -33,30 +32,22 @@ export const lookupCanvasSectionsTool = createTool({
     },
   },
   execute: async ({ canvasId, sectionTypes, containsText }, context) => {
+    const criteria = sectionTypes
+      ? { section_types: sectionTypes, contains_text: containsText }
+      : containsText && { contains_text: containsText };
+    if (!criteria) {
+      throw new Error('Provide sectionTypes, containsText, or both.');
+    }
+
     spendSlackCall(context.requestContext);
 
     await readableFile({
       fileId: canvasId,
       requestContext: context.requestContext,
     });
-
-    // TODO(slopradar): simplification: duplicate branches | the refine already guarantees one of the two, yet the code re-checks it (line 53) and makes two near-identical lookup calls, plus a tuple rebuild to satisfy the type | make sectionTypes `z.tuple([t]).rest(t)` like edit.ts and issue one call with `{ ...(sectionTypes && { section_types }), ...(containsText && { contains_text }) }`
-    if (sectionTypes) {
-      const response = await slack.webClient.canvases.sections.lookup({
-        canvas_id: canvasId,
-        criteria: {
-          section_types: [sectionTypes[0], ...sectionTypes.slice(1)],
-          ...(containsText ? { contains_text: containsText } : {}),
-        },
-      });
-      return { canvasId, sections: response.sections ?? [] };
-    }
-    if (!containsText) {
-      throw new Error('Provide sectionTypes, containsText, or both.');
-    }
     const response = await slack.webClient.canvases.sections.lookup({
       canvas_id: canvasId,
-      criteria: { contains_text: containsText },
+      criteria,
     });
     return { canvasId, sections: response.sections ?? [] };
   },

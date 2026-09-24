@@ -91,13 +91,12 @@ export async function onFeedbackClick(event: ActionEvent): Promise<void> {
     return;
   }
 
-  const rating = {
-    direction,
+  const metadata = {
     messageId: event.messageId,
     threadId: event.threadId,
     traceId,
-    userId: event.user.userId,
   };
+  const rating = { ...metadata, direction, userId: event.user.userId };
   if (direction === 'up') {
     await recordFeedback(rating);
     return;
@@ -117,8 +116,7 @@ export async function onFeedbackClick(event: ActionEvent): Promise<void> {
           }),
         ],
         notifyOnClose: true,
-        // TODO(slopradar): CODING_STANDARDS: private_metadata minimal | stores direction and userId, which metadataSchema strips on read (direction is always 'down' here and userId comes from the submit event) | store only { messageId, threadId, traceId }
-        privateMetadata: JSON.stringify(rating),
+        privateMetadata: JSON.stringify(metadata),
         submitLabel: 'Send',
         title: 'Bad response',
       })

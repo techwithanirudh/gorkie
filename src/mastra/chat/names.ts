@@ -18,8 +18,6 @@ export async function resolveUserProfile(
     return cached.data;
   }
 
-  // TODO(slopradar): review: performance | bot.getUser goes through SlackAdapter.lookupUser, which calls users.info on a cache miss (dist/index.js:1954), and L30 calls users.info again for tz, so a cold profile costs two users.info calls | drop bot.getUser and take displayName/realName from the users.info result already fetched
-  const user = await bot.getUser(userId);
   let profile: UserProfile;
   let ttl = slackConfig.profileTtlMs;
   try {
@@ -30,42 +28,53 @@ export async function resolveUserProfile(
       }),
       slack.webClient.users.info({ user: userId }),
     ]);
-    if (!(raw || user)) {
+    if (!(raw || info)) {
       return;
     }
     profile = {
-      displayName: raw?.display_name || undefined,
+      displayName:
+        info?.profile?.display_name ||
+        info?.profile?.real_name ||
+        info?.real_name ||
+        info?.name ||
+        raw?.display_name ||
+        undefined,
       fields: Object.values(raw?.fields ?? {}).flatMap((field) =>
         field.value && field.label
           ? [{ label: field.label, value: field.value }]
           : []
       ),
       pronouns: raw?.pronouns || undefined,
-      realName: raw?.real_name || undefined,
+      realName:
+        info?.real_name ||
+        info?.profile?.real_name ||
+        raw?.real_name ||
+        undefined,
       status: raw?.status_text || undefined,
       timezone: info?.tz || undefined,
       timezoneLabel: info?.tz_label || undefined,
       title: raw?.title || undefined,
     };
-  } catch {
-    // TODO(slopradar): CODING_STANDARDS: no swallowed catch | the profile/info failure is dropped with no log, then an empty profile is cached for failedProfileTtlMs | log it (warn, with userId) before falling back
+  } catch (error) {
+    logger.warn('[slack] could not fetch the user profile', { error, userId });
+    // Chat SDK's user lookup is cached, so it can still name the person.
+    const user = await bot.getUser(userId);
     if (!user) {
       return;
     }
-    profile = { fields: [] };
+    profile = {
+      displayName: user.userName,
+      fields: [],
+      realName: user.fullName,
+    };
     ttl = slackConfig.failedProfileTtlMs;
   }
 
-  const resolved = {
-    ...profile,
-    displayName: user?.userName ?? profile.displayName,
-    realName: user?.fullName ?? profile.realName,
-  };
   await bot
     .getState()
-    .set(cacheKey, resolved, ttl)
+    .set(cacheKey, profile, ttl)
     .catch((error: unknown) => {
       logger.debug('[slack] could not cache user profile', { error, userId });
     });
-  return resolved;
+  return profile;
 }

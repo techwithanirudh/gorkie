@@ -1,7 +1,17 @@
-import type { ChannelContext as MastraChannelContext } from '@mastra/core/channels';
+import { z } from 'zod';
 
-// TODO(slopradar): CODING_STANDARDS: one canonical shape | this type and lib/context.ts channelSchema describe the same parsed value twice (Partial of Mastra's 12 fields vs the schema's 8), so callers are typed for fields (platform, botMention, botUserName) the parser never keeps | move channelSchema here and `export type ChannelContext = z.infer<typeof channelSchema>` (lib/context.ts annotation proposes the same move)
-export type ChannelContext = Partial<MastraChannelContext>;
+export const channelSchema = z.looseObject({
+  botUserId: z.string().optional(),
+  channelId: z.string().optional(),
+  eventType: z.string().optional(),
+  isDM: z.boolean().optional(),
+  messageId: z.string().optional(),
+  threadId: z.string().optional(),
+  userId: z.string().optional(),
+  userName: z.string().optional(),
+});
+
+export type ChannelContext = z.infer<typeof channelSchema>;
 
 // Rebuilt from the thread id alone, as after a restart: there is no sender to
 // recover, so user-scoped tools stay off for the turn it starts.

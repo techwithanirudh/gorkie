@@ -1,7 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
-import { focusFilter } from '../../chat/focus';
 import { isComment } from '../../chat/message';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
@@ -9,6 +8,7 @@ import { spendSlackCall } from '../../lib/slack-budget';
 import { slackMessageSchema } from '../../types/tools/index';
 import {
   assertReadableChannel,
+  focusedMessages,
   formatMessage,
   joinChannel,
   slackThreadId,
@@ -85,14 +85,11 @@ export const readConversationHistoryTool = createTool({
       ? await slack.fetchMessages(tid, { limit, cursor })
       : await slack.fetchChannelMessages(chId, { limit, cursor });
 
-    // TODO(slopradar): simplification: duplicate | this focus filter (`isMe || sees(userId)`) is copied in summarize-thread.ts:56-62 | give chat/focus.ts one `focusVisible({ threadId, messages })` that returns the kept messages, used by both
-    const sees =
-      tid && tid === ctx.threadId ? await focusFilter(tid) : undefined;
-    const focused = sees
-      ? result.messages.filter(
-          (message) => message.author.isMe || sees(message.author.userId)
-        )
-      : result.messages;
+    const focused = await focusedMessages({
+      currentThreadId: ctx.threadId,
+      messages: result.messages,
+      threadId: tid,
+    });
     const kept = includeComments
       ? focused
       : focused.filter((message) => !isComment(message));

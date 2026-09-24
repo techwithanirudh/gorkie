@@ -19,12 +19,11 @@ They add or remove repositories at any time at <https://github.com/settings/inst
 
 ## What they are granting
 
-<!-- TODO(slopradar): accuracy | the repository choice is step 4 of the list above (the install page), not step 3; same on line 26 | fix both step numbers -->
-Gorkie signs in as a GitHub App, so the app fixes its own permissions and the person connecting cannot set them wrong. What they choose is which repositories, at step 3.
+Gorkie signs in as a GitHub App, so the app fixes its own permissions and the person connecting cannot set them wrong. What they choose is which repositories, at step 4.
 
 Their access is the narrowest of three things: the repos they picked, what the app is allowed to do, and what their own account can already do. Gorkie can never reach something they could not reach themselves.
 
-Picking "All repositories" at step 3 hands over every repo on the account, which is almost never what someone means.
+Picking "All repositories" at step 4 hands over every repo on the account, which is almost never what someone means.
 
 ## Repositories somebody else owns
 

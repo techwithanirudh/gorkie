@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type {
   CopyOptions,
@@ -11,6 +12,8 @@ import type {
   ProviderStatus,
   ReadOptions,
   RemoveOptions,
+  WalkEntry,
+  WalkOptions,
   WriteOptions,
 } from '@mastra/core/workspace';
 import {
@@ -34,6 +37,7 @@ import {
 } from 'e2b';
 import { lookup } from 'mime-types';
 import { file as fileLimits, sandbox as sandboxConfig } from '../config';
+import { sh } from '../lib/utils';
 import { parseRipgrepJson, ripgrepCommand } from './ripgrep';
 
 function modifiedTime(info: { modifiedTime?: Date }): Date {
@@ -148,13 +152,13 @@ export class E2BFilesystem extends MastraFilesystem {
       throw new FileExistsError(inputPath);
     }
 
-    // TODO(slopradar): CODING_STANDARDS: small functions | expectedMtime is tested twice across two statements | `if (options?.expectedMtime) { const current = await this.infoOrAbsent(filePath); if (current && modifiedTime(current).getTime() !== ...) throw ... }`
-    const current = options?.expectedMtime
-      ? await this.infoOrAbsent(filePath)
-      : undefined;
-    if (options?.expectedMtime && current) {
-      const modifiedAt = modifiedTime(current);
-      if (modifiedAt.getTime() !== options.expectedMtime.getTime()) {
+    if (options?.expectedMtime) {
+      const current = await this.infoOrAbsent(filePath);
+      const modifiedAt = current && modifiedTime(current);
+      if (
+        modifiedAt &&
+        modifiedAt.getTime() !== options.expectedMtime.getTime()
+      ) {
         throw new StaleFileError(inputPath, options.expectedMtime, modifiedAt);
       }
     }
@@ -164,26 +168,18 @@ export class E2BFilesystem extends MastraFilesystem {
     );
   }
 
-  // TODO(slopradar): review: performance | appendFile and copyFile (below) pull the whole file across the E2B API to the host and write it back, with no fileLimits.maxReadBytes cap (readFile enforces one) | run `cat >> file` / `cp -- src dest` inside the sandbox via e2b.commands.run with sh() quoting
+  // Appended in the sandbox, so the existing file never crosses the E2B API.
   async appendFile(inputPath: string, content: FileContent): Promise<void> {
     await this.ensureReady();
     const filePath = this.resolve(inputPath);
-    await this.sandbox.retryOnDead(() =>
-      this.sandbox.e2b.files.makeDir(path.posix.dirname(filePath))
-    );
-    const current = (await this.exists(inputPath))
-      ? await this.sandbox.retryOnDead(() =>
-          this.sandbox.e2b.files.read(filePath, { format: 'bytes' })
-        )
-      : new Uint8Array();
-    await this.sandbox.retryOnDead(() =>
-      this.sandbox.e2b.files.write(
-        filePath,
-        this.e2bContent(
-          Buffer.concat([Buffer.from(current), Buffer.from(content)])
-        )
-      )
-    );
+    const staged = `/tmp/gorkie-append-${randomUUID()}`;
+    await this.sandbox.retryOnDead(async () => {
+      await this.sandbox.e2b.files.makeDir(path.posix.dirname(filePath));
+      await this.sandbox.e2b.files.write(staged, this.e2bContent(content));
+      await this.sandbox.e2b.commands.run(
+        `cat -- ${sh(staged)} >> ${sh(filePath)}; code=$?; rm -f -- ${sh(staged)}; exit $code`
+      );
+    });
   }
 
   async deleteFile(inputPath: string, options?: RemoveOptions): Promise<void> {
@@ -236,15 +232,12 @@ export class E2BFilesystem extends MastraFilesystem {
         if (info.type === FileType.DIR) {
           throw new IsDirectoryError(src);
         }
-        await this.sandbox.retryOnDead(() =>
-          this.sandbox.e2b.files.makeDir(path.posix.dirname(destPath))
-        );
-        const content = await this.sandbox.retryOnDead(() =>
-          this.sandbox.e2b.files.read(srcPath, { format: 'bytes' })
-        );
-        await this.sandbox.retryOnDead(() =>
-          this.sandbox.e2b.files.write(destPath, this.e2bContent(content))
-        );
+        await this.sandbox.retryOnDead(async () => {
+          await this.sandbox.e2b.files.makeDir(path.posix.dirname(destPath));
+          await this.sandbox.e2b.commands.run(
+            `cp -T -- ${sh(srcPath)} ${sh(destPath)}`
+          );
+        });
       },
     });
   }
@@ -333,6 +326,33 @@ export class E2BFilesystem extends MastraFilesystem {
     inputPath: string,
     options?: ListOptions
   ): Promise<FileEntry[]> {
+    const entries = await this.walk(inputPath, {
+      includeHidden: true,
+      maxDepth: options?.recursive ? (options.maxDepth ?? 100) : 1,
+    });
+    let extensions: string[] | undefined;
+    if (Array.isArray(options?.extension)) {
+      extensions = options.extension;
+    } else if (options?.extension) {
+      extensions = [options.extension];
+    }
+
+    return entries
+      .filter((entry) => {
+        if (!(extensions && entry.type === 'file')) {
+          return true;
+        }
+        return extensions.some((ext) => {
+          const normalized = ext.startsWith('.') ? ext : `.${ext}`;
+          return entry.name.endsWith(normalized);
+        });
+      })
+      .map(({ path: relative, ...entry }) => ({ ...entry, name: relative }));
+  }
+
+  // One E2B list call for the whole tree. Without this, list_files reads it
+  // one directory per round trip.
+  async walk(inputPath: string, options?: WalkOptions): Promise<WalkEntry[]> {
     await this.ensureReady();
     const dirPath = this.resolve(inputPath);
 
@@ -349,35 +369,28 @@ export class E2BFilesystem extends MastraFilesystem {
 
         const entries = await this.sandbox.retryOnDead(() =>
           this.sandbox.e2b.files.list(dirPath, {
-            depth: options?.recursive ? (options.maxDepth ?? 100) : 1,
+            depth: options?.maxDepth ?? 100,
           })
         );
-        let extensions: string[] | undefined;
-        if (Array.isArray(options?.extension)) {
-          extensions = options.extension;
-        } else if (options?.extension) {
-          extensions = [options.extension];
-        }
-
-        return entries
-          .filter((entry) => {
-            if (!(extensions && entry.type === FileType.FILE)) {
-              return true;
-            }
-            return extensions.some((ext) => {
-              const normalized = ext.startsWith('.') ? ext : `.${ext}`;
-              return entry.name.endsWith(normalized);
-            });
-          })
-          .map((entry) => ({
-            name: options?.recursive
-              ? path.posix.relative(dirPath, entry.path)
-              : entry.name,
-            type: entry.type === FileType.DIR ? 'directory' : 'file',
-            size: entry.type === FileType.FILE ? entry.size : undefined,
-            isSymlink: Boolean(entry.symlinkTarget) || undefined,
-            symlinkTarget: entry.symlinkTarget,
-          }));
+        return entries.flatMap((entry) => {
+          const relative = path.posix.relative(dirPath, entry.path);
+          if (
+            !options?.includeHidden &&
+            relative.split('/').some((segment) => segment.startsWith('.'))
+          ) {
+            return [];
+          }
+          return [
+            {
+              name: entry.name,
+              path: relative,
+              type: entry.type === FileType.DIR ? 'directory' : 'file',
+              size: entry.type === FileType.FILE ? entry.size : undefined,
+              isSymlink: Boolean(entry.symlinkTarget) || undefined,
+              symlinkTarget: entry.symlinkTarget,
+            } satisfies WalkEntry,
+          ];
+        });
       },
     });
   }
@@ -412,7 +425,6 @@ export class E2BFilesystem extends MastraFilesystem {
     };
   }
 
-  // TODO(slopradar): prefer libraries / review: performance | E2BFilesystem implements the optional native grep but not the optional `walk` (node_modules/@mastra/core/dist/workspace/filesystem/filesystem.d.ts:307), so list_files' tree falls back to one E2B readdir round trip per directory (workspace-7sOfqqzx.js:9527-9560), while readdir's recursive branch above already lists a whole tree in one files.list call | add `walk` built on files.list(dirPath, { depth: maxDepth }) and drop the recursive branch from readdir if nothing else uses it
   // One ripgrep run inside the sandbox. Without this, Mastra's grep walks the
   // tree and reads every file over the E2B API one request at a time.
   async grep(options: FilesystemGrepOptions): Promise<FilesystemGrepResult[]> {

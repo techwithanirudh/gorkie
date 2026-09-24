@@ -40,22 +40,22 @@ export async function setFocus({
   const actor = rawId(actorId);
   if (!isModerator(actor)) {
     const { channel, threadTs } = slack.decodeThreadId(threadId);
-    // TODO(slopradar): simplification: readability | `??` over a ternary over a two-callback .then holding a logger call, to compute one id | early-return shape: `let starter = owner; if (!starter && threadTs) { try { ... } catch (error) { logger.warn(...) } }`
-    const starter =
-      owner ??
-      (threadTs
-        ? await slack.webClient.conversations
-            .replies({ channel, limit: 1, ts: threadTs })
-            .then(
-              ({ messages }) => messages?.[0]?.user,
-              (error: unknown) => {
-                logger.warn('[focus] could not look up the thread root', {
-                  error,
-                  threadId,
-                });
-              }
-            )
-        : undefined);
+    let starter = owner;
+    if (!starter && threadTs) {
+      try {
+        const { messages } = await slack.webClient.conversations.replies({
+          channel,
+          limit: 1,
+          ts: threadTs,
+        });
+        starter = messages?.[0]?.user;
+      } catch (error) {
+        logger.warn('[focus] could not look up the thread root', {
+          error,
+          threadId,
+        });
+      }
+    }
     if (starter !== actor) {
       return {
         ok: false,

@@ -34,10 +34,9 @@ Three layers, so one mistake does not expose the agent API:
    ss -ltnp | grep 4111
    ```
 
-<!-- TODO(slopradar): sediment | "firewall it until the new build is deployed" is cutover-era wording | "firewall it and fix HOST" -->
    `127.0.0.1:4111` is correct. `*:4111` or `0.0.0.0:4111` means the whole API
    (`/api/agents/*`, memory, workflows) is reachable by anyone who can reach
-   the port; firewall it until the new build is deployed.
+   the port; firewall it and fix `HOST`.
 2. **Allowlist at the tunnel.** Only the Slack webhook, `/health`, the
    OAuth routes under `/oauth/`, the live browser view under `/live/`, and its
    screencast WebSocket are forwarded. Everything else gets a 404 before it
@@ -48,7 +47,10 @@ Three layers, so one mistake does not expose the agent API:
    requires `Authorization: Bearer <token>` on every non-public route. A server
    middleware also returns 404 for any non-public request that carries
    `cf-connecting-ip` or `x-forwarded-for`, so a tunnel or proxy can never reach
-   Studio or the agent API even with a leaked token. Operators use the loopback
+   Studio or the agent API even with a leaked token. This relies on the proxy
+   setting one of those headers (cloudflared sets `cf-connecting-ip`); put a
+   proxy that sets neither in front and only the token guards those routes.
+   Operators use the loopback
    address, for example
    `mastra api --header "Authorization: Bearer $GORKIE_API_TOKEN" ...`.
 
@@ -120,50 +122,23 @@ systemctl daemon-reload && systemctl enable --now cloudflared
 Keep request logging off on the tunnel, or strip query strings: OAuth callback
 URLs will carry `code` and `state`.
 
-## Health monitor
+## Process supervision
 
-<!-- TODO(slopradar): accuracy: dangling reference | `gorkie-monitor.sh` and `gorkie.service` (line 144) are not in the repo, and the unit's required TimeoutStopSec (> 2 x drainTimeoutMs + 5s = 245s in production, config.ts:136-139) is documented only in a code comment | add the systemd unit and monitor probe here, or drop the references -->
-`gorkie-monitor.sh` must probe `http://127.0.0.1:4111/health`, not an `/api`
-route. With `SimpleAuth` on, every `/api` route answers 401, so an unchanged
-probe would put the monitor into a restart loop.
+The systemd unit and any health monitor live on the host, not in this repo.
+Two things they must get right:
 
-<!-- TODO(slopradar): sediment | the Socket Mode cutover and rollback runbook is a finished one-time migration (both manifests already have socket_mode_enabled: false); rollback to a SLACK_APP_TOKEN build no longer exists in env.ts | move the section to IMPLEMENTED.md -->
-## Cutover from Socket Mode
+- **Probe `/health`.** `http://127.0.0.1:4111/health` is public. With
+  `SimpleAuth` on, every `/api` route answers 401, so a monitor probing one
+  would restart the bot in a loop.
+- **Give shutdown time to drain.** On SIGTERM the bot waits up to
+  `shutdown.drainTimeoutMs` (120 s in production, `src/mastra/config.ts`) for
+  Slack turns, and Mastra can spend one such window on HTTP and another on its
+  own shutdown. Set the unit's `TimeoutStopSec` above twice that plus 5 s,
+  for example `TimeoutStopSec=250`, or systemd kills in-flight turns.
 
-Slack sends an app's events over the socket or to the request URL, never both,
-and a socket-mode process answers webhooks with 405, so `url_verification`
-cannot pass before the switch. Do it in this order:
-
-1. **Prepare while still in Socket Mode.**
-   - Create the tunnel and DNS record above.
-   - Add `SLACK_SIGNING_SECRET`, `GORKIE_API_TOKEN` and `HOST=127.0.0.1` to the
-     server's environment.
-   - Point `gorkie-monitor.sh` at `/health`.
-   - `curl -i -X POST https://<your-host>/api/agents/orchestrator/channels/slack/webhook`
-     should return 405 from the old process, proving the path is routed.
-   - Rehearse the whole flow on the `gorkie (dev)` app first.
-2. **Pick a quiet window** with no turns in flight. A restart already kills
-   in-flight turns.
-3. **Deploy** the webhook build (`bun run build`, then restart `gorkie.service`).
-   The process now opens no socket.
-4. **Within seconds, update the production app's manifest** from
-   [`slack-manifest.json`](../slack-manifest.json): `socket_mode_enabled: false`
-   and both request URLs set to
-   `https://<your-host>/api/agents/orchestrator/channels/slack/webhook`. Slack
-   sends `url_verification`, the new process answers, and delivery moves to
-   HTTP. Events from the gap are retried by Slack.
-5. **Verify**: a DM, a channel mention, a thread follow-up, App Home, a modal
-   submit, and the native stop button. Watch the log for 401s and
-   `Skipping duplicate event delivery`.
-6. **Clean up**: remove `SLACK_APP_TOKEN` from the environment and revoke the
-   `xapp-` token under Basic Information.
-
-Never run the old and new process side by side for a handover. Both would run
-the Mastra scheduler and workers against the same Postgres, and scheduled tasks
-could fire twice.
-
-**Rollback:** set `socket_mode_enabled: true` in the manifest, redeploy the
-previous commit, and restore `SLACK_APP_TOKEN`.
+Never run two processes side by side, including for a handover. Both would
+run the Mastra scheduler and workers against the same Postgres, and scheduled
+tasks could fire twice.
 
 ## Development
 

@@ -1,15 +1,15 @@
 import { z } from 'zod';
 
-// TODO(slopradar): CODING_STANDARDS: no one-use constants | `dated` is referenced once (preferences record) | inline it into z.record(z.string(), ...)
-const dated = z
-  .string()
-  .describe(
-    "What is true, and the date it was said, e.g. 'wants terse answers; 2026-09-15'."
-  );
-
 export const profileSchema = z.object({
   preferences: z
-    .record(z.string(), dated)
+    .record(
+      z.string(),
+      z
+        .string()
+        .describe(
+          "What is true, and the date it was said, e.g. 'wants terse answers; 2026-09-15'."
+        )
+    )
     .optional()
     .describe(
       "Standing preferences this person has stated, keyed by a short slug such as 'no-emoji' or 'links-first'. Only things they asked for directly, never something inferred from one exchange."

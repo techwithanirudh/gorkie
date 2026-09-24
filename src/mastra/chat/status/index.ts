@@ -21,18 +21,10 @@ export const status: TypingStatusFn = (chunk, context) => {
     return false;
   }
 
-  // TODO(slopradar): simplification: dead code | Mastra names subagent tools `agent-${agentName}` (@mastra/core agent-DwtTO5Px.js:37558), so rest is 'research' or 'explore' and never starts with `${id}_`: the agentId branch (L26-33) never runs and hardcodes the agent ids | delete L25-33 and keep the spawning line
   if (toolName.startsWith('agent-')) {
-    const rest = toolName.slice('agent-'.length);
-    const agentId = ['research', 'explore'].find((id) =>
-      rest.startsWith(`${id}_`)
+    return truncate(
+      `is spawning a ${label(toolName.slice('agent-'.length)).toLowerCase()} agent…`
     );
-    if (agentId) {
-      return truncate(
-        `is using ${agentId}: ${label(rest.slice(agentId.length + 1)).toLowerCase()}…`
-      );
-    }
-    return truncate(`is spawning a ${label(rest).toLowerCase()} agent…`);
   }
 
   if (toolName.startsWith('github_')) {

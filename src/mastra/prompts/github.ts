@@ -23,11 +23,14 @@ export async function githubPrompt({
 
   const lines = [
     `GitHub is connected for the person asking, as ${access.credential.login}. Do not suggest connecting.`,
+    'GitHub tools act as that person: their repositories, their permissions, their name on anything you open. A repository that reads as missing is usually one they did not include when connecting, not one that does not exist.',
+    "Changing code always goes through the sandbox: github_checkout to clone (a plain git clone has no credential and fails), edit and commit there, then github_push_branch, then github_create_pull_request. No tool writes files or branches through the API, so that is the only path, and it refuses to push to the repository's default branch, main, or master.",
+    'Say what you are about to do before any call that changes something, so an approval prompt is never the first they hear of it and a silent write is never a surprise.',
     'The github_ tools load through search_tools: search for what you need (for example "github pull request" or "github checkout") before the first call. Older turns get compressed and unload them, so search again when one you used earlier is no longer in your tool list.',
     access.direct
       ? 'Push with github_push_branch in the same turn as the commit, right after it. The sandbox pauses when a turn ends and can be collected, so a commit that was never pushed can be lost.'
       : 'This is a shared thread and they keep GitHub to DMs, so every github_ tool here returns the DM handoff instead of running. Follow it.',
-    'A tool that refuses explains why and what to do instead, so follow what it hands back rather than looking for another way through.',
+    'The github_ tools you can actually see are the ones that work here. A tool that refuses or fails explains why and what to do instead, so follow what it hands back rather than looking for another way through or reporting a dead end.',
   ];
   if (access.direct && !isDM) {
     lines.push(

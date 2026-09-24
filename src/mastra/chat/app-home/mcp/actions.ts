@@ -1,4 +1,5 @@
 import { Chat, Modal, type ModalErrorsResponse, TextInput } from 'chat';
+import { z } from 'zod';
 import { mcp } from '../../../config';
 import { setMCPOAuthStatus } from '../../../db/queries/mcp-oauth';
 import {
@@ -15,20 +16,16 @@ import { revokeMCPOAuth } from '../../../mcp/oauth';
 import { checkMCPUrl } from '../../../mcp/security';
 import { dropClient } from '../../../mcp/user-servers/client';
 import { probeMCPConnection } from '../../../mcp/user-servers/probe';
-import {
-  mcpServerSchema,
-  type PublishHome,
-  toolPermissionSchema,
-} from '../../../types';
+import { mcpServerSchema, toolPermissionSchema } from '../../../types';
+import { scopeSchema } from '../presets';
+import { publishHome, refreshHome } from '../view';
 import { ids } from './ids';
 import { configureModal } from './views';
 
 async function addServer({
-  publishHome,
   userId,
   values,
 }: {
-  publishHome: PublishHome;
   userId: string;
   values: Record<string, string | undefined>;
 }): Promise<ModalErrorsResponse | undefined> {
@@ -38,12 +35,12 @@ async function addServer({
     token: values.token?.trim() || undefined,
   });
   if (!parsed.success) {
-    // TODO(slopradar): AGENTS: prefer libraries | hand-rolled first-issue-per-field map; zod 4 ships z.flattenError(error).fieldErrors | map fieldErrors to their first message
     const errors: Record<string, string> = {};
-    for (const issue of parsed.error.issues) {
-      const [field] = issue.path;
-      if (typeof field === 'string' && !errors[field]) {
-        errors[field] = issue.message;
+    for (const [field, messages] of Object.entries(
+      z.flattenError(parsed.error).fieldErrors
+    )) {
+      if (messages?.[0]) {
+        errors[field] = messages[0];
       }
     }
     return { action: 'errors', errors };
@@ -81,8 +78,7 @@ async function addServer({
       errors: { name: `You can connect at most ${mcp.maxServers} servers.` },
     };
   }
-  // TODO(slopradar): review: performance | Chat SDK awaits onModalSubmit handlers before answering Slack (chat dist/index.js processModalSubmit, then the slack adapter builds the Response), and publishHome does DB reads plus a GitHub token refresh and /user/installations call, so the 3 s view_submission window the next comment guards against is spent here first | do not await publishHome in submit handlers: fire it with a why-comment, as probe() already is
-  await publishHome(userId);
+  refreshHome(userId);
 
   // The connection probe can outlast Slack's 3 second modal-submit ack window.
   const server = parsed.data;
@@ -113,16 +109,12 @@ async function addServer({
     });
 }
 
-export function registerMCPServers({
-  publishHome,
-}: {
-  publishHome: PublishHome;
-}): void {
+export function registerMCPServers(): void {
   const bot = Chat.getSingleton();
 
   bot.onAction(ids.add, async (event) => {
     const servers = await listMCPServers(event.user.userId);
-    // TODO(slopradar): review: correctness | at the limit the Add click silently does nothing while the Home tab still shows Add | hide Add at the limit in blocks.ts, or tell the user; insertMCPServer already enforces the cap
+    // A Home tab published before the last add can still show the button.
     if (servers.length >= mcp.maxServers) {
       return;
     }
@@ -170,8 +162,7 @@ export function registerMCPServers({
 
   bot.onAction(ids.threads, async (event) => {
     await setMCPThreads({
-      // TODO(slopradar): CODING_STANDARDS: one canonical union | the 'dm' | 'threads' scope literals are spelled in mcp/blocks.ts L106/L117, here, github/views.ts L21/L28 and github/actions.ts L33, with the two radio labels copied between them | export one scope enum (and its labels) from types/ and parse event.value with it
-      threads: event.value === 'threads',
+      threads: scopeSchema.parse(event.value) === 'threads',
       userId: event.user.userId,
     });
     await publishHome(event.user.userId);
@@ -219,13 +210,11 @@ export function registerMCPServers({
         userId: event.user.userId,
       });
     }
-    // TODO(slopradar): review: performance | awaited publishHome inside a modal submit delays Slack's view_submission ack (see L83) | fire it without awaiting, with a why-comment
-    await publishHome(event.user.userId);
+    refreshHome(event.user.userId);
   });
 
   bot.onModalSubmit(ids.modal, (event) =>
     addServer({
-      publishHome,
       userId: event.user.userId,
       values: event.values,
     })

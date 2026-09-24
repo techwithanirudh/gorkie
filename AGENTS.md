@@ -36,15 +36,18 @@ is what is finished, and it is where the reasoning lives.
 
 One Mastra `Agent` (`orchestrator`) serves Slack through Mastra's built-in
 `channels`, delegating to `research` and `explore` for scoped subagent work.
-<!-- TODO(slopradar): accuracy + rulebook contradiction | channels does NOT own thread-history backfill: orchestrator.ts:299 sets threadContext.maxMessages: 0 and chat/history.ts hand-fetches unseen messages; thread state (lastSeenMessage, respondOnThreadMessages) lives in Mastra threadState on Postgres (chat/state.ts) because MastraStateAdapter is in-process only (README.md:198-203) | rewrite the mental model to match, and see line 63 -->
 Channels owns the Slack webhook route, streaming, live tool widgets, typing
-status, thread-history backfill, and `MastraStateAdapter`.
+status, and `MastraStateAdapter`. Thread-history backfill is ours:
+channels' `threadContext.maxMessages` is `0` and `chat/history.ts` prepends
+the thread messages the agent has not seen yet.
 
 The agent brain runs on the host. Code execution runs in a per-thread **E2B** sandbox (isolated cloud Linux VM). Model keys, Slack tokens, and DB credentials live on the host and never enter the sandbox.
 
-<!-- TODO(slopradar): accuracy | "Postgres for ... channel state" is only half true: Chat SDK state via MastraStateAdapter is in process memory; gorkie's own thread state is on Postgres | say which state is where -->
-Storage is **Postgres** for agent memory and channel state. Long-term memory uses
-thread-scoped **Observational Memory**.
+Storage is **Postgres** for agent memory, gorkie's own tables, and gorkie's
+thread state (`lastSeenMessage`, `respondOnThreadMessages`), which lives in
+Mastra's `threadState` domain (`chat/state.ts`). Chat SDK state under
+`MastraStateAdapter` is in process memory only and does not survive a
+restart. Long-term memory uses thread-scoped **Observational Memory**.
 Observability traces go to **Langfuse** (`@mastra/langfuse`), configured in
 `src/mastra/index.ts`. In development they are also written to a local DuckDB
 file (`observability.duckdb`, anchored to `env.PROJECT_ROOT` rather than cwd,
@@ -62,44 +65,20 @@ itself because it implements no `onFeedbackEvent` handler.
 
 - Never run user/agent code on the host. E2B sandbox only; nothing else touches our OS.
 - Never put secrets (model keys, Slack tokens, DB creds) into the sandbox.
-<!-- TODO(slopradar): rulebook contradiction (owner question) | "never hand-roll ... history fetch" while chat/history.ts is exactly a hand-rolled unseen-message fetch, chosen because channels' backfill is turned off | either carve out the exception with its reason, or move back to channels' threadContext -->
-- Never hand-roll what channels already does (streaming, history fetch, multi-user prefixes). Control it through `handlers`, `threadContext`, and subscription state.
-- Never read `process.env` outside `src/env.ts`.
+- Never hand-roll what channels already does (streaming, multi-user prefixes). Control it through `handlers`, `threadContext`, and subscription state. The one exception is history fetch: channels backfills only on the first mention, so `chat/history.ts` does it on every turn.
+- Never read `process.env` outside `src/env.ts`, except `DATABASE_URL` in `drizzle.config.ts` (so `drizzle-kit` does not need every bot secret).
 - Ask first: dependency changes, schema-shape changes, destructive git operations.
-<!-- TODO(slopradar): accuracy: stale | config.ts:63 sets agent output to exactly 65_536 (equal, not under), and google/gemini-3.5-flash-lite is now only the summarizer model (providers.ts:94), not on the agent ladder; Observational Memory uses summarizer maxTokens.output 32_768 (config.ts:72) | restate the cap against the models actually on the ladder -->
-- Every model in `src/mastra/providers.ts` must hold at least 1M input tokens. The orchestrator, `research` and `explore` share one fallback ladder, so a short-context entry does not degrade one agent, it breaks whichever agent happens to fail over onto it mid-thread. Check the context window on models.dev before adding one. The image model (`images.model`, about 131K context) is outside this rule: it only generates images and is not on that ladder. Separately, `agent.maxTokens.output` must stay under the smallest output cap in use (65,536, `google/gemini-3.5-flash-lite`), which is also why Observational Memory overrides Mastra's 100,000 default.
+- Every model in `src/mastra/providers.ts` must hold at least 1M input tokens. The orchestrator, `research` and `explore` share one fallback ladder, so a short-context entry does not degrade one agent, it breaks whichever agent happens to fail over onto it mid-thread. Check the context window on models.dev before adding one. The image model (`images.model`, about 131K context) is outside this rule: it only generates images and is not on that ladder. Separately, output caps: `agent.maxTokens.output` (65,536) must stay under the smallest output cap on the agent ladder (131,072, `glm-5.3-flash`), and `summarizer.maxTokens.output` (32,768) under the summarizer ladder's (65,536, `google/gemini-3.5-flash-lite`). The summarizer number is also why Observational Memory overrides Mastra's 100,000 default.
 - Never start, restart, or kill `mastra dev`/`mastra start`/the built server on your own initiative. This is a live Slack bot; the user runs it themselves, and two instances running at once share the Mastra scheduler, workers and the DuckDB lock, so scheduled tasks can fire twice and one process loses local traces. If you must verify a code change actually works, ask the user to test it in their own running instance, or use `mastra api` against whatever they already have running instead of launching a new process.
 
-## Coding Rules
+## Coding Rules and Validation
 
-Always read and follow [CODING_STANDARDS.md](./CODING_STANDARDS.md) before
-writing or modifying code. It is the source of truth for coding rules.
-
-- Inline over extract: no one-shot helpers or wrappers.
-- Avoid one-use constants: inline single-use literals.
-- Dict params: a function with more than one parameter takes a single options object.
-- Small functions: prefer early returns over nesting.
-- No type casts to silence TypeScript: validate with Zod at boundaries instead.
-- No what-comments, no JSDoc. Comment only a non-obvious *why*.
-- Types live in `src/mastra/types/`, not scattered across modules.
-- Direct names: delete dead wrappers instead of renaming them.
-- No em dashes anywhere (markdown, prose, comments, replies). Use a comma, colon, or period instead.
-
-<!-- TODO(slopradar): docs consistency | Validation omits `bun run fix`, which CODING_STANDARDS.md "Before calling work done" makes step 1; the Coding Rules bullets above also duplicate CODING_STANDARDS.md | keep one list and point to it -->
-## Validation
-
-After code changes:
-
-1. `bun run typecheck`
-2. `bun run check` (Biome/ultracite) and `bun run check:spelling`
+Read and follow [CODING_STANDARDS.md](./CODING_STANDARDS.md) before writing or
+modifying code. It is the only list of coding rules, and its "Before calling
+work done" section is the validation checklist.
 
 ## Resources
 
 - [Mastra Documentation](https://mastra.ai/llms.txt)
 - [Skills Discovery](https://mastra.ai/.well-known/skills/index.json)
 - [Run and setup guide](./README.md)
-
-<!-- TODO(slopradar): dead pointer | /stay-within-limits exists in neither .agents/skills nor .claude/skills, so this always-loaded line points at nothing | delete the block or add the skill -->
-<!-- BEGIN @agent-native/skills -->
-When long-running or parallel work needs usage-limit checks, use the /stay-within-limits skill always.
-<!-- END @agent-native/skills -->

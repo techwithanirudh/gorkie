@@ -2,9 +2,9 @@ import { SlackAdapter } from '@chat-adapter/slack';
 import { z } from 'zod';
 import { slack as config } from '../config';
 import type { MemberLeftEvent } from '../types';
+import { userMention } from './message';
 
-// TODO(slopradar): CODING_STANDARDS: one canonical pattern | third Slack user-mention regex in chat/, each accepting different ids: this `[A-Z0-9_]+`, message.ts userMention `[UW][A-Z0-9]+`, message.ts withoutLeadingMentions `[A-Z0-9][A-Z0-9._-]*` | export one mention pattern from message.ts and derive the global and leading-anchored variants from its source
-const mentionPattern = /<@([A-Z0-9_]+)(?:\|([^<>]+))?>/g;
+const mentionPattern = new RegExp(userMention.source, 'g');
 
 const recipientSchema = z.object({
   teamId: z.string().min(1),
@@ -22,6 +22,22 @@ const memberLeftSchema = z.object({
 const postedThreadSchema = z.object({
   message: z.object({ thread_ts: z.string().optional() }),
 });
+
+function evictOldest({
+  cache,
+  key,
+}: {
+  cache: Map<string, unknown> | Set<string>;
+  key: string;
+}): void {
+  if (cache.has(key) || cache.size < config.maxCachedThreads) {
+    return;
+  }
+  const [oldest] = cache.keys();
+  if (oldest !== undefined) {
+    cache.delete(oldest);
+  }
+}
 
 export class SlackAgentAdapter extends SlackAdapter {
   private readonly recipients = new Map<string, Recipient>();
@@ -57,19 +73,19 @@ export class SlackAgentAdapter extends SlackAdapter {
       const known = this.recipients.get(threadId);
       if (!(known?.userId === userId && known.teamId === teamId)) {
         const recipient: Recipient = { userId, teamId };
-        // TODO(slopradar): simplification: duplicated logic | the evict-oldest-when-full bound is hand-written twice, here for recipients and again in landedUnthreaded (L153-161) | one bounded-insert helper for both caches
-        if (!known && this.recipients.size >= config.maxCachedThreads) {
-          const oldestThreadId = this.recipients.keys().next().value;
-          if (oldestThreadId) {
-            this.recipients.delete(oldestThreadId);
-          }
-        }
+        evictOldest({ cache: this.recipients, key: threadId });
         this.recipients.set(threadId, recipient);
-        // TODO(slopradar): CODING_STANDARDS: no swallowed catch | `.catch(() => undefined)` drops a failed recipient write silently, and that write is what lets stream() stay native after a restart | log at debug/warn with threadId, as names.ts does for its cache write
+        // Not awaited so a slow state store never delays the message; the
+        // stored copy only matters to stream() after a restart.
         chat
           .getState()
           .set(this.recipientKey(threadId), recipient, config.recipientTtlMs)
-          .catch(() => undefined);
+          .catch((error: unknown) =>
+            this.logger.warn('Could not store the stream recipient', {
+              error,
+              threadId,
+            })
+          );
       }
     }
     return super.handleMessageEvent(...args);
@@ -153,15 +169,7 @@ export class SlackAgentAdapter extends SlackAdapter {
     if (!(threadTs && posted) || posted.message.thread_ts) {
       return false;
     }
-    if (
-      !this.unthreaded.has(threadId) &&
-      this.unthreaded.size >= config.maxCachedThreads
-    ) {
-      const oldest = this.unthreaded.values().next().value;
-      if (oldest) {
-        this.unthreaded.delete(oldest);
-      }
-    }
+    evictOldest({ cache: this.unthreaded, key: threadId });
     this.unthreaded.add(threadId);
     this.logger.warn('Slack posted a thread reply at the channel root', {
       threadId,
@@ -255,7 +263,8 @@ export class SlackAgentAdapter extends SlackAdapter {
     return lookup;
   }
 
-  // TODO(slopradar): review: correctness | this override replaces the base wholesale; @chat-adapter/slack 4.41 base also resolves `<#C123>` channel mentions (collectMentionIds + lookupMentionNames, dist/index.js:3667), so channel ids now reach the model unnamed | keep the `@name (U123)` user rewrite, then `return super.resolveInlineMentions(rewritten)` so the base still names channels
+  // The base resolves `<#C123>` channel names too, so user mentions are
+  // rewritten to plain text first and the rest is left to it.
   protected override async resolveInlineMentions(text: string) {
     const mentionNames = new Map<string, string>();
     const missingIds = new Set<string>();
@@ -279,13 +288,11 @@ export class SlackAgentAdapter extends SlackAdapter {
       })
     );
 
-    if (mentionNames.size === 0) {
-      return text;
-    }
-
-    return text.replace(mentionPattern, (token, userId: string) => {
-      const name = mentionNames.get(userId);
-      return name ? `@${name} (${userId})` : token;
-    });
+    return super.resolveInlineMentions(
+      text.replace(mentionPattern, (token, userId: string) => {
+        const name = mentionNames.get(userId);
+        return name ? `@${name} (${userId})` : token;
+      })
+    );
   }
 }

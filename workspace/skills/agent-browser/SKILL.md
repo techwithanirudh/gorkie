@@ -7,17 +7,14 @@ description: Browser automation CLI for AI agents. Use when the user needs to in
 
 Fast browser automation CLI for AI agents. Chrome/Chromium via CDP with accessibility-tree snapshots and compact `@eN` element refs.
 
-<!-- TODO(slopradar): review: correctness | agent-browser is preinstalled and /usr/local/bin/agent-browser is the CloakBrowser wrapper (build-template.ts:55-61); `npm i -g agent-browser` overwrites the wrapper and silently drops stealth | delete the install line -->
-Install: `npm i -g agent-browser && agent-browser install`
+agent-browser is preinstalled. Never reinstall or update it with npm: `/usr/local/bin/agent-browser` is a wrapper that launches the stealth browser, and a reinstall overwrites it.
 
 Screenshots saved to the sandbox (e.g. via `agent-browser screenshot page.png`) can be viewed directly with the `view_image` tool. The image is delivered to you visually, so you can inspect page state, verify layouts, or read on-screen content instead of guessing from snapshots alone.
 
-<!-- TODO(slopradar): review: security | "log in with credentials you actually have" leaves the source open, and the usual source is a user pasting a password into Slack, where it lands in memory, observations and Langfuse | say never ask for or accept passwords in Slack; hand the login step to the user -->
-Every browser session starts logged out, with no pre-existing account state. You do NOT have a signed-in Slack (or any other site) session, including the requester's own. Never claim you're "using the existing Slack session" or act as if you're already authenticated somewhere, you aren't, and there is no way for you to act as a specific person's personal account. If a task needs a login, log in explicitly yourself with credentials you actually have, or tell the user what you can't do and why instead of implying access you don't have.
+Every browser session starts logged out, with no pre-existing account state. You do NOT have a signed-in Slack (or any other site) session, including the requester's own. Never claim you're "using the existing Slack session" or act as if you're already authenticated somewhere, you aren't, and there is no way for you to act as a specific person's personal account. Never ask for or accept a password, one-time code or other credential in Slack: anything posted there lands in memory and traces. If a task needs a login, stop at the login page and tell the user what you can't do and why instead of implying access you don't have.
 
 ## Live view
 
-<!-- TODO(slopradar): internal contradiction | "never pass --session" here, but Troubleshooting (lines 64-77) says retry with a fresh session and `agent-browser close --session <name>` | rewrite troubleshooting without --session -->
 Gorkie connects every `agent-browser` command to the sandbox's own browser and adds `--cdp` and `--session` for you. Never pass `--cdp`, `--session` or `connect` yourself: doing so bypasses the shared browser and the live view. When the browser first opens in a turn, a "gorkie is browsing" card with a live, view-only link is posted in the thread automatically, and it closes when the turn ends. Mention it once if it helps ("you can watch along in the live view above"); do not post your own copy of the link.
 
 ## Work WITH the user
@@ -25,8 +22,8 @@ Gorkie connects every `agent-browser` command to the sandbox's own browser and a
 ALWAYS treat the requesting user as a collaborator sitting next to you. Work is invisible to them unless you show it:
 
 - Narrate as you go: a short one-line explanation per meaningful step ("logging in", "form submitted, confirmation page loaded") keeps them in the loop without spamming.
-<!-- TODO(slopradar): review: safety | lists payments next to form submits as routine screenshot moments; guardrails.ts "Risky actions" names billing but not purchases | say to stop and get explicit confirmation before any payment, purchase or irreversible submit -->
-- Send screenshots of key steps with `upload_file`, after navigation milestones, before/after actions (submitting forms, payments, deletions), and whenever you claim something happened. A claim with a screenshot beats a paragraph.
+- Send screenshots of key steps with `upload_file`, after navigation milestones, before and after submitting forms, and whenever you claim something happened. A claim with a screenshot beats a paragraph.
+- Before any payment, purchase, deletion or other irreversible submit, stop, screenshot the page, and get the requester's explicit confirmation in the thread.
 - When building or changing a website: screenshot the result and VIEW it yourself with `view_image` before declaring success. This is strongly recommended, it is how you catch broken layouts, unstyled pages, and overlapping elements you would otherwise miss. Then send that screenshot to the user too.
 - Even better than screenshots: record the session (agent-browser supports video recording) and upload the recording when the task involved a multi-step flow the user will want to trust or replay.
 
@@ -53,35 +50,21 @@ Never use the browser to read or post in Slack. Use gorkie's Slack tools for tha
 
 Run `agent-browser skills list` to see everything available on the installed version.
 
-<!-- TODO(slopradar): no-op | "Why agent-browser" is upstream marketing (Cursor, Claude Code, auth vault) and changes no behaviour | delete -->
-## Why agent-browser
-
-- Fast native Rust CLI, not a Node.js wrapper
-- Works with any AI agent (Cursor, Claude Code, Codex, Continue, Windsurf, etc.)
-- Chrome/Chromium via CDP with no Playwright or Puppeteer dependency
-- Accessibility-tree snapshots with element refs for reliable interaction
-- Sessions, authentication vault, state persistence, video recording
-
 ## Troubleshooting
 
 ### Known bug: hung sessions
 
-**Symptom**: `agent-browser open` or `agent-browser close` hangs and times out with no output at all, and a *new* `--session` name doesn't help: every subsequent agent-browser call hangs too, not just the one session.
+**Symptom**: `agent-browser open` or `agent-browser close` hangs and times out with no output at all, and every later agent-browser call hangs too.
 
-**Cause**: the agent-browser daemon can get wedged, either by a crashed/frozen Chrome child that never gets reaped, or by a command that got killed mid-flight (e.g. by this sandbox's own `execute_command` timeout) without the daemon handling the cancellation cleanly. Once wedged, the daemon hangs on *every* call regardless of session name, because sessions share one daemon.
+**Cause**: the agent-browser daemon can get wedged, either by a crashed/frozen Chrome child that never gets reaped, or by a command that got killed mid-flight (e.g. by this sandbox's own `execute_command` timeout) without the daemon handling the cancellation cleanly. Once wedged, the daemon hangs on *every* call.
 
-**Do not** just retry with a different `--session` name, that never fixes a wedged daemon and only burns turns (this has happened repeatedly and wasted a lot of time). Instead, the moment a second consecutive hang happens on the same task:
+**Do not** keep retrying the same command; that never fixes a wedged daemon and only burns turns. The moment a second consecutive hang happens on the same task:
 
 ```bash
 pkill -9 -f 'agent-browser' 2>/dev/null
 find ~/.agent-browser -maxdepth 1 \( -name '*.sock' -o -name '*.pid' \) -delete 2>/dev/null
 ```
 
-Then retry once with a fresh session. If it hangs again, stop and report it instead of looping.
+Then retry once. If it hangs again, stop and report it instead of looping.
 
-This sandbox also **persists across turns in the thread**, so a session left open (never `close`d) can carry a live Chrome process into the next turn and cause this same hang later. Always `agent-browser close --session <name>` when you're done with a session, not just when you hit an error.
-
-<!-- TODO(slopradar): dead | the dashboard on port 4848 is unreachable for users (sandbox allowPublicTraffic: false) and the agent never needs it | delete -->
-## Observability Dashboard
-
-The dashboard runs independently of browser sessions on port 4848 and can also be opened through a proxied or forwarded URL such as `https://dashboard.agent-browser.localhost`. Agents should stay on the dashboard origin: session tabs, status, and stream traffic are proxied internally, so session ports do not need to be exposed.
+This sandbox also **persists across turns in the thread**, so a browser left open can carry a live Chrome process into the next turn and cause this same hang later. Run `agent-browser close` when you're done, not just when you hit an error.

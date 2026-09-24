@@ -1,13 +1,27 @@
 import type { E2BSandbox } from '@mastra/e2b';
 import { CommandExitError } from 'e2b';
 import { sandbox as sandboxConfig } from '../../config';
-import { githubAccessToken } from '../../lib/github';
+import { githubAccessToken, repoAccess } from '../../lib/github';
 import { logger } from '../../lib/logger';
 import { sh } from '../../lib/utils';
+import { hasLiveJob } from '../../workspace/jobs';
 import { baseRules } from '../../workspace/network';
 
 export const checkoutPath = (repository: string): string =>
   `${sandboxConfig.workdir}/${repository.replace('/', '__')}`;
+
+export const repoAccessFor = async ({
+  repository,
+  userId,
+}: {
+  repository: string;
+  userId: string;
+}): ReturnType<typeof repoAccess> => {
+  const token = await githubAccessToken(userId);
+  return token
+    ? await repoAccess({ repository, token })
+    : { error: 'GitHub is not connected.' };
+};
 
 export const git = async ({
   command,
@@ -41,8 +55,7 @@ export const git = async ({
     const { stdout } = await sandbox.e2b.commands.run(
       `if git config -z --list --name-only 2>/dev/null | grep -qizE ${sh(String.raw`^(url\..*\.(push)?insteadof|filter\.)`)}; then echo 'refused: git config sets url.*.insteadOf or filter.*, remove it first' >&2; exit 97; fi; ${command}`,
       {
-        // TODO(slopradar): simplification: weak conditional | `...(cwd ? { cwd } : {})` with no exactOptionalPropertyTypes in tsconfig; `cwd: undefined` is the same | pass `cwd` directly
-        ...(cwd ? { cwd } : {}),
+        cwd,
         envs: {
           GIT_CONFIG_NOSYSTEM: '1',
           GIT_CONFIG_GLOBAL: '/dev/null',
@@ -99,10 +112,12 @@ const oneWindowPerSandbox = async <T>({
 export const withCredential = async <T>({
   operation,
   sandbox,
+  threadId,
   userId,
 }: {
   operation: () => Promise<T>;
   sandbox: E2BSandbox;
+  threadId?: string;
   userId: string;
 }): Promise<T> => {
   const token = await githubAccessToken(userId);
@@ -113,8 +128,14 @@ export const withCredential = async <T>({
     sandboxId: sandbox.e2b.sandboxId,
     work: () =>
       sandbox.retryOnDead(async () => {
+        // The github.com rule covers the whole sandbox, so a background job
+        // running during the window could push with this token unapproved.
+        if (threadId && hasLiveJob(threadId)) {
+          throw new Error(
+            'A background command is still running in this sandbox, and GitHub credentials cannot be attached while it runs. Wait for it to finish or kill it, then try again.'
+          );
+        }
         try {
-          // TODO(slopradar): review: security (known open, TODO egress Q3; IMPLEMENTED.md:134) | the github.com Authorization transform applies to the whole sandbox for the window, so a concurrent run_background job (run-background.ts:161) or parallel execute_command can push or clone with the user's token, skipping push.ts approval and refuseDefaultBranch | resolve with the egress decision: refuse to open the window while a live job exists in the sandbox (workspace/jobs hasLiveJob), or scope the rule to the git process
           await sandbox.e2b.updateNetwork({
             rules: {
               ...baseRules(),

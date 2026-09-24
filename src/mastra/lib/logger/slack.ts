@@ -3,7 +3,6 @@ import { logger, logMeta } from '.';
 
 // Slack's error when the bot is already a member, the state every caller
 // wants. The WebClient logs it at warn anyway.
-// TODO(slopradar): review: architecture | a Slack API error code owned by the logger module; tools/slack/utils.ts and chat/onboarding.ts import it from a logger to compare API errors | move it beside the Slack client (chat/client.ts) and import it here
 export const ALREADY_IN_CHANNEL = 'already_in_channel';
 
 export const slackWebLogger: SlackLogger = {

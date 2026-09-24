@@ -51,6 +51,11 @@ export async function threadState(
   }
 }
 
+// Mastra's setState replaces the whole value, so two read-modify-writes on one
+// thread would each restore the snapshot they read. One process serves Slack,
+// so chaining writes per thread is enough.
+const pendingWrites = new Map<string, Promise<void>>();
+
 export async function setThreadState({
   thread,
   patch,
@@ -58,22 +63,30 @@ export async function setThreadState({
   thread: Pick<Thread, 'id'>;
   patch: ThreadState;
 }): Promise<void> {
-  // Unlike a read, a failed read here skips the write: writing the patch
-  // alone would erase whatever the unreadable state held.
-  try {
-    // TODO(slopradar): review: correctness | read-modify-write with no lock and no store-side merge: stopThread's dropMessagesBefore, runTurn's lastSeenMessage, syncTitle's lastSentSlackTitle and !focus/!display can interleave on one thread, and the later write restores the earlier snapshot, losing a patch | merge in the store (jsonb `||` upsert) or serialize writes per thread id
-    const current = await readThreadState(thread);
-    const store = await threadStateStore();
-    await store.setState({
-      threadId: thread.id,
-      type: stateType,
-      value: { ...current, ...patch },
-    });
-  } catch (error) {
-    logger.error('[chat] failed to save thread state', {
-      error,
-      threadId: thread.id,
-    });
+  const previous = pendingWrites.get(thread.id);
+  const write = (async () => {
+    await previous;
+    // Unlike a read, a failed read here skips the write: writing the patch
+    // alone would erase whatever the unreadable state held.
+    try {
+      const current = await readThreadState(thread);
+      const store = await threadStateStore();
+      await store.setState({
+        threadId: thread.id,
+        type: stateType,
+        value: { ...current, ...patch },
+      });
+    } catch (error) {
+      logger.error('[chat] failed to save thread state', {
+        error,
+        threadId: thread.id,
+      });
+    }
+  })();
+  pendingWrites.set(thread.id, write);
+  await write;
+  if (pendingWrites.get(thread.id) === write) {
+    pendingWrites.delete(thread.id);
   }
 }
 

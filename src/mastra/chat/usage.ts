@@ -1,5 +1,5 @@
 import { formatDistanceToNowStrict } from 'date-fns';
-import { recordTurn, turnUsage } from '../db/queries/usage';
+import { recordTurnWithinLimit } from '../db/queries/usage';
 import { logger } from '../lib/logger';
 import type { TurnClaim } from '../types';
 import { isModerator } from './moderation/moderators';
@@ -9,23 +9,21 @@ export async function claimTurn(userId: string): Promise<TurnClaim> {
     return { status: 'claimed' };
   }
   try {
-    // TODO(slopradar): review: correctness (Consider) | check-then-insert: turnUsage and recordTurn are separate statements, so concurrent messages from one user in several threads can all take the last free turn | one conditional insert (INSERT ... SELECT WHERE count < limit) or a per-user advisory lock
-    const { day, hour } = await turnUsage(userId);
-    const spent = [
-      { window: day, span: 'today' },
-      { window: hour, span: 'this hour' },
-    ].find(({ window }) => window.remaining === 0);
-    if (spent) {
-      const wait = spent.window.resetsAt
-        ? ` try again in ${formatDistanceToNowStrict(spent.window.resetsAt)}.`
-        : '';
-      return {
-        status: 'over-limit',
-        notice: `you've used all ${spent.window.limit} of your gorkie turns ${spent.span}.${wait} your home tab shows what's left.`,
-      };
+    const { recorded, usage } = await recordTurnWithinLimit(userId);
+    if (recorded) {
+      return { status: 'claimed' };
     }
-    await recordTurn(userId);
-    return { status: 'claimed' };
+    const spent =
+      usage.day.remaining === 0
+        ? { window: usage.day, span: 'today' }
+        : { window: usage.hour, span: 'this hour' };
+    const wait = spent.window.resetsAt
+      ? ` try again in ${formatDistanceToNowStrict(spent.window.resetsAt)}.`
+      : '';
+    return {
+      status: 'over-limit',
+      notice: `you've used all ${spent.window.limit} of your gorkie turns ${spent.span}.${wait} your home tab shows what's left.`,
+    };
   } catch (error) {
     logger.error('[usage] turn limit check failed', { error, userId });
     return { status: 'unchecked' };

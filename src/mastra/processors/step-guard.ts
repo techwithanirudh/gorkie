@@ -13,7 +13,6 @@ interface Scan {
   mode: 'text' | 'think' | 'annotation' | 'tool_call';
 }
 
-// TODO(slopradar): simplification: duplicate source of truth | the five tag names are listed in the regex and again in markupTags | declare the name list once and build both the RegExp and the open/close strings from it
 const markupTag = /<(\/?)(think|annotation|tool_call|arg_key|arg_value)>/;
 const markupTags = [
   'think',

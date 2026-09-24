@@ -1,9 +1,8 @@
 ---
 name: unslop
-description: Cut AI tells from any writing. Must always apply.
+description: Cut AI tells from writing. Use when polishing prose for a human, such as a write-up, announcement, email, doc, or page copy, or when someone asks to make text sound less like AI.
 ---
 
-<!-- TODO(slopradar): skill format + duplication | "Must always apply" has no trigger branch and is false for an on-demand runtime skill; if it must always apply it belongs in prompts/personality.ts. The file is also a byte-identical copy of the dev skill .agents/skills/unslop/SKILL.md | give it a trigger ("when polishing prose for a human") or fold it into the prompt, and keep one source -->
 # Unslop
 
 Edit text to remove AI patterns and add human voice.

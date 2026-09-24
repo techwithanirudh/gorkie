@@ -1,10 +1,10 @@
 import type { RequestContext } from '@mastra/core/request-context';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+import { logger } from '../../lib/logger';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { sh } from '../../lib/utils';
-// TODO(slopradar): CODING_STANDARDS: direct names | `sandboxPath as p` alias (see artifacts.ts band) | import `sandboxPath` unaliased
-import { sandboxPath as p, requireSandbox } from '../../workspace';
+import { requireSandbox, sandboxPath } from '../../workspace';
 import { fetchPrivateSlackFile, readableFile } from './utils';
 
 function formatBytes(value: number): string {
@@ -37,13 +37,13 @@ async function downloadSlackFile({
   spendSlackCall(requestContext);
 
   const { file: fileInfo } = await readableFile({ fileId, requestContext });
-  const url = fileInfo?.url_private_download ?? fileInfo?.url_private;
+  const url = fileInfo.url_private_download ?? fileInfo.url_private;
   if (!url) {
     throw new Error(
       `Could not resolve a download URL for Slack file ${fileId}. It may have been deleted, or the bot may not have access to it.`
     );
   }
-  const sanitized = (filename ?? fileInfo?.name ?? fileId).replace(
+  const sanitized = (filename ?? fileInfo.name ?? fileId).replace(
     /[^\w.-]+/g,
     '_'
   );
@@ -51,16 +51,17 @@ async function downloadSlackFile({
     sanitized === '' || sanitized === '.' || sanitized === '..'
       ? 'slack-file'
       : sanitized;
-  const path = p('downloads', name);
-  await sandbox.retryOnDead(() => sandbox.e2b.files.makeDir(p('downloads')));
-  // TODO(slopradar): simplification: over-engineering (owner question) | ~100 lines of cross-call resume (.part/.next/.merge files, Range requests, cat merge) for a tool that downloads one Slack file per call; a resume only helps when an earlier call died mid-stream with the same name | stream straight to `${path}.part`, verify size, rename; drop the Range/merge path unless a real large-file failure justifies it
+  const path = sandboxPath('downloads', name);
+  await sandbox.retryOnDead(() =>
+    sandbox.e2b.files.makeDir(sandboxPath('downloads'))
+  );
   const partPath = `${path}.${fileId}.part`;
   const nextPath = `${path}.${fileId}.next`;
   const mergePath = `${path}.${fileId}.merge`;
   const formatResult = (size: number) => ({
     path,
     filename: name,
-    mimeType: fileInfo?.mimetype,
+    mimeType: fileInfo.mimetype,
     size,
   });
   // Removing a leftover that does not exist throws; that is the normal case.
@@ -73,24 +74,16 @@ async function downloadSlackFile({
     });
   };
   const expectedSize =
-    fileInfo?.size ??
-    // TODO(slopradar): CODING_STANDARDS: no swallowed catch | a failed HEAD is silently dropped and the download then skips size verification | log at debug with the error, or say why it is ignorable
+    fileInfo.size ??
     (await fetchPrivateSlackFile({ method: 'HEAD', signal: abortSignal, url })
       .then((response) =>
         // A missing header is unknown, not zero: Number(null) is 0.
         Number(response.headers.get('content-length') ?? Number.NaN)
       )
       .then((size) => (Number.isFinite(size) && size >= 0 ? size : undefined))
-      .catch(() => undefined));
-
-  // getInfo throws when there is no earlier download to reuse or resume.
-  // TODO(slopradar): review: correctness | the reuse check keys on filename + size, not file id, so a different Slack file with the same sanitized name and byte size (e.g. two `image.png` uploads) returns the old file's contents | include the fileId in the saved name, or store and compare the file id
-  const existingFinal = await sandbox
-    .retryOnDead(() => sandbox.e2b.files.getInfo(path))
-    .catch(() => undefined);
-  if (expectedSize !== undefined && existingFinal?.size === expectedSize) {
-    return formatResult(expectedSize);
-  }
+      .catch((error: unknown) => {
+        logger.debug('[slack] file size probe failed', { error, fileId });
+      }));
 
   if (expectedSize === 0) {
     await sandbox.retryOnDead(() =>
@@ -99,6 +92,7 @@ async function downloadSlackFile({
     return formatResult(expectedSize);
   }
 
+  // getInfo throws when there is no earlier partial download to resume.
   const existingPart = await sandbox
     .retryOnDead(() => sandbox.e2b.files.getInfo(partPath))
     .catch(() => undefined);

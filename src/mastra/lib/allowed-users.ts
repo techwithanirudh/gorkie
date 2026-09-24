@@ -1,6 +1,5 @@
 import { Chat } from 'chat';
 import { env } from '@/env';
-// TODO(slopradar): review: architecture | lib/ imports chat/client and wires Chat and Slack channel events in buildAllowlist, so a shared module owns a Slack feature and the dependency points upward | move allowed-users.ts into src/mastra/chat/ next to onboarding.ts, its other writer
 import { slack } from '../chat/client';
 import type { OptInStatus } from '../types';
 import { rawId } from './ids';

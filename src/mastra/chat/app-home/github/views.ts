@@ -1,6 +1,6 @@
 import { CardText, Modal, RadioSelect } from 'chat';
 import { type GitHubSettings, githubPermissionSchema } from '../../../types';
-import { PRESETS } from '../presets';
+import { PRESETS, SCOPE_LABELS, scopeSchema } from '../presets';
 import { ids } from './ids';
 
 export function configureModal({ permission, threads }: GitHubSettings) {
@@ -13,20 +13,15 @@ export function configureModal({ permission, threads }: GitHubSettings) {
         id: ids.scope,
         label: 'Where can Gorkie use GitHub?',
         initialOption: threads ? 'threads' : 'dm',
-        options: [
-          {
-            label: 'Only in a DM with you',
-            description:
-              'In a shared thread Gorkie writes up the task and DMs it to you instead.',
-            value: 'dm',
-          },
-          {
-            label: 'Anywhere, including shared threads (dangerous)',
-            description:
+        options: scopeSchema.unwrap().options.map((value) => ({
+          label: SCOPE_LABELS[value],
+          description: {
+            dm: 'In a shared thread Gorkie writes up the task and DMs it to you instead.',
+            threads:
               'Anyone in the thread can steer it, and checked-out code stays readable.',
-            value: 'threads',
-          },
-        ],
+          }[value],
+          value,
+        })),
       }),
       RadioSelect({
         id: ids.permission,

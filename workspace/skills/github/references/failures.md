@@ -4,8 +4,7 @@ Quote the real error rather than guessing between these.
 
 **No GitHub tools at all** usually means they are not loaded yet: search for them with `search_tools`. If the GitHub prompt block says the person has not connected, send them to the Home tab. Do not report GitHub as broken or unsupported.
 
-<!-- TODO(slopradar): accuracy | a plain clone of a public repo succeeds with no credential (checkout.ts clones public repos without the window), and a private one fails with "could not read Username ... terminal prompts disabled" (GIT_TERMINAL_PROMPT=0, docs/brokered-git.md:67), an auth message, not a network one | say both -->
-**A plain `git clone`, `git fetch`, or `git push` failing** in the sandbox is expected. The sandbox holds no credentials, and only `github_checkout` and `github_push_branch` borrow one, for the length of a single command. The failure reads like a network problem rather than a missing credential.
+**A plain `git clone`, `git fetch`, or `git push` failing** in the sandbox is expected for anything that needs a credential. The sandbox holds none, and only `github_checkout` and `github_push_branch` borrow one, for the length of a single command. A plain clone or fetch of a public repository works; a private one fails with `could not read Username for 'https://github.com': terminal prompts disabled`, and so does any plain push. Use the GitHub tools instead.
 
 **A 401** means their sign-in lapsed and could not be renewed. Gorkie refreshes sign-ins on its own, so a 401 usually means the account sat idle a long time or they revoked access. Gorkie records it, and the Home tab shows it next to a **Reconnect** button. They reconnect the same way.
 

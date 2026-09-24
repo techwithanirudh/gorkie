@@ -21,7 +21,6 @@ import { observability as observabilityConfig, shutdown } from './config';
 import { runMigrations } from './db';
 import { postgresStore } from './db/client';
 import { buildAllowlist } from './lib/allowed-users';
-import { channelSchema } from './lib/context';
 import { verifyLiveViewTicket } from './lib/crypto';
 import { rawId } from './lib/ids';
 import { logger } from './lib/logger';
@@ -31,13 +30,23 @@ import { trimPayloads } from './observability/trim-payloads';
 import { liveViewRoutes } from './server/live-view';
 import { oauthRoutes } from './server/oauth';
 import { isWaitSchedule } from './tools/scheduled-tasks/queries';
+import { channelSchema } from './types';
 
 process.on('unhandledRejection', (err: unknown) => {
   logger.error('[process] unhandled rejection', { err });
 });
-// TODO(slopradar): review: correctness | logging and carrying on after an uncaught exception leaves the process in an undefined state (Node docs: not safe to resume), e.g. a half-applied migration or a dead Socket Mode client that never reconnects | log, then process.exit(1) and let the supervisor restart; or record in AGENTS.md that staying up is a deliberate owner call
-process.on('uncaughtException', (err: Error) => {
-  logger.error('[process] uncaught exception', { err });
+// Node does not support resuming after an uncaught exception. Drain the turns
+// in flight, then exit non-zero so systemd restarts the process.
+process.once('uncaughtException', (err: Error) => {
+  logger.error('[process] uncaught exception, shutting down', { err });
+  mastra
+    .shutdown({ drainTimeout: shutdown.drainTimeoutMs })
+    .catch((error: unknown) => {
+      logger.error('[process] shutdown after an uncaught exception failed', {
+        error,
+      });
+    })
+    .finally(() => process.exit(1));
 });
 
 const isProduction = env.NODE_ENV === 'production';
@@ -92,6 +101,47 @@ async function deleteFiredWait({
   }
 }
 
+// Only `null` skips a fire; `undefined` fires it with the row's defaults.
+async function gateScheduledFire({
+  mastra: runtime,
+  schedule,
+}: {
+  mastra: Mastra;
+  schedule: { id: string };
+}): Promise<null | undefined> {
+  const current = await runtime.schedules.get(schedule.id);
+  if (!current) {
+    return null;
+  }
+  const creator =
+    z
+      .object({ channel: channelSchema })
+      .safeParse(
+        'ifIdle' in current
+          ? current.ifIdle?.streamOptions?.requestContext
+          : undefined
+      ).data?.channel.userId ?? current.resourceId;
+  if (!creator) {
+    logger.warn('[schedules] skipped a fire with no resolvable creator', {
+      scheduleId: schedule.id,
+    });
+    return null;
+  }
+  if ((await banStatus(creator)).status === 'banned') {
+    logger.info("[schedules] skipped a banned user's fire", {
+      scheduleId: schedule.id,
+    });
+    return null;
+  }
+  if ((await claimTurn(rawId(creator))).status === 'over-limit') {
+    logger.info('[schedules] skipped a fire over the turn limit', {
+      scheduleId: schedule.id,
+      userId: creator,
+    });
+    return null;
+  }
+}
+
 export const mastra = new Mastra({
   agents: { orchestrator, summarizer, research, explore },
   server: {
@@ -112,39 +162,7 @@ export const mastra = new Mastra({
       : {}),
   },
   schedules: {
-    // TODO(slopradar): CODING_STANDARDS: no large inline closures | a ~30-line async closure inside the Mastra config literal | move to a named module-scope function (e.g. gateScheduledFire) next to deleteFiredWait
-    prepare: async ({ mastra: runtime, schedule }) => {
-      const current = await runtime.schedules.get(schedule.id);
-      // TODO(slopradar): review: correctness | per core schedules/types.d.ts:158, `undefined` means "fire with row defaults" and only `null` skips, so a schedule deleted between claim and prepare still fires | return null
-      if (!current) {
-        return;
-      }
-      const creator =
-        z
-          .object({ channel: channelSchema })
-          .safeParse(
-            'ifIdle' in current
-              ? current.ifIdle?.streamOptions?.requestContext
-              : undefined
-          ).data?.channel.userId ?? current.resourceId;
-      // TODO(slopradar): review: security | fail open: a schedule whose creator cannot be resolved returns undefined, which fires with no ban check and no usage-limit claim, the opposite of the fail-closed stance used for approvals | return null (skip) and log the scheduleId
-      if (!creator) {
-        return;
-      }
-      if ((await banStatus(creator)).status === 'banned') {
-        logger.info("[schedules] skipped a banned user's fire", {
-          scheduleId: schedule.id,
-        });
-        return null;
-      }
-      if ((await claimTurn(rawId(creator))).status === 'over-limit') {
-        logger.info('[schedules] skipped a fire over the turn limit', {
-          scheduleId: schedule.id,
-          userId: creator,
-        });
-        return null;
-      }
-    },
+    prepare: gateScheduledFire,
     onFinish: deleteFiredWait,
     onError: deleteFiredWait,
     onAbort: deleteFiredWait,

@@ -45,8 +45,6 @@ export async function offerOptIn({
               id: optInIds.accept,
               label: 'i accept, opt me in',
               style: 'primary',
-              // TODO(slopradar): simplification: dead data | acceptOptIn never reads event.value | drop `value: thread.id`
-              value: thread.id,
             }),
           ]),
         ],

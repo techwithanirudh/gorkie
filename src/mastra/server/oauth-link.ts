@@ -23,7 +23,6 @@ export function oauthStartLink({
   return `${env.PUBLIC_BASE_URL}/oauth/${provider}/start?t=${signed}`;
 }
 
-// TODO(slopradar): review: correctness | PUBLIC_BASE_URL is optional, so this returns 'undefined/oauth/<provider>/callback' when it is unset; mcp/user-servers/client.ts:99 calls it for any stored OAuth server without checking | return string | undefined like oauthStartLink and have the caller report sign-in as unavailable
 export function oauthRedirectUri(provider: OAuthProvider): string {
   return `${env.PUBLIC_BASE_URL}/oauth/${provider}/callback`;
 }

@@ -15,17 +15,22 @@ import {
   recordGitHubUnauthorized,
 } from '../../lib/github';
 import { logger } from '../../lib/logger';
-import type { GitHubCredential, HomeSection, TurnUsage } from '../../types';
+import {
+  type GitHubCredential,
+  githubPermissionSchema,
+  type HomeSection,
+  type TurnUsage,
+} from '../../types';
 import { slack } from '../client';
 import { content } from '../content';
 import { banNotice } from '../moderation/cards';
 import { isModerator } from '../moderation/moderators';
-import { githubBlocks } from './github';
-import { customInstructionsBlocks } from './instructions';
+import { githubBlocks } from './github/blocks';
+import { customInstructionsBlocks } from './instructions/blocks';
 import { fitHome } from './limit';
-import { mcpServersBlocks } from './mcp';
-import { scheduledTasksBlocks } from './scheduled-tasks';
-import { toolDisplayBlocks } from './tool-display';
+import { mcpServersBlocks } from './mcp/blocks';
+import { scheduledTasksBlocks } from './scheduled-tasks/blocks';
+import { toolDisplayBlocks } from './tool-display/blocks';
 import { usageBlocks } from './usage';
 
 async function settled<T>({
@@ -88,23 +93,26 @@ export async function publishHome(userId: string): Promise<void> {
     settled({ label: 'mcp', userId, work: listMCPServers(userId) }),
     settled({ label: 'mcp threads', userId, work: getMCPThreads(userId) }),
     credentialResult,
-    // TODO(slopradar): review: correctness | the only section not wrapped in settled(): githubAccessToken reads the DB and refreshes the token (lib/github/token.ts L87), so a DB blip rejects the Promise.all and the whole Home tab fails to publish; it also calls GitHub /user/installations on every Home open | wrap it in settled({ label: 'installations', ... }) and default to 0; Consider caching the count
-    credentialResult.then(async ({ credential }) => {
-      const token =
-        credential && !credential.lastError
-          ? await githubAccessToken(userId)
-          : undefined;
-      if (!token) {
+    settled({
+      label: 'installations',
+      userId,
+      work: credentialResult.then(async ({ credential }) => {
+        const token =
+          credential && !credential.lastError
+            ? await githubAccessToken(userId)
+            : undefined;
+        if (!token) {
+          return 0;
+        }
+        const installations = await countInstallations(token);
+        if ('count' in installations) {
+          return installations.count;
+        }
+        if (installations.status === 401) {
+          await recordGitHubUnauthorized(userId);
+        }
         return 0;
-      }
-      const installations = await countInstallations(token);
-      if ('count' in installations) {
-        return installations.count;
-      }
-      if (installations.status === 401) {
-        await recordGitHubUnauthorized(userId);
-      }
-      return 0;
+      }),
     }),
     settled({ label: 'settings', userId, work: getGitHubSettings(userId) }),
     settled({
@@ -129,9 +137,8 @@ export async function publishHome(userId: string): Promise<void> {
     ...(usage ? [usageBlocks(usage)] : []),
     githubBlocks({
       credential,
-      installations,
-      // TODO(slopradar): CODING_STANDARDS: canonical default | 'all' repeats githubPermissionSchema's .catch('all') (types/github.ts:37) | use githubPermissionSchema.parse(undefined) or export the default from types/
-      permission: github?.permission ?? 'all',
+      installations: installations ?? 0,
+      permission: githubPermissionSchema.parse(github?.permission),
       threads: github?.threads === true,
       unreadable,
       userId,
@@ -148,4 +155,12 @@ export async function publishHome(userId: string): Promise<void> {
     type: 'home',
     blocks: fitHome(sections),
   });
+}
+
+// The Home refresh reads the DB and calls GitHub, so it must not hold a Slack
+// ack: Chat SDK answers view_submission only after the submit handler returns.
+export function refreshHome(userId: string): void {
+  publishHome(userId).catch((error: unknown) =>
+    logger.warn('[app-home] could not refresh the Home tab', { error, userId })
+  );
 }

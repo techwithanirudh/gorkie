@@ -5,7 +5,7 @@ const slackRawText = z.looseObject({ text: z.string() });
 
 // Slack adds the |name when the text was escaped, as slash commands with
 // should_escape are.
-export const userMention = /<@([UW][A-Z0-9]+)(?:\|[^>]*)?>/;
+export const userMention = /<@([UW][A-Z0-9]+)(?:\|([^>]*))?>/;
 
 export function rawText(message: Message): string {
   const raw = slackRawText.safeParse(message.raw);
@@ -13,7 +13,7 @@ export function rawText(message: Message): string {
 }
 
 export function withoutLeadingMentions(text: string): string {
-  return text.replace(/^\s*(?:<@[A-Z0-9][A-Z0-9._-]*(?:\|[^>]+)?>\s*)+/, '');
+  return text.replace(new RegExp(`^\\s*(?:${userMention.source}\\s*)+`), '');
 }
 
 export function isComment(message: Message): boolean {

@@ -56,8 +56,7 @@ These patterns came out of real LLM-generated landing-page tests. They are the s
 * **NO decorative colored status dots on every list/nav/badge.** A colored dot before "ONE Q4 SLOT OPEN" or before every nav link, or every task row - banned by default. Acceptable only when the dot conveys actual semantic state (a server status, an availability flag) and is used sparingly.
 
 **Em-dashes & typography flourishes**
-<!-- TODO(slopradar): cross-skill contradiction | "use the regular hyphen (-)" in place of an em dash is the hyphen-as-dash substitute that the unslop skill (item 13) bans | say "use a comma or period" -->
-* **NO em-dash (`—`) as a design element OR anywhere else.** See Section 9.G below for the complete, non-negotiable ban. The em-dash character is forbidden in headlines, eyebrows, pills, body copy, quotes, attribution, captions, button text, and alt text. Use the regular hyphen (`-`).
+* **NO em-dash (`—`) as a design element OR anywhere else.** See Section 9.G below for the complete, non-negotiable ban. The em-dash character is forbidden in headlines, eyebrows, pills, body copy, quotes, attribution, captions, button text, and alt text. Use a comma or period.
 * **NO `<br>`-broken-and-italicized headlines** as a default "design move." "for thirty\<br\>*years.*" type splits. Headlines should read naturally first, get clever only when the brief demands it.
 * **NO vertical rotated text** ("INDEX OF WORK, 2018 - 2026" rotated 90°). Agency-portfolio cliché. Use it only when the brief is explicitly agency / Awwwards / experimental AND it serves a real composition purpose.
 * **NO crosshair / hairline grid lines as decoration.** Vertical and horizontal lines drawn just to make the page "feel designed" - banned. Use them only when they organize real content.
@@ -99,8 +98,8 @@ These patterns came out of real LLM-generated landing-page tests. They are the s
 
 * **Banned in headlines.** Use a period or a comma.
 * **Banned in eyebrows / labels / pills / button text / image captions / nav items.** Replace with line breaks, columns, or hairlines.
-* **Banned in body copy.** Restructure the sentence: two sentences with a period, OR a comma, OR parentheses, OR a colon.
-* **Banned in quote attribution.** Use a normal hyphen with spaces (` - `) or a line break + smaller-weight name.
+* **Banned in body copy.** Restructure the sentence: two sentences with a period, or a comma.
+* **Banned in quote attribution.** Put the name on its own line in a smaller weight.
 * **Banned in en-dash form too (`–`) when used as a separator.** Date ranges (`2018-2026`) use a hyphen. Number ranges (`€40-80k`) use a hyphen.
 
 The ONLY permitted dash characters on the page are:

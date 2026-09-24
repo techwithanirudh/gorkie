@@ -16,9 +16,8 @@ at commit `0d630a2`.
 GitHub tools act as the person who connected the account. They work in a DM
 with that person. In a shared thread they work only if that person enabled
 shared threads in App Home, and approvals follow their App Home approval
-<!-- TODO(slopradar): accuracy | "github_checkout always asks" in a shared thread is wrong: its requireApproval only fires when the repo needs a credential (tools/github/checkout.ts:37-40), so a public repo clones without asking, as this doc's own line 38-40 says | "github_checkout asks before any private clone" -->
 setting either way, except that in a shared thread "never ask" falls back to
-asking before writing and `github_checkout` always asks.
+asking before writing and `github_checkout` asks before any private clone.
 
 ## Code
 
@@ -63,8 +62,8 @@ directory; gorkie derives a directory per repository.
 
 ## Verified
 
-<!-- TODO(slopradar): accuracy: stale | verified against `gorkie-workspace:2.0`, but the template is now `gorkie-workspace:2.1` (config.ts:5) | re-run the checks on 2.1 or say the result dates from 2.0 -->
-Against `gorkie-workspace:2.0` and a real private repository:
+Against `gorkie-workspace:2.0` and a real private repository. The template is
+now `2.1`; these checks have not been re-run on it:
 
 - A clone with no `github.com` rule fails (`could not read Username`); with the
   rule it succeeds.

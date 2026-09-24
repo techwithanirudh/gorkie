@@ -1,13 +1,14 @@
 ---
 name: taste-skill
-description: Anti-slop frontend skill for landing pages, portfolios, and redesigns. The agent reads the brief, infers the right design direction, and ships interfaces that do not look templated. Real design systems when applicable, audit-first on redesigns, strict pre-flight check.
+description: Anti-slop frontend skill for landing pages, portfolios, and redesigns. Use when someone asks to build, design, or redesign a website, landing page, portfolio, or marketing page, or says a page looks generic or templated. Reads the brief, infers the design direction, and ships interfaces that do not look templated, with a strict pre-flight check.
 ---
 
-<!-- TODO(slopradar): skill format: trigger | the description has no "Use when" branch; it fires only because prompts/core.ts:38 names it. The body also assumes a React/Tailwind project and never says how the page reaches the user (wrangler --temporary) | add trigger branches and one delivery line pointing at the wrangler skill -->
 # tasteskill: Anti-Slop Frontend Skill
 
 > Landing pages, portfolios, and redesigns. Not dashboards, not data tables, not multi-step product UI.
 > Every rule below is **contextual**. None of it fires automatically. First read the brief, then pull only what fits.
+
+The user sees the page only once it is deployed: ship a single page with the `web-page` skill, and anything with its own build with the `wrangler` skill (`wrangler deploy --temporary`). Screenshot the live URL with agent-browser and check it with `view_image` before sharing it.
 
 This file holds the brief inference, the dials, the scope and the pre-flight check. The detailed rules live in `references/`; read a file with `skill_read` (skillName `taste-skill`, path `references/<file>`) when the work touches it. Section numbers cited anywhere in this skill resolve through this index:
 

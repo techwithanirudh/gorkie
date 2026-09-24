@@ -1,4 +1,4 @@
-import type { Message } from 'chat';
+import type { Attachment, Message } from 'chat';
 import { parseMarkdown } from 'chat';
 
 // Channels' default inlineMedia list (DEFAULT_INLINE_MEDIA_TYPES in
@@ -11,6 +11,23 @@ const inlinedTypes = new Set([
   'application/pdf',
 ]);
 
+// Chat SDK attachments carry no Slack file id, but url_private embeds it.
+export function attachmentLabel({
+  attachment,
+  index,
+}: {
+  attachment: Attachment;
+  index: number;
+}): string {
+  const id = attachment.url?.match(/\bF[A-Z0-9]{6,}\b/)?.[0];
+  return [
+    attachment.name ?? `file-${index + 1}`,
+    id ? `file id ${id}` : attachment.url,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
 export function attachments(message: Message): Message {
   if (message.attachments.length === 0) {
     return message;
@@ -19,7 +36,7 @@ export function attachments(message: Message): Message {
   const text = [
     message.text,
     'Slack attachments:',
-    ...message.attachments.map((attachment, i) => {
+    ...message.attachments.map((attachment, index) => {
       const size = attachment.size
         ? `${Math.ceil(attachment.size / 1024 / 1024)} MB`
         : undefined;
@@ -27,11 +44,9 @@ export function attachments(message: Message): Message {
         attachment.mimeType ||
         (attachment.type === 'image' ? 'image/png' : undefined);
       const details = [
-        attachment.name ?? `file-${i + 1}`,
+        attachmentLabel({ attachment, index }),
         attachment.mimeType,
         size,
-        // TODO(slopradar): review: correctness | the closing line (L40) tells the model to call get_slack_file with a Slack file id, but this list only gives the url; history.ts L55 extracts the F-id from the url for exactly this | include the file id (share history.ts's extraction) next to or instead of the url
-        attachment.url,
         mimeType && inlinedTypes.has(mimeType)
           ? 'attached to this message, so you can already see it'
           : 'not downloaded',

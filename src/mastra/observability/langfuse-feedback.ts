@@ -10,7 +10,6 @@ import { logger } from '../lib/logger';
 export class LangfuseFeedbackExporter extends BaseExporter {
   name = 'langfuse-feedback';
 
-  // TODO(slopradar): simplification: duplicate client | builds a second LangfuseClient from the same credentials, never shut down; LangfuseExporter exposes its own through the `client` getter (node_modules/@mastra/langfuse/dist/tracing.d.ts) | build the LangfuseExporter once in index.ts and pass it in, using `exporter.client` to create scores, so one client owns batching and shutdown
   private readonly langfuse = new LangfuseClient({
     baseUrl: env.LANGFUSE_BASE_URL,
     publicKey: env.LANGFUSE_PUBLIC_KEY,

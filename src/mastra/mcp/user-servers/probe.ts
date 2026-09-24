@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { MCPClient } from '@mastra/mcp';
 import { mcp as mcpConfig } from '../../config';
 import { logger } from '../../lib/logger';
@@ -13,9 +14,10 @@ export async function probeMCPConnection({
   server: MCPServerConfig;
 }): Promise<{ error: string | null; httpStatus: number | undefined }> {
   const url = new URL(server.url);
-  // TODO(slopradar): review: correctness (low) | a fixed id makes a concurrent probe of the same server (double-submitted modal) get the existing instance back (node_modules/@mastra/mcp/dist/index.js:23349-23360) and the first probe's `finally` disconnect kills the second; a different-config probe with the same id disconnects the in-flight one | suffix the id with crypto.randomUUID()
+  // MCPClient hands back, or disconnects, a live instance under the same id,
+  // so two overlapping probes of one server need their own.
   const probe = new MCPClient({
-    id: `mcp-probe-${userId}-${server.name}`,
+    id: `mcp-probe-${userId}-${server.name}-${randomUUID()}`,
     servers: {
       [server.name]: {
         connectTimeout: mcpConfig.probeTimeoutMs,

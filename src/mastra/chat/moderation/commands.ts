@@ -1,18 +1,14 @@
 import type { SlashCommandChannelHandler } from '@mastra/core/channels';
 import { z } from 'zod';
 import { activeBans } from '../../db/queries/moderation';
+import { rawId } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 import { banDurationSchema } from '../../types';
+import { slack } from '../client';
 import { userMention } from '../message';
-import { banGuard, decide } from '.';
+import { decide } from '.';
 import { until } from './cards';
 import { isModerator } from './moderators';
-
-// TODO(slopradar): CODING_STANDARDS: no one-use constants | BAN_COMMANDS, UNBAN_COMMANDS and MENTION are each read once (L57, L58, L69) | inline them at the use site
-const BAN_COMMANDS = new Set(['/ban', '/dev-ban']);
-const UNBAN_COMMANDS = new Set(['/unban', '/dev-unban']);
-
-const MENTION = new RegExp(`^${userMention.source}\\s*(.*)$`, 's');
 
 const rawSchema = z.looseObject({
   response_url: z.url({ hostname: /^hooks\.slack\.com$/ }),
@@ -55,8 +51,8 @@ async function listBans(): Promise<string> {
 }
 
 export const onSlashCommand: SlashCommandChannelHandler = async (event) => {
-  const isBan = BAN_COMMANDS.has(event.command);
-  if (!(isBan || UNBAN_COMMANDS.has(event.command))) {
+  const isBan = ['/ban', '/dev-ban'].includes(event.command);
+  if (!(isBan || ['/unban', '/dev-unban'].includes(event.command))) {
     return;
   }
   const actorId = event.user.userId;
@@ -67,16 +63,25 @@ export const onSlashCommand: SlashCommandChannelHandler = async (event) => {
     });
     return;
   }
-  const [, userId, rest = ''] = event.text.trim().match(MENTION) ?? [];
+  const [, userId, , rest = ''] =
+    event.text
+      .trim()
+      .match(new RegExp(`^${userMention.source}\\s*(.*)$`, 's')) ?? [];
   if (!userId) {
     await reply({
       raw: event.raw,
-      // TODO(slopradar): CODING_STANDARDS: one canonical union | `[1h|1d|7d|30d|perm]` re-lists banDurationSchema's options by hand | build it from banDurationSchema.options.join('|')
-      text: `usage: \`${event.command} @user${isBan ? ' [1h|1d|7d|30d|perm]' : ''} [reason]\`\n\n*active bans*\n${await listBans()}`,
+      text: `usage: \`${event.command} @user${isBan ? ` [${banDurationSchema.options.join('|')}]` : ''} [reason]\`\n\n*active bans*\n${await listBans()}`,
     });
     return;
   }
-  const refusal = banGuard({ actorId, userId });
+  let refusal: string | undefined;
+  if (rawId(userId) === rawId(actorId)) {
+    refusal = "you can't ban yourself.";
+  } else if (isModerator(userId)) {
+    refusal = "moderators can't be banned. remove them from MODERATORS first.";
+  } else if (slack.botUserId && rawId(userId) === slack.botUserId) {
+    refusal = "gorkie can't ban itself.";
+  }
   if (refusal) {
     await reply({ raw: event.raw, text: refusal });
     return;
@@ -92,20 +97,15 @@ export const onSlashCommand: SlashCommandChannelHandler = async (event) => {
     return;
   }
   const [first = '', ...words] = rest.trim().split(/\s+/);
-  const duration = banDurationSchema.safeParse(first);
-  const reason = (duration.success ? words : [first, ...words])
-    .join(' ')
-    .trim();
-  // TODO(slopradar): simplification: duplicated default | the 'perm' fallback is written here twice (L101, L106) and again as decide()'s default (index.ts L61) | compute it once here and drop decide's default
+  const parsed = banDurationSchema.safeParse(first);
+  const duration = parsed.data ?? 'perm';
+  const reason = (parsed.success ? words : [first, ...words]).join(' ').trim();
   await decide({
     action: 'ban',
     actorId,
     userId,
-    duration: duration.data ?? 'perm',
+    duration,
     reason: reason || undefined,
   });
-  await reply({
-    raw: event.raw,
-    text: `banned <@${userId}> (${duration.data ?? 'perm'}).`,
-  });
+  await reply({ raw: event.raw, text: `banned <@${userId}> (${duration}).` });
 };

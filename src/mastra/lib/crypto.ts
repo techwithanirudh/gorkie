@@ -77,7 +77,6 @@ export function decryptSecret(stored: string): string {
     }
     return unseal({ body: versioned[2] ?? '', key: key.key });
   }
-  // TODO(slopradar): simplification: dead code (owner question) | `v1.` never shipped: main stores plaintext (`git show main:src/mastra/db/schema/mcps.ts`), v1 exists only in dev DBs from this branch, and resealSecrets rewrites every v1 row to v2 on boot | once the owner's DB has booted this build, delete this v1 branch and the `v1.` check in isEncryptedSecret, keeping v2 plus legacy plaintext
   if (!stored.startsWith('v1.')) {
     throw new Error('Stored secret is not encrypted.');
   }
@@ -119,8 +118,10 @@ export function signOAuthToken(token: Omit<OAuthToken, 'nonce'>): {
     token.target ? { factoryProjectId: token.target } : undefined
   );
   const tenant = stateSigner.verify(signed);
-  // TODO(slopradar): CODING_STANDARDS: no fallbacks for impossible states | verifying a state this process just signed cannot fail, and the '' fallback would silently set a cookie that never matches | `if (!tenant) throw new Error('state signer rejected its own state')`, then return tenant.nonce
-  return { nonce: tenant ? tenant.nonce : '', signed };
+  if (!tenant) {
+    throw new Error('State signer rejected its own state.');
+  }
+  return { nonce: tenant.nonce, signed };
 }
 
 export function verifyOAuthToken({

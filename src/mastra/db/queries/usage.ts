@@ -8,10 +8,16 @@ import { usageTurns } from '../schema';
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 
-export async function turnUsage(userId: string): Promise<TurnUsage> {
+async function readUsage({
+  executor,
+  userId,
+}: {
+  executor: Pick<typeof db, 'select'>;
+  userId: string;
+}): Promise<TurnUsage> {
   const now = Date.now();
   const hourAgo = new Date(now - HOUR);
-  const [row] = await db
+  const [row] = await executor
     .select({
       day: count(),
       hour: sql<number>`count(*) filter (where ${usageTurns.createdAt} > ${hourAgo})`.mapWith(
@@ -48,7 +54,35 @@ export async function turnUsage(userId: string): Promise<TurnUsage> {
   };
 }
 
-// TODO(slopradar): review: correctness (TOCTOU) | chat/usage.ts runs turnUsage then recordTurn as separate statements, so concurrent turns from one user all pass the check and overshoot the limit | one claimTurn query: pg_advisory_xact_lock(hashtext(userId)) in a transaction that counts, compares and inserts, as insertMCPServer already does
+export function turnUsage(userId: string): Promise<TurnUsage> {
+  return readUsage({ executor: db, userId });
+}
+
+// Counts and inserts under a per-user lock, so concurrent turns from one user
+// cannot all take the last free turn.
+export async function recordTurnWithinLimit(
+  userId: string
+): Promise<{ recorded: boolean; usage: TurnUsage }> {
+  const id = rawId(userId);
+  return await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${id}))`);
+    const usage = await readUsage({ executor: tx, userId });
+    if (usage.day.remaining === 0 || usage.hour.remaining === 0) {
+      return { recorded: false, usage };
+    }
+    await tx.insert(usageTurns).values({ userId: id });
+    await tx
+      .delete(usageTurns)
+      .where(
+        and(
+          eq(usageTurns.userId, id),
+          lt(usageTurns.createdAt, new Date(Date.now() - DAY))
+        )
+      );
+    return { recorded: true, usage };
+  });
+}
+
 export async function recordTurn(userId: string): Promise<void> {
   const id = rawId(userId);
   await db.insert(usageTurns).values({ userId: id });

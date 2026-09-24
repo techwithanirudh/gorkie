@@ -23,16 +23,30 @@ type DiscoveryState = Parameters<
 
 const refreshing = new Map<string, Promise<void>>();
 
+// A corrupt row reads as absent instead of throwing out of the caller.
+const storedJson = z.string().transform((raw, ctx) => {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    ctx.addIssue({ code: 'custom', message: 'not JSON' });
+    return z.NEVER;
+  }
+});
+
 const discoverySchema = z.looseObject({
-  authorizationServerUrl: z.string(),
+  authorizationServerUrl: z.url(),
   authorizationServerMetadata: z
     .looseObject({
+      authorization_endpoint: z.url(),
       issuer: z.string(),
-      registration_endpoint: z.string().optional(),
-      revocation_endpoint: z.string().optional(),
-      token_endpoint: z.string(),
+      registration_endpoint: z.url().optional(),
+      response_types_supported: z.array(z.string()),
+      revocation_endpoint: z.url().optional(),
+      token_endpoint: z.url(),
     })
     .optional(),
+  resourceMetadata: z.looseObject({ resource: z.string() }).optional(),
+  resourceMetadataUrl: z.string().optional(),
 });
 
 const clientSchema = z.looseObject({
@@ -87,9 +101,9 @@ export class MCPServerOAuth extends MCPOAuthClientProvider {
   }
 
   async discoveryState(): Promise<DiscoveryState | undefined> {
-    const stored = await this.#store.get('discovery');
-    // TODO(slopradar): CODING_STANDARDS: Zod at boundaries | JSON.parse returns `any` from a DB row and flows out typed as DiscoveryState unchecked (it later feeds refreshAuthorization) | parse with discoverySchema (widened to match DiscoveryState) like mcpOAuthHosts does
-    return stored ? JSON.parse(stored) : undefined;
+    return storedJson
+      .pipe(discoverySchema)
+      .safeParse(await this.#store.get('discovery')).data;
   }
 
   async saveResourceUrl(resourceUrl: string): Promise<void> {
@@ -121,13 +135,19 @@ export class MCPServerOAuth extends MCPOAuthClientProvider {
   // each other. Refreshing just before expiry, once per server, avoids that.
   override async tokens(): Promise<OAuthTokens | undefined> {
     const tokens = await super.tokens();
+    // A sign-in flow sets onRedirect; only background turns refresh ahead.
+    if (this.#onRedirect) {
+      return tokens;
+    }
     const savedAt = Number(await this.#store.get('tokens_saved_at'));
-    // TODO(slopradar): CODING_STANDARDS: small functions, early returns | one negated compound condition mixes the mode check (an absent #onRedirect silently means "background turn"), token presence and expiry maths, which is hard to verify | split into guard clauses: `if (this.#onRedirect) return tokens;`, then missing refresh_token/savedAt/expires_in, then the remaining-time check
     if (
-      !(this.#onRedirect === undefined && tokens?.refresh_token && savedAt) ||
-      tokens.expires_in === undefined ||
+      !(tokens?.refresh_token && savedAt && tokens.expires_in !== undefined)
+    ) {
+      return tokens;
+    }
+    if (
       savedAt + tokens.expires_in * 1000 - Date.now() >
-        mcpConfig.refreshBeforeExpiryMs
+      mcpConfig.refreshBeforeExpiryMs
     ) {
       return tokens;
     }
@@ -194,11 +214,9 @@ export async function mcpOAuthHosts({
   name: string;
   userId: string;
 }): Promise<string[]> {
-  const stored = await mcpOAuthStorage({ name, userId }).get('discovery');
-  // TODO(slopradar): review: correctness + simplification: duplication | `raw ? JSON.parse(raw) : undefined` then safeParse is repeated 4 times in this file, and here JSON.parse (and `new URL(url)` below) is outside any try, so one corrupt row throws out of buildClient's Promise.all and drops every MCP server for the user | one shared stored-JSON read (e.g. a `z.string().transform` with safe JSON parse, or a typed getter on mcpOAuthStorage) that returns undefined on bad data
-  const discovery = discoverySchema.safeParse(
-    stored ? JSON.parse(stored) : undefined
-  ).data;
+  const discovery = storedJson
+    .pipe(discoverySchema)
+    .safeParse(await mcpOAuthStorage({ name, userId }).get('discovery')).data;
   if (!discovery) {
     return [];
   }
@@ -230,18 +248,17 @@ export async function revokeMCPOAuth({
       store.get('client_info'),
       store.get('tokens'),
     ]);
-    const metadata = discoverySchema.safeParse(
-      rawDiscovery ? JSON.parse(rawDiscovery) : undefined
-    ).data?.authorizationServerMetadata;
-    const client = clientSchema.safeParse(
-      rawClient ? JSON.parse(rawClient) : undefined
-    ).data;
-    const tokens = z
-      .looseObject({
-        access_token: z.string(),
-        refresh_token: z.string().optional(),
-      })
-      .safeParse(rawTokens ? JSON.parse(rawTokens) : undefined).data;
+    const metadata = storedJson.pipe(discoverySchema).safeParse(rawDiscovery)
+      .data?.authorizationServerMetadata;
+    const client = storedJson.pipe(clientSchema).safeParse(rawClient).data;
+    const tokens = storedJson
+      .pipe(
+        z.looseObject({
+          access_token: z.string(),
+          refresh_token: z.string().optional(),
+        })
+      )
+      .safeParse(rawTokens).data;
     if (!(metadata?.revocation_endpoint && client && tokens)) {
       return;
     }

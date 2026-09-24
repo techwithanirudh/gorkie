@@ -47,7 +47,6 @@ export async function githubTools({
 
     const tools: Record<string, unknown> = {};
     for (const name of ALLOWLIST) {
-      // The SDK's formatter is AI SDK shaped; Mastra hands it the result alone.
       const { toModelOutput: format, execute, ...tool } = built[name];
       // An explicit id: Mastra otherwise ids an AI SDK tool as
       // `tool-<hash of description>`, and tool search returns and loads it
@@ -83,11 +82,12 @@ export async function githubTools({
             throw error;
           }
         },
+        // The SDK's formatters read only `output`; its own eve runtime adapter
+        // (modelOutputAdapter) fills input and toolCallId with the same blanks.
         ...(format && {
           toModelOutput: (result: unknown) =>
             result === undefined
               ? result
-              // TODO(slopradar): CODING_STANDARDS: never fabricate data to satisfy a type | `input: undefined, toolCallId: ''` are invented to call the AI SDK formatter | confirm the SDK formatters read only `output` and type the adapter against that, or drop the SDK formatter and let Mastra serialize the result
               : format({ input: undefined, output: result, toolCallId: '' }),
         }),
       };

@@ -22,6 +22,12 @@ export const sandbox = {
   cloneDepth: 50,
   gitTimeout: 5 * 60 * 1000,
   workdir: '/home/user',
+  cpuCount: 2,
+  memoryMB: 1024,
+};
+
+export const agentmail = {
+  inbox: 'gorkie@agentmail.to',
 };
 
 export const liveView = {
@@ -59,10 +65,18 @@ export const image = {
 };
 
 export const agent = {
-  // TODO(slopradar): CODING_STANDARDS: config for tuneable values | an agent id is not a per-deployment knob: it keys memory threads, the channels webhook path (scripts/dev-e2e.sh:6 hardcodes /api/agents/orchestrator/...), Langfuse and the working-model processor id, and research/explore keep theirs as literals in their agent files | inline 'orchestrator' in agents/orchestrator.ts (and 'summarizer' in agents/summarizer.ts), drop agent.id and summarizer.id here
   id: 'orchestrator',
-  // TODO(slopradar): review: correctness | input 950,000 plus output 65,536 is 1,015,536, over the 1,000,000 context of opencode-go glm-5.3-flash and deepseek-v4-flash-vision-exp (models.dev), so a full-history turn on either rung can be rejected; TokenLimiterProcessor also counts with its own tokenizer, not GLM's | cap input at context minus output minus a margin, e.g. 900_000, and note the arithmetic next to the AGENTS.md 1M rule
-  maxTokens: { input: 950_000, output: 65_536, subagentOutput: 16_384 },
+  // Every ladder rung must fit input plus output in its context window. The
+  // smallest on models.dev is 1,000,000 (opencode-go glm-5.3-flash and
+  // deepseek-v4-flash-vision-exp): 850,000 + 65,536 leaves about 84,000 for
+  // tool schemas, which the limiter does not count, and for the gap between
+  // its tokenizer and the provider's.
+  maxTokens: {
+    input: 850_000,
+    output: 65_536,
+    subagentOutput: 16_384,
+    history: 200_000,
+  },
   maxSteps: 1000,
   modelTimeout: { firstChunkMs: 2 * 60 * 1000, stepMs: 5 * 60 * 1000 },
 };
@@ -70,8 +84,7 @@ export const agent = {
 export const toolDisplay: { default: ToolDisplayMode } = { default: 'hidden' };
 
 export const summarizer = {
-  id: 'summarizer',
-  maxTokens: { output: 32_768 },
+  maxTokens: { output: 32_768, previousObserver: 1000 },
 };
 
 export const scheduledTasks = {

@@ -19,7 +19,7 @@ function opencode({
   fallbackSession: string;
 }): ModelWithRetries {
   return {
-    model: `opencode-go/${modelId}`,
+    model: { id: `opencode-go/${modelId}`, apiKey: env.OPENCODE_API_KEY },
     headers: ({ requestContext }) => ({
       'user-agent': 'gorkie/1.0',
       'x-opencode-session':
@@ -33,6 +33,9 @@ function modelSlug(entry: ModelWithRetries): string | undefined {
   if (typeof model === 'string') {
     return slugOf(model);
   }
+  if (typeof model === 'object' && 'id' in model) {
+    return slugOf(model.id);
+  }
   if (
     typeof model === 'object' &&
     model !== null &&
@@ -43,7 +46,6 @@ function modelSlug(entry: ModelWithRetries): string | undefined {
   }
 }
 
-// TODO(slopradar): review: correctness (open, TODO.md Production Langfuse audit item 2) | any rung that answers once is pinned for workingModel.ttl across every thread, agent and user, so one Hack Club fallback reply keeps the whole bot on the fallback after the primary recovers | only pin or reorder toward a non-primary rung when the primary is the one failing, e.g. skip pinModelOnce unless the answering slug is models[0], and drop the `matches.length ? ... : models` ternary below (with no matches, [...matches, ...rest] already equals models)
 async function preferLastWorking(
   models: ModelWithRetries[]
 ): Promise<ModelWithRetries[]> {
@@ -61,7 +63,7 @@ async function preferLastWorking(
       lastGoodSlug.endsWith(`/${slug}`);
     (slug && same ? matches : rest).push(entry);
   }
-  return matches.length ? [...matches, ...rest] : models;
+  return [...matches, ...rest];
 }
 
 function ladder(agentKey: string): () => Promise<ModelWithRetries[]> {
@@ -71,11 +73,9 @@ function ladder(agentKey: string): () => Promise<ModelWithRetries[]> {
       maxRetries: 3,
     },
     { model: hackclub('z-ai/glm-5.3-flash'), maxRetries: 3 },
-    // TODO(slopradar): CODING_STANDARDS: comments | the comment justifies deepseek against muse-spark, which is not on the ladder any more, and points at IMPLEMENTED.md instead of stating the fact | keep the vendor fact (opencode-go drops reasoning_content, so deepseek 400s on tool-calling turns) and delete the muse-spark and IMPLEMENTED.md clauses
-    // Last resort only. deepseek 400s on tool-calling turns (the reasoning_content
-    // round-trip the opencode-go generic converter drops, see IMPLEMENTED.md), so
-    // it only reliably serves single-shot replies, but unlike muse-spark it does
-    // not train on submitted data.
+    // Last resort only: opencode-go drops deepseek's reasoning_content on the
+    // round trip, so it 400s on tool-calling turns and reliably serves only
+    // single-shot replies.
     {
       ...opencode({
         modelId: 'deepseek-v4-flash-vision-exp',
@@ -87,12 +87,11 @@ function ladder(agentKey: string): () => Promise<ModelWithRetries[]> {
   return () => preferLastWorking(models);
 }
 
-export const orchestrator = ladder('orchestrator');
-
-// TODO(slopradar): CODING_STANDARDS: naming (direct names) | `scout`/`explorer` are a second vocabulary for the research/explore agents, and the arg is only a fallback session header | export the ladders under the agent names, e.g. `export const models = { orchestrator: ladder('orchestrator'), research: ladder('research'), explore: ladder('explore') }`
-export const scout = ladder('research');
-
-export const explorer = ladder('explore');
+export const models = {
+  orchestrator: ladder('orchestrator'),
+  research: ladder('research'),
+  explore: ladder('explore'),
+};
 
 export const summarizer: ModelWithRetries[] = [
   { model: hackclub('google/gemini-3.5-flash-lite'), maxRetries: 3 },

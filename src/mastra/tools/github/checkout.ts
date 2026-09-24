@@ -1,14 +1,12 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { sandbox as sandboxConfig } from '../../config';
-import { githubAccessToken } from '../../lib/github';
-import { repoAccess } from '../../lib/github/api';
+import { channelContext } from '../../lib/context';
 import { sh } from '../../lib/utils';
 import { branchSchema, repositorySchema } from '../../types';
 import { requireSandbox } from '../../workspace';
-import { checkoutPath, git, withCredential } from './git';
+import { checkoutPath, git, repoAccessFor, withCredential } from './git';
 
-// TODO(slopradar): simplification: duplicate + review: performance | the token + repoAccess lookup here repeats push.ts:21-22, and an approved checkout runs it twice (requireApproval line 39 and execute line 56), two GitHub API round trips | move one `repoAccessFor({ repository, userId })` into lib/github/api and reuse it; pass the approval-time result through or accept one call
 const inspectRepository = async ({
   repository,
   userId,
@@ -16,9 +14,8 @@ const inspectRepository = async ({
   repository: string;
   userId: string;
 }) => {
-  const token = await githubAccessToken(userId);
-  const access = token ? await repoAccess({ repository, token }) : undefined;
-  if (!access || 'error' in access) {
+  const access = await repoAccessFor({ repository, userId });
+  if ('error' in access) {
     return { canPush: false, needsCredential: true };
   }
   return { canPush: access.push, needsCredential: access.needsCredential };
@@ -76,7 +73,12 @@ export const checkoutTool = ({
       };
 
       const sha = needsCredential
-        ? await withCredential({ operation: clone, sandbox, userId })
+        ? await withCredential({
+            operation: clone,
+            sandbox,
+            threadId: channelContext(context.requestContext).threadId,
+            userId,
+          })
         : await clone();
 
       const edit = `Edit files in the sandbox under ${path}.`;

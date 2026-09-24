@@ -18,16 +18,16 @@ import { startJob } from '../workspace/jobs';
 // the job itself too.
 const wakeChannels = new Map<string, ChannelContext>();
 
-// TODO(slopradar): CODING_STANDARDS: inline over extract | `threadOnlyChannel` has one caller (wakeThread, line 51) | inline the try/catch at the call site
-function threadOnlyChannel({
-  taskId,
-  threadId,
-}: {
-  taskId: string;
-  threadId: string;
-}): ThreadOnlyChannelContext | undefined {
+async function wakeThread(task: BackgroundTask): Promise<void> {
+  const saved = wakeChannels.get(task.id);
+  wakeChannels.delete(task.id);
+  const { threadId, resourceId } = task;
+  if (!(threadId && resourceId)) {
+    return;
+  }
+  let channel: ChannelContext | ThreadOnlyChannelContext;
   try {
-    return {
+    channel = saved ?? {
       platform: 'slack',
       threadId,
       channelId: slack.channelIdFromThreadId(threadId),
@@ -36,21 +36,9 @@ function threadOnlyChannel({
   } catch (error) {
     logger.warn('[run_background] no Slack thread to wake', {
       error,
-      taskId,
+      taskId: task.id,
       threadId,
     });
-  }
-}
-
-async function wakeThread(task: BackgroundTask): Promise<void> {
-  const saved = wakeChannels.get(task.id);
-  wakeChannels.delete(task.id);
-  const { threadId, resourceId } = task;
-  if (!(threadId && resourceId)) {
-    return;
-  }
-  const channel = saved ?? threadOnlyChannel({ taskId: task.id, threadId });
-  if (!channel) {
     return;
   }
   if (

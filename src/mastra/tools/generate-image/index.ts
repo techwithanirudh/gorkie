@@ -1,11 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import {
-  // TODO(slopradar): CODING_STANDARDS: direct names | `sandboxPath as p` alias (see artifacts.ts band) | import `sandboxPath` unaliased
-  sandboxPath as p,
-  requireSandbox,
-  writeSandboxFile,
-} from '../../workspace';
+import { requireSandbox, sandboxPath, writeSandboxFile } from '../../workspace';
 import { requestImages } from './request';
 
 export const generateImageTool = createTool({
@@ -51,11 +46,21 @@ export const generateImageTool = createTool({
 
     const generated =
       referenceImages && referenceImages.length > 0
-        ? await requestImages({ prompt, referenceImages, sandbox })
+        ? await requestImages({
+            abortSignal: context.abortSignal,
+            prompt,
+            referenceImages,
+            sandbox,
+          })
         : (
             await Promise.all(
               Array.from({ length: n }, () =>
-                requestImages({ prompt, referenceImages: [], sandbox })
+                requestImages({
+                  abortSignal: context.abortSignal,
+                  prompt,
+                  referenceImages: [],
+                  sandbox,
+                })
               )
             )
           ).flat();
@@ -66,7 +71,7 @@ export const generateImageTool = createTool({
     const paths = await Promise.all(
       generated.map(async ({ data, mediaType }, index) => {
         const ext = mediaType.split('/').at(1) ?? 'png';
-        const path = p(
+        const path = sandboxPath(
           'downloads',
           `gorkie-image-${batch}-${index + 1}.${ext}`
         );

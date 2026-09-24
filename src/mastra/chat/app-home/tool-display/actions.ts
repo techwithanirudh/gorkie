@@ -1,13 +1,10 @@
 import { Chat } from 'chat';
 import { setToolDisplay } from '../../../db/queries/settings';
-import { type PublishHome, toolDisplayModeSchema } from '../../../types';
+import { toolDisplayModeSchema } from '../../../types';
+import { publishHome } from '../view';
 import { ids } from './ids';
 
-export function registerToolDisplay({
-  publishHome,
-}: {
-  publishHome: PublishHome;
-}): void {
+export function registerToolDisplay(): void {
   Chat.getSingleton().onAction(ids.mode, async (event) => {
     const parsed = toolDisplayModeSchema.safeParse(event.value);
     if (!parsed.success) {

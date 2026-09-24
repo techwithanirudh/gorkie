@@ -1,13 +1,9 @@
 import { Chat, Modal, TextInput } from 'chat';
 import { getInstructions, setInstructions } from '../../../db/queries/settings';
-import type { PublishHome } from '../../../types';
+import { publishHome, refreshHome } from '../view';
 import { ids } from './ids';
 
-export function registerCustomInstructions({
-  publishHome,
-}: {
-  publishHome: PublishHome;
-}): void {
+export function registerCustomInstructions(): void {
   const bot = Chat.getSingleton();
 
   bot.onAction(ids.edit, async (event) => {
@@ -46,7 +42,6 @@ export function registerCustomInstructions({
       userId: event.user.userId,
       instructions: instructions || undefined,
     });
-    // TODO(slopradar): review: performance | awaited publishHome inside a modal submit delays Slack's view_submission ack; publishHome calls GitHub (see mcp/actions.ts L83) | fire it without awaiting, with a why-comment
-    await publishHome(event.user.userId);
+    refreshHome(event.user.userId);
   });
 }

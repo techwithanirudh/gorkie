@@ -4,6 +4,7 @@ import type { Message } from 'chat';
 import { Chat } from 'chat';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
+import { focusFilter } from '../../chat/focus';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
 import { logger } from '../../lib/logger';
@@ -73,12 +74,14 @@ export async function readableFile({
   fileId: string;
   requestContext: RequestContext;
 }) {
-  // TODO(slopradar): review: weak type boundary | `file` stays optional in the return although the empty-channels throw means it exists, so callers optional-chain it (get-slack-file.ts:39,45,61,74; canvas/read.ts:35,46) | throw when `!file` and return it non-optional
   const { file } = await slack.webClient.files.info({ file: fileId });
+  if (!file) {
+    throw new Error(`Slack file ${fileId} was not found.`);
+  }
   const channelIds = [
-    ...(file?.channels ?? []),
-    ...(file?.groups ?? []),
-    ...(file?.ims ?? []),
+    ...(file.channels ?? []),
+    ...(file.groups ?? []),
+    ...(file.ims ?? []),
   ];
   if (channelIds.length === 0) {
     throw new Error('This Slack resource is not associated with a channel.');
@@ -177,22 +180,13 @@ export async function slackDestination(
   return destination;
 }
 
-// TODO(slopradar): review: correctness | `joinedChannels` is never invalidated, so after the bot is removed from a channel joinChannel skips the rejoin and reads fail with not_in_channel until restart | drop the cache (conversations.join is idempotent) or delete the id when a call returns not_in_channel
-const joinedChannels = new Set<string>();
-
 export async function joinChannel(channelId: string): Promise<void> {
-  const id = rawId(channelId);
-  if (joinedChannels.has(id)) {
-    return;
-  }
   try {
-    await slack.webClient.conversations.join({ channel: id });
-    joinedChannels.add(id);
+    await slack.webClient.conversations.join({ channel: rawId(channelId) });
   } catch (error) {
     if (
       slackErrorSchema.safeParse(error).data?.data?.error === ALREADY_IN_CHANNEL
     ) {
-      joinedChannels.add(id);
       return;
     }
     logger.debug('[slack] could not join the channel', { channelId, error });
@@ -210,6 +204,26 @@ export function slackThreadId({
     threadIdOf(parseSlackId({ channel: channelId, input: threadId })) ??
     threadId
   );
+}
+
+export async function focusedMessages({
+  currentThreadId,
+  messages,
+  threadId,
+}: {
+  currentThreadId?: string;
+  messages: Message[];
+  threadId?: string;
+}): Promise<Message[]> {
+  const sees =
+    threadId && threadId === currentThreadId
+      ? await focusFilter(threadId)
+      : undefined;
+  return sees
+    ? messages.filter(
+        (message) => message.author.isMe || sees(message.author.userId)
+      )
+    : messages;
 }
 
 export function formatMessage(message: Message) {

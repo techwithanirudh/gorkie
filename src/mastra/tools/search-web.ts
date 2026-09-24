@@ -15,8 +15,6 @@ export const searchWebTool = createTool({
       .describe("A specific, clear web search query for what you're after."),
   }),
   outputSchema: z.strictObject({
-    // TODO(slopradar): simplification: duplicate shape | `links` repeats the first five `results[].url`; nothing reads it (only this file mentions it) and it sends every URL to the model twice | drop `links` from outputSchema and execute
-    links: z.array(z.url()),
     results: z.array(
       z.strictObject({
         title: z.string(),
@@ -43,7 +41,6 @@ export const searchWebTool = createTool({
       signal: abortSignal,
     });
     return {
-      links: results.slice(0, 5).map((r) => r.url),
       results: results.map((r) => ({
         title: r.title ?? r.url,
         url: r.url,

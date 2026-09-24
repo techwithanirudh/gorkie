@@ -1,6 +1,6 @@
 import type { RequestContext } from '@mastra/core/request-context';
 import { getGitHubCredential } from '../../db/queries/github';
-import { getGitHubSettings } from '../../db/queries/settings';
+import { getUserSettings } from '../../db/queries/settings';
 import type { GitHubAccess } from '../../types';
 import { levelOutsideDM } from '../approval';
 import { logger } from '../logger';
@@ -13,9 +13,9 @@ async function read({
   userId: string;
 }): Promise<GitHubAccess> {
   try {
-    const [credential, settings] = await Promise.all([
+    const [credential, { github }] = await Promise.all([
       getGitHubCredential(userId),
-      getGitHubSettings(userId),
+      getUserSettings(userId),
     ]);
     if (!credential) {
       return { state: 'disconnected' };
@@ -23,8 +23,8 @@ async function read({
     return {
       state: 'connected',
       credential,
-      direct: isDM || settings.threads,
-      level: levelOutsideDM({ isDM, level: settings.permission }),
+      direct: isDM || github.threads,
+      level: levelOutsideDM({ isDM, level: github.permission }),
     };
   } catch (error) {
     logger.warn('[github] could not read the connection', { error, userId });

@@ -4,6 +4,9 @@ import {
   LocalSkillSource,
   WORKSPACE_TOOLS,
   Workspace,
+  type WorkspaceToolAfterHookContext,
+  type WorkspaceToolBeforeHookResult,
+  type WorkspaceToolHookContext,
 } from '@mastra/core/workspace';
 import { E2BSandbox } from '@mastra/e2b';
 import { z } from 'zod';
@@ -27,6 +30,7 @@ import {
 } from './tool-names';
 
 const reached = new WeakSet<RequestContext>();
+const extendedAt = new WeakMap<E2BSandbox, number>();
 const unscopedSandboxKey = '__unscoped__';
 
 const toolCallContext = z.object({
@@ -46,13 +50,20 @@ function sandboxKey(requestContext: RequestContext): string {
 }
 
 // A sandbox not attached yet gets the full timeout when it connects, so only
-// an attached one needs pushing out.
+// an attached one needs pushing out. Every workspace tool call lands here, so
+// a deadline pushed in the last two minutes is left alone rather than paying
+// an E2B round trip per call.
 async function extendSandbox(sandbox: E2BSandbox): Promise<void> {
   if (!sandbox.sandboxId) {
     return;
   }
+  const last = extendedAt.get(sandbox);
+  if (last !== undefined && Date.now() - last < config.timeout / 8) {
+    return;
+  }
   try {
     await sandbox.retryOnDead(() => sandbox.e2b.setTimeout(config.timeout));
+    extendedAt.set(sandbox, Date.now());
   } catch (error) {
     logger.debug('[sandbox] failed to extend lifetime', { error });
   }
@@ -132,6 +143,76 @@ export async function endSandboxTurn(
   }
 }
 
+async function beforeToolCall({
+  context,
+  input,
+  workspaceToolName,
+}: WorkspaceToolHookContext): Promise<
+  WorkspaceToolBeforeHookResult | undefined
+> {
+  const call = toolCallContext.safeParse(context).data;
+  // Every run without a thread would share the one unscoped sandbox, and with
+  // it the files and processes of whoever ran there before.
+  if (!call || sandboxKey(call.requestContext) === unscopedSandboxKey) {
+    return {
+      proceed: false,
+      output:
+        'No Slack thread bound for this run, so a sandbox tool cannot run here.',
+    };
+  }
+  const background =
+    workspaceToolName === WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND &&
+    backgroundCommand.safeParse(input).success;
+  const timeout = background
+    ? backgroundTimeout.safeParse(input).data?.timeout
+    : undefined;
+  if (background && timeout === undefined) {
+    return {
+      proceed: false,
+      output: `A background command needs a \`timeout\` in seconds, at most ${config.background.maxTimeoutSeconds}. Run it again with one.`,
+    };
+  }
+  const sandbox = await getSandbox(call.requestContext);
+  if (!sandbox) {
+    return;
+  }
+  await extendSandbox(sandbox);
+  const { threadId } = channelContext(call.requestContext);
+  if (timeout !== undefined && threadId && call.agent) {
+    startJob({
+      id: call.agent.toolCallId,
+      threadId,
+      sandbox,
+      timeoutMs: timeout * 1000,
+    });
+  }
+}
+
+function afterToolCall({
+  context,
+  error,
+  input,
+  output,
+}: WorkspaceToolAfterHookContext): void {
+  const toolCallId = toolCallContext.safeParse(context).data?.agent?.toolCallId;
+  if (!toolCallId) {
+    return;
+  }
+  if (error !== undefined) {
+    findJob(toolCallId)?.end();
+    return;
+  }
+  // execute_command reports a background spawn only as this sentence,
+  // and !stop needs the pid to kill the process.
+  const pid =
+    backgroundCommand.safeParse(input).success && typeof output === 'string'
+      ? output.match(/\(PID: ([^)\s]+)\)/)?.[1]
+      : undefined;
+  if (pid) {
+    findJob(toolCallId)?.attachPid(pid);
+  }
+}
+
 export { codeModeToolNames } from './tool-names';
 
 export const browser = new SandboxBrowser({
@@ -142,7 +223,6 @@ export const browser = new SandboxBrowser({
 export const workspace: Workspace = new Workspace({
   id: 'main-workspace',
   name: 'Workspace',
-  // TODO(slopradar): review: security | every run with no threadId maps to the one shared `__unscoped__` sandbox; requireSandbox refuses it, but Mastra's own workspace tools (execute_command, read_file, write_file, ...) resolve through workspace.resolveSandbox and the filesystem factory below, so two unscoped runs (different users, Studio, any path that loses the channel context) share one VM and its files. Already listed as open in IMPLEMENTED.md:289 | in beforeToolCall return `{ proceed: false, output }` when sandboxKey(requestContext) === unscopedSandboxKey, so the shared sandbox is never started
   sandbox: ({ requestContext }) => {
     // Mastra can resolve workspace instructions before a thread is bound, and
     // a throw here fails the turn on every fallback model.
@@ -167,56 +247,8 @@ export const workspace: Workspace = new Workspace({
   skills: ['.'],
   tools: {
     hooks: {
-      // TODO(slopradar): CODING_STANDARDS: no large inline closures | beforeToolCall is ~27 lines inside the Workspace literal (afterToolCall ~20) | move both to named module-scope functions; while there drop the redundant `timeout &&` in the startJob guard, the early return already guarantees it when `background` is true
-      beforeToolCall: async ({ context, input, workspaceToolName }) => {
-        const background =
-          workspaceToolName === WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND &&
-          backgroundCommand.safeParse(input).success;
-        const timeout = backgroundTimeout.safeParse(input).data?.timeout;
-        if (background && timeout === undefined) {
-          return {
-            proceed: false,
-            output: `A background command needs a \`timeout\` in seconds, at most ${config.background.maxTimeoutSeconds}. Run it again with one.`,
-          };
-        }
-        const call = toolCallContext.safeParse(context).data;
-        const sandbox = call && (await getSandbox(call.requestContext));
-        if (!(call && sandbox)) {
-          return;
-        }
-        // TODO(slopradar): review: performance | extendSandbox is an E2B setTimeout API round trip before every workspace tool call, and requireSandbox does another, so a step with N tool calls pays N+ extra network calls just to push the same deadline | remember the last extension per sandbox and skip it when it was within a fraction of config.timeout
-        await extendSandbox(sandbox);
-        const { threadId } = channelContext(call.requestContext);
-        if (background && timeout && threadId && call.agent) {
-          startJob({
-            id: call.agent.toolCallId,
-            threadId,
-            sandbox,
-            timeoutMs: timeout * 1000,
-          });
-        }
-      },
-      afterToolCall: ({ context, error, input, output }) => {
-        const toolCallId =
-          toolCallContext.safeParse(context).data?.agent?.toolCallId;
-        if (!toolCallId) {
-          return;
-        }
-        if (error !== undefined) {
-          findJob(toolCallId)?.end();
-          return;
-        }
-        // execute_command reports a background spawn only as this sentence,
-        // and !stop needs the pid to kill the process.
-        const pid =
-          backgroundCommand.safeParse(input).success &&
-          typeof output === 'string'
-            ? output.match(/\(PID: ([^)\s]+)\)/)?.[1]
-            : undefined;
-        if (pid) {
-          findJob(toolCallId)?.attachPid(pid);
-        }
-      },
+      beforeToolCall,
+      afterToolCall,
     },
     [WORKSPACE_TOOLS.FILESYSTEM.READ_FILE]: {
       name: READ_FILE,

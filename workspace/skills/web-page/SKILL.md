@@ -1,14 +1,13 @@
 ---
-name: artifacts
+name: web-page
 description: Build a self-contained HTML page and put it behind a link gorkie can paste into Slack. Use when an answer is better looked at than read, such as a chart or dashboard, a table too wide for a Slack message, a comparison, a timeline, or a summary someone will want to share. Also use whenever the user asks for a page, a mockup, a visualization, a report, or something they can look at. Produces one HTML file deployed to a temporary Cloudflare Worker, so the user gets a live URL that stays up for 60 minutes.
 ---
 
-<!-- TODO(slopradar): naming collision | "artifact" already names the save_artifact/read_artifact tools (tools/artifacts.ts: Markdown write-ups for subagents), so the model sees two unrelated things under one word | rename this skill (for example `web-page`) or the tools -->
-# artifacts
+# web-page
 
 Some answers do not belong in a Slack message. A ten-row table, a chart, a week
 of build failures grouped by cause, a side-by-side of two proposals: Slack
-flattens all of it. An artifact is the escape hatch. One HTML file, one link.
+flattens all of it. A web page is the escape hatch. One HTML file, one link.
 
 For a full site or app with its own build, load the `wrangler` skill instead.
 This skill is for a single page that shows an answer.
@@ -23,9 +22,8 @@ Do not build one for an answer that is three sentences long. A link is friction,
 and a link to a paragraph is worse than the paragraph. If the whole answer fits
 comfortably in a Slack message, post the Slack message.
 
-<!-- TODO(slopradar): review: security | the public-URL warning covers DMs only; a private channel's content is just as private | "anything from a DM or private channel" -->
-Never put a secret, a credential, an access token, or anything from a DM into an
-artifact. A temporary Worker URL is public to anyone holding it.
+Never put a secret, a credential, an access token, or anything from a DM or a
+private channel into a page. A temporary Worker URL is public to anyone holding it.
 
 ## How to build one
 
@@ -45,11 +43,11 @@ artifact. A temporary Worker URL is public to anyone holding it.
 Deploy it as a temporary Cloudflare Worker that serves the file as a static asset:
 
 ```bash
-mkdir -p /home/user/artifact/public && cd /home/user/artifact
+mkdir -p /home/user/web-page/public && cd /home/user/web-page
 # write your page to public/index.html
 cat > wrangler.jsonc <<'JSON'
 {
-  "name": "gorkie-artifact",
+  "name": "gorkie-web-page",
   "compatibility_date": "2026-09-21",
   "assets": { "directory": "./public" }
 }

@@ -5,6 +5,7 @@ import {
 import { z } from 'zod';
 import { mcp as mcpConfig } from '../config';
 import type { MCPServerConfig } from '../types';
+import { guardedFetch } from './security';
 
 const errorBodySchema = z.object({
   error: z
@@ -47,27 +48,14 @@ function upstreamMessage({ line }: { line: string }): {
   return { text, rpcCode: rpc?.code };
 }
 
-// TODO(slopradar): review: security + performance | discovery uses raw fetch, not guardedFetch, so the resolved IP is never re-checked when this runs from describeMCPError long after the add-time checkMCPUrl; and a `true` is cached forever in an unbounded module Map keyed by user-typed URLs | send it through guardedFetch (with a probe-timeout signal) and give the positive cache a TTL or drop it
-const oauthLookups = new Map<string, Promise<boolean>>();
-
 export function advertisesOAuth(url: string): Promise<boolean> {
-  let lookup = oauthLookups.get(url);
-  if (!lookup) {
-    const signal = AbortSignal.timeout(mcpConfig.probeTimeoutMs);
-    lookup = discoverOAuthProtectedResourceMetadata(
-      url,
-      undefined,
-      (input, init) => fetch(input, { ...init, redirect: 'manual', signal })
-    ).then(
-      () => true,
-      () => {
-        oauthLookups.delete(url);
-        return false;
-      }
-    );
-    oauthLookups.set(url, lookup);
-  }
-  return lookup;
+  const signal = AbortSignal.timeout(mcpConfig.probeTimeoutMs);
+  return discoverOAuthProtectedResourceMetadata(url, undefined, (input, init) =>
+    guardedFetch(input, { ...init, signal })
+  ).then(
+    () => true,
+    () => false
+  );
 }
 
 async function authHint({

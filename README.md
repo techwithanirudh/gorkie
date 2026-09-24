@@ -44,22 +44,23 @@ runs commands and inspects files without touching the host machine.
   out of the main conversation.
 - Web search and page fetching via [Exa][exa], plus a Slack "code mode" tool
   for query-driven or exhaustive conversation analysis.
-<!-- TODO(slopradar): accuracy | "post to another thread/channel/DM" overstates post_message: channel and thread targets must be in the current conversation's channel and user targets must be the requester (tools/slack/post-message.ts:18); search_slack (public-channel search, docs/slack-search.md) is missing from this list | say "post to another thread in this channel or DM the requester" and add search_slack -->
-- Slack-native tools: read/summarize conversation history, list threads and
-  channels, inspect channels and users, post to another thread/channel/DM,
-  upload and download files, react, join or leave a thread, and add custom
-  emoji (`upload_emoji`, when `EMOJI_PROXY_TOKEN` is set). It reads only the
-  current conversation and public channels, and DMs only the person who asked.
+- Slack-native tools: read/summarize conversation history, search public
+  channels (`search_slack`, see [docs/slack-search.md](docs/slack-search.md)),
+  list threads and channels, inspect channels and users, post to another
+  thread in this channel or DM the requester, upload and download files,
+  react, join or leave a thread, and add custom emoji (`upload_emoji`, when
+  `EMOJI_PROXY_TOKEN` is set). It reads only the current conversation and
+  public channels.
 - Slack Canvas tools: create, list, read, edit, and look up sections.
 - Turn control: `skip` ends a turn without replying (acknowledgements, noise,
   messages meant for someone else), and `wait` resumes the thread later.
 - Recurring scheduled tasks (cron-based, create/list/pause/resume/delete).
   Each run posts back into the conversation where it was scheduled.
 - AI image generation, uploaded back into the Slack thread as a file.
-<!-- TODO(slopradar): accuracy | "the Slack core tools stay loaded" is vague and partly false: list_threads, list_channels, get_channel_info, call_slack_api and get_slack_emoji are deferred behind search (tools/toolsets.ts:41-53) | name what stays resident, or point at deferredTools instead of restating it -->
-- Most tools load on demand through tool search, so the base tool list and the
-  prompt stay small. That includes a person's GitHub tools and their own MCP
-  servers' tools; the Slack core tools stay loaded
+- Less common tools load on demand through tool search, so the base tool
+  list and the prompt stay small. The deferred set is `deferredTools` in
+  [`tools/toolsets.ts`](./src/mastra/tools/toolsets.ts), plus a person's
+  GitHub tools and their own MCP servers' tools
   (`processors/tool-search.ts`). A loaded tool unloads once Observational
   Memory observes the search that loaded it, and the model searches again.
 - GitHub tools act as the connected person. They work in a DM with that
@@ -72,17 +73,25 @@ runs commands and inspects files without touching the host machine.
 - [Observational Memory][om] compresses a long conversation into an
   observation log instead of carrying the full raw history, and working memory
   keeps each person's stated reply preferences. See [Memory](#memory).
-<!-- TODO(slopradar): writing-for-agents: cache | the skill list restates `ls workspace/skills` and goes stale on the next skill add | link the directory and describe only the non-obvious ones (artifacts, github) -->
-- Runtime skills in [`workspace/skills/`](./workspace/skills/): `67ify`,
-  `agent-browser`, `agentmail`, `artifacts` (a single HTML page on a temporary
-  Cloudflare Worker), `github`, `mermaid-diagrams`, `plain-english`,
-  `taste-skill`, `topic-summaries`, `unslop`, `voice` and `wrangler`.
+- Runtime skills in [`workspace/skills/`](./workspace/skills/), loaded by the
+  agent on demand. Two are not obvious from the name: `web-page` publishes a
+  single HTML page on a temporary Cloudflare Worker, and `github` covers the
+  checkout, push and pull request flow on top of the GitHub tools.
 - Mastra Observability tracing exported to [Langfuse][langfuse], with each
   Slack thread as one Langfuse session and thumbs ratings sent as scores. In
   development, traces are also written to a local [DuckDB][duckdb] file
   (`observability.duckdb`).
+- Per-person usage limits: 40 turns an hour and 300 a day (`usage` in
+  [`config.ts`](./src/mastra/config.ts)), counted in `chat/usage.ts` and also
+  applied to scheduled task runs. Moderators are exempt.
+- Focus: the `focus` tool (and `!focus`) makes gorkie read and answer only
+  named people in a thread; whoever brought it in and moderators still get
+  through.
+- Background jobs: `run_background` starts a long sandbox command and wakes
+  the thread with its exit code and output when it finishes.
+- Feedback: `submit_feedback` records bug reports, praise and requests about
+  gorkie itself for the maintainers.
 
-<!-- TODO(slopradar): accuracy: missing features | per-user usage limits (config.ts:103-104, 40 turns/hour and 300/day via chat/usage.ts claimTurn, also gating scheduled fires in index.ts), the `focus` tool, `run_background` jobs and `submit_feedback` are shipped behaviour with no mention here | add one bullet each -->
 See [TODO.md](./TODO.md) for open work and known issues.
 
 ## Tech stack
@@ -142,10 +151,11 @@ bun run dev:tunnel
 
 Paste the printed tunnel host plus `/api/agents/orchestrator/channels/slack/webhook`
 into both request URLs of the dev app (Event Subscriptions and Interactivity).
-<!-- TODO(slopradar): accuracy + docs consistency | "Through the tunnel only the Slack webhook and /health answer" is false: /oauth/* and /live/* are public apiRoutes (server/oauth.ts:95, server/live-view.ts:88) that the proxy middleware skips (index.ts), and the screencast WebSocket answers with a ticket; docs/webhook-mode.md:204-209 lists them correctly | list the same public routes as webhook-mode.md, or link it -->
-The tunnel URL changes on every run. Through the tunnel only the Slack webhook
-and `/health` answer; every other route returns 404, and the rest of `/api`
-needs `Authorization: Bearer $GORKIE_API_TOKEN` even on the host. The bot logs
+The tunnel URL changes on every run. Through the tunnel only the public routes
+answer (the Slack webhook, `/health`, and the sign-in and live-view routes
+listed in [docs/webhook-mode.md](docs/webhook-mode.md#the-public-surface)); every
+other route returns 404, and the rest of `/api` needs
+`Authorization: Bearer $GORKIE_API_TOKEN` even on the host. The bot logs
 `[agent] online` once channels are ready.
 
 Never run two instances at once, dev against prod or two dev copies: they share
@@ -156,9 +166,10 @@ For a production-style run: `bun run build` then `bun run start`.
 
 ### Local Postgres database
 
-<!-- TODO(slopradar): accuracy | "Mastra creates its tables on first run" skips gorkie's own schema: runMigrations() (db/index.ts:146-155) runs postgresStore.init() and then the drizzle migrations in drizzle/ on every boot | say both, and mention `bun run db:migrate` for a stopped bot -->
 The default `DATABASE_URL` in [`.env.example`](./.env.example) points at a
-local database named `gorkie`. Mastra creates its tables on first run.
+local database named `gorkie`. Every boot creates or upgrades Mastra's tables,
+then applies gorkie's own migrations from [`drizzle/`](./drizzle/). To apply
+them without starting the bot, run `bun run db:migrate`.
 
 ## Environment
 
@@ -168,7 +179,7 @@ local database named `gorkie`. Mastra creates its tables on first run.
 | `SLACK_BOT_TOKEN` | yes | Bot User OAuth token (`xoxb-…`) |
 | `SLACK_SIGNING_SECRET` | yes | Signing secret (Basic Information) used to verify Slack's webhook requests |
 | `GORKIE_API_TOKEN` | production | 32+ character bearer token every non-public route requires (`openssl rand -hex 32`). Required in production and whenever tunnelling |
-| `PUBLIC_BASE_URL` | for GitHub | Public https origin of the bot; the GitHub sign-in redirects to `/oauth/github/callback` under it |
+| `PUBLIC_BASE_URL` | for sign-in | Public https origin of the bot. GitHub and MCP OAuth sign-in redirect to `/oauth/<provider>/callback` under it |
 | `HOST` / `PORT` | no | Bind address and port, default `127.0.0.1` / `4111`. Keep loopback; expose only through the tunnel |
 | `SLACK_USER_TOKEN` | yes | Slack user token, not the bot token, used for public-channel search. Mint it with `search:read.public` only; gorkie verifies the granted scopes on first use and refuses the token if it also carries `search:read.im`, `search:read.mpim`, or `search:read.private`. See [docs/slack-search.md](docs/slack-search.md) |
 | `OPT_IN_CHANNEL` | no | Slack channel id gating access to members only (opt-in allowlist); unset means everyone is allowed |
@@ -189,9 +200,8 @@ local database named `gorkie`. Mastra creates its tables on first run.
 | `EXA_API_KEY` | yes | Exa key, powers `search_web`/`fetch_url` |
 | `AGENTMAIL_API_KEY` | no | Lets the sandbox reach the AgentMail API as `gorkie@agentmail.to`, without the key entering the sandbox |
 | `EMOJI_PROXY_TOKEN` | no | Token for the Hack Club Slack emoji proxy. Enables `upload_emoji`; unset, the tool reports that emoji upload is not configured |
-| `NODE_ENV` | no | `development` (default), `production` or `test`. Production requires `GORKIE_API_TOKEN`, an https `PUBLIC_BASE_URL`, and skips the local DuckDB trace store |
+| `NODE_ENV` | no | `development` (default), `production` or `test`. Production requires `GORKIE_API_TOKEN`, rejects a non-https `PUBLIC_BASE_URL`, and skips the local DuckDB trace store |
 
-<!-- TODO(slopradar): accuracy | production does not require PUBLIC_BASE_URL: env.ts:88 only rejects a non-https value when one is set | "requires GORKIE_API_TOKEN, rejects a non-https PUBLIC_BASE_URL" -->
 See [`.env.example`](./.env.example) for the full annotated list.
 
 ## Memory
@@ -333,24 +343,29 @@ and keep every hunk.
 
 ## Project structure
 
-<!-- TODO(slopradar): accuracy: stale structure | src/mastra/db/, lib/, memory/, observability/, server/ and types/ are missing, and `chat/` is far more than "client, handlers, typing status" (app-home/, commands/, moderation/, live-view, usage) | regenerate the tree from the real directories or cut it to the directories a newcomer needs -->
 ```text
 src/
   env.ts                        Zod-validated environment
   mastra/
-    index.ts                    Mastra instance: Postgres, Observability, logger, agents
-    config.ts                   Sandbox and agent config
-    providers.ts                Model gateway definitions (orchestrator, summarizer, scout, explorer, images)
-    agents/orchestrator.ts      The agent: model, instructions, memory, tools, channels
-    agents/research.ts          Delegated Slack/web research helper agent
-    agents/explore.ts           Delegated read-only codebase exploration helper agent
-    agents/summarizer.ts        Summarizes Slack threads for the summary tool
-    chat/                       Chat SDK client, handlers, typing status
-    workspace/                  E2B sandbox workspace (per-thread, isolated)
+    index.ts                    Mastra instance: Postgres, Observability, logger, agents, schedules
+    config.ts                   Deployment-tunable values
+    providers.ts                Model ladders (orchestrator, research, explore, summarizer, images)
+    agents/                     orchestrator, plus research, explore and summarizer
+    chat/                       Slack side: event handlers, history backfill, thread state, commands,
+                                App Home, moderation, usage limits, focus, typing status
     tools/                      Tool registry: Slack, canvas, scheduled tasks, GitHub, web, code mode, images, background jobs
-    processors/                 Input/output processors (delegated tools, output budget, sandbox, stale messages, step guard, tool display, tool media, tool search, turn footer, working model)
+    processors/                 Input and output processors (tool search, tool display, output budget, sandbox, ...)
     prompts/                    System prompt sections (core, personality, Slack, tools, guardrails)
+    workspace/                  E2B sandbox workspace (per-thread, isolated) and its template build
     mcp/                        Built-in MCP servers, per-person MCP servers from App Home, their OAuth sign-in and URL checks
+    memory/                     Working-memory profile schema
+    db/                         Drizzle schema, queries and boot-time migrations
+    server/                     Public HTTP routes outside the Slack webhook
+    observability/              Langfuse feedback, Slack identity on spans, payload trimming
+    lib/                        Shared helpers: logger, ids, crypto, GitHub API, request context
+    types/                      Shared and exported types
+drizzle/                        gorkie's own SQL migrations
+workspace/skills/               Runtime skills the agent loads on demand
 ```
 
 Constructing the Mastra instance registers the agent and its Slack webhook route

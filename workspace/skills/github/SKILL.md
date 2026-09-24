@@ -33,10 +33,9 @@ Give up on running them locally only when installing genuinely fails: no network
 
 Push in the same turn as the commit, right after it. The sandbox pauses when a turn ends and can be collected, and a commit that never left it is gone. The same holds for every later fix in step 5 and 6: commit, then `github_push_branch`, before the turn ends.
 
-<!-- TODO(slopradar): accuracy | "there is no way to check access beforehand" is false: github_checkout already reads push access (checkout.ts:19-23, lib/github/api.ts repoAccess) and its result note says "You can push to this repo" when it can (checkout.ts:81-86) | tell the model to read the checkout note -->
-Push to the original repository. There is no way to check access beforehand: `github_get_repository` does not report permissions, so the push attempt is the check. Then `github_create_pull_request` into the base branch from step 1, and report the URL from the result.
+When the `github_checkout` note says "You can push to this repo", push to the original repository, then `github_create_pull_request` into the base branch from step 1, and report the URL from the result. When the note says you do not have push access, skip the push and go to the next paragraph.
 
-A push rejected as forbidden means write access is missing, not that the work is lost. The commit is still in the sandbox. Gorkie connects through a GitHub App, which only reaches repositories it was installed on and cannot create forks. Say so, then offer the diff or a patch so the person can push it and open the pull request themselves. If they already have a fork with the app installed, push there with `checkout` set to the original repository and `repository` set to the fork, and open the pull request from it.
+No push access, or a push rejected as forbidden, means write access is missing, not that the work is lost. The commit is still in the sandbox. Gorkie connects through a GitHub App, which only reaches repositories it was installed on and cannot create forks. Say so, then offer the diff or a patch so the person can push it and open the pull request themselves. If they already have a fork with the app installed, push there with `checkout` set to the original repository and `repository` set to the fork, and open the pull request from it.
 
 **Done when** the pull request exists and you have quoted its URL from a tool result.
 

@@ -1,9 +1,8 @@
 ---
 name: 67ify
-description: Convert local image files into 67ify-style animated GIFs by calling the deployed 67ify REST API. Use when the user asks an agent to turn an image, emoji, avatar, sticker, or other image file into a 67 or 55 GIF using the 67ify API, or when integrating with the `/api/convert` endpoint.
+description: Turn an image into a 67ify-style animated GIF with the public 67ify API. Use when someone asks to make a 67 or 55 GIF, or to 67ify an image, emoji, avatar, or sticker.
 ---
 
-<!-- TODO(slopradar): skill format: trigger | "asks an agent" and "integrating with the /api/convert endpoint" are not branches gorkie meets, and the body never says how the image arrives (get_slack_file into /home/user/downloads) or leaves (upload_file) | trigger on "make a 67/55 GIF" and add the Slack in/out steps -->
 # Use 67ify API
 
 ## Overview
@@ -13,12 +12,9 @@ API is unauthenticated and accepts either `mode=67` or `mode=55`.
 
 ## Inputs
 
-<!-- TODO(slopradar): internal contradiction | "Require: API base URL" is an input the user must give, but Workflow step 1 fixes it to https://67ify.vercel.app | drop it from Inputs -->
 Require:
 
-- API base URL, such as `https://67ify.vercel.app`.
-- Local input image path.
-- Local output GIF path.
+- The image. A Slack upload arrives through `get_slack_file`, which saves it under `/home/user/downloads`; a custom emoji through `get_slack_emoji`.
 
 Optional:
 
@@ -26,30 +22,20 @@ Optional:
 
 ## Workflow
 
-1. Use the deployed public instance, `https://67ify.vercel.app`, as the API URL.
-2. Resolve the input image path and output GIF path.
-3. Call the API directly with `curl` (see below).
-4. Confirm the output file exists and is non-empty before reporting success.
+1. Get the image into the sandbox (see Inputs).
+2. Call the API with `curl` (see below), writing the GIF next to the input.
+3. Confirm the output file exists and is non-empty.
+4. Send the GIF with `upload_file`.
 5. Mention that the image was sent to 67ify, a public third-party service, because it leaves the sandbox. Ask before sending an image that looks private or sensitive.
 
 ## Call the API
 
 ```bash
 curl --silent --show-error --fail \
-  --request POST '<api-base-url>/api/convert' \
-  --form 'image=@<input-image>' \
-  --form 'mode=<67|55>' \
-  --output <output.gif>
-```
-
-Example:
-
-```bash
-curl --silent --show-error --fail \
   --request POST 'https://67ify.vercel.app/api/convert' \
-  --form 'image=@./input.png' \
+  --form 'image=@/home/user/downloads/input.png' \
   --form 'mode=67' \
-  --output ./output.gif
+  --output /home/user/downloads/output.gif
 ```
 
 ## API Contract

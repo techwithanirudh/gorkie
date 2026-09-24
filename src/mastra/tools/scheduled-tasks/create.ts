@@ -2,8 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { computeNextFireAt } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { agent as agentConfig, scheduledTasks } from '../../config';
-import { channelContext } from '../../lib/context';
-import { isScheduledTask, ownSchedules } from './queries';
+import { channelWake, isScheduledTask, ownSchedules } from './queries';
 
 const minMinutes = scheduledTasks.minInterval / 60_000;
 
@@ -19,8 +18,8 @@ function assertMinimumInterval({
     let fire: number;
     try {
       fire = computeNextFireAt(cron, { timezone, after: previous });
-    // TODO(slopradar): CODING_STANDARDS: no swallowed catch | `catch { break; }` hides why a throw is expected (computeNextFireAt throws when there is no later fire) | add that why, or narrow to the specific error
     } catch {
+      // computeNextFireAt throws when the cron has no later fire.
       break;
     }
     const gap = fire - previous;
@@ -81,14 +80,7 @@ export const createScheduledTaskTool = createTool({
         prompt: task,
         threadId,
         resourceId,
-        signalType: 'notification',
-        ifActive: { behavior: 'persist' },
-        ifIdle: {
-          behavior: 'wake',
-          streamOptions: {
-            requestContext: { channel: channelContext(context.requestContext) },
-          },
-        },
+        ...channelWake(context),
         ...(name ? { name } : {}),
         ...(timezone ? { timezone } : {}),
       }),
