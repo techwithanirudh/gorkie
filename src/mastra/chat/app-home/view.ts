@@ -1,6 +1,11 @@
+import { toolDisplay as toolDisplayConfig } from '../../config';
 import { getGitHubCredential } from '../../db/queries/github';
 import { listMCPServers } from '../../db/queries/mcps';
-import { getGitHubSettings, getInstructions } from '../../db/queries/settings';
+import {
+  getGitHubSettings,
+  getInstructions,
+  getToolDisplay,
+} from '../../db/queries/settings';
 import { countInstallations } from '../../lib/github';
 import { logger } from '../../lib/logger';
 import {
@@ -15,6 +20,7 @@ import { customInstructionsBlocks } from './instructions';
 import { fitHome } from './limit';
 import { mcpServersBlocks } from './mcp';
 import { scheduledTasksBlocks } from './scheduled-tasks';
+import { toolDisplayBlocks } from './tool-display';
 
 async function settled<T>({
   label,
@@ -55,6 +61,7 @@ export async function publishHome(userId: string): Promise<void> {
     installations,
     github,
     scheduled,
+    display,
   ] = await Promise.all([
     settled({ label: 'instructions', userId, work: getInstructions(userId) }),
     settled({ label: 'mcp', userId, work: listMCPServers(userId) }),
@@ -68,11 +75,13 @@ export async function publishHome(userId: string): Promise<void> {
       userId,
       work: scheduledTasksBlocks(userId),
     }),
+    settled({ label: 'display', userId, work: getToolDisplay(userId) }),
   ]);
 
   const sections: HomeSection[] = [
     { fixed: [...content.home, { type: 'divider' }] },
     customInstructionsBlocks(instructions),
+    toolDisplayBlocks(display ?? toolDisplayConfig.default),
     githubBlocks({
       credential,
       installations,

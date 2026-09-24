@@ -16,7 +16,11 @@ import {
   onSubscribedMessage,
 } from '../chat/handlers';
 import { status } from '../chat/status';
-import { agent as config, summarizer as summarizerConfig } from '../config';
+import {
+  agent as config,
+  summarizer as summarizerConfig,
+  toolDisplay as toolDisplayConfig,
+} from '../config';
 import { listMCPServers } from '../db/queries/mcps';
 import { getInstructions } from '../db/queries/settings';
 import { channelContext } from '../lib/context';
@@ -29,6 +33,7 @@ import { profileSchema } from '../memory/profile';
 import { delegatedTools } from '../processors/delegated-tools';
 import { sandbox } from '../processors/sandbox';
 import { stepGuard } from '../processors/step-guard';
+import { toolDisplay } from '../processors/tool-display';
 import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
@@ -42,6 +47,7 @@ import {
 import { workspaceCodeModePrompt } from '../tools/code-mode/slack';
 import { githubTools } from '../tools/github';
 import { deferredTools, orchestratorTools } from '../tools/toolsets';
+import { mastraToolDisplay } from '../types';
 import { pauseSandbox, workspace } from '../workspace';
 import { explore } from './explore';
 import { research } from './research';
@@ -162,6 +168,7 @@ export const orchestrator = new Agent({
     new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
   ],
   outputProcessors: [
+    toolDisplay,
     stepGuard,
     delegatedTools,
     sandbox,
@@ -244,7 +251,7 @@ export const orchestrator = new Agent({
       slack: {
         adapter: slack,
         streaming: true,
-        toolDisplay: 'hidden',
+        toolDisplay: mastraToolDisplay[toolDisplayConfig.default],
         typingStatus: status,
         formatError: (error) =>
           `*Oops, something went wrong.*\n\n> ${error.message}`,

@@ -20,7 +20,7 @@
     "dev:e2e": "bash ./scripts/dev-e2e.sh",
     "dev:tunnel": "untun tunnel http://127.0.0.1:4111",
     "fix": "ultracite fix .",
-    "postbuild": "bun run scripts/postbuild.ts && cd .mastra/output && bun install",
+    "postbuild": "bun run scripts/postbuild.ts && cd .mastra/output && bun install && bun run ../../scripts/verify-mastra-patch.ts .",
     "prepare": "lefthook install",
     "start": "mastra start",
     "typecheck": "tsc --noEmit"

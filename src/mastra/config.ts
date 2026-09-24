@@ -1,4 +1,5 @@
 import { env } from '@/env';
+import type { ToolDisplayMode } from './types';
 export const sandbox = {
   template: 'gorkie-workspace:2.0',
   executionTimeout: 15 * 60 * 1000,
@@ -36,6 +37,8 @@ export const agent = {
   maxSteps: 1000,
   modelTimeout: { firstChunkMs: 2 * 60 * 1000, stepMs: 5 * 60 * 1000 },
 };
+
+export const toolDisplay: { default: ToolDisplayMode } = { default: 'hidden' };
 
 export const summarizer = {
   id: 'summarizer',

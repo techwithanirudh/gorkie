@@ -9,6 +9,7 @@ import {
 import type {
   GitHubPermission,
   MCPOAuthStatus,
+  ToolDisplayMode,
   ToolPermission,
 } from '../types';
 
@@ -69,6 +70,7 @@ export const userSettings = pgTable('user_settings', {
   instructions: text('instructions'),
   githubPermission: text('github_permission').$type<GitHubPermission>(),
   githubThreads: boolean('github_threads'),
+  toolDisplay: text('tool_display').$type<ToolDisplayMode>(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

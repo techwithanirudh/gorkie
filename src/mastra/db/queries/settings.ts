@@ -1,6 +1,11 @@
 import { eq } from 'drizzle-orm';
 import { rawId } from '../../lib/ids';
-import { type GitHubSettings, githubPermissionSchema } from '../../types';
+import {
+  type GitHubSettings,
+  githubPermissionSchema,
+  type ToolDisplayMode,
+  toolDisplayModeSchema,
+} from '../../types';
 import { db } from '../client';
 import { userSettings } from '../schema';
 
@@ -69,4 +74,28 @@ export async function clearGitHubSettings(userId: string): Promise<void> {
       updatedAt: new Date(),
     })
     .where(eq(userSettings.userId, rawId(userId)));
+}
+
+export async function getToolDisplay(
+  userId: string
+): Promise<ToolDisplayMode | undefined> {
+  const [row] = await db
+    .select({ toolDisplay: userSettings.toolDisplay })
+    .from(userSettings)
+    .where(eq(userSettings.userId, rawId(userId)));
+  return toolDisplayModeSchema.safeParse(row?.toolDisplay).data;
+}
+
+export async function setToolDisplay({
+  toolDisplay,
+  userId,
+}: {
+  toolDisplay: ToolDisplayMode;
+  userId: string;
+}): Promise<void> {
+  const set = { toolDisplay, updatedAt: new Date() };
+  await db
+    .insert(userSettings)
+    .values({ ...set, instructions: null, userId: rawId(userId) })
+    .onConflictDoUpdate({ target: userSettings.userId, set });
 }

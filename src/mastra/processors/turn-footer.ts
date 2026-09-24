@@ -15,6 +15,14 @@ export const turnFooter = {
     'Closes a turn with how long it took and a thumbs rating for the response.',
   processOutputStream(args: ProcessOutputStreamArgs) {
     args.state.startTime ??= Date.now();
+    if (
+      args.part.type === 'tool-call' &&
+      args.part.payload.toolName !== 'skip'
+    ) {
+      args.state.toolCalls =
+        (typeof args.state.toolCalls === 'number' ? args.state.toolCalls : 0) +
+        1;
+    }
     return args.part;
   },
   async processOutputResult(args: ProcessOutputResultArgs) {
@@ -34,7 +42,12 @@ export const turnFooter = {
       intervalToDuration({ start: startTime, end: Date.now() }),
       { format: ['hours', 'minutes', 'seconds'] }
     );
-    const text = `done in ${elapsed || 'under a second'}`;
+    const { toolCalls } = args.state;
+    const tools =
+      typeof toolCalls === 'number' && toolCalls > 0
+        ? ` · ${toolCalls} ${toolCalls === 1 ? 'tool' : 'tools'}`
+        : '';
+    const text = `done in ${elapsed || 'under a second'}${tools}`;
     const traceId = args.tracingContext?.currentSpan?.traceId;
     try {
       await slack.postBlocks({

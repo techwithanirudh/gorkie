@@ -1,6 +1,40 @@
 --- a/dist/agent-DwtTO5Px.js
 +++ b/dist/agent-DwtTO5Px.js
-@@ -21028,7 +21028,10 @@
+@@ -20789,6 +20789,10 @@
+ 	const pendingOmTasks = /* @__PURE__ */ new Map();
+ 	const aggregatedRecallRef = { current: null };
+ 	const planTitleRef = { current: false };
++	// Slack caps a plan block at 50 tasks and an over-cap append kills the
++	// stream, so tasks past the cap are dropped and long turns roll over.
++	const sessionTaskIds = /* @__PURE__ */ new Set();
++	const droppedTaskIds = /* @__PURE__ */ new Set();
+ 	const openSession = () => {
+ 		let buffer = [];
+ 		let closed = false;
+@@ -20867,6 +20871,7 @@
+ 		pendingOmTasks.clear();
+ 		aggregatedRecallRef.current = null;
+ 		planTitleRef.current = false;
++		sessionTaskIds.clear();
+ 		sessionRef.current = null;
+ 		s.close();
+ 		await s.done;
+@@ -20880,6 +20885,14 @@
+ 	* of the handlers.
+ 	*/
+ 	const pushToSession = (piece) => {
++		if (rendersToolsInPlan && piece.type === "task_update") {
++			if (droppedTaskIds.has(piece.id)) return;
++			if (!sessionTaskIds.has(piece.id) && sessionTaskIds.size >= 50) {
++				droppedTaskIds.add(piece.id);
++				return;
++			}
++			sessionTaskIds.add(piece.id);
++		}
+ 		if (!sessionRef.current) sessionRef.current = openSession();
+ 		for (const pendingPiece of pendingInitialText) sessionRef.current.push(pendingPiece);
+ 		pendingInitialText.length = 0;
+@@ -21028,7 +21041,10 @@
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -8,11 +42,25 @@
 +			// A continued step (retry, in-place or fallback-model escalation) means the
 +			// run is still alive: closing here would finalize the message early.
 +			const stepIsContinued = chunk.payload?.stepResult?.isContinued === true;
-+			if (toolDisplay !== "grouped" && !stepIsContinued) await closeSession();
++			if (!stepIsContinued && (toolDisplay !== "grouped" || sessionTaskIds.size >= 40)) await closeSession();
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -22227,6 +22230,7 @@
+@@ -21174,7 +21190,12 @@
+ 				id: enr.toolCallId,
+ 				title: taskTitle,
+ 				status: "complete",
+-				output: toolDisplay === "timeline" ? enr.resultText || void 0 : void 0
++				output: toolDisplay === "timeline" ? (() => {
++					const shown = getTransformedToolPayload(chunk.metadata, "display", "output-available")?.transformed;
++					if (typeof shown?.summary === "string" && shown.summary) return shown.summary;
++					if (typeof shown === "string" && shown) return shown;
++					return enr.resultText || void 0;
++				})() : void 0
+ 			});
+ 			continue;
+ 		}
+@@ -22227,6 +22248,7 @@
  						let runId;
  						let toolName;
  						let toolArgs;
@@ -20,7 +68,7 @@
  						const stashed = this.pendingApprovalCards.get(toolCallId);
  						if (stashed?.runId) {
  							runId = stashed.runId;
-@@ -22251,6 +22255,7 @@
+@@ -22251,6 +22273,7 @@
  										runId = toolData.parentRunId ?? toolData.runId;
  										toolName = toolData.toolName;
  										toolArgs = toolData.args;
@@ -28,7 +76,7 @@
  										break;
  									}
  									if (runId) break;
-@@ -22261,6 +22266,16 @@
+@@ -22261,6 +22284,16 @@
  							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
  							return;
  						}
@@ -45,7 +93,7 @@
  						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
  						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
  						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -22281,7 +22296,7 @@
+@@ -22281,7 +22314,7 @@
  							});
  							const { requestContext } = handlerContext;
  							requestContext.set("channel", channelContext);
@@ -54,7 +102,7 @@
  							requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  							try {
  								await this.dispatchDecline({
-@@ -22318,7 +22333,7 @@
+@@ -22318,7 +22351,7 @@
  						const renderContext = this._buildRenderContext(chatThread, platform, {
  							toolCallId,
  							messageId
@@ -63,7 +111,7 @@
  						requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  						await this.dispatchApproval({
  							runId,
-@@ -22754,7 +22769,7 @@
+@@ -22754,7 +22787,7 @@
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -72,7 +120,7 @@
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -22816,14 +22831,17 @@
+@@ -22816,14 +22849,17 @@
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -92,7 +140,7 @@
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -27353,6 +27371,16 @@
+@@ -27353,6 +27389,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -109,7 +157,7 @@
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -27373,7 +27401,11 @@
+@@ -27373,7 +27419,11 @@
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -122,7 +170,7 @@
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -27401,7 +27433,7 @@
+@@ -27401,7 +27451,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -131,7 +179,7 @@
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
-@@ -28331,10 +28363,12 @@
+@@ -28331,10 +28381,12 @@
  				const suspendTransform = getTransformedToolPayload(toolStateTransformMetadata, "transcript", "suspend");
  				const transformedArgs = type === "approval" ? hasTransformedToolPayload(approvalTransform) ? approvalTransform.transformed : hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : args : hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : args;
  				const transformedSuspendPayload = type === "suspension" ? hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : suspendPayload : void 0;
@@ -146,7 +194,41 @@
  						parentArgs
 --- a/dist/agent-DVnXHd4C.cjs
 +++ b/dist/agent-DVnXHd4C.cjs
-@@ -21030,7 +21030,10 @@
+@@ -20791,6 +20791,10 @@
+ 	const pendingOmTasks = /* @__PURE__ */ new Map();
+ 	const aggregatedRecallRef = { current: null };
+ 	const planTitleRef = { current: false };
++	// Slack caps a plan block at 50 tasks and an over-cap append kills the
++	// stream, so tasks past the cap are dropped and long turns roll over.
++	const sessionTaskIds = /* @__PURE__ */ new Set();
++	const droppedTaskIds = /* @__PURE__ */ new Set();
+ 	const openSession = () => {
+ 		let buffer = [];
+ 		let closed = false;
+@@ -20869,6 +20873,7 @@
+ 		pendingOmTasks.clear();
+ 		aggregatedRecallRef.current = null;
+ 		planTitleRef.current = false;
++		sessionTaskIds.clear();
+ 		sessionRef.current = null;
+ 		s.close();
+ 		await s.done;
+@@ -20882,6 +20887,14 @@
+ 	* of the handlers.
+ 	*/
+ 	const pushToSession = (piece) => {
++		if (rendersToolsInPlan && piece.type === "task_update") {
++			if (droppedTaskIds.has(piece.id)) return;
++			if (!sessionTaskIds.has(piece.id) && sessionTaskIds.size >= 50) {
++				droppedTaskIds.add(piece.id);
++				return;
++			}
++			sessionTaskIds.add(piece.id);
++		}
+ 		if (!sessionRef.current) sessionRef.current = openSession();
+ 		for (const pendingPiece of pendingInitialText) sessionRef.current.push(pendingPiece);
+ 		pendingInitialText.length = 0;
+@@ -21030,7 +21043,10 @@
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -154,11 +236,25 @@
 +			// A continued step (retry, in-place or fallback-model escalation) means the
 +			// run is still alive: closing here would finalize the message early.
 +			const stepIsContinued = chunk.payload?.stepResult?.isContinued === true;
-+			if (toolDisplay !== "grouped" && !stepIsContinued) await closeSession();
++			if (!stepIsContinued && (toolDisplay !== "grouped" || sessionTaskIds.size >= 40)) await closeSession();
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -22229,6 +22232,7 @@
+@@ -21176,7 +21192,12 @@
+ 				id: enr.toolCallId,
+ 				title: taskTitle,
+ 				status: "complete",
+-				output: toolDisplay === "timeline" ? enr.resultText || void 0 : void 0
++				output: toolDisplay === "timeline" ? (() => {
++					const shown = require_payload_transform.getTransformedToolPayload(chunk.metadata, "display", "output-available")?.transformed;
++					if (typeof shown?.summary === "string" && shown.summary) return shown.summary;
++					if (typeof shown === "string" && shown) return shown;
++					return enr.resultText || void 0;
++				})() : void 0
+ 			});
+ 			continue;
+ 		}
+@@ -22229,6 +22250,7 @@
  						let runId;
  						let toolName;
  						let toolArgs;
@@ -166,7 +262,7 @@
  						const stashed = this.pendingApprovalCards.get(toolCallId);
  						if (stashed?.runId) {
  							runId = stashed.runId;
-@@ -22253,6 +22257,7 @@
+@@ -22253,6 +22275,7 @@
  										runId = toolData.parentRunId ?? toolData.runId;
  										toolName = toolData.toolName;
  										toolArgs = toolData.args;
@@ -174,7 +270,7 @@
  										break;
  									}
  									if (runId) break;
-@@ -22263,6 +22268,16 @@
+@@ -22263,6 +22286,16 @@
  							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
  							return;
  						}
@@ -191,7 +287,7 @@
  						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
  						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
  						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -22283,7 +22298,7 @@
+@@ -22283,7 +22316,7 @@
  							});
  							const { requestContext } = handlerContext;
  							requestContext.set("channel", channelContext);
@@ -200,7 +296,7 @@
  							requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  							try {
  								await this.dispatchDecline({
-@@ -22320,7 +22335,7 @@
+@@ -22320,7 +22353,7 @@
  						const renderContext = this._buildRenderContext(chatThread, platform, {
  							toolCallId,
  							messageId
@@ -209,7 +305,7 @@
  						requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  						await this.dispatchApproval({
  							runId,
-@@ -22756,7 +22771,7 @@
+@@ -22756,7 +22789,7 @@
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -218,7 +314,7 @@
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -22818,14 +22833,17 @@
+@@ -22818,14 +22851,17 @@
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -238,7 +334,7 @@
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -27355,6 +27373,16 @@
+@@ -27355,6 +27391,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -255,7 +351,7 @@
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -27375,7 +27403,11 @@
+@@ -27375,7 +27421,11 @@
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -268,7 +364,7 @@
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -27403,7 +27435,7 @@
+@@ -27403,7 +27453,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -277,7 +373,7 @@
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
-@@ -28333,10 +28365,12 @@
+@@ -28333,10 +28383,12 @@
  				const suspendTransform = require_payload_transform.getTransformedToolPayload(toolStateTransformMetadata, "transcript", "suspend");
  				const transformedArgs = type === "approval" ? require_payload_transform.hasTransformedToolPayload(approvalTransform) ? approvalTransform.transformed : require_payload_transform.hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : args : require_payload_transform.hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : require_payload_transform.hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : args;
  				const transformedSuspendPayload = type === "suspension" ? require_payload_transform.hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : suspendPayload : void 0;

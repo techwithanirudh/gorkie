@@ -17,7 +17,9 @@ async function threadStateStore() {
   return store;
 }
 
-export async function threadState(thread: Thread): Promise<ThreadState | null> {
+export async function threadState(
+  thread: Pick<Thread, 'id'>
+): Promise<ThreadState | null> {
   try {
     const store = await threadStateStore();
     const stored = await store.getState({
@@ -38,7 +40,7 @@ export async function setThreadState({
   thread,
   patch,
 }: {
-  thread: Thread;
+  thread: Pick<Thread, 'id'>;
   patch: ThreadState;
 }): Promise<void> {
   try {
