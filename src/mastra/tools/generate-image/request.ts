@@ -3,6 +3,7 @@ import type { E2BSandbox } from '@mastra/e2b';
 import { z } from 'zod';
 import { env } from '@/env';
 import { images } from '../../providers';
+import { confinePath } from '../../workspace/filesystem';
 
 const completionSchema = z.looseObject({
   choices: z
@@ -39,8 +40,9 @@ export async function requestImages({
 }): Promise<{ data: Buffer; mediaType: string }[]> {
   const references = await Promise.all(
     referenceImages.map(async (path) => {
+      const filePath = confinePath({ inputPath: path });
       const { size } = await sandbox.retryOnDead(() =>
-        sandbox.e2b.files.getInfo(path)
+        sandbox.e2b.files.getInfo(filePath)
       );
       if (size > 8 * 1024 * 1024) {
         throw new Error(
@@ -49,7 +51,7 @@ export async function requestImages({
       }
       const data = Buffer.from(
         await sandbox.retryOnDead(() =>
-          sandbox.e2b.files.read(path, { format: 'bytes' })
+          sandbox.e2b.files.read(filePath, { format: 'bytes' })
         )
       );
       return {

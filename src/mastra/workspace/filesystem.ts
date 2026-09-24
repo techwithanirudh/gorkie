@@ -40,6 +40,47 @@ function modifiedTime(info: { modifiedTime?: Date }): Date {
   return info.modifiedTime ?? new Date(0);
 }
 
+// Folders gorkie's own tools write, which a general write must not clobber,
+// including by removing or moving a folder that contains one. Prefixes are
+// relative to the workdir and compared after normalization, so `.artifacts/x`,
+// `./.artifacts//x` and `/home/user/.artifacts/x` are the same target.
+const reserved = [{ prefix: '.artifacts', owner: 'save_artifact' }];
+
+// The file tools and every tool that takes a model-supplied sandbox path go
+// through this, so none of them reaches outside the workdir.
+export function confinePath({
+  basePath = sandboxConfig.workdir,
+  inputPath,
+  write = false,
+}: {
+  basePath?: string;
+  inputPath: string;
+  write?: boolean;
+}): string {
+  const resolved = path.posix.resolve(basePath, inputPath);
+  if (!(resolved === basePath || resolved.startsWith(`${basePath}/`))) {
+    throw new PermissionError(inputPath, `access outside ${basePath}`);
+  }
+  if (!write) {
+    return resolved;
+  }
+  const owned = reserved.find(({ prefix }) => {
+    const root = `${basePath}/${prefix}`;
+    return (
+      resolved === root ||
+      resolved.startsWith(`${root}/`) ||
+      root.startsWith(`${resolved}/`)
+    );
+  });
+  if (owned) {
+    throw new PermissionError(
+      inputPath,
+      `write (${owned.prefix}/ is reserved for ${owned.owner})`
+    );
+  }
+  return resolved;
+}
+
 export class E2BFilesystem extends MastraFilesystem {
   readonly id: string;
   readonly name = 'E2BFilesystem';
@@ -120,7 +161,7 @@ export class E2BFilesystem extends MastraFilesystem {
     options?: WriteOptions
   ): Promise<void> {
     await this.ensureReady();
-    const filePath = this.resolve(inputPath);
+    const filePath = this.resolveWritable(inputPath);
 
     if (options?.recursive === false) {
       await this.assertParent({ filePath, inputPath });
@@ -151,7 +192,7 @@ export class E2BFilesystem extends MastraFilesystem {
 
   async appendFile(inputPath: string, content: FileContent): Promise<void> {
     await this.ensureReady();
-    const filePath = this.resolve(inputPath);
+    const filePath = this.resolveWritable(inputPath);
     await this.sandbox.retryOnDead(() =>
       this.sandbox.e2b.files.makeDir(path.posix.dirname(filePath))
     );
@@ -172,7 +213,7 @@ export class E2BFilesystem extends MastraFilesystem {
 
   async deleteFile(inputPath: string, options?: RemoveOptions): Promise<void> {
     await this.ensureReady();
-    const filePath = this.resolve(inputPath);
+    const filePath = this.resolveWritable(inputPath);
 
     try {
       await this.attempt({
@@ -204,7 +245,7 @@ export class E2BFilesystem extends MastraFilesystem {
   ): Promise<void> {
     await this.ensureReady();
     const srcPath = this.resolve(src);
-    const destPath = this.resolve(dest);
+    const destPath = this.resolveWritable(dest);
 
     if (options?.overwrite === false && (await this.exists(dest))) {
       throw new FileExistsError(dest);
@@ -239,8 +280,8 @@ export class E2BFilesystem extends MastraFilesystem {
     options?: CopyOptions
   ): Promise<void> {
     await this.ensureReady();
-    const srcPath = this.resolve(src);
-    const destPath = this.resolve(dest);
+    const srcPath = this.resolveWritable(src);
+    const destPath = this.resolveWritable(dest);
 
     if (options?.overwrite === false && (await this.exists(dest))) {
       throw new FileExistsError(dest);
@@ -264,7 +305,7 @@ export class E2BFilesystem extends MastraFilesystem {
     options?: { recursive?: boolean }
   ): Promise<void> {
     await this.ensureReady();
-    const dirPath = this.resolve(inputPath);
+    const dirPath = this.resolveWritable(inputPath);
 
     if (options?.recursive === false) {
       await this.assertParent({ filePath: dirPath, inputPath });
@@ -282,7 +323,7 @@ export class E2BFilesystem extends MastraFilesystem {
 
   async rmdir(inputPath: string, options?: RemoveOptions): Promise<void> {
     await this.ensureReady();
-    const dirPath = this.resolve(inputPath);
+    const dirPath = this.resolveWritable(inputPath);
 
     try {
       await this.attempt({
@@ -454,17 +495,11 @@ export class E2BFilesystem extends MastraFilesystem {
   }
 
   private resolve(inputPath: string): string {
-    const resolved = path.posix.normalize(
-      path.posix.isAbsolute(inputPath)
-        ? inputPath
-        : path.posix.join(this.basePath, inputPath)
-    );
-    if (
-      !(resolved === this.basePath || resolved.startsWith(`${this.basePath}/`))
-    ) {
-      throw new PermissionError(inputPath, 'access');
-    }
-    return resolved;
+    return confinePath({ basePath: this.basePath, inputPath });
+  }
+
+  private resolveWritable(inputPath: string): string {
+    return confinePath({ basePath: this.basePath, inputPath, write: true });
   }
 
   private async assertParent({

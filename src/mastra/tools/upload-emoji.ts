@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { env } from '@/env';
 import { emoji } from '../config';
 import { requireSandbox } from '../workspace';
+import { confinePath } from '../workspace/filesystem';
 
 export const uploadEmojiTool = createTool({
   id: 'upload_emoji',
@@ -51,9 +52,10 @@ export const uploadEmojiTool = createTool({
 
     let response: Response;
     if (path) {
+      const filePath = confinePath({ inputPath: path });
       const sandbox = await requireSandbox(context.requestContext);
       const bytes = await sandbox.retryOnDead(() =>
-        sandbox.e2b.files.read(path, { format: 'bytes' })
+        sandbox.e2b.files.read(filePath, { format: 'bytes' })
       );
       const form = new FormData();
       form.set('name', name);

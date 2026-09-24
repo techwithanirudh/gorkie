@@ -6,6 +6,7 @@ import { upload } from '../../config';
 import { channelContext } from '../../lib/context';
 import { type Target, targetSchema } from '../../types/tools/index';
 import { requireSandbox } from '../../workspace';
+import { confinePath } from '../../workspace/filesystem';
 import { assertCanPostTo, joinChannel, slackDestination } from './utils';
 
 async function uploadToSlack({
@@ -21,9 +22,12 @@ async function uploadToSlack({
   requestContext: RequestContext;
   target?: Target;
 }) {
+  const filePath = confinePath({ inputPath: path });
   const sandbox = await requireSandbox(requestContext);
 
-  const stat = await sandbox.retryOnDead(() => sandbox.e2b.files.getInfo(path));
+  const stat = await sandbox.retryOnDead(() =>
+    sandbox.e2b.files.getInfo(filePath)
+  );
   if (stat.size > upload.maxBytes) {
     throw new Error(
       `${path} is ${Math.round(stat.size / 1_000_000)}MB, over the ${upload.maxBytes / 1_000_000}MB upload limit.`
@@ -55,7 +59,7 @@ async function uploadToSlack({
     // The read is drained at whatever rate Slack accepts bytes, and the idle
     // window defaults to the 60s request timeout, so a large file over a
     // slow link trips it partway through. 0 disables it.
-    sandbox.e2b.files.read(path, {
+    sandbox.e2b.files.read(filePath, {
       format: 'stream',
       streamIdleTimeoutMs: 0,
     })

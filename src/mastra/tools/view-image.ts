@@ -3,6 +3,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { image } from '../config';
 import { requireSandbox } from '../workspace';
+import { confinePath } from '../workspace/filesystem';
 
 export function viewableImageType(bytes: Uint8Array): string | undefined {
   // Type by the actual bytes, never the extension: a mislabeled file (e.g. a
@@ -42,9 +43,10 @@ export const viewImageTool = createTool({
     ],
   }),
   execute: async ({ path }, context) => {
+    const filePath = confinePath({ inputPath: path });
     const sandbox = await requireSandbox(context.requestContext);
     const stat = await sandbox.retryOnDead(() =>
-      sandbox.e2b.files.getInfo(path)
+      sandbox.e2b.files.getInfo(filePath)
     );
     if (stat.size > image.maxViewBytes) {
       throw new Error(
@@ -53,7 +55,7 @@ export const viewImageTool = createTool({
     }
     const bytes = Buffer.from(
       await sandbox.retryOnDead(() =>
-        sandbox.e2b.files.read(path, { format: 'bytes' })
+        sandbox.e2b.files.read(filePath, { format: 'bytes' })
       )
     );
     const mediaType = viewableImageType(bytes);
