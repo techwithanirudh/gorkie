@@ -88,10 +88,8 @@ export async function getSandbox(
   return sandbox;
 }
 
-// The `sandbox` output processor calls this on a normal turn, but that phase
-// never runs on an abort or a thrown turn, so `onAbort`/`onError` call it too:
-// otherwise the sandbox stays live until its own 16 minute timeout after every
-// stopped turn.
+// Callers end the live view first (the workspace does not import chat code), so
+// the browser session closes while its sandbox is still reachable.
 export async function pauseSandbox(
   requestContext: RequestContext
 ): Promise<void> {
@@ -99,15 +97,10 @@ export async function pauseSandbox(
     return;
   }
   const { threadId } = channelContext(requestContext);
-  if (threadId) {
-    // Dynamic: the Slack card module imports this one for the browser.
-    const { endLiveView } = await import('../chat/live-view');
-    await endLiveView({ threadId });
-    // Pausing freezes a background job mid-run (it only advanced during later
-    // turns); the job keeps the VM alive itself and E2B pauses it after.
-    if (hasLiveJob(threadId)) {
-      return;
-    }
+  // Pausing freezes a background job mid-run (it only advanced during later
+  // turns); the job keeps the VM alive itself and E2B pauses it after.
+  if (threadId && hasLiveJob(threadId)) {
+    return;
   }
   try {
     const sandbox = await getSandbox(requestContext);
@@ -128,10 +121,6 @@ export { codeModeToolNames } from './tool-names';
 export const browser = new SandboxBrowser({
   sandboxFor: (threadId) =>
     requireSandbox(new RequestContext([['channel', { threadId }]])),
-  onConnected: async (threadId) => {
-    const { startLiveView } = await import('../chat/live-view');
-    await startLiveView({ threadId });
-  },
 });
 
 export const workspace: Workspace = new Workspace({

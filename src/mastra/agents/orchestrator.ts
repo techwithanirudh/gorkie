@@ -33,7 +33,7 @@ import { userMCPTools } from '../mcp/user-servers';
 import { profileSchema } from '../memory/profile';
 import { delegatedTools } from '../processors/delegated-tools';
 import { outputBudget } from '../processors/output-budget';
-import { sandbox } from '../processors/sandbox';
+import { endSandboxTurn, sandbox } from '../processors/sandbox';
 import { staleMessages } from '../processors/stale-messages';
 import { stepGuard } from '../processors/step-guard';
 import { toolDisplay } from '../processors/tool-display';
@@ -52,7 +52,7 @@ import { workspaceCodeModePrompt } from '../tools/code-mode/slack';
 import { githubTools } from '../tools/github';
 import { orchestratorTools } from '../tools/toolsets';
 import { mastraToolDisplay } from '../types';
-import { pauseSandbox, workspace } from '../workspace';
+import { workspace } from '../workspace';
 import { explore } from './explore';
 import { research } from './research';
 
@@ -152,7 +152,7 @@ export const orchestrator = new Agent({
     // GitHub push) is registered; 'called' serialises only a step that calls one.
     toolCallConcurrency: { limit: 10, strategy: 'called' },
     onAbort: async () => {
-      await pauseSandbox(requestContext);
+      await endSandboxTurn(requestContext);
       const { threadId } = channelContext(requestContext);
       if (!threadId) {
         return;
@@ -169,7 +169,7 @@ export const orchestrator = new Agent({
     },
     onError: async () => {
       // A thrown turn never reaches the `sandbox` output processor.
-      await pauseSandbox(requestContext);
+      await endSandboxTurn(requestContext);
     },
   }),
   workspace,

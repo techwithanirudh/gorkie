@@ -2,24 +2,46 @@ import type { BackgroundTask } from '@mastra/core/background-tasks';
 import { RequestContext } from '@mastra/core/request-context';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+import { slack } from '../chat/client';
 import { getMastra } from '../chat/mastra-instance';
 import { agent as agentConfig, sandbox as sandboxConfig } from '../config';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
 import type { ChannelContext } from '../types';
 import { requireSandbox } from '../workspace';
-import { attachPid, endJob, startJob } from '../workspace/jobs';
+import { attachPid, attachSandbox, endJob, startJob } from '../workspace/jobs';
 
 // The completion callback gets only the task record, whose `threadId` is the
 // memory thread. The woken run needs the Slack channel context the way `wait`
-// carries it, so the job hands it over by task id. A restart loses the job
-// itself too, so memory is enough.
+// carries it, so the job hands it over by task id. In memory: a restart loses
+// the job itself too.
 const wakeChannels = new Map<string, ChannelContext>();
 
 async function wakeThread(task: BackgroundTask): Promise<void> {
-  const channel = wakeChannels.get(task.id) ?? { threadId: task.threadId };
+  const saved = wakeChannels.get(task.id);
   wakeChannels.delete(task.id);
-  if (!(task.threadId && task.resourceId)) {
+  const { threadId, resourceId } = task;
+  if (!(threadId && resourceId)) {
+    return;
+  }
+  // A task that outlived a restart is missing from the map. The memory thread
+  // id is the Slack thread id, so the channel rebuilds from it; without a
+  // channelId every Slack post in the woken turn is refused. The userId cannot
+  // be rebuilt, so user-scoped tools stay off for that turn.
+  let channel = saved;
+  try {
+    channel ??= {
+      platform: 'slack',
+      threadId,
+      channelId: slack.channelIdFromThreadId(threadId),
+      isDM: slack.isDM(threadId),
+    };
+  } catch (error) {
+    logger.warn('[run_background] no Slack thread to wake', {
+      error,
+      taskId: task.id,
+      threadId,
+    });
     return;
   }
   const outcome =
@@ -39,8 +61,8 @@ async function wakeThread(task: BackgroundTask): Promise<void> {
           contents: `Your background job${reason ? ` (${reason})` : ''} ${outcome}. Its result is in the run_background tool output. Report it to the person in this thread.`,
         },
         {
-          threadId: task.threadId,
-          resourceId: task.resourceId,
+          threadId,
+          resourceId,
           ifIdle: {
             behavior: 'wake',
             streamOptions: {
@@ -111,15 +133,13 @@ export const runBackgroundTool = createTool({
     if (context.background) {
       wakeChannels.set(context.background.taskId, channel);
     }
-    const sandbox = await requireSandbox(requestContext);
-    const deadline = AbortSignal.timeout(timeout * 1000);
-    startJob({
-      id,
-      threadId: channel.threadId,
-      sandbox,
-      timeoutMs: timeout * 1000,
-    });
+    // Registered before the first await: until then the turn-end pause sees no
+    // job and could pause the VM under the spawn.
+    startJob({ id, threadId: channel.threadId, timeoutMs: timeout * 1000 });
     try {
+      const sandbox = await requireSandbox(requestContext);
+      attachSandbox({ id, sandbox });
+      const deadline = AbortSignal.timeout(timeout * 1000);
       const handle = await sandbox.processes.spawn(command, {
         cwd: sandboxConfig.workdir,
         stdinMode: 'ignore',

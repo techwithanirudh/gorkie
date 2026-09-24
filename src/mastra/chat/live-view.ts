@@ -13,6 +13,8 @@ interface LiveCard {
 
 const cards = new Map<string, LiveCard>();
 
+browser.onConnected((threadId) => startLiveView({ threadId }));
+
 function liveBlocks({
   threadId,
   url,

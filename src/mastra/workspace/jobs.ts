@@ -6,7 +6,7 @@ import { logger } from '../lib/logger';
 // a thread with no entry pauses at turn end exactly as it did before.
 const jobs = new Map<
   string,
-  { threadId: string; deadline: number; sandbox: E2BSandbox; pid?: string }
+  { threadId: string; deadline: number; sandbox?: E2BSandbox; pid?: string }
 >();
 const keepalives = new Map<string, ReturnType<typeof setInterval>>();
 
@@ -25,6 +25,8 @@ export function hasLiveJob(threadId: string): boolean {
   return live;
 }
 
+// A job may register before its sandbox resolves, so the turn-end pause cannot
+// slip into that gap; attachSandbox fills it in once it does.
 export function startJob({
   id,
   threadId,
@@ -33,7 +35,7 @@ export function startJob({
 }: {
   id: string;
   threadId: string;
-  sandbox: E2BSandbox;
+  sandbox?: E2BSandbox;
   timeoutMs: number;
 }): void {
   jobs.set(id, { threadId, deadline: Date.now() + timeoutMs, sandbox });
@@ -48,12 +50,20 @@ export function startJob({
       keepalives.delete(threadId);
       return;
     }
-    sandbox.e2b.setTimeout(config.timeout).catch((error: unknown) => {
-      logger.warn('[sandbox] failed to keep a background job alive', {
-        error,
-        threadId,
+    // Resolved each tick, newest first by insertion order: the job that started
+    // this timer may be gone, and a later one can hold a handle made after a
+    // sandbox cache clear.
+    const sandbox = [...jobs.values()]
+      .filter((job) => job.threadId === threadId && job.sandbox)
+      .at(-1)?.sandbox;
+    sandbox
+      ?.retryOnDead(() => sandbox.e2b.setTimeout(config.timeout))
+      .catch((error: unknown) => {
+        logger.warn('[sandbox] failed to keep a background job alive', {
+          error,
+          threadId,
+        });
       });
-    });
   }, config.background.keepaliveMs);
   timer.unref();
   keepalives.set(threadId, timer);
@@ -61,6 +71,19 @@ export function startJob({
 
 export function endJob(id: string): void {
   jobs.delete(id);
+}
+
+export function attachSandbox({
+  id,
+  sandbox,
+}: {
+  id: string;
+  sandbox: E2BSandbox;
+}): void {
+  const job = jobs.get(id);
+  if (job) {
+    job.sandbox = sandbox;
+  }
 }
 
 // The pid is only known once the spawn returns, after the job was registered.
@@ -73,12 +96,14 @@ export function attachPid({ id, pid }: { id: string; pid: string }): void {
 
 export async function killJobs(threadId: string): Promise<number> {
   const running = [...jobs].filter(
-    ([, job]) => job.threadId === threadId && job.pid
+    ([, job]) => job.threadId === threadId && job.pid && job.sandbox
   );
   const kills = await Promise.allSettled(
     running.map(([id, job]) => {
       jobs.delete(id);
-      return job.pid ? job.sandbox.processes.kill(job.pid) : false;
+      return job.pid && job.sandbox
+        ? job.sandbox.processes.kill(job.pid)
+        : false;
     })
   );
   for (const kill of kills) {

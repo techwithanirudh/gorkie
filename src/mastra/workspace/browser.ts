@@ -135,14 +135,12 @@ async function sandboxCdp({
 
 export class SandboxBrowser extends BrowserViewer {
   private readonly sandboxFor: (threadId: string) => Promise<E2BSandbox>;
-  private readonly onConnected: (threadId: string) => Promise<void>;
+  private connectedHook?: (threadId: string) => Promise<void>;
   private readonly internalUrls = new Map<string, string>();
 
   constructor({
-    onConnected,
     sandboxFor,
   }: {
-    onConnected: (threadId: string) => Promise<void>;
     sandboxFor: (threadId: string) => Promise<E2BSandbox>;
   }) {
     super({
@@ -152,7 +150,11 @@ export class SandboxBrowser extends BrowserViewer {
       scope: 'thread',
     });
     this.sandboxFor = sandboxFor;
-    this.onConnected = onConnected;
+  }
+
+  // Set by the Slack live view card, so the workspace never imports chat code.
+  onConnected(hook: (threadId: string) => Promise<void>): void {
+    this.connectedHook = hook;
   }
 
   private async connectThread(threadId: string | undefined): Promise<void> {
@@ -192,7 +194,7 @@ export class SandboxBrowser extends BrowserViewer {
       return;
     }
     this.internalUrls.set(threadId, cdp.internal);
-    await this.onConnected(threadId).catch((error: unknown) => {
+    await this.connectedHook?.(threadId).catch((error: unknown) => {
       logger.warn('[live-view] failed to post the live view', {
         error,
         threadId,
