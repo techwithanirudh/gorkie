@@ -63,7 +63,7 @@ directory; gorkie derives a directory per repository.
 ## Verified
 
 Against `gorkie-workspace:2.0` and a real private repository. The template is
-now `2.1`; these checks have not been re-run on it:
+now `2.2`; these checks have not been re-run on it:
 
 - A clone with no `github.com` rule fails (`could not read Username`); with the
   rule it succeeds.

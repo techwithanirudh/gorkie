@@ -1,6 +1,6 @@
 import { defaultBuildLogger, Template } from 'e2b';
 import { env } from '@/env';
-import { agentmail, sandbox as config } from '../config';
+import { sandbox as config } from '../config';
 
 async function main(): Promise<void> {
   console.log(`[sandbox] building e2b template: ${config.template}`);
@@ -63,8 +63,6 @@ async function main(): Promise<void> {
         // agent-browser runs as user, so stealth-browser.sh resolves the binary
         // from user's cache.
         'python3 -m cloakbrowser install',
-        'git config --global user.name gorkie-agent',
-        `git config --global user.email ${agentmail.inbox}`,
       ])
       .setWorkdir(config.workdir),
     config.template,

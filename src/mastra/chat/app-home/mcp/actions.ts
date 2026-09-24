@@ -78,9 +78,8 @@ async function addServer({
       errors: { name: `You can connect at most ${mcp.maxServers} servers.` },
     };
   }
-  refreshHome(userId);
-
-  // The connection probe can outlast Slack's 3 second modal-submit ack window.
+  // Both publishes and the connection probe can outlast Slack's 3 second
+  // modal-submit ack window. They run in order so the probe's result lands last.
   const server = parsed.data;
   const probe = async () => {
     if (!server.token && (await advertisesOAuth(server.url))) {
@@ -98,7 +97,14 @@ async function addServer({
       ...(await probeMCPConnection({ userId, server })),
     });
   };
-  probe()
+  publishHome(userId)
+    .catch((error: unknown) => {
+      logger.warn('[app-home] could not refresh the Home tab', {
+        error,
+        userId,
+      });
+    })
+    .then(probe)
     .then(() => publishHome(userId))
     .catch((error: unknown) => {
       logger.debug('[mcp] background connection probe failed', {
