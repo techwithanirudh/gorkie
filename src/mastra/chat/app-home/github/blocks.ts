@@ -1,4 +1,5 @@
 import { github as githubConfig } from '../../../config';
+import { levelOutsideDM } from '../../../lib/approval';
 import { oauthStartLink } from '../../../server/oauth-link';
 import type {
   GitHubCredential,
@@ -12,16 +13,24 @@ export function githubBlocks({
   credential,
   installations,
   permission,
+  threads,
   unreadable,
   userId,
 }: {
   credential: GitHubCredential | undefined;
   installations: number;
   permission: GitHubPermission;
+  threads: boolean;
   unreadable: boolean;
   userId: string;
 }): HomeSection {
   const signIn = oauthStartLink({ provider: 'github', slackUserId: userId });
+  const scope = threads ? '  ·  `runs in shared threads`' : '';
+  const threadLevel = levelOutsideDM({ isDM: false, level: permission });
+  let access = `${PRESETS[permission].status}  ·  Gorkie uses your GitHub account${threads ? '' : ', in DMs only'}${scope}`;
+  if (threads && threadLevel !== permission) {
+    access = `${PRESETS[permission].status} in DMs  ·  ${PRESETS[threadLevel].status} in shared threads  ·  Gorkie uses your GitHub account`;
+  }
 
   let status = 'Not connected';
   let detail = signIn
@@ -36,10 +45,10 @@ export function githubBlocks({
     detail = credential.lastError;
   } else if (credential && installations > 0) {
     status = `*${credential.login}*`;
-    detail = `${PRESETS[permission].status}  ·  Gorkie uses your GitHub account, in DMs only`;
+    detail = access;
   } else if (credential) {
     status = `*${credential.login}*`;
-    detail = `Not installed on any repositories, so Gorkie cannot reach code  ·  <${githubConfig.installUrl}|choose repositories>`;
+    detail = `Not installed on any repositories, so Gorkie cannot reach code${scope}  ·  <${githubConfig.installUrl}|choose repositories>`;
   }
 
   const connected = Boolean(credential) || unreadable;

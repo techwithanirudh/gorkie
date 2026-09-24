@@ -1,4 +1,5 @@
 import {
+  boolean,
   foreignKey,
   index,
   pgTable,
@@ -72,6 +73,8 @@ export const userSettings = pgTable('user_settings', {
   userId: text('user_id').primaryKey(),
   instructions: text('instructions'),
   githubPermission: text('github_permission').$type<GitHubPermission>(),
+  githubThreads: boolean('github_threads'),
+  mcpThreads: boolean('mcp_threads'),
   toolDisplay: text('tool_display').$type<ToolDisplayMode>(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()

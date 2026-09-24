@@ -28,7 +28,7 @@ export async function handoff({
 
   return {
     message: `\
-GitHub tools stay out of shared threads. A thread is shared, and the account they would act on belongs to one person, so the work moves to a DM with them.
+GitHub tools stay out of shared threads unless the person whose account it is allows them there in App Home, and <@${userId}> has not. A thread is shared, and the account they would act on belongs to one person, so the work moves to a DM with them.
 
 Read this thread and find the task being asked for. DM it to <@${userId}> in this shape, and ask them to reply there when they are ready for you to start, or to correct the task first. The work continues in that DM, where these tools run normally:
 

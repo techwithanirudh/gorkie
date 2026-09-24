@@ -1,9 +1,9 @@
 import { Chat } from 'chat';
 import { removeGitHubCredential } from '../../../db/queries/github';
 import {
-  clearGitHubPermission,
-  getGitHubPermission,
-  setGitHubPermission,
+  clearGitHubSettings,
+  getGitHubSettings,
+  setGitHubSettings,
 } from '../../../db/queries/settings';
 import { githubAccessToken, revokeGitHubGrant } from '../../../lib/github';
 import { githubPermissionSchema, type PublishHome } from '../../../types';
@@ -19,13 +19,14 @@ export function registerSettings({
 
   bot.onAction(ids.configure, async (event) => {
     await event.openModal(
-      configureModal(await getGitHubPermission(event.user.userId))
+      configureModal(await getGitHubSettings(event.user.userId))
     );
   });
 
   bot.onModalSubmit(ids.configureModal, async (event) => {
-    await setGitHubPermission({
+    await setGitHubSettings({
       permission: githubPermissionSchema.parse(event.values[ids.permission]),
+      threads: event.values[ids.scope] === 'threads',
       userId: event.user.userId,
     });
     await publishHome(event.user.userId);
@@ -42,7 +43,7 @@ export function registerSettings({
     if (token) {
       await revokeGitHubGrant(token);
     }
-    await clearGitHubPermission(event.user.userId);
+    await clearGitHubSettings(event.user.userId);
     await publishHome(event.user.userId);
   });
 }

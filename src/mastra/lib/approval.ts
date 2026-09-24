@@ -18,3 +18,15 @@ export function asksBefore({
 }): boolean {
   return KIND_RANK[kind] <= LEVEL_THRESHOLD[level];
 }
+
+// Outside a DM everyone in the thread can steer the turn, so nothing short of
+// asking before writes is allowed there.
+export function levelOutsideDM<T extends ApprovalLevel>({
+  isDM,
+  level,
+}: {
+  isDM: boolean;
+  level: T;
+}): T | 'write' {
+  return isDM || level === 'all' ? level : 'write';
+}

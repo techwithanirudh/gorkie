@@ -6,4 +6,5 @@ export const ids = {
   disconnect: 'app_home_mcp_disconnect',
   modal: 'app_home_mcp_server_modal',
   remove: 'app_home_mcp_remove',
+  threads: 'app_home_mcp_threads',
 };

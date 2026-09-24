@@ -58,9 +58,11 @@ function oauthButtons({
 
 export function mcpServersBlocks({
   servers,
+  threads,
   userId,
 }: {
   servers: StoredMCPServer[];
+  threads: boolean;
   userId: string;
 }): HomeSection {
   const header = {
@@ -94,8 +96,43 @@ export function mcpServersBlocks({
     };
   }
 
+  const scopes = [
+    {
+      text: { type: 'plain_text', text: 'Only in a DM with you' },
+      description: {
+        type: 'plain_text',
+        text: 'Shared threads get none of these servers.',
+      },
+      value: 'dm',
+    },
+    {
+      text: {
+        type: 'plain_text',
+        text: 'Anywhere, including shared threads (dangerous)',
+      },
+      description: {
+        type: 'plain_text',
+        text: 'Anyone in the thread can steer them, and they always ask before writing there.',
+      },
+      value: 'threads',
+    },
+  ];
+
   return {
-    fixed: [header],
+    fixed: [
+      header,
+      {
+        type: 'actions',
+        elements: [
+          {
+            type: 'radio_buttons',
+            action_id: ids.threads,
+            options: scopes,
+            initial_option: scopes[threads ? 1 : 0],
+          },
+        ],
+      },
+    ],
     rows: servers.map((server, index) => [
       ...(index > 0 ? [{ type: 'divider' }] : []),
       {

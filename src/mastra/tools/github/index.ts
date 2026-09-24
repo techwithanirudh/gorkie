@@ -27,11 +27,11 @@ export async function githubTools({
   userId: string;
 }): Promise<Record<string, unknown>> {
   try {
-    const access = await githubAccess({ requestContext, userId });
+    const access = await githubAccess({ isDM, requestContext, userId });
     if (access.state !== 'connected') {
       return {};
     }
-    const { level } = access;
+    const { direct, level } = access;
 
     const built = createGithubTools({
       token: async () => {
@@ -53,7 +53,7 @@ export async function githubTools({
       // `tool-<hash of description>`, and tool search returns and loads it
       // under that id instead of this key.
       const id = `github_${name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()}`;
-      if (!isDM) {
+      if (!direct) {
         // Replace the tool outright rather than layering the handoff over the
         // SDK's formatter: those assume a GitHub API result, and
         // listPullRequestFiles maps over it unguarded, so a handoff message
@@ -91,9 +91,11 @@ export async function githubTools({
         }),
       };
     }
-    if (isDM && threadId) {
+    if (direct && threadId) {
       tools.github_checkout = checkoutTool({
-        approval: asksBefore({ kind: 'read', level }),
+        // The checkout stays in the thread's sandbox, readable by everyone in
+        // a shared thread, so there it always asks.
+        approval: !isDM || asksBefore({ kind: 'read', level }),
         userId,
       });
       tools.github_push_branch = pushTool({

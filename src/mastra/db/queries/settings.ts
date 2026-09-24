@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { rawId } from '../../lib/ids';
 import {
-  type GitHubPermission,
+  type GitHubSettings,
   githubPermissionSchema,
   type ToolDisplayMode,
   toolDisplayModeSchema,
@@ -33,35 +33,65 @@ export async function setInstructions({
     .onConflictDoUpdate({ target: userSettings.userId, set });
 }
 
-export async function getGitHubPermission(
+export async function getGitHubSettings(
   userId: string
-): Promise<GitHubPermission> {
+): Promise<GitHubSettings> {
   const [row] = await db
-    .select({ permission: userSettings.githubPermission })
+    .select({
+      permission: userSettings.githubPermission,
+      threads: userSettings.githubThreads,
+    })
     .from(userSettings)
     .where(eq(userSettings.userId, rawId(userId)));
-  return githubPermissionSchema.parse(row?.permission);
+  return {
+    permission: githubPermissionSchema.parse(row?.permission),
+    threads: row?.threads === true,
+  };
 }
 
-export async function setGitHubPermission({
+export async function setGitHubSettings({
   permission,
+  threads,
   userId,
-}: {
-  permission: GitHubPermission;
-  userId: string;
-}): Promise<void> {
-  const set = { githubPermission: permission, updatedAt: new Date() };
+}: GitHubSettings & { userId: string }): Promise<void> {
+  const set = {
+    githubPermission: permission,
+    githubThreads: threads,
+    updatedAt: new Date(),
+  };
   await db
     .insert(userSettings)
     .values({ ...set, instructions: null, userId: rawId(userId) })
     .onConflictDoUpdate({ target: userSettings.userId, set });
 }
 
-export async function clearGitHubPermission(userId: string): Promise<void> {
+export async function clearGitHubSettings(userId: string): Promise<void> {
   await db
     .update(userSettings)
-    .set({ githubPermission: null, updatedAt: new Date() })
+    .set({ githubPermission: null, githubThreads: null, updatedAt: new Date() })
     .where(eq(userSettings.userId, rawId(userId)));
+}
+
+export async function getMCPThreads(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ threads: userSettings.mcpThreads })
+    .from(userSettings)
+    .where(eq(userSettings.userId, rawId(userId)));
+  return row?.threads === true;
+}
+
+export async function setMCPThreads({
+  threads,
+  userId,
+}: {
+  threads: boolean;
+  userId: string;
+}): Promise<void> {
+  const set = { mcpThreads: threads, updatedAt: new Date() };
+  await db
+    .insert(userSettings)
+    .values({ ...set, instructions: null, userId: rawId(userId) })
+    .onConflictDoUpdate({ target: userSettings.userId, set });
 }
 
 export async function getToolDisplay(

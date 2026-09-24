@@ -16,7 +16,8 @@ at commit `0d630a2`.
 GitHub tools act as the person who connected the account. They work in a DM
 with that person. In a shared thread they work only if that person enabled
 shared threads in App Home, and approvals follow their App Home approval
-setting either way.
+setting either way, except that in a shared thread "never ask" falls back to
+asking before writing and `github_checkout` always asks.
 
 ## Code
 

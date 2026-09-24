@@ -19,6 +19,11 @@ export type GitHubAccount = Omit<GitHubCredential, 'lastError' | 'login'>;
 
 export type GitHubPermission = (typeof GITHUB_PERMISSIONS)[number];
 
+export interface GitHubSettings {
+  permission: GitHubPermission;
+  threads: boolean;
+}
+
 export const githubPermissionSchema = z.enum(GITHUB_PERMISSIONS).catch('all');
 
 export const repositorySchema = z

@@ -8,6 +8,7 @@ import {
   setMCPServerError,
   setMCPServerPermission,
 } from '../../../db/queries/mcps';
+import { setMCPThreads } from '../../../db/queries/settings';
 import { logger } from '../../../lib/logger';
 import { advertisesOAuth } from '../../../mcp/errors';
 import { revokeMCPOAuth } from '../../../mcp/oauth';
@@ -163,6 +164,14 @@ export function registerMCPServers({
   });
 
   bot.onAction(ids.connect, () => undefined);
+
+  bot.onAction(ids.threads, async (event) => {
+    await setMCPThreads({
+      threads: event.value === 'threads',
+      userId: event.user.userId,
+    });
+    await publishHome(event.user.userId);
+  });
 
   bot.onAction(ids.disconnect, async (event) => {
     const name = event.value;

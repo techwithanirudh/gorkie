@@ -1,16 +1,22 @@
 import type { ToolsInput } from '@mastra/core/agent';
 import { listMCPServers, setMCPServerError } from '../../db/queries/mcps';
+import { getMCPThreads } from '../../db/queries/settings';
 import { logger } from '../../lib/logger';
 import { describeMCPError } from '../errors';
 import { coverageKey, unlabelledServers } from './approval';
 import { dropClient, resolveClient } from './client';
 
 export async function userMCPTools({
+  isDM,
   userId,
 }: {
+  isDM: boolean;
   userId: string;
 }): Promise<ToolsInput> {
   try {
+    if (!(isDM || (await getMCPThreads(userId)))) {
+      return {};
+    }
     const servers = await listMCPServers(userId);
     if (servers.length === 0) {
       await dropClient(userId);

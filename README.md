@@ -62,7 +62,8 @@ runs commands and inspects files without touching the host machine.
   Memory observes the search that loaded it, and the model searches again.
 - GitHub tools act as the connected person. They work in a DM with that
   person, and in shared threads only if they enabled shared threads in App
-  Home, with approvals following their App Home settings. Code changes go
+  Home, with approvals following their App Home settings (in a shared thread
+  "never ask" falls back to asking before writing). Code changes go
   through `github_checkout` and `github_push_branch`, which borrow the person's
   token at the sandbox firewall for one git command; see
   [docs/brokered-git.md](./docs/brokered-git.md).
@@ -237,6 +238,12 @@ shortly before they expire. A revoked or expired sign-in marks the server
 Reconnect. Every request the sign-in makes to URLs taken from the server's
 metadata goes through the same private-address check as the server URL itself.
 Needs `PUBLIC_BASE_URL`; without it OAuth servers show as not set up.
+
+A person's servers load for their own messages in a DM with gorkie. In a shared
+thread they load only if that person enabled shared threads for MCP servers in
+App Home (`user_settings.mcp_threads`), and there a server set to ask only
+before deleting still asks before writing
+(`mcp/user-servers/approval.ts`).
 
 ## Live browser view
 

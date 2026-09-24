@@ -3,8 +3,9 @@ import { getGitHubCredential } from '../../db/queries/github';
 import { listMCPServers } from '../../db/queries/mcps';
 import { activeBan } from '../../db/queries/moderation';
 import {
-  getGitHubPermission,
+  getGitHubSettings,
   getInstructions,
+  getMCPThreads,
   getToolDisplay,
 } from '../../db/queries/settings';
 import {
@@ -89,20 +90,22 @@ export async function publishHome(userId: string): Promise<void> {
   const [
     instructions,
     mcpServers,
+    mcpThreads,
     { credential, unreadable },
     installations,
-    permission,
+    github,
     scheduled,
     display,
     usage,
   ] = await Promise.all([
     settled({ label: 'instructions', userId, work: getInstructions(userId) }),
     settled({ label: 'mcp', userId, work: listMCPServers(userId) }),
+    settled({ label: 'mcp threads', userId, work: getMCPThreads(userId) }),
     credentialResult,
     credentialResult.then(({ credential }) =>
       credential && !credential.lastError ? installationsFor(userId) : 0
     ),
-    settled({ label: 'settings', userId, work: getGitHubPermission(userId) }),
+    settled({ label: 'settings', userId, work: getGitHubSettings(userId) }),
     settled({
       label: 'scheduled',
       userId,
@@ -120,11 +123,16 @@ export async function publishHome(userId: string): Promise<void> {
     githubBlocks({
       credential,
       installations,
-      permission: permission ?? 'all',
+      permission: github?.permission ?? 'all',
+      threads: github?.threads === true,
       unreadable,
       userId,
     }),
-    mcpServersBlocks({ servers: mcpServers ?? [], userId }),
+    mcpServersBlocks({
+      servers: mcpServers ?? [],
+      threads: mcpThreads === true,
+      userId,
+    }),
     ...(scheduled ? [scheduled] : []),
   ];
 
