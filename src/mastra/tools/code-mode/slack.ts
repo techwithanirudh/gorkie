@@ -122,7 +122,6 @@ async function codeMode(workspaceAccess: boolean): Promise<CodeModeInstance> {
       ([, tool]) => tool.mcp?.annotations?.readOnlyHint === true
     )
   );
-  // Keyed on the MCP tool names so an instance built during an MCP outage is replaced once the tools come back.
   const key = `${workspaceAccess ? 'workspace' : 'slack'}:${Object.keys(mcp).sort().join(',')}`;
   const existing = instances.get(key);
   if (existing) {

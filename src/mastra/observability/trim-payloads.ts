@@ -1,10 +1,7 @@
 import type { AnySpan, SpanOutputProcessor } from '@mastra/core/observability';
 
-// A tool that returns media puts the whole base64 payload in its result, and
-// every later model step carries it again in its input. Mastra already caps a
-// string at 128 KB, which still adds up to tens of MB per trace. Only strings
-// with no whitespace are cut: base64 and data URLs never have any, while a long
-// system prompt or tool transcript always does and stays readable.
+// Mastra caps a string at 128 KB, and a media payload repeats in every later
+// model step's input, which still adds up to tens of MB per trace.
 function trim({ value, depth }: { value: unknown; depth: number }): unknown {
   if (typeof value === 'string') {
     return value.length > 20_000 && !/\s/.test(value)

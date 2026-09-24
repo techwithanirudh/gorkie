@@ -14,9 +14,6 @@ export const coverageKey = ({
 }): string => `${userId}:${serverName}`;
 
 export function approvalFor(permission: ToolPermission): RequireToolApprovalFn {
-  // The client is cached per person across DMs and threads, so where the call
-  // runs is read per call. Mastra hands over the request context as a plain
-  // object; a missing or unparsable channel counts as a shared thread.
   return ({ annotations, requestContext, toolName }) => {
     const isDM =
       channelSchema.safeParse(requestContext?.channel).data?.isDM === true;

@@ -86,7 +86,6 @@ export const uploadEmojiTool = createTool({
     }
 
     if (!response.ok) {
-      // The status alone still makes a useful error if the body is unreadable.
       const body = await response.text().catch(() => '');
       throw new Error(
         `Emoji ${path ? 'upload' : 'alias'} failed (${response.status}): ${body.slice(0, 300)}`

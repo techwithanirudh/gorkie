@@ -145,8 +145,6 @@ async function runTurn({
   });
 
   const prompt = await withHistory({ message: attachments(message), thread });
-  // Checked last, after the slow steps: a message can sit in a handler (or a
-  // Slack redelivery) long enough for a stop or leave_thread to land first.
   const state = await threadState(thread);
   if (
     state?.dropMessagesBefore &&
@@ -165,8 +163,6 @@ async function runTurn({
     });
     return;
   }
-  // Only once the turn is really going to run: a command, a dropped message or
-  // one over the limit must not leave gorkie answering the whole thread.
   if (follow) {
     await setThreadState({ thread, patch: { respondOnThreadMessages: true } });
   }
@@ -175,8 +171,6 @@ async function runTurn({
     await setThreadState({ thread, patch: { lastSeenMessage: message.id } });
     return;
   }
-  // Not awaited: the title is cosmetic and its model call must not hold up the
-  // next message in this thread. syncTitle logs its own failures.
   syncTitle({ message, thread });
 }
 
@@ -279,8 +273,7 @@ export const onDirectMessage: ChannelHandler = async (
   await runTurn({ defaultHandler, message, thread });
 };
 
-// Also gates Mastra's built-in tool approve/deny buttons, so a banned person
-// cannot let a pending tool call run.
+// defaultHandler is Mastra's tool approve/deny button handler.
 export const onAction: ActionChannelHandler = async (event, defaultHandler) => {
   const ban = await isBanned(event.user.userId);
   if (!ban) {

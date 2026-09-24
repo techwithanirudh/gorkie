@@ -3,7 +3,7 @@ import { parseMarkdown } from 'chat';
 
 // Channels' default inlineMedia list (DEFAULT_INLINE_MEDIA_TYPES in
 // @mastra/core, not exported). Those files already reach the model as file
-// parts, so calling them "not downloaded" sent it after a second copy.
+// parts.
 const inlinedTypes = new Set([
   'image/png',
   'image/jpeg',

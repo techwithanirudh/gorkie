@@ -2,9 +2,8 @@ import type { MastraMemory, StorageThreadType } from '@mastra/core/memory';
 import { agent as agentConfig } from '../config';
 import { getMastra } from './mastra-instance';
 
-// Memory threads reuse the Slack thread id, except where core fell back to a
-// generated id on a collision or the rename migration skipped the thread.
-// Channels records the Slack id in metadata on all of them.
+// Channels falls back to a generated thread id on a collision, but always
+// records the Slack thread id in metadata.
 export async function memoryThread(
   slackThreadId: string
 ): Promise<{ memory: MastraMemory; thread: StorageThreadType } | undefined> {

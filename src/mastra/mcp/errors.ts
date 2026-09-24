@@ -30,7 +30,6 @@ function upstreamMessage({ line }: { line: string }): {
   try {
     json = JSON.parse(line.slice(brace));
   } catch {
-    // A brace in plain text is not a JSON body; keep the line as is.
     return { text: line };
   }
   const body = errorBodySchema.safeParse(json).data;
@@ -50,11 +49,6 @@ function upstreamMessage({ line }: { line: string }): {
 
 const oauthLookups = new Map<string, Promise<boolean>>();
 
-// Manual redirects keep the probe on the already-validated host. Missing or
-// unreachable metadata means "unknown", which reads the same as no OAuth.
-// Cached per URL because a server stuck on 401 is re-described every turn. A
-// failed lookup is dropped so a server that was only briefly down is asked
-// again next time.
 export function advertisesOAuth(url: string): Promise<boolean> {
   let lookup = oauthLookups.get(url);
   if (!lookup) {

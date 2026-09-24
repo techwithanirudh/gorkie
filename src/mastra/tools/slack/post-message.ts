@@ -42,8 +42,6 @@ Errors: channel_not_found usually means the bot isn't a member of that private c
     assertCanPostTo({ target, ctx });
     try {
       const { channel, threadTs } = await slackDestination(target);
-      // Both names only label the post; the adapter's cached lookup resolves a
-      // failure to null, which posts uncredited or under the default name.
       const requesterUser = ctx.userId
         ? await slack.getUser(rawId(ctx.userId))
         : null;

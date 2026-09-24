@@ -20,8 +20,6 @@ trap cleanup EXIT INT TERM
 
 cd "$ROOT_DIR"
 
-# The tunnel publishes the dev server. Without a token every /api route
-# (agents, memory, workflows) would be open to anyone who finds the URL.
 if ! grep -Eq '^GORKIE_API_TOKEN=.{32,}' .env 2>/dev/null; then
   echo "!! set GORKIE_API_TOKEN (32+ chars) in .env before tunnelling: openssl rand -hex 32" >&2
   exit 1

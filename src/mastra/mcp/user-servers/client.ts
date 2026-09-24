@@ -52,7 +52,6 @@ async function buildClient({
   servers: StoredMCPServer[];
   stale: Promise<UserClient> | undefined;
 }): Promise<UserClient> {
-  // A stale client that never connected has nothing to disconnect.
   const staleClient = await stale?.catch(() => undefined);
   if (staleClient) {
     await staleClient.client.disconnect().catch((error: unknown) => {
@@ -112,7 +111,6 @@ async function buildClient({
     }
   }
 
-  // findMCPUrlError already rejected any url that fails to parse.
   const client = new MCPClient({
     id: `user-mcp-${userId}`,
     servers: Object.fromEntries(
@@ -171,11 +169,9 @@ export function resolveClient({
         server.token
           ? createHash('sha256').update(server.token).digest('hex').slice(0, 16)
           : '',
-        // A refresh keeps the client; a reconnect (new connectedAt) rebuilds it.
         server.oauth
           ? `oauth:${server.oauth.status}:${server.oauth.connectedAt?.getTime() ?? ''}`
           : '',
-        // A server that just failed auth drops out of the cached client.
         server.credentialError ? 'stopped' : '',
       ].join(' ')
     )

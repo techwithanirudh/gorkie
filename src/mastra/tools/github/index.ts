@@ -93,8 +93,6 @@ export async function githubTools({
     }
     if (direct && threadId) {
       tools.github_checkout = checkoutTool({
-        // The checkout stays in the thread's sandbox, readable by everyone in
-        // a shared thread, so there it always asks.
         approval: !isDM || asksBefore({ kind: 'read', level }),
         userId,
       });

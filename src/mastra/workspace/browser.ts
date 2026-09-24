@@ -19,11 +19,8 @@ const versionSchema = z.object({ webSocketDebuggerUrl: z.string().min(1) });
 const noHostChrome = '/nonexistent/gorkie-never-launches-chrome-on-the-host';
 
 interface SandboxCdp {
-  // The E2B edge address the host connects to for the screencast.
   external: string;
   headers: Record<string, string>;
-  // The sandbox's own loopback address, injected into agent-browser commands
-  // that run inside the sandbox.
   internal: string;
 }
 
@@ -154,7 +151,6 @@ export class SandboxBrowser extends BrowserViewer {
     this.sandboxFor = sandboxFor;
   }
 
-  // Set by the Slack live view card, so the workspace never imports chat code.
   onConnected(hook: (threadId: string) => Promise<void>): void {
     this.connectedHook = hook;
   }
@@ -164,8 +160,6 @@ export class SandboxBrowser extends BrowserViewer {
       return;
     }
     const sandbox = await this.sandboxFor(threadId);
-    // A failed live view must not fail the command: without a CDP URL,
-    // agent-browser keeps the browser it starts itself.
     const cdp = await sandbox
       .retryOnDead(async () => {
         await sandbox.ensureRunning();
@@ -235,7 +229,6 @@ export class SandboxBrowser extends BrowserViewer {
     return page?.url() ?? null;
   }
 
-  // Watch-only: viewers on the live page must not be able to drive the browser.
   override injectMouseEvent(
     _params: MouseEventParams,
     _threadId?: string

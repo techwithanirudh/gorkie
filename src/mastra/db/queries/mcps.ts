@@ -26,9 +26,6 @@ export async function listMCPServers(
       permission: toolPermissionSchema.parse(row.permission),
       url: row.url,
       lastError: row.lastError ?? undefined,
-      // describeMCPError always writes the status, and a rejected credential
-      // fails the same way every turn until the server is re-added (a new
-      // row) or reconnected (which clears lastError).
       credentialError: row.lastError?.includes('(HTTP 401)')
         ? row.lastError
         : undefined,

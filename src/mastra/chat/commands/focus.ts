@@ -52,8 +52,6 @@ export const focus: CommandHandler = async ({ message, thread }) => {
     await reply(result.text);
     return;
   }
-  // Posted to everyone: people outside the focus should know why gorkie has
-  // gone quiet on them.
   await thread.post({ markdown: result.text }).catch((error: unknown) => {
     logger.warn('[commands] failed to post focus change', {
       error,

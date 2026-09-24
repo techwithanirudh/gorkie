@@ -6,7 +6,6 @@ import { logger } from '../../lib/logger';
 import { sh } from '../../lib/utils';
 import { baseRules } from '../../workspace/network';
 
-// github_push_branch finds the clone github_checkout made by this path.
 export const checkoutPath = (repository: string): string =>
   `${sandboxConfig.workdir}/${repository.replace('/', '__')}`;
 
@@ -44,7 +43,6 @@ export const git = async ({
       {
         ...(cwd ? { cwd } : {}),
         envs: {
-          // The agent can write ~/.gitconfig and /etc/gitconfig too.
           GIT_CONFIG_NOSYSTEM: '1',
           GIT_CONFIG_GLOBAL: '/dev/null',
           GIT_CONFIG_COUNT: `${pins.length}`,

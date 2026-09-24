@@ -17,7 +17,6 @@ export const status: TypingStatusFn = (chunk, context) => {
 
   const { toolName } = chunk.payload;
 
-  // skip means stay quiet, so it must not flash "is using skip…" first.
   if (toolName === 'skip') {
     return false;
   }

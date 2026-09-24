@@ -70,7 +70,6 @@ export async function updateRefreshedGitHubCredential({
   return updated.length > 0;
 }
 
-// Update-only, like a refresh: a disconnect that lands first must win.
 export async function setGitHubCredentialError({
   error,
   forgetRefreshToken,

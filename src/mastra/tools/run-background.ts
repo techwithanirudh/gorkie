@@ -25,10 +25,6 @@ async function wakeThread(task: BackgroundTask): Promise<void> {
   if (!(threadId && resourceId)) {
     return;
   }
-  // A task that outlived a restart is missing from the map. The memory thread
-  // id is the Slack thread id, so the channel rebuilds from it; without a
-  // channelId every Slack post in the woken turn is refused. The userId cannot
-  // be rebuilt, so user-scoped tools stay off for that turn.
   let channel = saved;
   try {
     channel ??= {
@@ -115,7 +111,6 @@ export const runBackgroundTool = createTool({
   }),
   background: {
     enabled: true,
-    // Past the command's own cap, so the command's timeout is what reports.
     timeoutMs: (sandboxConfig.background.maxTimeoutSeconds + 120) * 1000,
     onComplete: wakeThread,
     onFailed: wakeThread,
@@ -137,8 +132,6 @@ export const runBackgroundTool = createTool({
     if (context.background) {
       wakeChannels.set(context.background.taskId, channel);
     }
-    // Registered before the first await: until then the turn-end pause sees no
-    // job and could pause the VM under the spawn.
     startJob({ id, threadId: channel.threadId, timeoutMs: timeout * 1000 });
     try {
       const sandbox = await requireSandbox(requestContext);
@@ -147,7 +140,6 @@ export const runBackgroundTool = createTool({
       const handle = await sandbox.processes.spawn(command, {
         cwd: sandboxConfig.workdir,
         stdinMode: 'ignore',
-        // E2B's own deadline is only a backstop behind the wait below.
         timeout: (timeout + 60) * 1000,
       });
       attachPid({ id, pid: handle.pid });

@@ -34,7 +34,6 @@ async function read({
 
 const perRequest = new WeakMap<RequestContext, Promise<GitHubAccess>>();
 
-// `isDM` left out reads as a shared thread, the narrower of the two.
 export function githubAccess({
   isDM = false,
   requestContext,

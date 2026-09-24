@@ -56,7 +56,6 @@ async function listBans(): Promise<string> {
 export const onSlashCommand: SlashCommandChannelHandler = async (event) => {
   const isBan = BAN_COMMANDS.has(event.command);
   if (!(isBan || UNBAN_COMMANDS.has(event.command))) {
-    // Any other command is not gorkie's; never hand it to the agent as a message.
     return;
   }
   const actorId = event.user.userId;

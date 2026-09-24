@@ -3,9 +3,8 @@ import { z } from 'zod';
 
 const slackRawText = z.looseObject({ text: z.string() });
 
-// A person's mention. Slack adds the |name when the text was escaped, as slash
-// commands with should_escape are. Bot and workspace ids are left out on
-// purpose: focus and bans only ever target people.
+// Slack adds the |name when the text was escaped, as slash commands with
+// should_escape are.
 export const userMention = /<@([UW][A-Z0-9]+)(?:\|[^>]*)?>/;
 
 export function rawText(message: Message): string {

@@ -19,8 +19,6 @@ export function asksBefore({
   return KIND_RANK[kind] <= LEVEL_THRESHOLD[level];
 }
 
-// Outside a DM everyone in the thread can steer the turn, so nothing short of
-// asking before writes is allowed there.
 export function levelOutsideDM<T extends ApprovalLevel>({
   isDM,
   level,

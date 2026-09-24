@@ -85,15 +85,11 @@ export const mcp = {
   maxServers: 10,
   refreshBeforeExpiryMs: 60 * 1000,
   oauthRequestTimeoutMs: 10_000,
-  // Connect and OAuth-discovery probes run while describing a failure to the
-  // model, so they give up quickly rather than stall the turn.
   probeTimeoutMs: 2000,
 };
 
 export const emoji = {
   listTtl: 5 * 60 * 1000,
-  // Bounds what the host reads into memory; Slack's own emoji limits still
-  // apply on the proxy's side.
   maxUploadBytes: 10 * 1024 * 1024,
   proxyUrl: 'https://hackclub-slack-emoji-proxy.vercel.app/api/emoji',
 };
@@ -115,13 +111,11 @@ export const search = {
 };
 
 export const slack = {
-  // Per-process caches keyed by thread evict their oldest entry past this.
   maxCachedThreads: 10_000,
   recipientTtlMs: 30 * 24 * 60 * 60 * 1000,
   userLookupConcurrency: 4,
   unresolvedUserTtlMs: 60 * 1000,
   profileTtlMs: 24 * 60 * 60 * 1000,
-  // A transient Slack failure is cached only briefly so it is retried soon.
   failedProfileTtlMs: 60 * 1000,
   callsPerTurn: 200,
   apiPreviewChars: 16_384,

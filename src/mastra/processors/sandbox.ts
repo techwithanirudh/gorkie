@@ -5,9 +5,7 @@ import { channelContext } from '../lib/context';
 import { pauseSandbox } from '../workspace';
 
 // The output phase never runs on an abort or a thrown turn, so the orchestrator's
-// `onAbort`/`onError` call this too: otherwise the sandbox stays live until its
-// own 16 minute timeout after every stopped turn. The live view ends first, so
-// its browser session closes while the sandbox is still reachable.
+// `onAbort`/`onError` call this too.
 export async function endSandboxTurn(
   requestContext: RequestContext
 ): Promise<void> {

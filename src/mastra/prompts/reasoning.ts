@@ -1,5 +1,3 @@
-// Kept beside the prompt that teaches them: step-guard reads a step made only
-// of these lines as one that announced work and never did it.
 export const reasoningMarkers = ['→', '↺', '?', '●', '◐', '○', '⚠'];
 
 export const reasoningPrompt = `\

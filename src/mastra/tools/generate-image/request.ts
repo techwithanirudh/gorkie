@@ -89,10 +89,7 @@ export async function requestImages({
     }),
   });
   if (!response.ok) {
-    // The status alone still makes a useful error if the body is unreadable.
     const body = await response.text().catch(() => '');
-    // A bare 404 or an unknown-model 400 reads to the model like a refusal, so
-    // it rephrases and retries, even after waiting.
     if (response.status === 404 || body.includes('not a valid model ID')) {
       throw new Error(
         `Image model unavailable (${response.status} for "${images.model}"). Do not retry, and do not wait and retry. Tell the user image generation is currently down.`

@@ -16,17 +16,12 @@ export function isWaitSchedule(schedule: { metadata?: unknown }): boolean {
     .safeParse(schedule.metadata).success;
 }
 
-// Waits are one-shot agent schedules too, so without the kind check they
-// would show up, and could be paused or deleted, as the user's tasks.
 export function isScheduledTask(
   schedule: AnySchedule
 ): schedule is AgentSchedule {
   return schedule.agentId === agentConfig.id && !isWaitSchedule(schedule);
 }
 
-// A thread's memory resource is whoever started it, so in a shared thread
-// anyone else talking would otherwise list, change, or add to that person's
-// schedules, including their DM tasks.
 export function ownSchedules(context: ToolExecutionContext) {
   const service = context.mastra?.schedules;
   const resourceId = context.agent?.resourceId;

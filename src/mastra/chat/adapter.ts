@@ -63,8 +63,6 @@ export class SlackAgentAdapter extends SlackAdapter {
           }
         }
         this.recipients.set(threadId, recipient);
-        // Persisting only lets the recipient survive a restart, so the message
-        // is not held up on it, and a failed write just loses that hint.
         chat
           .getState()
           .set(this.recipientKey(threadId), recipient, config.recipientTtlMs)

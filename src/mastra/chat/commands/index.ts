@@ -10,8 +10,6 @@ import { focus } from './focus';
 import { help } from './help';
 import { stop } from './stop';
 
-// A Map, not an object literal: `!constructor` or `!__proto__` must not
-// resolve to an Object.prototype member.
 const commands = new Map<string, CommandHandler>([
   ['compact', compact],
   ['connections', connections],
@@ -35,8 +33,6 @@ export async function handleCommand({
   if (!command) {
     return false;
   }
-  // A command queued behind a stop or leave_thread is dropped like any other
-  // message. !stop always runs: it sets that cutoff, and a repeat is harmless.
   if (command !== stop) {
     const cutoff = (await threadState(thread))?.dropMessagesBefore;
     if (cutoff && message.metadata.dateSent.getTime() < cutoff) {

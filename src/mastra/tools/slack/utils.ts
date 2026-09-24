@@ -33,7 +33,6 @@ export async function assertReadableChannel({
   );
 }
 
-// Never cache visibility: it is the privacy gate, and a channel can go private.
 export async function readableChannelIds({
   channelIds,
   currentThreadId,
@@ -172,8 +171,6 @@ export async function slackDestination(
       channel: rawId((await Chat.getSingleton().openDM(rawId(target.id))).id),
     };
   }
-  // Decode exactly as assertCanPostTo does: a lenient parser here could read a
-  // different channel out of the same id than the one the gate approved.
   const { channel, threadTs } = slack.decodeThreadId(target.id);
   await joinChannel(channel);
   return { channel, threadTs: threadTs || undefined };

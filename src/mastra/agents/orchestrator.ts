@@ -139,8 +139,6 @@ async function orchestratorInstructions({
       content: `<mcps>${mcpLines.join('\n')}</mcps>`,
     });
   }
-  // Last so the reply-format rule sits closest to the output instead of decaying
-  // mid-prompt over a long turn.
   messages.push({ role: 'system', content: reasoningPrompt });
   return messages;
 }
@@ -187,7 +185,6 @@ export const orchestrator = new Agent({
       }
     },
     onError: async () => {
-      // A thrown turn never reaches the `sandbox` output processor.
       await endSandboxTurn(requestContext);
     },
   }),
@@ -238,9 +235,6 @@ export const orchestrator = new Agent({
   agents: { research, explore },
   memory: new Memory({
     options: {
-      // A token budget for the whole prompt, not a message count. Observational
-      // Memory keeps unobserved history near its 30k threshold, so this only
-      // binds in a runaway turn, well under the 1M input floor of the ladder.
       messageHistory: { maxTokens: 200_000 },
       generateTitle: {
         model: summarizerModel[0].model,

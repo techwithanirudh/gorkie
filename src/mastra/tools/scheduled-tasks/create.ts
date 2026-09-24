@@ -20,7 +20,6 @@ function assertMinimumInterval({
     try {
       fire = computeNextFireAt(cron, { timezone, after: previous });
     } catch {
-      // A schedule with no further fire times cannot fire too often.
       break;
     }
     const gap = fire - previous;

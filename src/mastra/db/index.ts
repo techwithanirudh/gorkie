@@ -13,9 +13,6 @@ import { db, postgresStore } from './client';
 import { setMCPOAuthStatus } from './queries/mcp-oauth';
 import { githubCredentials, mcpOAuth, mcpServers } from './schema';
 
-// Plaintext rows predate encryption at rest (MCP tokens only). A row neither
-// key opens stays untouched, so restarting with the right
-// CREDENTIALS_KEY_PREVIOUS still recovers it.
 function reseal(stored: string): string | null {
   try {
     return encryptSecret(
@@ -26,8 +23,6 @@ function reseal(stored: string): string | null {
   }
 }
 
-// Moves every secret onto the current CREDENTIALS_KEY, so the previous key
-// can be dropped after one clean boot.
 async function resealSecrets(): Promise<void> {
   const resealed = `${currentSecretPrefix}%`;
 
@@ -66,7 +61,6 @@ async function resealSecrets(): Promise<void> {
         unreadable.push(`github_credentials:${row.userId}`);
         return;
       }
-      // Guarded on the old value, so a refresh that lands meanwhile wins.
       await db
         .update(githubCredentials)
         .set({ refreshToken, token })
@@ -118,7 +112,6 @@ async function resealSecrets(): Promise<void> {
     }),
   ]);
 
-  // A sign-in that cannot be read is a sign-in to redo, not a turn-time throw.
   await Promise.all(
     [...signedOut.values()].map(({ name, userId }) =>
       setMCPOAuthStatus({

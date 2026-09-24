@@ -1,17 +1,4 @@
--- Rename every channel-backed Mastra memory thread from its generated UUID to
--- its Chat SDK thread id (`slack:<channel>:<ts>`, stored on the thread as
--- `metadata.channel_externalThreadId`). The orchestrator now sets channels'
--- `resolveThreadId: ({ thread }) => thread.id`, which only shapes NEW threads:
--- `findThreadMapping` still finds old ones by metadata, so without this they
--- would keep UUIDs forever and the codebase would have to handle both shapes.
---
--- Hand-written: Mastra's tables are outside drizzle's `tablesFilter`. Every
--- table is optional (fresh databases, `drizzle-kit migrate` run before Mastra
--- ever booted), so each one is looked up before it is touched. Columns are
--- discovered from information_schema rather than listed, so a Mastra table
--- that holds a thread id under the usual names is covered without an edit.
 -- drizzle runs all pending migrations in one transaction, so this is atomic.
--- Runbook, dry run and rollback: docs/slack-thread-ids.md.
 DO $$
 DECLARE
   col record;
@@ -42,7 +29,6 @@ BEGIN
     CASE WHEN t.meta ? 'channel_ownerId' THEN t."createdAt" END DESC,
     t."createdAt" ASC;
 
-  -- A thread already living under the Slack id wins; the UUID one is left.
   DELETE FROM gorkie_thread_id_map m
   USING mastra_threads t
   WHERE t.id = m.new_id;
@@ -64,9 +50,6 @@ BEGIN
       );
   END IF;
 
-  -- Plain thread id columns: messages.thread_id, observational memory,
-  -- background tasks, notifications, harness sessions, scorers, knowledge
-  -- sourceThreadId, and observability spans when they live in Postgres.
   FOR col IN
     SELECT c.table_name, c.column_name
     FROM information_schema.columns c
@@ -91,11 +74,9 @@ BEGIN
     WHERE o."lookupKey" = 'thread:' || m.old_id;
   END IF;
 
-  -- Thread ids inside JSON: schedule targets (wait and scheduled tasks store
-  -- the memory thread id as target.threadId), schedule and thread metadata
-  -- (parentThreadId), and suspended workflow snapshots. Only whole JSON
-  -- strings are replaced, so a UUID that merely prefixes a subagent thread id
-  -- is left alone. One pass replaces one id per row, so repeat until clean.
+  -- Only whole JSON strings are replaced, so a UUID that merely prefixes a
+  -- subagent thread id is left alone. One pass replaces one id per row, so
+  -- repeat until clean.
   FOR col IN
     SELECT c.table_name, c.column_name, c.udt_name
     FROM information_schema.columns c

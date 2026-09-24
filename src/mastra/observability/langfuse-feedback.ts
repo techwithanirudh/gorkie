@@ -6,8 +6,7 @@ import { logger } from '../lib/logger';
 
 // `@mastra/langfuse` implements `_exportTracingEvent` and `onScoreEvent` but
 // not `onFeedbackEvent`, and its `submitScore` is private, so feedback emitted
-// through `observability.addFeedback` was fanned out to exporters that all
-// ignored and silently dropped it.
+// through `observability.addFeedback` is silently dropped.
 export class LangfuseFeedbackExporter extends BaseExporter {
   name = 'langfuse-feedback';
 
@@ -33,8 +32,6 @@ export class LangfuseFeedbackExporter extends BaseExporter {
         comment: feedback.comment,
         dataType: numeric ? 'NUMERIC' : 'CATEGORICAL',
         environment: env.NODE_ENV,
-        // A rating is one per person per trace, so a re-click overwrites it. A
-        // report is not: a second one in the same turn must not replace the first.
         id: numeric
           ? `${feedback.traceId}:${user}:${feedback.feedbackType}`
           : `${feedback.traceId}:${user}:${feedback.feedbackType}:${feedback.feedbackId}`,

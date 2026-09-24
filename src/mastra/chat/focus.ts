@@ -5,7 +5,6 @@ import { memoryThread } from './memory-thread';
 import { isModerator } from './moderation/moderators';
 import { setThreadState, threadState } from './state';
 
-// The memory thread's resource is whoever first brought gorkie into the thread.
 async function threadOwner(threadId: string): Promise<string | undefined> {
   const found = await memoryThread(threadId);
   return found ? rawId(found.thread.resourceId) : undefined;
@@ -40,8 +39,6 @@ export async function setFocus({
   const owner = await threadOwner(threadId);
   const actor = rawId(actorId);
   if (!isModerator(actor)) {
-    // No owner yet means nobody has talked to gorkie here. The Slack thread's
-    // root author stands in, so a stranger cannot claim it by focusing first.
     const { channel, threadTs } = slack.decodeThreadId(threadId);
     const starter =
       owner ??

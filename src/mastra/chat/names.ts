@@ -59,7 +59,6 @@ export async function resolveUserProfile(
     displayName: user?.userName ?? profile.displayName,
     realName: user?.fullName ?? profile.realName,
   };
-  // A failed cache write only costs a refetch next time.
   await bot
     .getState()
     .set(cacheKey, resolved, ttl)

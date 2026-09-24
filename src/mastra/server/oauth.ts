@@ -42,8 +42,6 @@ function providerNotFound(c: Context): Promise<Response> {
   });
 }
 
-// Start tickets are single use. Held in memory, which covers this single-process
-// bot; a restart forgets them, but a ticket still dies with its 10-minute expiry.
 const usedStartNonces = new Map<string, number>();
 
 async function verifiedStart({

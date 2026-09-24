@@ -50,8 +50,6 @@ export async function stopThread(
         })
     : [];
 
-  // Before the task cancellations: a cancelled run_background drops its job
-  // entry while its process keeps running in the sandbox.
   const killed = await killJobs(slackThreadId);
   for (const run of runs) {
     orchestrator.abortThreadStream({
@@ -76,11 +74,9 @@ export async function stopThread(
 
 export const stop: CommandHandler = async ({ message, thread }) => {
   const outcome = await stopThread(thread.id);
-  // An aborted run posts its own notice from the agent's onAbort.
   if (outcome === 'aborted') {
     return;
   }
-  // Cancelling only background tasks fires no onAbort, so say it here.
   if (outcome === 'cancelled') {
     await thread.post({ markdown: '_stopped._' }).catch((error: unknown) => {
       logger.warn('[commands] failed to post stop confirmation', {

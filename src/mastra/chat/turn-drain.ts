@@ -22,11 +22,8 @@ async function pollWhile<T>({
   return pending;
 }
 
-// Mastra's shutdown drains HTTP requests and workflow runs, but a Slack
-// turn is neither: it streams in-process and was cut off mid-answer on every
-// restart. Mastra stops workers inside `shutdown()`, before storage closes, so
-// this is where turns get to finish. Whatever is still running near the end of
-// the window is aborted, and the orchestrator's onAbort tells the thread.
+// Mastra's shutdown drains HTTP requests and workflow runs but not in-process
+// agent streams, and stops workers before storage closes.
 export class TurnDrainWorker extends MastraWorker {
   readonly name = 'turn-drain';
   #running = false;
@@ -49,8 +46,6 @@ export class TurnDrainWorker extends MastraWorker {
     if (!orchestrator) {
       return;
     }
-    // A run parked on an approval is persisted and resumes after the restart,
-    // so it is neither waited for nor aborted.
     const running = async () => {
       const active = orchestrator.listActiveThreadRuns();
       const parked = await Promise.all(
@@ -58,8 +53,6 @@ export class TurnDrainWorker extends MastraWorker {
           orchestrator
             .listSuspendedRuns({ threadId: run.threadId })
             .then(({ runs }) => runs.some(({ runId }) => runId === run.runId))
-            // Unknown counts as running: waiting on or aborting a parked run
-            // costs less than leaving a live one to be cut off mid-answer.
             .catch(() => false)
         )
       );

@@ -3,15 +3,12 @@ import { recordTurn, turnUsage } from '../db/queries/usage';
 import { logger } from '../lib/logger';
 import { isModerator } from './moderation/moderators';
 
-// Returns the notice to show when the person is over a limit, otherwise counts
-// the turn against them.
 export async function claimTurn(userId: string): Promise<string | undefined> {
   if (isModerator(userId)) {
     return;
   }
   try {
     const { day, hour } = await turnUsage(userId);
-    // Day first: when both are spent, the day's reset is the one that matters.
     const spent = [
       { window: day, span: 'today' },
       { window: hour, span: 'this hour' },
@@ -24,7 +21,6 @@ export async function claimTurn(userId: string): Promise<string | undefined> {
     }
     await recordTurn(userId);
   } catch (error) {
-    // Fail open, like the ban check: a database hiccup must not stop everyone.
     logger.error('[usage] turn limit check failed', { error, userId });
   }
 }

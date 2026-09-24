@@ -81,8 +81,6 @@ export const env = createEnv({
   emptyStringAsUndefined: true,
 });
 
-// Once Slack reaches the server over HTTP, every other route must need a token
-// and any public URL must be https.
 if (env.NODE_ENV === 'production') {
   if (!env.GORKIE_API_TOKEN) {
     throw new Error('GORKIE_API_TOKEN is required in production.');

@@ -137,8 +137,6 @@ export class MCPServerOAuth extends MCPOAuthClientProvider {
       );
       refreshing.set(key, pending);
     }
-    // A failed refresh leaves the current token; the transport's 401 path
-    // decides whether the person has to sign in again.
     await pending.catch((error: unknown) =>
       logger.debug('[mcp] proactive token refresh failed', {
         error: error instanceof Error ? error.name : 'unknown',
@@ -149,8 +147,6 @@ export class MCPServerOAuth extends MCPOAuthClientProvider {
     return await super.tokens();
   }
 
-  // Without an onRedirect this runs inside a turn, where no browser exists:
-  // stop connecting until the person signs in again from the Home tab.
   override async redirectToAuthorization(url: URL): Promise<void> {
     if (this.#onRedirect) {
       this.#onRedirect(url);
@@ -217,7 +213,6 @@ export async function mcpOAuthHosts({
   ];
 }
 
-// RFC 7009, best effort: the local copy is deleted whatever the server says.
 export async function revokeMCPOAuth({
   name,
   userId,

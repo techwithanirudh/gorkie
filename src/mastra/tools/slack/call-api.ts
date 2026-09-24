@@ -19,9 +19,6 @@ const slackTs = z
   .min(1)
   .transform((value) => parseSlackId({ input: value }).ts ?? value);
 
-// An exact method list with a strict parameter schema per method. A strict
-// schema refuses anything Slack did not document for that read, which is how
-// the earlier `token` override is kept out along with every other stray key.
 const methods = new Map<
   string,
   { params: z.ZodType<Record<string, unknown>>; channelParam?: string }
@@ -157,8 +154,6 @@ Responses can be large, so the full JSON is written to a file in the thread sand
         await writeSandboxFile({ data: body, path: target, sandbox });
         path = target;
       } catch (error) {
-        // The spilled copy is best effort: without it the capped preview is
-        // still the whole answer, and the description says to narrow and retry.
         logger.debug('[call_slack_api] could not save the full response', {
           error,
           method,

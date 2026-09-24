@@ -38,7 +38,6 @@ export const pushTool = ({
     execute: async ({ repository, branch, checkout }, context) => {
       const sandbox = await requireSandbox(context.requestContext);
       const path = checkoutPath(checkout ?? repository);
-      // Ask GitHub, not the checkout: the agent can rewrite origin/HEAD.
       const token = await githubAccessToken(userId);
       const access = token
         ? await repoAccess({ repository, token })

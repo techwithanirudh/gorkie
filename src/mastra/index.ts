@@ -70,8 +70,6 @@ if (traceStore) {
       .catch((error: unknown) => {
         logger.warn('[observability] pruning old traces failed', { error });
       });
-  // Fired and forgotten: pruning must not hold boot, and a failure only leaves
-  // old traces behind. unref() keeps the timer from holding the process open.
   prune();
   setInterval(prune, 24 * 60 * 60 * 1000).unref();
 }
@@ -81,8 +79,6 @@ if (traceStore) {
 // migration is renaming.
 await runMigrations();
 
-// A wait's cron recurs yearly, so the row goes once it has fired however the
-// run ended. `onFinish` alone misses runs that errored or were aborted.
 async function deleteFiredWait({
   mastra: runtime,
   schedule,
@@ -120,7 +116,6 @@ export const mastra = new Mastra({
       if (!current) {
         return;
       }
-      // Skip rather than delete, so lifting the ban resumes the person's tasks.
       const creator =
         z
           .object({ channel: channelSchema })
@@ -138,8 +133,6 @@ export const mastra = new Mastra({
         });
         return null;
       }
-      // A task or wait fire is a turn the creator asked for, so it spends
-      // their allowance like a message would.
       if (await claimTurn(rawId(creator))) {
         logger.info('[schedules] skipped a fire over the turn limit', {
           scheduleId: schedule.id,
@@ -152,8 +145,6 @@ export const mastra = new Mastra({
     onError: deleteFiredWait,
     onAbort: deleteFiredWait,
   },
-  // Creates `mastra_background_tasks`. Only run_background opts in; its own
-  // completion hook wakes the thread.
   backgroundTasks: {
     enabled: true,
     cleanup: { cleanupIntervalMs: 60 * 60 * 1000 },

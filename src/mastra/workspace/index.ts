@@ -105,8 +105,6 @@ async function getSandbox(
   return sandbox;
 }
 
-// Callers end the live view first (the workspace does not import chat code), so
-// the browser session closes while its sandbox is still reachable.
 export async function pauseSandbox(
   requestContext: RequestContext
 ): Promise<void> {
@@ -114,8 +112,7 @@ export async function pauseSandbox(
     return;
   }
   const { threadId } = channelContext(requestContext);
-  // Pausing freezes a background job mid-run (it only advanced during later
-  // turns); the job keeps the VM alive itself and E2B pauses it after.
+  // An E2B pause freezes a running background job.
   if (threadId && hasLiveJob(threadId)) {
     return;
   }
@@ -132,8 +129,6 @@ export async function pauseSandbox(
 
 export { codeModeToolNames } from './tool-names';
 
-// Keyed by the memory thread id, which resolveThreadId makes the Slack thread
-// id the sandbox is keyed by.
 export const browser = new SandboxBrowser({
   sandboxFor: (threadId) =>
     requireSandbox(new RequestContext([['channel', { threadId }]])),
@@ -143,11 +138,8 @@ export const workspace: Workspace = new Workspace({
   id: 'main-workspace',
   name: 'Workspace',
   sandbox: ({ requestContext }) => {
-    // Degrade instead of throw. Mastra can resolve workspace instructions
-    // before a thread is bound (and a scheduled/idle wake may arrive without
-    // channel context), and throwing here failed the whole turn and every
-    // fallback model. A contextless run gets a shared scratch sandbox; real
-    // turns still key on their own thread, so sandbox continuity is unchanged.
+    // Mastra can resolve workspace instructions before a thread is bound, and
+    // a throw here fails the turn on every fallback model.
     return createSandbox(sandboxKey(requestContext));
   },
   filesystem: async ({ requestContext }) => {
@@ -168,7 +160,6 @@ export const workspace: Workspace = new Workspace({
   }),
   skills: ['.'],
   tools: {
-    // Custom sandbox tools extend through requireSandbox instead.
     hooks: {
       beforeToolCall: async ({ context, input, workspaceToolName }) => {
         const background =
@@ -176,8 +167,6 @@ export const workspace: Workspace = new Workspace({
           backgroundCommand.safeParse(input).success;
         const timeout = backgroundTimeout.safeParse(input).data?.timeout;
         if (background && timeout === undefined) {
-          // Nothing else bounds a background process once the turn-end pause
-          // stops freezing it.
           return {
             proceed: false,
             output: `A background command needs a \`timeout\` in seconds, at most ${config.background.maxTimeoutSeconds}. Run it again with one.`,
@@ -190,7 +179,6 @@ export const workspace: Workspace = new Workspace({
         }
         await extendSandbox(sandbox);
         const { threadId } = channelContext(call.requestContext);
-        // Registered before the spawn so a fast exit cannot beat it.
         if (background && timeout && threadId && call.agent) {
           startJob({
             id: call.agent.toolCallId,

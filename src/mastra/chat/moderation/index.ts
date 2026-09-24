@@ -27,7 +27,6 @@ export async function isBanned(userId: string) {
   try {
     return await activeBan(userId);
   } catch (error) {
-    // Fail open: a database hiccup must not lock everyone out of gorkie.
     logger.error('[moderation] ban lookup failed', { error, userId });
   }
 }
@@ -89,8 +88,6 @@ export async function decide({
   } else {
     logger.warn('[moderation] LOGS_CHANNEL is not set, card not posted');
   }
-  // Fire and forget: the decision is already recorded, and a stale Home tab
-  // only lasts until the person next opens it.
   publishHome(rawId(userId)).catch((error: unknown) =>
     logger.warn('[moderation] could not refresh the Home tab', {
       error,
@@ -116,8 +113,6 @@ export function registerModeration(): void {
     if (!ban) {
       return;
     }
-    // The card can be stale (expired, or already lifted elsewhere); only record
-    // an unban when the person is actually still banned.
     if (await activeBan(ban.userId)) {
       await decide({
         action: 'unban',

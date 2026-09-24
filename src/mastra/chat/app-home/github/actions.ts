@@ -37,9 +37,7 @@ export function registerGitHub({
   });
 
   bot.onAction(ids.disconnect, async (event) => {
-    // Refreshed first because GitHub only revokes with a live token.
-    // Disconnecting must not depend on GitHub being reachable, so a failed
-    // refresh only skips the revoke below.
+    // GitHub only revokes a grant with a live token.
     const token = await githubAccessToken(event.user.userId).catch(
       (error: unknown) => {
         logger.warn('[github] could not refresh before revoking', {

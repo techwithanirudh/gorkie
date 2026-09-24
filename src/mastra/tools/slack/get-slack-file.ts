@@ -52,8 +52,6 @@ async function downloadSlackFile({
       : sanitized;
   const path = p('downloads', name);
   await sandbox.retryOnDead(() => sandbox.e2b.files.makeDir(p('downloads')));
-  // Keyed on the file id so a partial of another file saved under the same
-  // name is never resumed into this one.
   const partPath = `${path}.${fileId}.part`;
   const nextPath = `${path}.${fileId}.next`;
   const mergePath = `${path}.${fileId}.merge`;
@@ -80,7 +78,6 @@ async function downloadSlackFile({
         Number(response.headers.get('content-length') ?? Number.NaN)
       )
       .then((size) => (Number.isFinite(size) && size >= 0 ? size : undefined))
-      // Without a size the download still works, it just cannot resume.
       .catch(() => undefined));
 
   // getInfo throws when there is no earlier download to reuse or resume.

@@ -4,9 +4,6 @@ import { join } from 'node:path';
 const root = process.argv[2] ?? process.cwd();
 const dist = join(root, 'node_modules/@mastra/core/dist');
 
-// Markers each patch hunk leaves behind, plus the internal render key the
-// tool-display processor writes to. A Mastra bump that moves any of these
-// must fail the build rather than silently drop a guard.
 const markers = [
   'approvalRequesterId',
   'stashed?.requesterId ?? persistedRequesterId',

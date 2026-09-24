@@ -1,8 +1,6 @@
 import type { Author, Thread } from 'chat';
 import { logger } from '../lib/logger';
 
-// Ephemeral everywhere, DMs included, and never a DM fallback: the notice
-// stays in the conversation it answers and only its reader sees it.
 export async function notify({
   text,
   thread,

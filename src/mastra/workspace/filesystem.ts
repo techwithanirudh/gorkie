@@ -40,8 +40,6 @@ function modifiedTime(info: { modifiedTime?: Date }): Date {
   return info.modifiedTime ?? new Date(0);
 }
 
-// The file tools and every tool that takes a model-supplied sandbox path go
-// through this, so none of them reaches outside the workdir.
 export function confinePath({
   basePath = sandboxConfig.workdir,
   inputPath,

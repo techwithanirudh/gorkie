@@ -107,7 +107,6 @@ export const getSlackEmojiTool = createTool({
         `Refusing to fetch :${name}: from ${parsedUrl.hostname}, which is not Slack's emoji CDN.`
       );
     }
-    // A redirect could leave the CDN host that was just validated.
     const response = await fetch(parsedUrl, {
       redirect: 'error',
       signal: context.abortSignal,

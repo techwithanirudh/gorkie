@@ -20,8 +20,6 @@ import {
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
 
-// The key id travels in every ciphertext, so a rotation can tell which key
-// sealed a row and re-encrypt only what the previous key still holds.
 function keyWithId(base64: string) {
   const key = Buffer.from(base64, 'base64');
   return {
@@ -82,7 +80,6 @@ export function decryptSecret(stored: string): string {
   if (!stored.startsWith('v1.')) {
     throw new Error('Stored secret is not encrypted.');
   }
-  // v1 carries no key id: it predates rotation, so either key may hold it.
   const body = stored.slice('v1.'.length);
   try {
     return unseal({ body, key: current.key });
@@ -94,9 +91,7 @@ export function decryptSecret(stored: string): string {
   }
 }
 
-// Sign with the current key; verify with either, so a link or sign-in started
-// just before a rotation still completes. Derived so it never doubles as the
-// encryption key. Factory's signer expires a state after 10 minutes.
+// Factory's signer expires a state after 10 minutes.
 function rotatingSigner(info: string): Pick<StateSigner, 'sign' | 'verify'> {
   const derive = (key: Buffer) =>
     createStateSigner(
@@ -150,7 +145,6 @@ export function verifyOAuthToken({
     : undefined;
 }
 
-// A separate key, so a live-view link can never pass as an OAuth state.
 const liveViewSigner = rotatingSigner('gorkie-live-view');
 
 export function signLiveViewTicket(ticket: LiveViewTicket): string {

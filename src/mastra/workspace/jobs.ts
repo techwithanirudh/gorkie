@@ -2,8 +2,6 @@ import type { E2BSandbox } from '@mastra/e2b';
 import { sandbox as config } from '../config';
 import { logger } from '../lib/logger';
 
-// In memory on purpose: a restart loses the host side of every job anyway, and
-// a thread with no entry pauses at turn end exactly as it did before.
 const jobs = new Map<
   string,
   { threadId: string; deadline: number; sandbox?: E2BSandbox; pid?: string }
@@ -14,8 +12,6 @@ export function hasLiveJob(threadId: string): boolean {
   const now = Date.now();
   let live = false;
   for (const [id, job] of jobs) {
-    // Past its deadline the process has been killed by its own timeout, so a
-    // lost exit callback cannot keep the VM up past the cap.
     if (job.deadline <= now) {
       jobs.delete(id);
     } else if (job.threadId === threadId) {
@@ -25,8 +21,6 @@ export function hasLiveJob(threadId: string): boolean {
   return live;
 }
 
-// A job may register before its sandbox resolves, so the turn-end pause cannot
-// slip into that gap; attachSandbox fills it in once it does.
 export function startJob({
   id,
   threadId,
@@ -42,17 +36,12 @@ export function startJob({
   if (keepalives.has(threadId)) {
     return;
   }
-  // The turn-end pause is skipped while a job runs, so nothing else refreshes
-  // the VM lifetime; without this E2B pauses it under the job after 16 minutes.
   const timer = setInterval(() => {
     if (!hasLiveJob(threadId)) {
       clearInterval(timer);
       keepalives.delete(threadId);
       return;
     }
-    // Resolved each tick, newest first by insertion order: the job that started
-    // this timer may be gone, and a later one can hold a handle made after a
-    // sandbox cache clear.
     const sandbox = [...jobs.values()]
       .filter((job) => job.threadId === threadId && job.sandbox)
       .at(-1)?.sandbox;
@@ -86,7 +75,6 @@ export function attachSandbox({
   }
 }
 
-// The pid is only known once the spawn returns, after the job was registered.
 export function attachPid({ id, pid }: { id: string; pid: string }): void {
   const job = jobs.get(id);
   if (job) {

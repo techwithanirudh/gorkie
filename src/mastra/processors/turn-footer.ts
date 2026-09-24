@@ -35,8 +35,6 @@ export const turnFooter = {
     const { threadId } = channelContext(args.requestContext);
     const { startTime } = args.state;
 
-    // Gated on the reply text, not on whether skip ran: a turn that answered
-    // and then skipped still earned its footer, and a skip-only turn has none.
     if (
       !(threadId && args.result.text.trim()) ||
       typeof startTime !== 'number'
@@ -53,8 +51,6 @@ export const turnFooter = {
       typeof toolCalls === 'number' && toolCalls > 0
         ? ` · ${toolCalls} ${toolCalls === 1 ? 'tool' : 'tools'}`
         : '';
-    // A run_background job wakes the thread with its own reply and footer, so
-    // this turn is not done yet and has nothing to rate.
     const background = args.state.background === true;
     const text = background
       ? "working in the background, I'll reply here when it's done…"

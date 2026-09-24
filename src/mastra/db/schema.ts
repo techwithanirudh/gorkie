@@ -81,8 +81,6 @@ export const userSettings = pgTable('user_settings', {
     .defaultNow(),
 });
 
-// Append-only: the newest ban or unban row decides a user's state, and the rows
-// together are the audit trail.
 export const moderationEvents = pgTable(
   'moderation_events',
   {
@@ -101,8 +99,6 @@ export const moderationEvents = pgTable(
   ]
 );
 
-// One row per turn a person started, kept for a day: the limits are rolling
-// windows, so they count rows rather than keep counters.
 export const usageTurns = pgTable(
   'usage_turns',
   {

@@ -6,8 +6,6 @@ const client = new MCPClient({
   servers: {
     context7: {
       url: new URL('https://mcp.context7.com/mcp'),
-      // The URL is a constant, so this is not about who picks the address: it
-      // bounds where a redirect can take the client.
       allowedHosts: ['mcp.context7.com'],
     },
   },

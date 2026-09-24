@@ -6,8 +6,6 @@ import { usage as config } from '../config';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
 
-// Caps what one turn can generate. Past the cap the model loses its tools for
-// the next step, so the turn ends with an answer instead of a tripwire.
 export const outputBudget = {
   id: 'output-budget',
   name: 'Output Budget',

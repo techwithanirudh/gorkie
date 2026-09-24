@@ -9,11 +9,7 @@ function allowlistKey(channel: string): string {
   return `slack:allowed-users:${channel}`;
 }
 
-// Every write is a read-modify-write of one key, so they run one at a time or
-// two joins landing together would each drop the other.
 let writes: Promise<void> = Promise.resolve();
-// Joins and leaves that land while the member list is being paged, replayed
-// by the build so it cannot overwrite a change it read before it happened.
 const changesWhileBuilding = new Map<string, boolean>();
 let building = false;
 
@@ -32,7 +28,6 @@ function updateAllowlist({
       await state.set(allowlistKey(channel), [...users]);
     }
   });
-  // The chain has to outlive a failed write; the caller still gets the error.
   writes = write.catch(() => undefined);
   return write;
 }
@@ -53,8 +48,6 @@ export async function optInStatus(userId: string): Promise<OptInStatus> {
     logger.warn('[allowlist] failed to read opt-in cache', { error, userId });
     return 'unknown';
   }
-  // No list means the boot build is still running (the retry is then a no-op)
-  // or it failed, and retrying beats turning everyone away until a restart.
   rebuildAllowlist({ channel }).catch((error: unknown) =>
     logger.error('[allowlist] failed to rebuild opt-in cache', { error })
   );

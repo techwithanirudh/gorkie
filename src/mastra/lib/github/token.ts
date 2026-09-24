@@ -41,7 +41,6 @@ async function refreshAccount({
       refreshToken: spent,
     });
     const refreshed = toAccount(authentication);
-    // Update-only: a disconnect that lands mid-refresh must not be resurrected.
     if (
       await updateRefreshedGitHubCredential({ credential: refreshed, userId })
     ) {
@@ -71,8 +70,7 @@ async function refreshAccount({
     if (current && current.refreshToken !== spent) {
       return current.token;
     }
-    // Only this code means the refresh token is dead; a transient failure must
-    // not mark the sign-in expired. The row stays so App Home can say why.
+    // Only GitHub's `bad_refresh_token` means the refresh token is dead.
     if (code === 'bad_refresh_token') {
       await setGitHubCredentialError({
         error:

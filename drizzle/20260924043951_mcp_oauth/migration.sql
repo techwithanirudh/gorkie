@@ -1,4 +1,3 @@
--- Older databases may predate the composite key the foreign key below needs.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'mcp_servers_pk') THEN
     ALTER TABLE "mcp_servers" ADD CONSTRAINT "mcp_servers_pk" PRIMARY KEY ("user_id", "name");

@@ -16,7 +16,6 @@ const cards = new Map<string, LiveCard>();
 browser.onConnected((threadId) => startLiveView({ threadId }));
 
 async function liveBlocks(threadId: string) {
-  // The URL is only the card's caption, so the card still renders without it.
   const url = await browser.getCurrentUrl(threadId).catch(() => null);
   const ticket = signLiveViewTicket({ threadId });
   const page = `${env.PUBLIC_BASE_URL}/live/${ticket}`;
@@ -92,7 +91,6 @@ async function startLiveView({
       logger.debug('[live-view] refresh failed', { error, threadId });
     });
   }, config.refreshMs);
-  // A live card must never keep the process alive on its own.
   timer.unref();
   cards.set(threadId, { channel, timer, ts: posted.ts });
 }

@@ -33,9 +33,6 @@ export async function rememberModel({
     modelProvider && !modelId.startsWith(`${modelProvider}/`)
       ? slugOf(`${modelProvider}/${modelId}`)
       : slugOf(modelId);
-  // Never renewed: refreshing on every answer kept a fallback pinned for as long
-  // as it kept answering, so the recovered primary was never tried again. The
-  // pin now lapses on schedule and the next turn re-probes the ladder in order.
   try {
     await Chat.getSingleton()
       .getState()

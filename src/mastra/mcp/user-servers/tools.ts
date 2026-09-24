@@ -27,7 +27,6 @@ export async function userMCPTools({
 
     const ownerOf = new Map<string, string>();
     for (const id of Object.keys(tools)) {
-      // Longest prefix wins, so servers `a` and `a_b` do not both claim `a_b_*` tools.
       const [owner] = servers
         .map((server) => server.name)
         .filter((name) => id.startsWith(`${name}_`))

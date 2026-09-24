@@ -10,8 +10,6 @@ import {
 
 const kinds = ['findings', 'report', 'plan', 'review'] as const;
 
-// Anchored, with no dots or slashes, so a model-supplied id can only name a
-// file directly inside `.artifacts/`.
 const artifactId = z
   .string()
   .regex(new RegExp(`^(${kinds.join('|')})-[0-9a-f]{12}$`));

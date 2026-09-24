@@ -31,12 +31,9 @@ export function defaultErrorProcessors() {
             ),
           maxRetries: 0,
         },
-        // A 400 is deterministic, so fall through to the next model rather than
-        // retry. Failover stays on even for too_many_images or an oversized
-        // request: rungs differ in image and size limits, so the next one can
-        // accept it, and calling `abort` here throws a TripWire out of the
-        // llm-execution step, which ends the run as `tripwire` with no error or
-        // tripwire chunk, so Slack gets no reply and `onError` never runs.
+        // Not `abort`: it throws a TripWire out of the llm-execution step, which
+        // ends the run as `tripwire` with no error or tripwire chunk, so Slack
+        // gets no reply and `onError` never runs.
         { match: isBadRequestError, maxRetries: 0 },
         {
           match: (error) => {

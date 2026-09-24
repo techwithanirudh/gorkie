@@ -16,7 +16,7 @@ const slackMessage = z.object({
 
 // A message that reaches Mastra while a turn runs is queued, and Mastra starts
 // it as a new run once that turn ends, including when a stop or leave_thread
-// aborted it. The handler-side check in `runTurn` has already passed by then.
+// aborted it.
 export const staleMessages = {
   id: 'stale-messages',
   name: 'Stale Message Filter',

@@ -115,8 +115,6 @@ function relocateToolImages({
       continue;
     }
     const relocated: MediaPart[] = [];
-    // The note goes on the stripped tool result, not a trailing message: a
-    // synthetic user message last would displace the real request.
     const content = message.content.map((part) => {
       if (part.type !== 'tool-result' || part.output.type !== 'content') {
         return part;

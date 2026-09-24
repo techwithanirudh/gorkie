@@ -116,7 +116,6 @@ export function parseRipgrepJson({
   root: string;
 }): FilesystemGrepResult[] {
   const lines = output.split('\n');
-  // The last segment is empty for complete output, or a line `head` cut short.
   lines.pop();
 
   const files: {
