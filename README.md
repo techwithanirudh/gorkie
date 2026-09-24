@@ -247,7 +247,7 @@ list them), reinstall the app, and rebuild the E2B template with
 patches both `dist/agent-*` bundles of `@mastra/core` and is registered under
 `patchedDependencies` in `package.json`. `scripts/postbuild.ts` copies it into
 `.mastra/output`, so the built server installs the patched core too. It
-carries four fixes:
+carries six fixes:
 
 - **In-stream model fallback.** Stock Mastra moves to the next model in the
   fallback list only when the model call throws. An error delivered as an
@@ -259,7 +259,14 @@ carries four fixes:
 - **The streamed message survives a retry.** A continued step (a retry or a
   fallback escalation) no longer closes the Slack streaming session early.
 - **Only the requester answers an approval.** A tool approval card records who
-  triggered it, and clicks from anyone else in the thread are ignored.
+  triggered it, and clicks from anyone else in the thread are ignored. The
+  requester is stored with the pending approval, so after a restart the check
+  still holds, and a card with no recorded requester is refused.
+- **Plan widgets stay under Slack's cap.** A Compact (grouped) turn rolls into a
+  new message at a step boundary once it has 40 tasks, and never sends more than
+  Slack's 50, so long turns no longer crash the stream.
+- **Detailed cards show the tool's summary.** Timeline task output prefers the
+  tool's `transform.display` summary over the truncated raw result.
 
 [`patches/@mastra+browser-viewer@0.2.4.patch`](./patches/@mastra+browser-viewer@0.2.4.patch)
 adds an optional options argument to `connectToExternalCdp`, forwarded to

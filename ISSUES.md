@@ -2,7 +2,64 @@
 
 Findings from reading 4337 production traces (2026-08-13 to 2026-09-12, 13 GB)
 pulled from Mastra Platform, cross-referenced against the GitHub issue tracker.
-Written 2026-09-12.
+Written 2026-09-12. Status refreshed 2026-09-24 against `@mastra/core@1.69.0`
+(patched) on branch `chore/quality-pass`: read the two sections below first.
+Everything after them is the original 09-12 write-up, kept as the record of
+what was found and why. Its file:line references are as of 09-12 and many have
+moved; the status table gives the current location.
+
+## Status as of 2026-09-24
+
+| finding | status | where it stands now |
+| ------- | ------ | ------------------- |
+| A1 screenshot via `read_file` | partly fixed | `read_file` inlines only PDFs (`mediaTypes: ['application/pdf']`, `src/mastra/workspace/index.ts:160-166`); images go through `view_image` and the prompt says so (`prompts/tools.ts`, `<media>`). Still open: no `maxMediaBytes` (PDFs keep Mastra's 10 MB default), `view_image` allows 10 MiB (`config.ts` `image.maxViewBytes`), the token limiter still counts any image as 765 tokens, and `moveToolImages` (`processors/tool-media.ts:170`) still runs after the limiter (`agents/orchestrator.ts:169-173`). |
+| A2 text-only model handed an image | partly fixed, by config | The ladder (`providers.ts:64-84`) no longer carries text-only `deepseek-v4-flash`. No modality check exists. `preferLastWorking` (`providers.ts:44-62`) now pins for 5 minutes, not renewed. |
+| A3 `ox-alpha-free`, retried 400s | fixed | The model is gone. Every 400 gets 0 retries and fails over (`lib/error-handling.ts:40`); terminal regex at `:27-33`. GitHub issue 34 still to close (TODO). |
+| A4 `read_file` header and truncation | partly fixed | Prompt fixed (`prompts/features/code-mode.ts:15-18`: `external_read_file` is display text, read with `node:fs/promises`). `maxOutputTokens` still unset on `read_file`. |
+| A5 search token expiry | obsolete | `action_token` capture removed; search uses one `SLACK_USER_TOKEN` (`tools/slack/search-slack.ts:77-108`). |
+| A6 `read_canvas` guard | fixed | `readableFile` (`tools/slack/utils.ts:34-63`) checks the file's channels; same guard on sections, edit and list. |
+| A7 OpenPGP in the sandbox | not a bug | The suggested prompt line was never added and nothing tracks it. |
+| A8 transport errors | not a bug | |
+| A9 raw `<annotation>` markup | fixed, not live-verified | `processors/step-guard.ts` strips `<think>`, `<annotation>` and tool-call tags; wired in orchestrator, research and explore. |
+| E silent-failure class | diagnosis stands | Root cause (restarts) handled under G. "Finished but never posted" is still open in TODO; native streaming is off (`chat/client.ts:16`), which removes one known cause. |
+| E1 no time budget | fixed | `modelTimeout: { firstChunkMs, stepMs }` (`config.ts:45`), applied on all three agents. |
+| E2 Exa calls have no timeout | open | `tools/fetch-url.ts`, `tools/search-web.ts` and `lib/exa.ts` pass no timeout or signal. Not tracked in TODO. |
+| E3 wake resolves no render target | open | `tools/wait.ts:63-68` passes only `{ channel }`. Tracked in TODO (Langfuse audit item 11, backgrounding). |
+| E4 render driver swallows write failures | open, upstream | Tool display now defaults to hidden (`config.ts:48`) and native streaming is off. |
+| E5 a thrown run says nothing | partly fixed | Aborted runs post a notice (`onAbort`, `orchestrator.ts:138-153`); `onError` still posts nothing. |
+| E, issue 30 | unconfirmed | No code change tied to it; OM items remain in TODO. |
+| B trace size | fixed | `excludeSpanTypes` (`index.ts:176-183`), `requestContext` stripped in `observability/slack-identity.ts`, `observability/trim-payloads.ts` truncates large span strings. |
+| C GitHub issues | not re-checked | The tracker was not queried on 09-24. Issue 4 is covered by the step guard (A9). |
+| D1 `maxMediaBytes`/`maxOutputTokens` | open as written | Images were routed around it instead (A1, A4). |
+| D2 widen terminal errors | partly fixed | All 400s get 0 retries but still fail over on purpose (`lib/error-handling.ts:34-40`). |
+| F trace viewer limits | obsolete | The viewer is gone; Langfuse replaced Mastra Platform. `groups:read` is now in the manifest. |
+| G watchdog kills turns | fixed in tree, not deployed | `chat/turn-drain.ts` `TurnDrainWorker` plus `server.drainTimeout` (`index.ts`). OPS: systemd `TimeoutStopSec` of at least 250s and a live restart test. The "applied in production 2026-09-12" list is superseded: `MemoryHigh=1400M` caused an OOM outage and the monitor was rewritten (IMPLEMENTED 2026-09-12). The `/health` probe item is still open in TODO. |
+
+## Carried patches (2026-09-24)
+
+`patches/@mastra+core@1.69.0.patch` patches both `dist/agent-*` bundles
+(`agent-DwtTO5Px.js`, `agent-DVnXHd4C.cjs`) with the same seven hunk groups.
+`scripts/verify-mastra-patch.ts` fails the build if any marker is missing.
+
+| # | what | why | marker |
+| - | ---- | --- | ------ |
+| 1 | Plan block task cap | Slack caps a plan block at 50 tasks and an over-cap append kills the stream; tasks past 50 are dropped. | `droppedTaskIds` |
+| 2 | Continued steps keep the stream open | A retry or fallback escalation (`stepResult.isContinued`) no longer closes the Slack session early; a grouped display rolls over at 40 tasks. | `droppedTaskIds` (same hunk region) |
+| 3 | Timeline shows the tool's display summary | The timeline row uses `transform.display` output's `summary` before the raw result text. | `shown?.summary` |
+| 4 | Approver identity: click gate | Only the requester can answer an approval card. After a restart the requester comes from the suspended run; with none recorded the click is refused. | `approvalRequesterId` |
+| 5 | Approver identity: card records the requester | `_buildRenderContext` takes a `requesterId` and stores it on the pending card, for new turns and approval resumes. | `approvalRequesterId` |
+| 6 | Approver identity: persisted with the run | The suspended tool data carries `requesterId` from the `channel` request context, so hunk 4 works after a restart. | `approvalRequesterId` |
+| 7 | In-stream fallback with a fresh retry budget | Stock Mastra advances the fallback model only when the call throws; an in-band error chunk now advances it too (`advanceFallbackModel`), and the new model's retry count starts at 0. Upstream: mastra-ai/mastra#21280. | `advanceFallbackModel` |
+
+`patches/@mastra+browser-viewer@0.2.4.patch` forwards an optional options
+argument from `connectToExternalCdp` to Playwright's `connectOverCDP`, so the
+live view can send E2B's traffic access token header.
+
+Until `98e1534f` this file was a different document, "Upstream Mastra issues",
+verified against `@mastra/core@1.59.0`. Its patch hunks 1.1 (TokenLimiter
+counts base64 media as text), 1.4 (terminal error chunks bypass output
+processors) and 1.5 (`tryRepairJson`) are not in the 1.69 patch; 1.2 and 1.3
+survive as hunks 2 and 7 above. That document is in git history if needed.
 
 Severity is what the user experienced: **breaks** means the turn died,
 **degrades** means it completed with a worse answer, **cosmetic** means latency
