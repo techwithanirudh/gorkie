@@ -69,7 +69,7 @@ export const getSlackEmojiTool = createTool({
       spendSlackCall(context.requestContext);
       const response = await slack.webClient.emoji.list();
       cachedList = {
-        emoji: z.record(z.string(), z.string()).parse(response.emoji ?? {}),
+        emoji: response.emoji ?? {},
         expiresAt: Date.now() + emojiConfig.listTtl,
       };
     }

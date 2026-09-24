@@ -37,9 +37,6 @@ export const saveArtifactTool = createTool({
     },
   },
   execute: async ({ kind, title, body }, context) => {
-    if (!context.requestContext) {
-      throw new Error('No Slack thread bound for this run.');
-    }
     const sandbox = await requireSandbox(context.requestContext);
     const id = `${kind}-${randomUUID().replaceAll('-', '').slice(0, 12)}`;
     const path = p('.artifacts', `${id}.md`);
@@ -67,9 +64,6 @@ export const readArtifactTool = createTool({
     },
   },
   execute: async ({ id }, context) => {
-    if (!context.requestContext) {
-      throw new Error('No Slack thread bound for this run.');
-    }
     const sandbox = await requireSandbox(context.requestContext);
     const path = p('.artifacts', `${id}.md`);
     const exists = await sandbox.retryOnDead(() =>

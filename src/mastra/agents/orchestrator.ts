@@ -29,7 +29,7 @@ import { defaultErrorProcessors } from '../lib/error-handling';
 import { logger } from '../lib/logger';
 import { chatLogger } from '../lib/logger/chat';
 import { toolCall } from '../lib/tools';
-import { userMCPTools } from '../mcp/user-servers';
+import { userMCPTools } from '../mcp/user-servers/tools';
 import { profileSchema } from '../memory/profile';
 import { delegatedTools } from '../processors/delegated-tools';
 import { outputBudget } from '../processors/output-budget';

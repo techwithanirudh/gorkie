@@ -6,8 +6,6 @@ export const GREP = 'grep';
 export const DELETE_FILE = 'delete_file';
 export const FILE_STAT = 'file_stat';
 export const EXECUTE_COMMAND = 'execute_command';
-export const GET_PROCESS_OUTPUT = 'get_process_output';
-export const KILL_PROCESS = 'kill_process';
 
 export const codeModeToolNames = new Set([
   READ_FILE,

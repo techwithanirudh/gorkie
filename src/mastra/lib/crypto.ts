@@ -8,7 +8,6 @@ import {
 import {
   createStateSigner,
   type StateSigner,
-  type StateTenant,
 } from '@mastra/factory/state-signing';
 import { env } from '@/env';
 import {
@@ -123,7 +122,7 @@ export function signOAuthToken(token: Omit<OAuthToken, 'nonce'>): {
     token.slackUserId,
     token.target ? { factoryProjectId: token.target } : undefined
   );
-  const tenant: StateTenant | null = stateSigner.verify(signed);
+  const tenant = stateSigner.verify(signed);
   return { nonce: tenant ? tenant.nonce : '', signed };
 }
 
@@ -134,7 +133,7 @@ export function verifyOAuthToken({
   purpose: OAuthToken['purpose'];
   signed: string | undefined;
 }): OAuthToken | undefined {
-  const tenant: StateTenant | null = stateSigner.verify(signed);
+  const tenant = stateSigner.verify(signed);
   if (!tenant) {
     return;
   }
@@ -161,7 +160,7 @@ export function signLiveViewTicket(ticket: LiveViewTicket): string {
 export function verifyLiveViewTicket(
   signed: string | undefined
 ): LiveViewTicket | undefined {
-  const tenant: StateTenant | null = liveViewSigner.verify(signed);
+  const tenant = liveViewSigner.verify(signed);
   if (tenant?.orgId !== 'live') {
     return;
   }

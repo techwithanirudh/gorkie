@@ -4,9 +4,11 @@ import { env } from '@/env';
 import { channelContext } from './lib/context';
 import { recallModel, slugOf } from './lib/working-model';
 
+const hackclubBaseURL = 'https://ai.hackclub.com/proxy/v1';
+
 const hackclub = createOpenRouter({
   apiKey: env.HACKCLUB_API_KEY,
-  baseURL: 'https://ai.hackclub.com/proxy/v1',
+  baseURL: hackclubBaseURL,
 });
 
 function opencode({
@@ -99,5 +101,5 @@ export const summarizer: ModelWithRetries[] = [
 
 export const images = {
   model: 'google/gemini-3.1-flash-image',
-  baseURL: 'https://ai.hackclub.com/proxy/v1',
+  baseURL: hackclubBaseURL,
 };

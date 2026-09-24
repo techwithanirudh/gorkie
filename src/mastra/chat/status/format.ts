@@ -16,7 +16,3 @@ export function fit({
 export function truncate(text: string): string {
   return text.slice(0, slackStatusMaxLength);
 }
-
-export function fileName(path: string): string {
-  return path.split('/').filter(Boolean).at(-1) ?? path;
-}

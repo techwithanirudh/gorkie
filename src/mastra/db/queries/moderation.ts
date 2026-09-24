@@ -19,10 +19,7 @@ export async function activeBan(
     .where(eq(moderationEvents.userId, rawId(userId)))
     .orderBy(desc(moderationEvents.createdAt))
     .limit(1);
-  if (!(row && isLive(row))) {
-    return;
-  }
-  return { actorId: row.actorId, expiresAt: row.expiresAt, reason: row.reason };
+  return row && isLive(row) ? row : undefined;
 }
 
 export async function activeBans(): Promise<ModerationEvent[]> {

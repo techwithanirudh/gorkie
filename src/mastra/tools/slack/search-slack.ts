@@ -1,5 +1,4 @@
 import { createTool } from '@mastra/core/tools';
-import { Chat } from 'chat';
 import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
@@ -7,7 +6,7 @@ import { search } from '../../config';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { slackErrorSchema } from '../../types/tools/index';
+import { readableChannelIds } from './utils';
 
 const contextMessageSchema = z
   .looseObject({
@@ -67,12 +66,6 @@ const searchResponseSchema = z.looseObject({
     .optional(),
 });
 
-const authTestSchema = z.looseObject({
-  response_metadata: z
-    .looseObject({ scopes: z.array(z.string()).optional() })
-    .optional(),
-});
-
 type SearchResponse = z.infer<typeof searchResponseSchema>;
 
 let verifiedToken: string | undefined;
@@ -81,10 +74,8 @@ async function assertPublicOnly(token: string): Promise<void> {
   if (verifiedToken === token) {
     return;
   }
-  const auth = authTestSchema.parse(
-    await slack.webClient.apiCall('auth.test', { token })
-  );
-  const scopes = auth.response_metadata?.scopes;
+  const scopes = (await slack.webClient.auth.test({ token })).response_metadata
+    ?.scopes;
   if (!scopes) {
     throw new Error(
       'Slack did not report the scopes on SLACK_USER_TOKEN, so gorkie cannot confirm it is limited to public channels. Workspace search is disabled until it can.'
@@ -129,44 +120,10 @@ async function toOutput({
     }
   }
 
-  const lookupVisibility = async (channelId: string) => {
-    if (threadId && channelId === chatChannelId(threadId)) {
-      return channelId;
-    }
-    try {
-      const metadata = await Chat.getSingleton()
-        .channel(channelId)
-        .fetchMetadata();
-      return metadata.channelVisibility === 'workspace' ? channelId : undefined;
-    } catch (error) {
-      const parsed = slackErrorSchema.safeParse(error);
-      if (parsed.success && parsed.data.data?.error === 'channel_not_found') {
-        return;
-      }
-      throw error;
-    }
-  };
-  // Never cache visibility: it is the privacy gate, and a channel can go private.
-  const maxConcurrentVisibilityLookups = 4;
-  const ids = [...channelIds];
-  const resolved: Array<string | undefined> = [];
-  for (
-    let index = 0;
-    index < ids.length;
-    index += maxConcurrentVisibilityLookups
-  ) {
-    resolved.push(
-      // biome-ignore lint/performance/noAwaitInLoops: batches are sequential on purpose - that is what bounds the concurrency.
-      ...(await Promise.all(
-        ids
-          .slice(index, index + maxConcurrentVisibilityLookups)
-          .map(lookupVisibility)
-      ))
-    );
-  }
-  const readable = new Set(
-    resolved.filter((channelId) => channelId !== undefined)
-  );
+  const readable = await readableChannelIds({
+    channelIds: [...channelIds],
+    currentThreadId: threadId,
+  });
 
   return {
     messages: messages.flatMap((message) => {

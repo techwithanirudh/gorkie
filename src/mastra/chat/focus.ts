@@ -2,7 +2,7 @@ import { rawId } from '../lib/ids';
 import { logger } from '../lib/logger';
 import { slack } from './client';
 import { memoryThread } from './memory-thread';
-import { isModerator } from './moderation';
+import { isModerator } from './moderation/moderators';
 import { setThreadState, threadState } from './state';
 
 // The memory thread's resource is whoever first brought gorkie into the thread.

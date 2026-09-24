@@ -43,11 +43,6 @@ export const waitTool = createTool({
     }
 
     const fireAt = new Date(Date.now() + seconds * 1000);
-    if (Number.isNaN(fireAt.getTime()) || fireAt.getUTCFullYear() > 9999) {
-      throw new Error(
-        'That wait is outside the scheduler supported date range.'
-      );
-    }
     const cron = `${fireAt.getUTCSeconds()} ${fireAt.getUTCMinutes()} ${fireAt.getUTCHours()} ${fireAt.getUTCDate()} ${fireAt.getUTCMonth() + 1} *`;
 
     await schedules.create({

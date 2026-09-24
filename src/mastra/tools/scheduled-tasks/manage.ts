@@ -1,6 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { isScheduledTask, ownResourceId } from './queries';
+import { isScheduledTask, ownSchedules } from './queries';
 
 export function manageTool({
   id,
@@ -19,11 +19,7 @@ export function manageTool({
     }),
     outputSchema: z.strictObject({ schedule: z.unknown() }),
     execute: async ({ id: scheduleId }, context) => {
-      const service = context.mastra?.schedules;
-      const resourceId = ownResourceId(context);
-      if (!service) {
-        throw new Error('No Mastra schedule service is available.');
-      }
+      const { resourceId, service } = ownSchedules(context);
       const schedule = await service.get(scheduleId);
       if (
         !(schedule && isScheduledTask(schedule)) ||

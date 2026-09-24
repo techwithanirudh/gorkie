@@ -35,12 +35,9 @@ async function recordFeedback({
   threadId,
   traceId,
   userId,
-}: {
+}: z.infer<typeof metadataSchema> & {
   comment?: string;
   direction: z.infer<typeof directionSchema>;
-  messageId?: string;
-  threadId: string;
-  traceId?: string;
   userId: string;
 }): Promise<void> {
   const { observability } = getMastra();

@@ -1,6 +1,8 @@
+import { fetchSlackFile } from '@chat-adapter/slack/api';
 import type { RequestContext } from '@mastra/core/request-context';
 import type { Message } from 'chat';
 import { Chat } from 'chat';
+import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
@@ -31,6 +33,40 @@ export async function assertReadableChannel({
   );
 }
 
+// Never cache visibility: it is the privacy gate, and a channel can go private.
+export async function readableChannelIds({
+  channelIds,
+  currentThreadId,
+}: {
+  channelIds: string[];
+  currentThreadId?: string;
+}): Promise<Set<string>> {
+  const maxConcurrentVisibilityLookups = 4;
+  const readable = new Set<string>();
+  for (
+    let index = 0;
+    index < channelIds.length;
+    index += maxConcurrentVisibilityLookups
+  ) {
+    const batch = channelIds.slice(
+      index,
+      index + maxConcurrentVisibilityLookups
+    );
+    // biome-ignore lint/performance/noAwaitInLoops: batches are sequential on purpose - that is what bounds the concurrency.
+    const checks = await Promise.allSettled(
+      batch.map((channelId) =>
+        assertReadableChannel({ channelId, currentThreadId })
+      )
+    );
+    checks.forEach((check, i) => {
+      if (check.status === 'fulfilled') {
+        readable.add(batch[i]);
+      }
+    });
+  }
+  return readable;
+}
+
 export async function readableFile({
   fileId,
   requestContext,
@@ -48,18 +84,49 @@ export async function readableFile({
     throw new Error('This Slack resource is not associated with a channel.');
   }
 
-  const { threadId } = channelContext(requestContext);
-  const checks = await Promise.allSettled(
-    channelIds.map((channelId) =>
-      assertReadableChannel({ channelId, currentThreadId: threadId })
-    )
-  );
-  if (!checks.some((check) => check.status === 'fulfilled')) {
+  const readable = await readableChannelIds({
+    channelIds,
+    currentThreadId: channelContext(requestContext).threadId,
+  });
+  if (readable.size === 0) {
     throw new Error(
       'Reading or editing Slack resources from another private conversation is not allowed.'
     );
   }
   return { file, channelIds };
+}
+
+// fetchSlackFile attaches the token only for Slack's own hosts, and
+// `redirect: 'manual'` keeps a redirect from carrying it anywhere else.
+export function fetchPrivateSlackFile({
+  url,
+  headers,
+  method,
+  signal,
+}: {
+  url: string;
+  headers?: Record<string, string>;
+  method?: 'GET' | 'HEAD';
+  signal?: AbortSignal;
+}): Promise<Response> {
+  return fetchSlackFile({
+    fetch: Object.assign(
+      (input: URL | RequestInfo, init?: RequestInit) =>
+        fetch(input, {
+          ...init,
+          headers: {
+            ...Object.fromEntries(new Headers(init?.headers)),
+            ...headers,
+          },
+          method,
+          redirect: 'manual',
+          signal,
+        }),
+      { preconnect: fetch.preconnect }
+    ),
+    token: env.SLACK_BOT_TOKEN,
+    url,
+  });
 }
 
 export function assertCanPostTo({
@@ -97,6 +164,7 @@ export async function slackDestination(
   target: Target
 ): Promise<{ channel: string; threadTs?: string }> {
   if (target.type === 'channel') {
+    await joinChannel(target.id);
     return { channel: rawId(target.id) };
   }
   if (target.type === 'user') {
@@ -107,6 +175,7 @@ export async function slackDestination(
   // Decode exactly as assertCanPostTo does: a lenient parser here could read a
   // different channel out of the same id than the one the gate approved.
   const { channel, threadTs } = slack.decodeThreadId(target.id);
+  await joinChannel(channel);
   return { channel, threadTs: threadTs || undefined };
 }
 

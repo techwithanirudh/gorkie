@@ -79,14 +79,6 @@ const methods = new Map<
 
 const authParams = new Set(['token', 'as_user', 'client_id', 'client_secret']);
 
-const responseSchema = z.looseObject({
-  ok: z.boolean(),
-  error: z.string().optional(),
-  response_metadata: z
-    .looseObject({ next_cursor: z.string().optional() })
-    .optional(),
-});
-
 export const callSlackApiTool = createTool({
   id: 'call_slack_api',
   description: `Call one of a fixed set of read-only Slack Web API methods and get its raw JSON, for data the dedicated tools do not expose. Allowed methods and their params:
@@ -110,7 +102,6 @@ Responses can be large, so the full JSON is written to a file in the thread sand
   }),
   outputSchema: z.strictObject({
     ok: z.boolean(),
-    error: z.string().optional(),
     path: z.string().optional(),
     size: z.number(),
     truncated: z.boolean(),
@@ -154,13 +145,12 @@ Responses can be large, so the full JSON is written to a file in the thread sand
     }
     spendSlackCall(context.requestContext);
 
-    const response = responseSchema.parse(
-      await slack.webClient.apiCall(method, args)
-    );
+    // apiCall throws on ok: false, so a returned body is always a success.
+    const response = await slack.webClient.apiCall(method, args);
     const body = JSON.stringify(response, null, 2);
     const truncated = body.length > slackConfig.apiPreviewChars;
     let path: string | undefined;
-    if (truncated && context.requestContext) {
+    if (truncated) {
       try {
         const sandbox = await requireSandbox(context.requestContext);
         const target = p('slack-api', `${method}-${Date.now()}.json`);
@@ -178,7 +168,6 @@ Responses can be large, so the full JSON is written to a file in the thread sand
 
     return {
       ok: response.ok,
-      error: response.error,
       path,
       size: body.length,
       truncated,

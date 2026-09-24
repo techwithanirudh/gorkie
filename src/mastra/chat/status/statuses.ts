@@ -1,5 +1,6 @@
+import { basename } from 'node:path/posix';
 import { z } from 'zod';
-import { fileName, fit } from './format';
+import { fit } from './format';
 
 const text = z.string().min(1).optional().catch(undefined);
 
@@ -75,7 +76,7 @@ const statuses: Record<string, (args: Args) => string> = {
     idle: 'is deleting a file…',
     prefix: 'is deleting ',
     suffix: '…',
-    display: fileName,
+    display: basename,
   }),
   delete_scheduled_task: fixed('is deleting a scheduled task…'),
   edit_canvas: fixed('is editing a canvas…'),
@@ -84,7 +85,7 @@ const statuses: Record<string, (args: Args) => string> = {
     idle: 'is editing a file…',
     prefix: 'is editing ',
     suffix: '…',
-    display: fileName,
+    display: basename,
   }),
   execute_command: withArg({
     key: 'command',
@@ -105,7 +106,7 @@ const statuses: Record<string, (args: Args) => string> = {
     idle: 'is checking a file…',
     prefix: 'is checking ',
     suffix: '…',
-    display: fileName,
+    display: basename,
   }),
   focus: fixed('is changing who it listens to…'),
   generate_image: withArg({
@@ -159,7 +160,7 @@ const statuses: Record<string, (args: Args) => string> = {
   }),
   list_files: ({ path }) =>
     path && path !== '.'
-      ? fit({ prefix: 'is listing ', content: fileName(path), suffix: '…' })
+      ? fit({ prefix: 'is listing ', content: basename(path), suffix: '…' })
       : 'is listing files…',
   list_scheduled_tasks: fixed('is checking scheduled tasks…'),
   list_threads: fixed('is listing threads…'),
@@ -193,7 +194,7 @@ const statuses: Record<string, (args: Args) => string> = {
     idle: 'is reading a file…',
     prefix: 'is reading ',
     suffix: '…',
-    display: fileName,
+    display: basename,
   }),
   resume_scheduled_task: fixed('is resuming a scheduled task…'),
   run_background: withArg({
@@ -275,7 +276,7 @@ const statuses: Record<string, (args: Args) => string> = {
     idle: 'is looking at an image…',
     prefix: 'is looking at ',
     suffix: '…',
-    display: fileName,
+    display: basename,
   }),
   wait: withArg({
     key: 'reason',
@@ -288,7 +289,7 @@ const statuses: Record<string, (args: Args) => string> = {
     idle: 'is writing a file…',
     prefix: 'is writing ',
     suffix: '…',
-    display: fileName,
+    display: basename,
   }),
 };
 

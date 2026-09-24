@@ -3,9 +3,6 @@ import { channelContext } from '../lib/context';
 
 export function contextPrompt(requestContext: RequestContext): string {
   const ctx = channelContext(requestContext);
-  if (!(ctx.channelId || ctx.threadId || ctx.userId)) {
-    return '';
-  }
   const lines: string[] = [];
   if (ctx.channelId) {
     lines.push(`The current channel id is ${ctx.channelId}.`);
@@ -19,5 +16,5 @@ export function contextPrompt(requestContext: RequestContext): string {
       `The message being answered was sent by Slack user ${ctx.userId}${named}; "me", "my" and "mine" refer to them. Other people may speak later in this thread, so re-read the sender rather than assuming it is still this person.`
     );
   }
-  return `<context>\n${lines.join('\n')}\n</context>`;
+  return lines.length > 0 ? `<context>\n${lines.join('\n')}\n</context>` : '';
 }

@@ -1,12 +1,10 @@
-import { fetchSlackFile } from '@chat-adapter/slack/api';
 import type { RequestContext } from '@mastra/core/request-context';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { env } from '@/env';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { sh } from '../../lib/utils';
 import { sandboxPath as p, requireSandbox } from '../../workspace';
-import { readableFile } from './utils';
+import { fetchPrivateSlackFile, readableFile } from './utils';
 
 function formatBytes(value: number): string {
   if (value < 1024 * 1024) {
@@ -74,25 +72,13 @@ async function downloadSlackFile({
       await sandbox.e2b.files.remove(mergePath).catch(() => undefined);
     });
   };
-  // fetchSlackFile attaches the token only for Slack's own hosts, and
-  // `redirect: 'manual'` keeps a redirect from carrying it anywhere else.
   const expectedSize =
     fileInfo?.size ??
-    (await fetchSlackFile({
-      fetch: Object.assign(
-        (input: URL | RequestInfo, init?: RequestInit) =>
-          fetch(input, {
-            ...init,
-            method: 'HEAD',
-            redirect: 'manual',
-            signal: abortSignal,
-          }),
-        { preconnect: fetch.preconnect }
-      ),
-      token: env.SLACK_BOT_TOKEN,
-      url,
-    })
-      .then((response) => Number(response.headers.get('content-length')))
+    (await fetchPrivateSlackFile({ method: 'HEAD', signal: abortSignal, url })
+      .then((response) =>
+        // A missing header is unknown, not zero: Number(null) is 0.
+        Number(response.headers.get('content-length') ?? Number.NaN)
+      )
       .then((size) => (Number.isFinite(size) && size >= 0 ? size : undefined))
       // Without a size the download still works, it just cannot resume.
       .catch(() => undefined));
@@ -134,26 +120,16 @@ async function downloadSlackFile({
 
   const resumeOffset =
     expectedSize !== undefined && resumeAt < expectedSize ? resumeAt : 0;
-  const response = await fetchSlackFile({
-    fetch: Object.assign(
-      (input: URL | RequestInfo, init?: RequestInit) => {
-        const headers = new Headers(init?.headers);
-        if (resumeOffset > 0) {
-          headers.set('range', `bytes=${resumeOffset}-`);
-        }
-        return fetch(input, {
-          ...init,
-          headers,
-          redirect: 'manual',
-          signal: abortSignal,
-        });
-      },
-      { preconnect: fetch.preconnect }
-    ),
-    token: env.SLACK_BOT_TOKEN,
+  // fetchPrivateSlackFile throws on any non-2xx, so only a resume the server
+  // answered in full instead of from the offset is left to catch.
+  const response = await fetchPrivateSlackFile({
+    ...(resumeOffset > 0
+      ? { headers: { range: `bytes=${resumeOffset}-` } }
+      : {}),
+    signal: abortSignal,
     url,
   });
-  if (!(response.ok && (resumeOffset === 0 || response.status === 206))) {
+  if (resumeOffset > 0 && response.status !== 206) {
     throw new Error(`Failed to download Slack file: ${response.status}`);
   }
   if (!response.body) {

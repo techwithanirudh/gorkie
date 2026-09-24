@@ -20,9 +20,7 @@ import {
   EDIT_FILE,
   EXECUTE_COMMAND,
   FILE_STAT,
-  GET_PROCESS_OUTPUT,
   GREP,
-  KILL_PROCESS,
   LIST_FILES,
   READ_FILE,
   WRITE_FILE,
@@ -92,6 +90,10 @@ export async function writeSandboxFile({
   });
 }
 
+export function sandboxPath(...parts: string[]): string {
+  return posix.join(config.workdir, ...parts);
+}
+
 async function getSandbox(
   requestContext: RequestContext
 ): Promise<E2BSandbox | undefined> {
@@ -128,7 +130,6 @@ export async function pauseSandbox(
   }
 }
 
-export { sandboxPath } from './path';
 export { codeModeToolNames } from './tool-names';
 
 // Keyed by the memory thread id, which resolveThreadId makes the Slack thread
@@ -258,9 +259,9 @@ export const workspace: Workspace = new Workspace({
       },
     },
     [WORKSPACE_TOOLS.SANDBOX.GET_PROCESS_OUTPUT]: {
-      name: GET_PROCESS_OUTPUT,
+      name: 'get_process_output',
     },
-    [WORKSPACE_TOOLS.SANDBOX.KILL_PROCESS]: { name: KILL_PROCESS },
+    [WORKSPACE_TOOLS.SANDBOX.KILL_PROCESS]: { name: 'kill_process' },
     [WORKSPACE_TOOLS.LSP.LSP_INSPECT]: { enabled: false },
   },
 });

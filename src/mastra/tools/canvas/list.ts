@@ -4,7 +4,7 @@ import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { rawId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { assertReadableChannel } from '../slack/utils';
+import { assertReadableChannel, readableChannelIds } from '../slack/utils';
 
 const canvasFile = z
   .looseObject({
@@ -26,40 +26,6 @@ const canvasFile = z
     permalink: f.permalink,
     channelIds: [...(f.channels ?? []), ...(f.groups ?? []), ...(f.ims ?? [])],
   }));
-
-// Never cache visibility: it is the privacy gate, and a channel can go private.
-async function readableChannelIds({
-  channelIds,
-  currentThreadId,
-}: {
-  channelIds: string[];
-  currentThreadId?: string;
-}): Promise<Set<string>> {
-  const maxConcurrentVisibilityLookups = 4;
-  const readable = new Set<string>();
-  for (
-    let index = 0;
-    index < channelIds.length;
-    index += maxConcurrentVisibilityLookups
-  ) {
-    const batch = channelIds.slice(
-      index,
-      index + maxConcurrentVisibilityLookups
-    );
-    // biome-ignore lint/performance/noAwaitInLoops: batches are sequential on purpose - that is what bounds the concurrency.
-    const checks = await Promise.allSettled(
-      batch.map((channelId) =>
-        assertReadableChannel({ channelId, currentThreadId })
-      )
-    );
-    checks.forEach((check, i) => {
-      if (check.status === 'fulfilled') {
-        readable.add(batch[i]);
-      }
-    });
-  }
-  return readable;
-}
 
 export const listCanvasesTool = createTool({
   id: 'list_canvases',

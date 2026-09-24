@@ -4,7 +4,7 @@ import { env } from '@/env';
 import { logger } from '../../lib/logger';
 import { oauthRedirectUri } from '../../server/oauth-link';
 import type { MCPServerConfig, StoredMCPServer } from '../../types';
-import { findMCPOAuthHostError, MCPServerOAuth, mcpOAuthHosts } from '../oauth';
+import { MCPServerOAuth, mcpOAuthHosts } from '../oauth';
 import { findMCPUrlError } from '../security';
 import { approvalFor } from './approval';
 
@@ -85,7 +85,10 @@ async function buildClient({
         };
       }
       const hosts = await mcpOAuthHosts({ name: server.name, userId });
-      const hostError = await findMCPOAuthHostError(hosts);
+      const hostErrors = await Promise.all(
+        hosts.map((host) => findMCPUrlError(`https://${host}`))
+      );
+      const hostError = hostErrors.find(Boolean);
       if (hostError) {
         return { server, error: `Sign-in server rejected: ${hostError}` };
       }

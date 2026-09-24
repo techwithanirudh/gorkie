@@ -11,12 +11,15 @@ import { githubPermissionSchema, type PublishHome } from '../../../types';
 import { ids } from './ids';
 import { configureModal } from './views';
 
-export function registerSettings({
+export function registerGitHub({
   publishHome,
 }: {
   publishHome: PublishHome;
 }): void {
   const bot = Chat.getSingleton();
+
+  // Connect is a link button; Slack still sends its click, which needs no work.
+  bot.onAction(ids.connect, () => undefined);
 
   bot.onAction(ids.configure, async (event) => {
     await event.openModal(

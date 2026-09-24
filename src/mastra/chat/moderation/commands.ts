@@ -4,8 +4,9 @@ import { activeBans } from '../../db/queries/moderation';
 import { logger } from '../../lib/logger';
 import { banDurationSchema } from '../../types';
 import { userMention } from '../message';
-import { banGuard, decide, isModerator } from '.';
+import { banGuard, decide } from '.';
 import { until } from './cards';
+import { isModerator } from './moderators';
 
 const BAN_COMMANDS = new Set(['/ban', '/dev-ban']);
 const UNBAN_COMMANDS = new Set(['/unban', '/dev-unban']);

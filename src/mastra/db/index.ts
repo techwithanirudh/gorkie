@@ -13,8 +13,6 @@ import { db, postgresStore } from './client';
 import { setMCPOAuthStatus } from './queries/mcp-oauth';
 import { githubCredentials, mcpOAuth, mcpServers } from './schema';
 
-export { postgresStore } from './client';
-
 // Plaintext rows predate encryption at rest (MCP tokens only). A row neither
 // key opens stays untouched, so restarting with the right
 // CREDENTIALS_KEY_PREVIOUS still recovers it.

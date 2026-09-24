@@ -1,5 +1,8 @@
 import { CardText, Modal, RadioSelect } from 'chat';
-import { coverageKey, unlabelledServers } from '../../../mcp/user-servers';
+import {
+  coverageKey,
+  unlabelledServers,
+} from '../../../mcp/user-servers/approval';
 import { type MCPServerConfig, toolPermissionSchema } from '../../../types';
 import { PRESETS } from '../presets';
 import { ids } from './ids';

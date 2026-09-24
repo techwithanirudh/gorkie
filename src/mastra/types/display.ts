@@ -1,3 +1,4 @@
+import type { ToolDisplay } from '@mastra/core/channels';
 import { z } from 'zod';
 
 export const toolDisplayModeSchema = z.enum(['hidden', 'compact', 'detailed']);
@@ -12,4 +13,4 @@ export const mastraToolDisplay = {
   hidden: 'hidden',
   compact: 'grouped',
   detailed: 'timeline',
-} as const satisfies Record<ToolDisplayMode, string>;
+} as const satisfies Record<ToolDisplayMode, ToolDisplay>;

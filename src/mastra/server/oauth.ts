@@ -4,7 +4,7 @@ import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { env } from '@/env';
 import { slack } from '../chat/client';
-import { isUserAllowed } from '../lib/allowed-users';
+import { optInStatus } from '../lib/allowed-users';
 import { signOAuthToken, verifyOAuthToken } from '../lib/crypto';
 import { logger } from '../lib/logger';
 import {
@@ -64,7 +64,7 @@ async function verifiedStart({
   if (
     !token ||
     token.provider !== provider ||
-    !(await isUserAllowed(token.slackUserId)) ||
+    (await optInStatus(token.slackUserId)) !== 'allowed' ||
     usedStartNonces.has(token.nonce)
   ) {
     return {

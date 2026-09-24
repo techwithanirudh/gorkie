@@ -61,10 +61,6 @@ export async function optInStatus(userId: string): Promise<OptInStatus> {
   return 'unknown';
 }
 
-export async function isUserAllowed(userId: string): Promise<boolean> {
-  return (await optInStatus(userId)) === 'allowed';
-}
-
 export async function setMembership({
   allowed,
   userId,

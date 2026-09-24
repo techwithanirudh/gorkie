@@ -15,7 +15,7 @@ import {
 } from '../db/queries/mcp-oauth';
 import { logger } from '../lib/logger';
 import type { MCPServerConfig } from '../types';
-import { findMCPUrlError, guardedFetch } from './security';
+import { guardedFetch } from './security';
 
 type DiscoveryState = Parameters<
   NonNullable<OAuthClientProvider['saveDiscoveryState']>
@@ -215,15 +215,6 @@ export async function mcpOAuthHosts({
         .map((url) => new URL(url).host)
     ),
   ];
-}
-
-export async function findMCPOAuthHostError(
-  hosts: string[]
-): Promise<string | undefined> {
-  const errors = await Promise.all(
-    hosts.map((host) => findMCPUrlError(`https://${host}`))
-  );
-  return errors.find(Boolean);
 }
 
 // RFC 7009, best effort: the local copy is deleted whatever the server says.

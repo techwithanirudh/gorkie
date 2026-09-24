@@ -8,10 +8,6 @@ import { guardedFetch } from '../mcp/security';
 import { dropClient } from '../mcp/user-servers/client';
 import type { OAuthProviderHandler, OAuthToken } from '../types';
 
-const failed = (text: string) => ({
-  page: { title: 'Server not connected', paragraphs: [text] },
-});
-
 async function ownedServer(token: OAuthToken) {
   const server = (await listMCPServers(token.slackUserId)).find(
     (entry) => entry.name === token.target
@@ -66,9 +62,14 @@ export const mcpOAuth: OAuthProviderHandler = {
   complete: async ({ query, redirectUri, token }) => {
     const server = await ownedServer(token);
     if (query.error || !query.code) {
-      return failed(
-        `${server.name} did not grant access. Nothing was changed.`
-      );
+      return {
+        page: {
+          title: 'Server not connected',
+          paragraphs: [
+            `${server.name} did not grant access. Nothing was changed.`,
+          ],
+        },
+      };
     }
     const provider = new MCPServerOAuth({
       redirectUri,

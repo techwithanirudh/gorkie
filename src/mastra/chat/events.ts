@@ -1,5 +1,5 @@
 import { Chat } from 'chat';
-import { isUserAllowed } from '../lib/allowed-users';
+import { optInStatus } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
 import { registerAppHome } from './app-home';
 import { slack } from './client';
@@ -28,7 +28,7 @@ export function registerEvents(): void {
   // but channels never hands that signal to the Mastra run, so stop it here.
   bot.onAgentSessionStopped(async (event) => {
     if (
-      !(await isUserAllowed(event.userId)) ||
+      (await optInStatus(event.userId)) !== 'allowed' ||
       (await isBanned(event.userId))
     ) {
       return;

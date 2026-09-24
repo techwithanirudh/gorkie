@@ -1,16 +1,20 @@
 import type { CompatRule } from '@mastra/core/processors';
 import { image as imageLimits } from '../config';
 
-interface MediaPart {
-  data: string;
-  mediaType: string;
-  type: 'media';
-}
-
 type Prompt = Parameters<NonNullable<CompatRule['applyToPrompt']>>[0]['prompt'];
 type FilePart = Extract<
   Extract<Prompt[number], { role: 'user' }>['content'][number],
   { type: 'file' }
+>;
+type MediaPart = Extract<
+  Extract<
+    Extract<
+      Extract<Prompt[number], { role: 'tool' }>['content'][number],
+      { type: 'tool-result' }
+    >['output'],
+    { type: 'content' }
+  >['value'][number],
+  { type: 'media' }
 >;
 
 const omittedNote =
@@ -153,7 +157,7 @@ function relocateToolImages({
         content: [
           { type: 'text', text: 'Attached media from tool result:' },
           ...relocated.map(
-            (media): { type: 'file'; data: string; mediaType: string } => ({
+            (media): FilePart => ({
               type: 'file',
               data: media.data,
               mediaType: media.mediaType,

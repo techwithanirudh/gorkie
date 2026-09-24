@@ -15,13 +15,9 @@ const cards = new Map<string, LiveCard>();
 
 browser.onConnected((threadId) => startLiveView({ threadId }));
 
-function liveBlocks({
-  threadId,
-  url,
-}: {
-  threadId: string;
-  url: string | null;
-}) {
+async function liveBlocks(threadId: string) {
+  // The URL is only the card's caption, so the card still renders without it.
+  const url = await browser.getCurrentUrl(threadId).catch(() => null);
   const ticket = signLiveViewTicket({ threadId });
   const page = `${env.PUBLIC_BASE_URL}/live/${ticket}`;
   const where = url && url !== 'about:blank' ? url : 'a new tab';
@@ -64,13 +60,11 @@ async function refresh(threadId: string): Promise<void> {
   if (!card) {
     return;
   }
-  // The URL is only the card's caption, so the card still updates without it.
-  const url = await browser.getCurrentUrl(threadId).catch(() => null);
   await slack.webClient.chat.update({
     channel: card.channel,
     ts: card.ts,
     text: 'gorkie is browsing',
-    blocks: liveBlocks({ threadId, url }),
+    blocks: await liveBlocks(threadId),
   });
 }
 
@@ -83,13 +77,11 @@ async function startLiveView({
     return;
   }
   const { channel, threadTs } = slack.decodeThreadId(threadId);
-  // The URL is only the card's caption, so the card still posts without it.
-  const url = await browser.getCurrentUrl(threadId).catch(() => null);
   const posted = await slack.webClient.chat.postMessage({
     channel,
     thread_ts: threadTs,
     text: 'gorkie is browsing',
-    blocks: liveBlocks({ threadId, url }),
+    blocks: await liveBlocks(threadId),
     unfurl_links: false,
   });
   if (!posted.ts) {

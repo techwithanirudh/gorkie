@@ -5,7 +5,7 @@ import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { rawId, threadIdOf } from '../../lib/ids';
 import { slackErrorSchema, targetSchema } from '../../types/tools/index';
-import { assertCanPostTo, joinChannel, slackDestination } from './utils';
+import { assertCanPostTo, slackDestination } from './utils';
 
 const markdownConverter = new SlackFormatConverter();
 
@@ -41,9 +41,6 @@ Errors: channel_not_found usually means the bot isn't a member of that private c
     const ctx = channelContext(context.requestContext);
     assertCanPostTo({ target, ctx });
     try {
-      if (target.type !== 'user') {
-        await joinChannel(target.id);
-      }
       const { channel, threadTs } = await slackDestination(target);
       // Both names only label the post; the adapter's cached lookup resolves a
       // failure to null, which posts uncredited or under the default name.

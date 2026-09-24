@@ -61,7 +61,7 @@ export async function setGitHubSettings({
   };
   await db
     .insert(userSettings)
-    .values({ ...set, instructions: null, userId: rawId(userId) })
+    .values({ ...set, userId: rawId(userId) })
     .onConflictDoUpdate({ target: userSettings.userId, set });
 }
 
@@ -90,7 +90,7 @@ export async function setMCPThreads({
   const set = { mcpThreads: threads, updatedAt: new Date() };
   await db
     .insert(userSettings)
-    .values({ ...set, instructions: null, userId: rawId(userId) })
+    .values({ ...set, userId: rawId(userId) })
     .onConflictDoUpdate({ target: userSettings.userId, set });
 }
 
@@ -114,6 +114,6 @@ export async function setToolDisplay({
   const set = { toolDisplay, updatedAt: new Date() };
   await db
     .insert(userSettings)
-    .values({ ...set, instructions: null, userId: rawId(userId) })
+    .values({ ...set, userId: rawId(userId) })
     .onConflictDoUpdate({ target: userSettings.userId, set });
 }

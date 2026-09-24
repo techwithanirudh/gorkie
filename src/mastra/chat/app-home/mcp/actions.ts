@@ -13,8 +13,8 @@ import { logger } from '../../../lib/logger';
 import { advertisesOAuth } from '../../../mcp/errors';
 import { revokeMCPOAuth } from '../../../mcp/oauth';
 import { findMCPUrlError } from '../../../mcp/security';
-import { findMCPConnectionError } from '../../../mcp/user-servers';
 import { dropClient } from '../../../mcp/user-servers/client';
+import { findMCPConnectionError } from '../../../mcp/user-servers/probe';
 import {
   mcpServerSchema,
   type PublishHome,

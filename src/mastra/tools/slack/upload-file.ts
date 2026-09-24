@@ -7,7 +7,7 @@ import { channelContext } from '../../lib/context';
 import { type Target, targetSchema } from '../../types/tools/index';
 import { requireSandbox } from '../../workspace';
 import { confinePath } from '../../workspace/filesystem';
-import { assertCanPostTo, joinChannel, slackDestination } from './utils';
+import { assertCanPostTo, slackDestination } from './utils';
 
 async function uploadToSlack({
   comment,
@@ -43,9 +43,6 @@ async function uploadToSlack({
     throw new Error('No current thread to upload to.');
   }
   assertCanPostTo({ target: resolved, ctx });
-  if (resolved.type !== 'user') {
-    await joinChannel(resolved.id);
-  }
   const destination = await slackDestination(resolved);
 
   const created = await slack.webClient.files.getUploadURLExternal({

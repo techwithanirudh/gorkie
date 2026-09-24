@@ -14,12 +14,7 @@ import { slack } from '../client';
 import { notify } from '../notify';
 import { decisionCard } from './cards';
 import { moderationIds } from './ids';
-
-export { banNotice } from './cards';
-
 import { isModerator } from './moderators';
-
-export { isModerator } from './moderators';
 
 const DURATION: Record<Exclude<BanDuration, 'perm'>, Duration> = {
   '1h': { hours: 1 },

@@ -27,7 +27,8 @@ export function isScheduledTask(
 // A thread's memory resource is whoever started it, so in a shared thread
 // anyone else talking would otherwise list, change, or add to that person's
 // schedules, including their DM tasks.
-export function ownResourceId(context: ToolExecutionContext): string {
+export function ownSchedules(context: ToolExecutionContext) {
+  const service = context.mastra?.schedules;
   const resourceId = context.agent?.resourceId;
   const { userId } = channelContext(context.requestContext);
   if (!resourceId) {
@@ -38,5 +39,8 @@ export function ownResourceId(context: ToolExecutionContext): string {
       'Only the person who started this conversation can manage its scheduled tasks. Ask them, or start your own thread or DM.'
     );
   }
-  return resourceId;
+  if (!service) {
+    throw new Error('No Mastra schedule service is available.');
+  }
+  return { resourceId, service };
 }

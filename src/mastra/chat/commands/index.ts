@@ -10,15 +10,17 @@ import { focus } from './focus';
 import { help } from './help';
 import { stop } from './stop';
 
-const commands: Record<string, CommandHandler> = {
-  compact,
-  connections,
-  display,
-  focus,
-  help,
-  mcps: connections,
-  stop,
-};
+// A Map, not an object literal: `!constructor` or `!__proto__` must not
+// resolve to an Object.prototype member.
+const commands = new Map<string, CommandHandler>([
+  ['compact', compact],
+  ['connections', connections],
+  ['display', display],
+  ['focus', focus],
+  ['help', help],
+  ['mcps', connections],
+  ['stop', stop],
+]);
 
 export async function handleCommand({
   message,
@@ -28,8 +30,8 @@ export async function handleCommand({
   thread: Thread;
 }): Promise<boolean> {
   const body = withoutLeadingMentions(rawText(message)).trim();
-  const match = body.match(/^!(\w+)\b/i);
-  const command = match?.[1] ? commands[match[1].toLowerCase()] : undefined;
+  const name = body.match(/^!(\w+)\b/)?.[1]?.toLowerCase();
+  const command = name ? commands.get(name) : undefined;
   if (!command) {
     return false;
   }

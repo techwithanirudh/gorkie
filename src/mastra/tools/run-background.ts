@@ -129,9 +129,6 @@ export const runBackgroundTool = createTool({
   },
   execute: async ({ command, timeout }, context) => {
     const { requestContext } = context;
-    if (!requestContext) {
-      throw new Error('No Slack thread bound for this run.');
-    }
     const channel = channelContext(requestContext);
     const id = context.background?.taskId ?? context.agent?.toolCallId;
     if (!(id && channel.threadId)) {

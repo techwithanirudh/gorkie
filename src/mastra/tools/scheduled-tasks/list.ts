@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { agent as agentConfig } from '../../config';
-import { isScheduledTask, ownResourceId } from './queries';
+import { isScheduledTask, ownSchedules } from './queries';
 
 export const listScheduledTasksTool = createTool({
   id: 'list_scheduled_tasks',
@@ -10,12 +10,7 @@ export const listScheduledTasksTool = createTool({
   inputSchema: z.strictObject({}),
   outputSchema: z.strictObject({ schedules: z.array(z.unknown()) }),
   execute: async (_input, context) => {
-    const service = context.mastra?.schedules;
-    const resourceId = ownResourceId(context);
-    if (!service) {
-      throw new Error('No Mastra schedule service is available.');
-    }
-
+    const { resourceId, service } = ownSchedules(context);
     const schedules = await service.list({
       agentId: agentConfig.id,
       resourceId,
