@@ -1,7 +1,9 @@
 import { agent as agentConfig } from '../../config';
 import { logger } from '../../lib/logger';
 import type { CommandHandler } from '../../types';
+import { killJobs } from '../../workspace/jobs';
 import { getMastra } from '../mastra-instance';
+import { memoryThread } from '../memory-thread';
 import { setThreadState } from '../state';
 
 export async function stopThread(
@@ -13,25 +15,18 @@ export async function stopThread(
   });
   const mastra = getMastra();
   const orchestrator = mastra.getAgentById(agentConfig.id);
-  // Memory threads reuse the Slack thread id, except where core fell back to a
-  // generated id on a collision or the rename migration skipped the thread.
-  // Channels records the Slack id in metadata on all of them.
-  const threadMemory = await orchestrator
-    .getMemory()
-    .then((memory) =>
-      memory?.listThreads({
-        filter: { metadata: { channel_externalThreadId: slackThreadId } },
-        perPage: 1,
-      })
-    )
-    .then((found) => found?.threads[0])
-    .catch((error: unknown) => {
-      logger.warn('[commands] Failed to look up the memory thread to stop', {
-        error,
-        threadId: slackThreadId,
-      });
+  let threadId = slackThreadId;
+  try {
+    const found = await memoryThread(slackThreadId);
+    if (found) {
+      threadId = found.thread.id;
+    }
+  } catch (error) {
+    logger.warn('[commands] Failed to look up the memory thread to stop', {
+      error,
+      threadId: slackThreadId,
     });
-  const threadId = threadMemory?.id ?? slackThreadId;
+  }
 
   const runs = orchestrator
     .listActiveThreadRuns()
@@ -54,6 +49,9 @@ export async function stopThread(
         })
     : [];
 
+  // Before the task cancellations: a cancelled run_background drops its job
+  // entry while its process keeps running in the sandbox.
+  const killed = await killJobs(slackThreadId);
   for (const run of runs) {
     orchestrator.abortThreadStream({
       resourceId: run.resourceId,
@@ -72,7 +70,7 @@ export async function stopThread(
   if (runs.length > 0) {
     return 'aborted';
   }
-  return backgroundTasks.length > 0 ? 'cancelled' : 'idle';
+  return backgroundTasks.length > 0 || killed > 0 ? 'cancelled' : 'idle';
 }
 
 export const stop: CommandHandler = async ({ message, thread }) => {

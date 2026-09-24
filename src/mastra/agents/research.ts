@@ -14,6 +14,7 @@ import { workingModel } from '../processors/working-model';
 import { description, prompt } from '../prompts/agents/research';
 import { slackToolPrompt } from '../prompts/slack';
 import { scout } from '../providers';
+import { saveArtifactTool } from '../tools/artifacts';
 import { slackCodeMode, slackCodeModePrompt } from '../tools/code-mode/slack';
 import { fetchUrlTool } from '../tools/fetch-url';
 import { searchWebTool } from '../tools/search-web';
@@ -42,6 +43,8 @@ export const research = new Agent({
     get_channel_info: slackTools.get_channel_info,
     get_permalink: slackTools.get_permalink,
     summarize_thread: slackTools.summarize_thread,
+    call_slack_api: slackTools.call_slack_api,
+    save_artifact: saveArtifactTool,
   }),
   inputProcessors: [
     new TokenLimiterProcessor({

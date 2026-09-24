@@ -2,6 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { summarizer } from '../../agents/summarizer';
 import { slack } from '../../chat/client';
+import { focusFilter } from '../../chat/focus';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
@@ -52,11 +53,18 @@ export const summarizeThreadTool = createTool({
       limit: 100,
       direction: 'backward',
     });
-    if (result.messages.length === 0) {
+    const sees =
+      target === ctx.threadId ? await focusFilter(target) : undefined;
+    const messages = sees
+      ? result.messages.filter(
+          (message) => message.author.isMe || sees(message.author.userId)
+        )
+      : result.messages;
+    if (messages.length === 0) {
       throw new Error('No messages found in the thread.');
     }
 
-    const lines = result.messages.map((message, index) => {
+    const lines = messages.map((message, index) => {
       const author =
         message.author.fullName ||
         message.author.userName ||
@@ -78,7 +86,7 @@ export const summarizeThreadTool = createTool({
     });
 
     return {
-      messageCount: result.messages.length,
+      messageCount: messages.length,
       summary: text,
     };
   },

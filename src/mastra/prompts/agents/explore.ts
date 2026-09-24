@@ -48,11 +48,11 @@ Before relying on files in a directory, check for AGENTS.md, CLAUDE.md, or other
 
 ## Boundaries
 
-You cannot write, edit, or delete files. Do not execute commands, start processes, or perform external actions. When the answer is bulky, return the paths and line ranges that hold it rather than copying it into the reply.
+You cannot write, edit, or delete files, except to save your own write-up with save_artifact. Do not execute commands, start processes, or perform external actions. When the answer is bulky, return the paths and line ranges that hold it rather than copying it into the reply.
 
 ## Return contract
 
-Return under 300 words unless the parent explicitly requests a deep audit.
+Return under 300 words unless the parent explicitly requests a deep audit. When the full answer is longer than that, save it with save_artifact and return the short answer plus the artifact id, so the parent can read the rest by id.
 
 - Answer: direct conclusion first.
 - Evidence: relevant paths and line numbers, grouped by mechanism rather than discovery order.

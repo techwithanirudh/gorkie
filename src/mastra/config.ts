@@ -33,6 +33,10 @@ export const canvas = {
   maxReadChars: 200_000,
 };
 
+export const artifacts = {
+  maxChars: 200_000,
+};
+
 export const image = {
   maxViewBytes: 10 * 1024 * 1024,
   // Vision models cap inline images per request (GLM: 8 images, 64 MiB total,

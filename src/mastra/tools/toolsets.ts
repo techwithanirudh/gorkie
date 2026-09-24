@@ -1,7 +1,9 @@
+import { readArtifactTool } from './artifacts';
 import { canvasTools } from './canvas';
 import { workspaceCodeMode } from './code-mode/slack';
 import { submitFeedbackTool } from './feedback';
 import { fetchUrlTool } from './fetch-url';
+import { focusTool } from './focus';
 import { generateImageTool } from './generate-image';
 import { runBackgroundTool } from './run-background';
 import { scheduledTaskTools } from './scheduled-tasks';
@@ -30,6 +32,7 @@ export async function orchestratorTools() {
     upload_file: slackTools.upload_file,
     post_message: slackTools.post_message,
     run_background: runBackgroundTool,
+    read_artifact: readArtifactTool,
     skip: skipTool,
     wait: waitTool,
   };
@@ -42,7 +45,9 @@ export const deferredTools = {
   list_threads: slackTools.list_threads,
   generate_image: generateImageTool,
   get_slack_emoji: slackTools.get_slack_emoji,
+  call_slack_api: slackTools.call_slack_api,
   upload_emoji: uploadEmojiTool,
   submit_feedback: submitFeedbackTool,
+  focus: focusTool,
   ...canvasTools,
 };

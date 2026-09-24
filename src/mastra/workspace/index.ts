@@ -13,7 +13,7 @@ import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
 import { SandboxBrowser } from './browser';
 import { E2BFilesystem } from './filesystem';
-import { endJob, hasLiveJob, startJob } from './jobs';
+import { attachPid, endJob, hasLiveJob, startJob } from './jobs';
 import { createSandbox } from './sandbox';
 import {
   DELETE_FILE,
@@ -195,11 +195,25 @@ export const workspace: Workspace = new Workspace({
           });
         }
       },
-      afterToolCall: ({ context, error }) => {
+      afterToolCall: ({ context, error, input, output }) => {
         const toolCallId =
           toolCallContext.safeParse(context).data?.agent?.toolCallId;
-        if (error !== undefined && toolCallId) {
+        if (!toolCallId) {
+          return;
+        }
+        if (error !== undefined) {
           endJob(toolCallId);
+          return;
+        }
+        // execute_command reports a background spawn only as this sentence,
+        // and !stop needs the pid to kill the process.
+        const pid =
+          backgroundCommand.safeParse(input).success &&
+          typeof output === 'string'
+            ? output.match(/\(PID: ([^)\s]+)\)/)?.[1]
+            : undefined;
+        if (pid) {
+          attachPid({ id: toolCallId, pid });
         }
       },
     },

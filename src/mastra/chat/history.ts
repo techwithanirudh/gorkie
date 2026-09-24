@@ -1,5 +1,6 @@
 import type { Message, Thread } from 'chat';
 import { parseMarkdown, stringifyMarkdown } from 'chat';
+import { focusFilter } from './focus';
 import { isComment } from './message';
 import { threadState } from './state';
 
@@ -15,6 +16,7 @@ export async function withHistory({
   }
 
   const state = await threadState(thread);
+  const sees = await focusFilter(thread.id);
   const lines: string[] = [];
   let scanned = 0;
   let comments = 0;
@@ -32,7 +34,11 @@ export async function withHistory({
       comments++;
       continue;
     }
-    if (previous.id === message.id || previous.author.isMe) {
+    if (
+      previous.id === message.id ||
+      previous.author.isMe ||
+      (sees && !sees(previous.author.userId))
+    ) {
       continue;
     }
     const mention = thread.mentionUser(previous.author.userId);

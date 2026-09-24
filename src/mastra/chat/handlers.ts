@@ -8,6 +8,7 @@ import { logger } from '../lib/logger';
 import { attachments } from './attachments';
 import { slack } from './client';
 import { handleCommand } from './commands';
+import { focusFilter } from './focus';
 import { withHistory } from './history';
 import { isComment } from './message';
 import { banNotice, isBanned } from './moderation';
@@ -92,6 +93,31 @@ async function turnAwayNotOptedIn({
   return true;
 }
 
+async function turnAwayUnfocused({
+  message,
+  thread,
+}: {
+  message: Message;
+  thread: Thread;
+}): Promise<boolean> {
+  if (thread.isDM) {
+    return false;
+  }
+  const sees = await focusFilter(thread.id);
+  if (!sees || sees(message.author.userId)) {
+    return false;
+  }
+  declined({ message, reason: 'outside the thread focus', thread });
+  if (message.isMention) {
+    await notify({
+      message,
+      text: "i'm focused on specific people in this thread, so i can't pick this up. whoever brought me in can run `!focus off`.",
+      thread,
+    });
+  }
+  return true;
+}
+
 function declined({
   message,
   reason,
@@ -173,6 +199,9 @@ export const onMention: ChannelHandler = async (
   if (await turnAwayNotOptedIn({ message, offer: true, thread })) {
     return;
   }
+  if (await turnAwayUnfocused({ message, thread })) {
+    return;
+  }
   if (slack.decodeThreadId(message.threadId).threadTs === message.id) {
     await setThreadState({ thread, patch: { respondOnThreadMessages: true } });
   }
@@ -220,6 +249,9 @@ export const onSubscribedMessage: ChannelHandler = async (
       thread,
     })
   ) {
+    return;
+  }
+  if (await turnAwayUnfocused({ message, thread })) {
     return;
   }
   if (await handleCommand({ message, thread })) {

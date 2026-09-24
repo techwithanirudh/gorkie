@@ -8,7 +8,7 @@ import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
 import type { ChannelContext } from '../types';
 import { requireSandbox } from '../workspace';
-import { endJob, startJob } from '../workspace/jobs';
+import { attachPid, endJob, startJob } from '../workspace/jobs';
 
 // The completion callback gets only the task record, whose `threadId` is the
 // memory thread. The woken run needs the Slack channel context the way `wait`
@@ -126,6 +126,7 @@ export const runBackgroundTool = createTool({
         // E2B's own deadline is only a backstop behind the wait below.
         timeout: (timeout + 60) * 1000,
       });
+      attachPid({ id, pid: handle.pid });
       const result = await handle.wait({
         abortSignal: context.abortSignal
           ? AbortSignal.any([deadline, context.abortSignal])

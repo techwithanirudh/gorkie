@@ -1,6 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
+import { focusFilter } from '../../chat/focus';
 import { isComment } from '../../chat/message';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
@@ -16,7 +17,7 @@ import {
 export const readConversationHistoryTool = createTool({
   id: 'read_conversation_history',
   description:
-    'Read one chronological page of raw messages from a Slack channel or thread when exact wording matters. Messages starting with ## are side comments and are left out unless includeComments is true; nothing else is filtered. Use search_slack for one keyword query, Slack code mode for query-driven or exhaustive conversation analysis, and summarize_thread when a long thread only needs a summary. Pass the returned cursor back to page through more history. The current conversation is always readable; other channels must be public, and public channels are joined automatically.',
+    'Read one chronological page of raw messages from a Slack channel or thread when exact wording matters. Messages starting with ## are side comments and are left out unless includeComments is true. In the current thread, while focus is on, messages from people outside the focus are left out too; nothing else is filtered. Use search_slack for one keyword query, Slack code mode for query-driven or exhaustive conversation analysis, and summarize_thread when a long thread only needs a summary. Pass the returned cursor back to page through more history. The current conversation is always readable; other channels must be public, and public channels are joined automatically.',
   inputSchema: z.strictObject({
     channelId: z
       .string()
@@ -84,10 +85,17 @@ export const readConversationHistoryTool = createTool({
       ? await slack.fetchMessages(tid, { limit, cursor })
       : await slack.fetchChannelMessages(chId, { limit, cursor });
 
+    const sees =
+      tid && tid === ctx.threadId ? await focusFilter(tid) : undefined;
+    const focused = sees
+      ? result.messages.filter(
+          (message) => message.author.isMe || sees(message.author.userId)
+        )
+      : result.messages;
     const kept = includeComments
-      ? result.messages
-      : result.messages.filter((message) => !isComment(message));
-    const omitted = result.messages.length - kept.length;
+      ? focused
+      : focused.filter((message) => !isComment(message));
+    const omitted = focused.length - kept.length;
 
     return {
       channelId: chId,

@@ -13,6 +13,7 @@ import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
 import { description, prompt } from '../prompts/agents/explore';
 import { explorer } from '../providers';
+import { saveArtifactTool } from '../tools/artifacts';
 import { fetchUrlTool } from '../tools/fetch-url';
 import { searchWebTool } from '../tools/search-web';
 import { workspace } from '../workspace';
@@ -30,6 +31,7 @@ export const explore = new Agent({
   tools: {
     search_web: searchWebTool,
     fetch_url: fetchUrlTool,
+    save_artifact: saveArtifactTool,
   },
   inputProcessors: [
     new TokenLimiterProcessor({
@@ -46,6 +48,7 @@ export const explore = new Agent({
       'file_stat',
       'search_web',
       'fetch_url',
+      'save_artifact',
     ],
     modelSettings: {
       maxOutputTokens: 16_384,

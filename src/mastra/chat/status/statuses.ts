@@ -11,6 +11,7 @@ const argsSchema = z
     emoji: text,
     instructions: text,
     kind: text,
+    method: text,
     name: text,
     path: text,
     pattern: text,
@@ -51,6 +52,12 @@ function fixed(text: string) {
 }
 
 const statuses: Record<string, (args: Args) => string> = {
+  call_slack_api: withArg({
+    key: 'method',
+    idle: 'is reading from Slack…',
+    prefix: 'is calling ',
+    suffix: '…',
+  }),
   create_canvas: withArg({
     key: 'title',
     idle: 'is creating a canvas…',
@@ -100,6 +107,7 @@ const statuses: Record<string, (args: Args) => string> = {
     suffix: '…',
     display: fileName,
   }),
+  focus: fixed('is changing who it listens to…'),
   generate_image: withArg({
     key: 'prompt',
     idle: 'is generating an image…',
@@ -177,6 +185,7 @@ const statuses: Record<string, (args: Args) => string> = {
       suffix: ': reaction…',
     });
   },
+  read_artifact: fixed('is reading saved findings…'),
   read_canvas: fixed('is reading a canvas…'),
   read_conversation_history: fixed('is reading Slack history…'),
   read_file: withArg({
@@ -192,6 +201,12 @@ const statuses: Record<string, (args: Args) => string> = {
     idle: 'is starting a background job…',
     prefix: 'is starting a background job: ',
     suffix: '…',
+  }),
+  save_artifact: withArg({
+    key: 'title',
+    idle: 'is saving findings…',
+    prefix: 'is saving "',
+    suffix: '"…',
   }),
   search_slack: withArg({
     key: 'query',

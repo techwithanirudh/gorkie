@@ -1,3 +1,4 @@
+import { callSlackApiTool } from './call-api';
 import { getChannelInfoTool } from './get-channel-info';
 import { getPermalinkTool } from './get-permalink';
 import { getSlackEmojiTool } from './get-slack-emoji';
@@ -30,4 +31,5 @@ export const slackTools = {
   join_thread: joinThreadTool,
   leave_thread: leaveThreadTool,
   summarize_thread: summarizeThreadTool,
+  call_slack_api: callSlackApiTool,
 };
