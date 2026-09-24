@@ -1,6 +1,7 @@
 import { toolDisplay as toolDisplayConfig } from '../../config';
 import { getGitHubCredential } from '../../db/queries/github';
 import { listMCPServers } from '../../db/queries/mcps';
+import { activeBan } from '../../db/queries/moderation';
 import {
   getGitHubSettings,
   getInstructions,
@@ -15,6 +16,7 @@ import {
 } from '../../types';
 import { slack } from '../client';
 import { content } from '../content';
+import { banNotice } from '../moderation/cards';
 import { githubBlocks } from './github';
 import { customInstructionsBlocks } from './instructions';
 import { fitHome } from './limit';
@@ -39,6 +41,19 @@ async function settled<T>({
 }
 
 export async function publishHome(userId: string): Promise<void> {
+  const ban = await settled({ label: 'ban', userId, work: activeBan(userId) });
+  if (ban) {
+    await slack.publishHomeView(userId, {
+      type: 'home',
+      blocks: [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: banNotice(ban.expiresAt) },
+        },
+      ],
+    });
+    return;
+  }
   const credentialResult: Promise<{
     credential: GitHubCredential | undefined;
     unreadable: boolean;

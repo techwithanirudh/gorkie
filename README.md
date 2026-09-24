@@ -22,6 +22,10 @@ runs commands and inspects files without touching the host machine.
   streamed as they generate, with a typing indicator.
 - Optional opt-in allowlist (`OPT_IN_CHANNEL`): gate access to members of one
   channel, with an in-Slack opt-in card for everyone else.
+- Moderator bans: `/ban @user [1h|1d|7d|30d|perm] [reason]` and `/unban`,
+  limited to `MODERATORS`, logged as cards with an Unban button in the
+  gorkie-logs channel (`LOGS_CHANNEL`). A banned person is turned away
+  everywhere, including tool approval buttons and their scheduled tasks.
 - Per-thread [E2B][e2b] sandbox sessions: isolated cloud VMs, never the host.
   Full filesystem access (`read_file`/`write_file`/`edit_file`/`list_files`/
   `delete_file`/`file_stat`/`grep`) plus shell command execution
@@ -141,6 +145,8 @@ local database named `gorkie`. Mastra creates its tables on first run.
 | `HOST` / `PORT` | no | Bind address and port, default `127.0.0.1` / `4111`. Keep loopback; expose only through the tunnel |
 | `SLACK_USER_TOKEN` | yes | Slack user token, not the bot token, used for public-channel search. Mint it with `search:read.public` only; gorkie verifies the granted scopes on first use and refuses the token if it also carries `search:read.im`, `search:read.mpim`, or `search:read.private`. See [docs/slack-search.md](docs/slack-search.md) |
 | `OPT_IN_CHANNEL` | no | Slack channel id gating access to members only (opt-in allowlist); unset means everyone is allowed |
+| `LOGS_CHANNEL` | no | Slack channel id of gorkie-logs, where ban and unban cards are posted. Unset still bans, but posts no cards |
+| `MODERATORS` | no | Comma-separated Slack user ids allowed to `/ban` and `/unban`. Empty means nobody can ban |
 | `HACKCLUB_API_KEY` | yes | Hack Club AI proxy key, tried for every model |
 | `OPENCODE_API_KEY` | yes | opencode.ai/zen gateway key, tried alongside Hack Club |
 | `DATABASE_URL` | yes | Postgres connection string |

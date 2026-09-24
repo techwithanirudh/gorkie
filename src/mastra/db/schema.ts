@@ -1,14 +1,17 @@
 import {
   boolean,
   foreignKey,
+  index,
   pgTable,
   primaryKey,
   text,
   timestamp,
+  uuid,
 } from 'drizzle-orm/pg-core';
 import type {
   GitHubPermission,
   MCPOAuthStatus,
+  ModerationAction,
   ToolDisplayMode,
   ToolPermission,
 } from '../types';
@@ -75,3 +78,23 @@ export const userSettings = pgTable('user_settings', {
     .notNull()
     .defaultNow(),
 });
+
+// Append-only: the newest ban or unban row decides a user's state, and the rows
+// together are the audit trail.
+export const moderationEvents = pgTable(
+  'moderation_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    action: text('action').$type<ModerationAction>().notNull(),
+    userId: text('user_id').notNull(),
+    actorId: text('actor_id').notNull(),
+    reason: text('reason'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('moderation_events_user_idx').on(table.userId, table.createdAt),
+  ]
+);

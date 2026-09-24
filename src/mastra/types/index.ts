@@ -6,6 +6,7 @@ export * from './command';
 export * from './display';
 export * from './github';
 export * from './mcp';
+export * from './moderation';
 export * from './oauth';
 export * from './thread';
 export * from './tools';

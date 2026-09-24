@@ -6,6 +6,7 @@ import { MastraCompositeStore } from '@mastra/core/storage';
 import { DuckDBStore } from '@mastra/duckdb';
 import { LangfuseExporter } from '@mastra/langfuse';
 import { MastraStorageExporter, Observability } from '@mastra/observability';
+import { z } from 'zod';
 import { env } from '@/env';
 import { explore } from './agents/explore';
 import { orchestrator } from './agents/orchestrator';
@@ -13,8 +14,10 @@ import { research } from './agents/research';
 import { summarizer } from './agents/summarizer';
 import { registerEvents } from './chat/events';
 import { setMastra } from './chat/mastra-instance';
+import { isBanned } from './chat/moderation';
 import { postgresStore, runMigrations } from './db';
 import { buildAllowlist } from './lib/allowed-users';
+import { channelSchema } from './lib/context';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
@@ -107,8 +110,26 @@ export const mastra = new Mastra({
   schedules: {
     prepare: async ({ mastra: runtime, schedule }) => {
       const current = await runtime.schedules.get(schedule.id);
-      if (current && isWaitSchedule(current)) {
+      if (!current) {
+        return;
+      }
+      if (isWaitSchedule(current)) {
         await runtime.schedules.delete(schedule.id);
+      }
+      // Skip rather than delete, so lifting the ban resumes the person's tasks.
+      const creator =
+        z
+          .object({ channel: channelSchema })
+          .safeParse(
+            'ifIdle' in current
+              ? current.ifIdle?.streamOptions?.requestContext
+              : undefined
+          ).data?.channel.userId ?? current.resourceId;
+      if (creator && (await isBanned(creator))) {
+        logger.info("[schedules] skipped a banned user's fire", {
+          scheduleId: schedule.id,
+        });
+        return null;
       }
     },
   },

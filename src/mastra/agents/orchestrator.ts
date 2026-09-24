@@ -11,10 +11,12 @@ import { skillResultRedactor } from '@mastra/memory/hooks';
 import { Chat } from 'chat';
 import { slack } from '../chat/client';
 import {
+  onAction,
   onDirectMessage,
   onMention,
   onSubscribedMessage,
 } from '../chat/handlers';
+import { onSlashCommand } from '../chat/moderation/commands';
 import { status } from '../chat/status';
 import {
   agent as config,
@@ -262,6 +264,12 @@ export const orchestrator = new Agent({
     // created; later turns find it through the channel_externalThreadId mapping.
     resolveThreadId: ({ thread }) => thread.id,
     threadContext: { maxMessages: 0 },
-    handlers: { onMention, onSubscribedMessage, onDirectMessage },
+    handlers: {
+      onMention,
+      onSubscribedMessage,
+      onDirectMessage,
+      onSlashCommand,
+      onAction,
+    },
   },
 });

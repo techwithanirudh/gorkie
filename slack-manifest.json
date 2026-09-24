@@ -16,7 +16,23 @@
     },
     "agent_view": {
       "agent_description": "Your AI assistant for Slack. Searches the web, writes and runs code, generates images, browses websites, manages scheduled tasks, and more."
-    }
+    },
+    "slash_commands": [
+      {
+        "command": "/ban",
+        "url": "https://<your-host>/api/agents/orchestrator/channels/slack/webhook",
+        "description": "Ban someone from gorkie (moderators only)",
+        "usage_hint": "@user [1h|1d|7d|30d|perm] [reason]",
+        "should_escape": true
+      },
+      {
+        "command": "/unban",
+        "url": "https://<your-host>/api/agents/orchestrator/channels/slack/webhook",
+        "description": "Lift a gorkie ban (moderators only)",
+        "usage_hint": "@user [reason]",
+        "should_escape": true
+      }
+    ]
   },
   "oauth_config": {
     "scopes": {
@@ -32,6 +48,7 @@
         "channels:read",
         "chat:write",
         "chat:write.customize",
+        "commands",
         "dnd:read",
         "emoji:read",
         "files:read",

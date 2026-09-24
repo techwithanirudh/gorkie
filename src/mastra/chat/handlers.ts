@@ -1,4 +1,7 @@
-import type { ChannelHandler } from '@mastra/core/channels';
+import type {
+  ActionChannelHandler,
+  ChannelHandler,
+} from '@mastra/core/channels';
 import type { Message, Thread } from 'chat';
 import { isUserAllowed } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
@@ -7,11 +10,34 @@ import { slack } from './client';
 import { handleCommand } from './commands';
 import { withHistory } from './history';
 import { isComment } from './message';
+import { banNotice, isBanned } from './moderation';
 import { offerOptIn } from './onboarding';
 import { setThreadState, threadState } from './state';
 
 function isFromBot(message: Message): boolean {
   return message.author.isBot === true || message.author.userId === 'USLACKBOT';
+}
+
+async function turnAwayBanned({
+  message,
+  thread,
+}: {
+  message: Message;
+  thread: Thread;
+}): Promise<boolean> {
+  const ban = await isBanned(message.author.userId);
+  if (!ban) {
+    return false;
+  }
+  declined({ message, reason: 'banned', thread });
+  const notice = banNotice(ban.expiresAt);
+  await (thread.isDM
+    ? thread.post(notice)
+    : thread.postEphemeral(message.author, notice, { fallbackToDM: false })
+  ).catch((error: unknown) =>
+    logger.warn('[chat] could not send the ban notice', { error })
+  );
+  return true;
 }
 
 function declined({
@@ -71,6 +97,9 @@ export const onMention: ChannelHandler = async (
     declined({ message, reason: 'from a bot', thread });
     return;
   }
+  if (await turnAwayBanned({ message, thread })) {
+    return;
+  }
   if (!(await isUserAllowed(message.author.userId))) {
     declined({ message, reason: 'not on the allow-list', thread });
     await offerOptIn({ thread, user: message.author });
@@ -108,6 +137,14 @@ export const onSubscribedMessage: ChannelHandler = async (
     });
     return;
   }
+  if (message.isMention) {
+    if (await turnAwayBanned({ message, thread })) {
+      return;
+    }
+  } else if (await isBanned(message.author.userId)) {
+    declined({ message, reason: 'banned', thread });
+    return;
+  }
   if (!(await isUserAllowed(message.author.userId))) {
     declined({ message, reason: 'not on the allow-list', thread });
     return;
@@ -127,6 +164,9 @@ export const onDirectMessage: ChannelHandler = async (
     declined({ message, reason: 'from a bot', thread });
     return;
   }
+  if (await turnAwayBanned({ message, thread })) {
+    return;
+  }
   if (!(await isUserAllowed(message.author.userId))) {
     declined({ message, reason: 'not on the allow-list', thread });
     await offerOptIn({ thread, user: message.author });
@@ -136,4 +176,21 @@ export const onDirectMessage: ChannelHandler = async (
     return;
   }
   await runTurn({ defaultHandler, message, thread });
+};
+
+// Also gates Mastra's built-in tool approve/deny buttons, so a banned person
+// cannot let a pending tool call run.
+export const onAction: ActionChannelHandler = async (event, defaultHandler) => {
+  const ban = await isBanned(event.user.userId);
+  if (!ban) {
+    await defaultHandler();
+    return;
+  }
+  await event.thread
+    ?.postEphemeral(event.user, banNotice(ban.expiresAt), {
+      fallbackToDM: false,
+    })
+    .catch((error: unknown) =>
+      logger.warn('[chat] could not send the ban notice', { error })
+    );
 };

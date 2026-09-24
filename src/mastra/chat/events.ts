@@ -10,6 +10,7 @@ import {
   onFeedbackClick,
   recordFeedbackDetails,
 } from './feedback';
+import { isBanned, registerModeration } from './moderation';
 import { acceptOptIn, optInIds } from './onboarding';
 
 export function registerEvents(): void {
@@ -26,7 +27,10 @@ export function registerEvents(): void {
   // The Slack adapter aborts its own Chat SDK turn on the native stop button,
   // but channels never hands that signal to the Mastra run, so stop it here.
   bot.onAgentSessionStopped(async (event) => {
-    if (!(await isUserAllowed(event.userId))) {
+    if (
+      !(await isUserAllowed(event.userId)) ||
+      (await isBanned(event.userId))
+    ) {
       return;
     }
     const outcome = await stopThread(event.threadId);
@@ -34,6 +38,7 @@ export function registerEvents(): void {
   });
 
   registerAppHome();
+  registerModeration();
 
   bot.onAction(optInIds.accept, acceptOptIn);
 
