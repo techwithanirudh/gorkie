@@ -27,9 +27,11 @@ async function viewerPage(c: Context): Promise<Response> {
   c.header('Cache-Control', 'no-store');
   c.header('Referrer-Policy', 'no-referrer');
   // Slack plays the video block's URL in an iframe, so only Slack may frame it.
+  // The socket URL rides in an attribute because hono's html escapes every
+  // interpolation, which inside <script> turns its quotes into &quot;.
   c.header(
     'Content-Security-Policy',
-    `default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src ${socket.origin}; frame-ancestors https://app.slack.com https://*.slack.com`
+    `default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src ${socket.origin}; frame-ancestors https://slack.com https://*.slack.com`
   );
   const body = await html`<!doctype html>
     <html>
@@ -43,13 +45,13 @@ async function viewerPage(c: Context): Promise<Response> {
           img{display:block;width:100%;height:auto}
         </style>
       </head>
-      <body>
+      <body data-socket="${socket.toString()}">
         <div id="url">connecting…</div>
         <img id="frame" alt="gorkie's browser" />
         <script nonce="${nonce}">
           const url = document.getElementById('url');
           const frame = document.getElementById('frame');
-          const ws = new WebSocket(${JSON.stringify(socket.toString())});
+          const ws = new WebSocket(document.body.dataset.socket);
           ws.onmessage = (event) => {
             if (typeof event.data !== 'string') return;
             if (event.data.startsWith('{')) {
