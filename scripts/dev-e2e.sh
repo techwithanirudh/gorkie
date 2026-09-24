@@ -45,7 +45,7 @@ done
 echo "==> opening tunnel to :$PORT"
 echo "==> Slack Request URL (events and interactivity) is the tunnel host followed by:"
 echo "    $WEBHOOK_PATH"
-bunx untun tunnel "http://127.0.0.1:$PORT" &
+bun node_modules/untun/dist/cli.mjs tunnel "http://127.0.0.1:$PORT" &
 TUNNEL_PID=$!
 
 wait -n "$DEV_PID" "$TUNNEL_PID"
