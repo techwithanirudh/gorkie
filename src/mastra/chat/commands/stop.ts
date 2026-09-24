@@ -4,6 +4,7 @@ import type { CommandHandler } from '../../types';
 import { killJobs } from '../../workspace/jobs';
 import { getMastra } from '../mastra-instance';
 import { memoryThread } from '../memory-thread';
+import { notify } from '../notify';
 import { setThreadState } from '../state';
 
 export async function stopThread(
@@ -22,7 +23,7 @@ export async function stopThread(
       threadId = found.thread.id;
     }
   } catch (error) {
-    logger.warn('[commands] Failed to look up the memory thread to stop', {
+    logger.warn('[commands] failed to look up the memory thread to stop', {
       error,
       threadId: slackThreadId,
     });
@@ -41,7 +42,7 @@ export async function stopThread(
         })
         .then(({ tasks }) => tasks)
         .catch((error: unknown) => {
-          logger.warn('[commands] Failed to list background tasks to stop', {
+          logger.warn('[commands] failed to list background tasks to stop', {
             error,
             threadId,
           });
@@ -62,7 +63,7 @@ export async function stopThread(
     backgroundTasks.map((task) => manager?.cancel(task.id))
   );
   if (cancellations.some(({ status }) => status === 'rejected')) {
-    logger.warn('[commands] Some background tasks failed to stop', {
+    logger.warn('[commands] some background tasks failed to stop', {
       threadId,
     });
   }
@@ -82,22 +83,16 @@ export const stop: CommandHandler = async ({ message, thread }) => {
   // Cancelling only background tasks fires no onAbort, so say it here.
   if (outcome === 'cancelled') {
     await thread.post({ markdown: '_stopped._' }).catch((error: unknown) => {
-      logger.warn('[commands] Failed to post stop confirmation', {
+      logger.warn('[commands] failed to post stop confirmation', {
         error,
         threadId: thread.id,
       });
     });
     return;
   }
-  await thread
-    .postEphemeral(message.author, 'Nothing to stop right now.', {
-      fallbackToDM: false,
-    })
-    .catch((error: unknown) => {
-      logger.warn('[commands] Failed to post stop feedback', {
-        error,
-        threadId: thread.id,
-        userId: message.author.userId,
-      });
-    });
+  await notify({
+    text: 'nothing to stop right now.',
+    thread,
+    user: message.author,
+  });
 };

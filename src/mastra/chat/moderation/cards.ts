@@ -1,11 +1,11 @@
 import { Actions, Button, Card, CardText, Field, Fields, Modal } from 'chat';
-import { format } from 'date-fns';
 import type { ModerationEvent } from '../../types';
 import { moderationIds } from './ids';
 
-function until(expiresAt: Date | null): string {
+// Slack renders the date token in each reader's own timezone.
+export function until(expiresAt: Date | null): string {
   return expiresAt
-    ? format(expiresAt, "MMM d, yyyy 'at' HH:mm 'UTC'")
+    ? `<!date^${Math.floor(expiresAt.getTime() / 1000)}^{date_short_pretty} at {time}|${expiresAt.toUTCString()}>`
     : 'permanent';
 }
 

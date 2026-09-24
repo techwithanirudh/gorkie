@@ -1,6 +1,6 @@
-import { logger } from '../../lib/logger';
 import { type CommandHandler, toolDisplayModeSchema } from '../../types';
 import { rawText, withoutLeadingMentions } from '../message';
+import { notify } from '../notify';
 import { setThreadState } from '../state';
 import { resolveToolDisplay } from '../tool-display';
 
@@ -15,16 +15,8 @@ export const display: CommandHandler = async ({ message, thread }) => {
     .trim()
     .split(/\s+/)[1]
     ?.toLowerCase();
-  const reply = async (text: string) => {
-    await thread
-      .postEphemeral(message.author, text, { fallbackToDM: false })
-      .catch((error: unknown) => {
-        logger.warn('[commands] failed to post display reply', {
-          error,
-          threadId: thread.id,
-        });
-      });
-  };
+  const reply = (text: string) =>
+    notify({ text, thread, user: message.author });
 
   if (!argument) {
     const { mode, source } = await resolveToolDisplay({

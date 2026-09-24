@@ -2,19 +2,12 @@ import { logger } from '../../lib/logger';
 import type { CommandHandler } from '../../types';
 import { setFocus } from '../focus';
 import { rawText, withoutLeadingMentions } from '../message';
+import { notify } from '../notify';
 import { threadState } from '../state';
 
 export const focus: CommandHandler = async ({ message, thread }) => {
-  const reply = async (text: string) => {
-    await thread
-      .postEphemeral(message.author, text, { fallbackToDM: false })
-      .catch((error: unknown) => {
-        logger.warn('[commands] failed to post focus reply', {
-          error,
-          threadId: thread.id,
-        });
-      });
-  };
+  const reply = (text: string) =>
+    notify({ text, thread, user: message.author });
   if (thread.isDM) {
     await reply("focus is for shared threads. in a DM it's only you anyway.");
     return;

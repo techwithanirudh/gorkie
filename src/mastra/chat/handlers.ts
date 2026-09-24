@@ -12,6 +12,7 @@ import { focusFilter } from './focus';
 import { withHistory } from './history';
 import { isComment } from './message';
 import { banNotice, isBanned } from './moderation';
+import { notify } from './notify';
 import { offerOptIn } from './onboarding';
 import { setThreadState, threadState } from './state';
 import { syncTitle } from './title';
@@ -19,26 +20,6 @@ import { claimTurn } from './usage';
 
 function isFromBot(message: Message): boolean {
   return message.author.isBot === true || message.author.userId === 'USLACKBOT';
-}
-
-async function notify({
-  message,
-  text,
-  thread,
-}: {
-  message: Message;
-  text: string;
-  thread: Thread;
-}): Promise<void> {
-  await (thread.isDM
-    ? thread.post(text)
-    : thread.postEphemeral(message.author, text, { fallbackToDM: false })
-  ).catch((error: unknown) =>
-    logger.warn('[chat] could not send a notice', {
-      error,
-      threadId: thread.id,
-    })
-  );
 }
 
 async function turnAwayBanned({
@@ -53,7 +34,11 @@ async function turnAwayBanned({
     return false;
   }
   declined({ message, reason: 'banned', thread });
-  await notify({ message, text: banNotice(ban.expiresAt), thread });
+  await notify({
+    text: banNotice(ban.expiresAt),
+    thread,
+    user: message.author,
+  });
   return true;
 }
 
@@ -86,9 +71,9 @@ async function turnAwayNotOptedIn({
     return true;
   }
   await notify({
-    message,
     text: "i couldn't check whether you've opted in just now. try again in a minute.",
     thread,
+    user: message.author,
   });
   return true;
 }
@@ -110,9 +95,9 @@ async function turnAwayUnfocused({
   declined({ message, reason: 'outside the thread focus', thread });
   if (message.isMention) {
     await notify({
-      message,
       text: "i'm focused on specific people in this thread, so i can't pick this up. whoever brought me in can run `!focus off`.",
       thread,
+      user: message.author,
     });
   }
   return true;
@@ -170,7 +155,11 @@ async function runTurn({
   const overLimit = await claimTurn(message.author.userId);
   if (overLimit) {
     declined({ message, reason: 'over the turn limit', thread });
-    await notify({ message, text: overLimit, thread });
+    await notify({
+      text: overLimit,
+      thread,
+      user: message.author,
+    });
     return;
   }
   await defaultHandler(thread, prompt);
@@ -288,11 +277,9 @@ export const onAction: ActionChannelHandler = async (event, defaultHandler) => {
     await defaultHandler();
     return;
   }
-  await event.thread
-    ?.postEphemeral(event.user, banNotice(ban.expiresAt), {
-      fallbackToDM: false,
-    })
-    .catch((error: unknown) =>
-      logger.warn('[chat] could not send the ban notice', { error })
-    );
+  await notify({
+    text: banNotice(ban.expiresAt),
+    thread: event.thread,
+    user: event.user,
+  });
 };

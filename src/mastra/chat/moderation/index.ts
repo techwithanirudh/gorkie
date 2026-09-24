@@ -1,4 +1,4 @@
-import { type ActionEvent, type CardElement, Chat } from 'chat';
+import { type CardElement, Chat } from 'chat';
 import { add, type Duration } from 'date-fns';
 import { env } from '@/env';
 import {
@@ -11,6 +11,7 @@ import { logger } from '../../lib/logger';
 import type { BanDuration, ModerationEvent } from '../../types';
 import { publishHome } from '../app-home/view';
 import { slack } from '../client';
+import { notify } from '../notify';
 import { decisionCard, infoModal } from './cards';
 import { moderationIds } from './ids';
 
@@ -110,30 +111,16 @@ export async function decide({
   return event;
 }
 
-async function refuse({
-  event,
-  text,
-}: {
-  event: ActionEvent;
-  text: string;
-}): Promise<void> {
-  const { thread } = event;
-  if (!thread) {
-    return;
-  }
-  await thread
-    .postEphemeral(event.user, text, { fallbackToDM: false })
-    .catch((error: unknown) =>
-      logger.warn('[moderation] could not send the refusal', { error })
-    );
-}
-
 export function registerModeration(): void {
   const bot = Chat.getSingleton();
 
   bot.onAction(moderationIds.unban, async (event) => {
     if (!isModerator(event.user.userId)) {
-      await refuse({ event, text: 'only gorkie moderators can do that.' });
+      await notify({
+        text: 'only gorkie moderators can do that.',
+        thread: event.thread,
+        user: event.user,
+      });
       return;
     }
     const ban = event.value ? await getModerationEvent(event.value) : undefined;

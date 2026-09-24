@@ -1,10 +1,10 @@
 import type { SlashCommandChannelHandler } from '@mastra/core/channels';
-import { format } from 'date-fns';
 import { z } from 'zod';
 import { activeBans } from '../../db/queries/moderation';
 import { logger } from '../../lib/logger';
 import { banDurationSchema } from '../../types';
 import { banGuard, decide, isModerator } from '.';
+import { until } from './cards';
 
 const BAN_COMMANDS = new Set(['/ban', '/dev-ban']);
 const UNBAN_COMMANDS = new Set(['/unban', '/dev-unban']);
@@ -47,7 +47,7 @@ async function listBans(): Promise<string> {
   return bans
     .map(
       ({ userId, expiresAt, reason }) =>
-        `• <@${userId}>, ${expiresAt ? `until ${format(expiresAt, 'MMM d HH:mm')} UTC` : 'permanent'}${reason ? `: ${reason}` : ''}`
+        `• <@${userId}>, ${expiresAt ? `until ${until(expiresAt)}` : 'permanent'}${reason ? `: ${reason}` : ''}`
     )
     .join('\n');
 }

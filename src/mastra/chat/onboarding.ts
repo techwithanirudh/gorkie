@@ -13,6 +13,7 @@ import { logger } from '../lib/logger';
 import { ALREADY_IN_CHANNEL } from '../lib/logger/slack';
 import { slackErrorSchema } from '../types';
 import { slack } from './client';
+import { notify } from './notify';
 
 export const optInIds = {
   accept: 'opt_in_accept',
@@ -80,18 +81,9 @@ export async function acceptOptIn(event: ActionEvent): Promise<void> {
       }
     }
   }
-  if (!thread) {
-    return;
-  }
-  await thread
-    .postEphemeral(
-      user,
-      "you're all set, welcome to gorkie. ask me anything.",
-      {
-        fallbackToDM: true,
-      }
-    )
-    .catch((error: unknown) => {
-      logger.warn('[onboarding] failed to confirm opt-in', { error, userId });
-    });
+  await notify({
+    text: "you're all set, welcome to gorkie. ask me anything.",
+    thread,
+    user,
+  });
 }

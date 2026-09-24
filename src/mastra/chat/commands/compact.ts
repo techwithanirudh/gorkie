@@ -4,6 +4,7 @@ import { logger } from '../../lib/logger';
 import type { CommandHandler } from '../../types';
 import { getMastra } from '../mastra-instance';
 import { memoryThread } from '../memory-thread';
+import { notify } from '../notify';
 
 async function compactThread(slackThreadId: string): Promise<string> {
   const found = await memoryThread(slackThreadId);
@@ -42,12 +43,5 @@ export const compact: CommandHandler = async ({ message, thread }) => {
     logger.error('[commands] compact failed', { error, threadId: thread.id });
     return "i couldn't compact this thread just now. try again in a minute.";
   });
-  await thread
-    .postEphemeral(message.author, text, { fallbackToDM: false })
-    .catch((error: unknown) => {
-      logger.warn('[commands] failed to post compact result', {
-        error,
-        threadId: thread.id,
-      });
-    });
+  await notify({ text, thread, user: message.author });
 };
