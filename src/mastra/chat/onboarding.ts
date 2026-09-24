@@ -8,7 +8,7 @@ import {
   CardText,
 } from 'chat';
 import { env } from '@/env';
-import { addAllowedUser } from '../lib/allowed-users';
+import { setMembership } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
 import { ALREADY_IN_CHANNEL } from '../lib/logger/slack';
 import { slackErrorSchema } from '../types';
@@ -64,7 +64,7 @@ export async function acceptOptIn(event: ActionEvent): Promise<void> {
     user: { userId },
     thread,
   } = event;
-  await addAllowedUser(userId);
+  await setMembership({ allowed: true, userId });
   const channel = env.OPT_IN_CHANNEL;
   if (channel) {
     try {

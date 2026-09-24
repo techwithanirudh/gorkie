@@ -1,6 +1,7 @@
 import { Chat } from 'chat';
 import { env } from '@/env';
 import { slack } from '../chat/client';
+import type { OptInStatus } from '../types';
 import { rawId } from './ids';
 import { logger } from './logger';
 
@@ -8,39 +9,95 @@ function allowlistKey(channel: string): string {
   return `slack:allowed-users:${channel}`;
 }
 
-export async function isUserAllowed(userId: string): Promise<boolean> {
-  if (!env.OPT_IN_CHANNEL) {
-    return true;
+// Every write is a read-modify-write of one key, so they run one at a time or
+// two joins landing together would each drop the other.
+let writes: Promise<void> = Promise.resolve();
+// Joins and leaves that land while the member list is being paged, replayed
+// by the build so it cannot overwrite a change it read before it happened.
+const changesWhileBuilding = new Map<string, boolean>();
+let building = false;
+
+function updateAllowlist({
+  channel,
+  change,
+}: {
+  channel: string;
+  change: (users: Set<string> | undefined) => Set<string> | undefined;
+}): Promise<void> {
+  const write = writes.then(async () => {
+    const state = Chat.getSingleton().getState();
+    const stored = await state.get<string[]>(allowlistKey(channel));
+    const users = change(stored ? new Set(stored) : undefined);
+    if (users) {
+      await state.set(allowlistKey(channel), [...users]);
+    }
+  });
+  // The chain has to outlive a failed write; the caller still gets the error.
+  writes = write.catch(() => undefined);
+  return write;
+}
+
+export async function optInStatus(userId: string): Promise<OptInStatus> {
+  const channel = env.OPT_IN_CHANNEL;
+  if (!channel) {
+    return 'allowed';
   }
   try {
     const allowedUsers = await Chat.getSingleton()
       .getState()
-      .get<string[]>(allowlistKey(env.OPT_IN_CHANNEL));
-    return allowedUsers?.includes(userId) ?? false;
+      .get<string[]>(allowlistKey(channel));
+    if (allowedUsers) {
+      return allowedUsers.includes(userId) ? 'allowed' : 'not-allowed';
+    }
   } catch (error) {
     logger.warn('[allowlist] failed to read opt-in cache', { error, userId });
-    return false;
+    return 'unknown';
   }
+  // No list means the boot build is still running (the retry is then a no-op)
+  // or it failed, and retrying beats turning everyone away until a restart.
+  rebuildAllowlist({ channel }).catch((error: unknown) =>
+    logger.error('[allowlist] failed to rebuild opt-in cache', { error })
+  );
+  return 'unknown';
 }
 
-export async function addAllowedUser(userId: string): Promise<void> {
+export async function isUserAllowed(userId: string): Promise<boolean> {
+  return (await optInStatus(userId)) === 'allowed';
+}
+
+export async function setMembership({
+  allowed,
+  userId,
+}: {
+  allowed: boolean;
+  userId: string;
+}): Promise<void> {
   const channel = env.OPT_IN_CHANNEL;
   if (!channel) {
     return;
   }
-  const state = Chat.getSingleton().getState();
+  if (building) {
+    changesWhileBuilding.set(userId, allowed);
+  }
   try {
-    const allowedUsers = new Set(
-      (await state.get<string[]>(allowlistKey(channel))) ?? []
+    await updateAllowlist({
+      channel,
+      change: (users) => {
+        if (allowed) {
+          users?.add(userId);
+        } else {
+          users?.delete(userId);
+        }
+        return users;
+      },
+    });
+    logger.info(
+      allowed ? '[allowlist] user opted in' : '[allowlist] user opted out',
+      { channel, userId }
     );
-    const wasAllowed = allowedUsers.has(userId);
-    allowedUsers.add(userId);
-    await state.set(allowlistKey(channel), [...allowedUsers]);
-    if (!wasAllowed) {
-      logger.info('[allowlist] user opted in', { channel, userId });
-    }
   } catch (error) {
-    logger.warn('[allowlist] failed to add user to opt-in cache', {
+    logger.warn('[allowlist] failed to update opt-in cache', {
+      allowed,
       channel,
       error,
       userId,
@@ -48,21 +105,18 @@ export async function addAllowedUser(userId: string): Promise<void> {
   }
 }
 
-export async function buildAllowlist(): Promise<void> {
-  const channel = env.OPT_IN_CHANNEL;
-  if (!channel) {
+async function rebuildAllowlist({
+  channel,
+}: {
+  channel: string;
+}): Promise<void> {
+  if (building) {
     return;
   }
-  const state = Chat.getSingleton().getState();
-
-  Chat.getSingleton().onMemberJoinedChannel(async (event) => {
-    if (rawId(event.channelId) === channel) {
-      await addAllowedUser(event.userId);
-    }
-  });
-
+  building = true;
+  changesWhileBuilding.clear();
   try {
-    const allowedUsers = new Set<string>();
+    const members = new Set<string>();
     let cursor: string | undefined;
     do {
       // biome-ignore lint/performance/noAwaitInLoops: each page's cursor comes from the previous response, so this can't be parallelized.
@@ -72,14 +126,49 @@ export async function buildAllowlist(): Promise<void> {
         limit: 200,
       });
       for (const member of response.members ?? []) {
-        allowedUsers.add(member);
+        members.add(member);
       }
       cursor = response.response_metadata?.next_cursor || undefined;
     } while (cursor);
-    await state.set(allowlistKey(channel), [...allowedUsers]);
-    logger.info('[allowlist] opt-in cache built', {
-      count: allowedUsers.size,
+    await updateAllowlist({
+      channel,
+      change: () => {
+        for (const [userId, allowed] of changesWhileBuilding) {
+          if (allowed) {
+            members.add(userId);
+          } else {
+            members.delete(userId);
+          }
+        }
+        return members;
+      },
     });
+    logger.info('[allowlist] opt-in cache built', { count: members.size });
+  } finally {
+    building = false;
+    changesWhileBuilding.clear();
+  }
+}
+
+export async function buildAllowlist(): Promise<void> {
+  const channel = env.OPT_IN_CHANNEL;
+  if (!channel) {
+    return;
+  }
+
+  Chat.getSingleton().onMemberJoinedChannel(async (event) => {
+    if (rawId(event.channelId) === channel) {
+      await setMembership({ allowed: true, userId: event.userId });
+    }
+  });
+  slack.onMemberLeftChannel(async (event) => {
+    if (event.channel === channel) {
+      await setMembership({ allowed: false, userId: event.userId });
+    }
+  });
+
+  try {
+    await rebuildAllowlist({ channel });
   } catch (error) {
     logger.error('[allowlist] failed to build opt-in cache', {
       channel,

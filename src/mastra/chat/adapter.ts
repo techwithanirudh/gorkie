@@ -10,8 +10,26 @@ const recipientSchema = z.object({
 
 type Recipient = z.infer<typeof recipientSchema>;
 
+const memberLeftSchema = z.object({
+  type: z.literal('member_left_channel'),
+  channel: z.string(),
+  user: z.string(),
+});
+
+const postedThreadSchema = z.object({
+  message: z.object({ thread_ts: z.string().optional() }),
+});
+
 export class SlackAgentAdapter extends SlackAdapter {
   private readonly recipients = new Map<string, Recipient>();
+
+  private memberLeftHandler?: (event: {
+    channel: string;
+    userId: string;
+  }) => Promise<void>;
+  // Threads whose root is gone: Slack posts a reply to a deleted root at the
+  // channel root instead of rejecting it, so later posts there would too.
+  private readonly unthreaded = new Set<string>();
 
   private recipientKey(threadId: string): string {
     return `stream-recipient:${threadId}`;
@@ -90,6 +108,72 @@ export class SlackAgentAdapter extends SlackAdapter {
     });
   }
 
+  // Chat SDK has onMemberJoinedChannel but nothing for leaving.
+  onMemberLeftChannel(
+    handler: (event: { channel: string; userId: string }) => Promise<void>
+  ): void {
+    this.memberLeftHandler = handler;
+  }
+
+  protected override processEventPayload(
+    ...args: Parameters<SlackAdapter['processEventPayload']>
+  ): void {
+    super.processEventPayload(...args);
+    const [payload, options] = args;
+    const event = memberLeftSchema.safeParse(payload.event).data;
+    if (
+      payload.type !== 'event_callback' ||
+      !event ||
+      !this.memberLeftHandler
+    ) {
+      return;
+    }
+    const task = this.memberLeftHandler({
+      channel: event.channel,
+      userId: event.user,
+    }).catch((error: unknown) =>
+      this.logger.error('member_left_channel handler failed', {
+        channel: event.channel,
+        error,
+        userId: event.user,
+      })
+    );
+    options?.waitUntil?.(task);
+  }
+
+  private landedUnthreaded({
+    raw,
+    threadId,
+  }: {
+    raw: unknown;
+    threadId: string;
+  }): boolean {
+    const { threadTs } = this.decodeThreadId(threadId);
+    const posted = postedThreadSchema.safeParse(raw).data;
+    if (!(threadTs && posted) || posted.message.thread_ts) {
+      return false;
+    }
+    if (!this.unthreaded.has(threadId) && this.unthreaded.size >= 10_000) {
+      const oldest = this.unthreaded.values().next().value;
+      if (oldest) {
+        this.unthreaded.delete(oldest);
+      }
+    }
+    this.unthreaded.add(threadId);
+    this.logger.warn('Slack posted a thread reply at the channel root', {
+      threadId,
+    });
+    return true;
+  }
+
+  override async postMessage(
+    ...args: Parameters<SlackAdapter['postMessage']>
+  ): ReturnType<SlackAdapter['postMessage']> {
+    const posted = await super.postMessage(...args);
+    this.landedUnthreaded({ raw: posted.raw, threadId: args[0] });
+    return posted;
+  }
+
   async postBlocks({
     blocks,
     text,
@@ -99,10 +183,21 @@ export class SlackAgentAdapter extends SlackAdapter {
     text: string;
     threadId: string;
   }): Promise<void> {
+    if (this.unthreaded.has(threadId)) {
+      this.logger.warn('Skipped blocks for a thread whose root is gone', {
+        threadId,
+      });
+      return;
+    }
     const { channel, threadTs } = this.decodeThreadId(threadId);
-    await this._client.chat.postMessage(
+    const posted = await this._client.chat.postMessage(
       await this.withToken({ channel, thread_ts: threadTs, text, blocks })
     );
+    if (posted.ts && this.landedUnthreaded({ raw: posted, threadId })) {
+      await this._client.chat.delete(
+        await this.withToken({ channel, ts: posted.ts })
+      );
+    }
   }
 
   private readonly userLookups = new Map<

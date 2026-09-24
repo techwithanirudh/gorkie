@@ -3,7 +3,7 @@ import type {
   ChannelHandler,
 } from '@mastra/core/channels';
 import type { Message, Thread } from 'chat';
-import { isUserAllowed } from '../lib/allowed-users';
+import { optInStatus } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
 import { attachments } from './attachments';
 import { slack } from './client';
@@ -36,6 +36,45 @@ async function turnAwayBanned({
     : thread.postEphemeral(message.author, notice, { fallbackToDM: false })
   ).catch((error: unknown) =>
     logger.warn('[chat] could not send the ban notice', { error })
+  );
+  return true;
+}
+
+async function turnAwayNotOptedIn({
+  message,
+  offer,
+  thread,
+}: {
+  message: Message;
+  offer: boolean;
+  thread: Thread;
+}): Promise<boolean> {
+  const status = await optInStatus(message.author.userId);
+  if (status === 'allowed') {
+    return false;
+  }
+  declined({
+    message,
+    reason:
+      status === 'unknown'
+        ? 'could not check the allow-list'
+        : 'not on the allow-list',
+    thread,
+  });
+  if (!offer) {
+    return true;
+  }
+  if (status === 'not-allowed') {
+    await offerOptIn({ thread, user: message.author });
+    return true;
+  }
+  const notice =
+    "i couldn't check whether you've opted in just now. try again in a minute.";
+  await (thread.isDM
+    ? thread.post(notice)
+    : thread.postEphemeral(message.author, notice, { fallbackToDM: false })
+  ).catch((error: unknown) =>
+    logger.warn('[chat] could not send the allow-list notice', { error })
   );
   return true;
 }
@@ -79,10 +118,18 @@ async function runTurn({
     textLength: message.text.length,
   });
 
-  await defaultHandler(
-    thread,
-    await withHistory({ message: attachments(message), thread })
-  );
+  const prompt = await withHistory({ message: attachments(message), thread });
+  // Checked last, after the slow steps: a message can sit in a handler (or a
+  // Slack redelivery) long enough for a stop or leave_thread to land first.
+  const state = await threadState(thread);
+  if (
+    state?.dropMessagesBefore &&
+    message.metadata.dateSent.getTime() < state.dropMessagesBefore
+  ) {
+    declined({ message, reason: 'sent before a stop or leave', thread });
+    return;
+  }
+  await defaultHandler(thread, prompt);
   if (!thread.isDM) {
     await setThreadState({ thread, patch: { lastSeenMessage: message.id } });
   }
@@ -100,9 +147,7 @@ export const onMention: ChannelHandler = async (
   if (await turnAwayBanned({ message, thread })) {
     return;
   }
-  if (!(await isUserAllowed(message.author.userId))) {
-    declined({ message, reason: 'not on the allow-list', thread });
-    await offerOptIn({ thread, user: message.author });
+  if (await turnAwayNotOptedIn({ message, offer: true, thread })) {
     return;
   }
   if (slack.decodeThreadId(message.threadId).threadTs === message.id) {
@@ -145,8 +190,13 @@ export const onSubscribedMessage: ChannelHandler = async (
     declined({ message, reason: 'banned', thread });
     return;
   }
-  if (!(await isUserAllowed(message.author.userId))) {
-    declined({ message, reason: 'not on the allow-list', thread });
+  if (
+    await turnAwayNotOptedIn({
+      message,
+      offer: message.isMention === true,
+      thread,
+    })
+  ) {
     return;
   }
   if (await handleCommand({ message, thread })) {
@@ -167,9 +217,7 @@ export const onDirectMessage: ChannelHandler = async (
   if (await turnAwayBanned({ message, thread })) {
     return;
   }
-  if (!(await isUserAllowed(message.author.userId))) {
-    declined({ message, reason: 'not on the allow-list', thread });
-    await offerOptIn({ thread, user: message.author });
+  if (await turnAwayNotOptedIn({ message, offer: true, thread })) {
     return;
   }
   if (await handleCommand({ message, thread })) {

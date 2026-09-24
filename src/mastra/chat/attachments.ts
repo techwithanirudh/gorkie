@@ -1,6 +1,16 @@
 import type { Message } from 'chat';
 import { parseMarkdown } from 'chat';
 
+// Channels' default inlineMedia list (DEFAULT_INLINE_MEDIA_TYPES in
+// @mastra/core, not exported). Those files already reach the model as file
+// parts, so calling them "not downloaded" sent it after a second copy.
+const inlinedTypes = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'application/pdf',
+]);
+
 export function attachments(message: Message): Message {
   if (message.attachments.length === 0) {
     return message;
@@ -8,20 +18,26 @@ export function attachments(message: Message): Message {
 
   const text = [
     message.text,
-    'Slack attachments, not downloaded yet:',
+    'Slack attachments:',
     ...message.attachments.map((attachment, i) => {
       const size = attachment.size
         ? `${Math.ceil(attachment.size / 1024 / 1024)} MB`
         : undefined;
+      const mimeType =
+        attachment.mimeType ||
+        (attachment.type === 'image' ? 'image/png' : undefined);
       const details = [
         attachment.name ?? `file-${i + 1}`,
         attachment.mimeType,
         size,
         attachment.url,
+        mimeType && inlinedTypes.has(mimeType)
+          ? 'attached to this message, so you can already see it'
+          : 'not downloaded',
       ].filter(Boolean);
       return `- ${details.join(', ')}`;
     }),
-    'Call get_slack_file with a Slack file id to download it into the workspace.',
+    'Call get_slack_file with a Slack file id to download a file into the workspace, which you only need for an attached file if you want to work on it there.',
   ]
     .filter(Boolean)
     .join('\n\n');

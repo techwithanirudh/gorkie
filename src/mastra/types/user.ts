@@ -12,3 +12,5 @@ export const userProfileSchema = z.object({
 });
 
 export type UserProfile = z.infer<typeof userProfileSchema>;
+
+export type OptInStatus = 'allowed' | 'not-allowed' | 'unknown';

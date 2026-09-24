@@ -2,10 +2,15 @@ import { agent as agentConfig } from '../../config';
 import { logger } from '../../lib/logger';
 import type { CommandHandler } from '../../types';
 import { getMastra } from '../mastra-instance';
+import { setThreadState } from '../state';
 
 export async function stopThread(
   slackThreadId: string
 ): Promise<'aborted' | 'cancelled' | 'idle'> {
+  await setThreadState({
+    thread: { id: slackThreadId },
+    patch: { dropMessagesBefore: Date.now() },
+  });
   const mastra = getMastra();
   const orchestrator = mastra.getAgentById(agentConfig.id);
   // Memory threads reuse the Slack thread id, except where core fell back to a
