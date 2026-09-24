@@ -1,6 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { agent as agentConfig } from '../../config';
+import { isScheduledTask } from './queries';
 
 export const listScheduledTasksTool = createTool({
   id: 'list_scheduled_tasks',
@@ -18,11 +19,10 @@ export const listScheduledTasksTool = createTool({
       throw new Error('No Mastra schedule service is available.');
     }
 
-    return {
-      schedules: await service.list({
-        agentId: agentConfig.id,
-        resourceId,
-      }),
-    };
+    const schedules = await service.list({
+      agentId: agentConfig.id,
+      resourceId,
+    });
+    return { schedules: schedules.filter(isScheduledTask) };
   },
 });

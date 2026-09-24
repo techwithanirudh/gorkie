@@ -12,4 +12,6 @@ Quote the real error rather than guessing between these.
 
 **A 403 on a write** is a rule on GitHub's side rather than a missing permission: branch protection, required reviews on a merge, SAML enforcement, an org that has not approved the app, or a repository outside the installation. Name the actual cause instead of telling them to reconnect. A 403 on a push is the fork case, not a dead end.
 
+**History that stops short** is the shallow checkout. `github_checkout` clones the last 50 commits, so `git log` ends there and `git blame` marks older lines with `^`. Deepening it with `git fetch` fails for the same reason a plain clone does. Say the history beyond that point was not visible rather than treating the boundary commit as the origin of those lines.
+
 **A sandbox that has expired** loses the checkout and any commit that never left it. Recheck out and redo the commit rather than reporting the work as gone.

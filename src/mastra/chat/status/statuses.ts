@@ -26,136 +26,138 @@ const argsSchema = z
 
 type Args = z.infer<typeof argsSchema>;
 
+function withArg({
+  key,
+  idle,
+  prefix,
+  suffix,
+  display = (value) => value,
+}: {
+  key: Exclude<keyof Args, 'target'>;
+  idle: string;
+  prefix: string;
+  suffix: string;
+  display?: (value: string) => string;
+}) {
+  return (args: Args) => {
+    const value = args[key];
+    return value ? fit({ prefix, content: display(value), suffix }) : idle;
+  };
+}
+
+function fixed(text: string) {
+  return () => text;
+}
+
 const statuses: Record<string, (args: Args) => string> = {
-  create_canvas: (args) => {
-    const { title } = args;
-    return title
-      ? fit({
-          prefix: 'is creating the canvas "',
-          content: title,
-          suffix: '"…',
-        })
-      : 'is creating a canvas…';
-  },
+  create_canvas: withArg({
+    key: 'title',
+    idle: 'is creating a canvas…',
+    prefix: 'is creating the canvas "',
+    suffix: '"…',
+  }),
   create_scheduled_task: (args) => {
     const name = args.name ?? args.task;
     return name
       ? fit({ prefix: 'is scheduling "', content: name, suffix: '"…' })
       : 'is scheduling a task…';
   },
-  delete_file: (args) => {
-    const { path } = args;
-    return path
-      ? fit({ prefix: 'is deleting ', content: fileName(path), suffix: '…' })
-      : 'is deleting a file…';
-  },
-  delete_scheduled_task: () => 'is deleting a scheduled task…',
-  edit_canvas: () => 'is editing a canvas…',
-  edit_file: (args) => {
-    const { path } = args;
-    return path
-      ? fit({ prefix: 'is editing ', content: fileName(path), suffix: '…' })
-      : 'is editing a file…';
-  },
-  execute_command: (args) => {
-    const { command } = args;
-    return command
-      ? fit({ prefix: 'is running `', content: command, suffix: '`…' })
-      : 'is running a command…';
-  },
-  fetch_url: (args) => {
-    const { url } = args;
-    if (!url) {
-      return 'is reading a web page…';
-    }
-    try {
-      return fit({
-        prefix: 'is reading ',
-        content: new URL(url).hostname,
-        suffix: '…',
-      });
-    } catch {
-      return 'is reading a web page…';
-    }
-  },
-  file_stat: (args) => {
-    const { path } = args;
-    return path
-      ? fit({ prefix: 'is checking ', content: fileName(path), suffix: '…' })
-      : 'is checking a file…';
-  },
-  generate_image: (args) => {
-    const { prompt } = args;
-    return prompt
+  delete_file: withArg({
+    key: 'path',
+    idle: 'is deleting a file…',
+    prefix: 'is deleting ',
+    suffix: '…',
+    display: fileName,
+  }),
+  delete_scheduled_task: fixed('is deleting a scheduled task…'),
+  edit_canvas: fixed('is editing a canvas…'),
+  edit_file: withArg({
+    key: 'path',
+    idle: 'is editing a file…',
+    prefix: 'is editing ',
+    suffix: '…',
+    display: fileName,
+  }),
+  execute_command: withArg({
+    key: 'command',
+    idle: 'is running a command…',
+    prefix: 'is running `',
+    suffix: '`…',
+  }),
+  fetch_url: ({ url }) =>
+    url && URL.canParse(url)
       ? fit({
-          prefix: 'is generating an image of "',
-          content: prompt,
-          suffix: '"…',
+          prefix: 'is reading ',
+          content: new URL(url).hostname,
+          suffix: '…',
         })
-      : 'is generating an image…';
-  },
-  get_channel_info: () => 'is checking a channel…',
-  get_permalink: () => 'is getting a Slack link…',
-  get_process_output: (args) => {
-    const { pid } = args;
-    return pid
-      ? fit({ prefix: 'is checking process ', content: pid, suffix: '…' })
-      : 'is checking a process…';
-  },
-  get_slack_emoji: (args) => {
-    const { name } = args;
-    return name
-      ? fit({
-          prefix: 'is looking at :',
-          content: name.replaceAll(':', ''),
-          suffix: ':…',
-        })
-      : 'is looking at an emoji…';
-  },
-  get_slack_file: () => 'is downloading a Slack file…',
-  get_user: () => 'is looking up a user…',
-  grep: (args) => {
-    const { pattern } = args;
-    return pattern
-      ? fit({
-          prefix: 'is searching files for "',
-          content: pattern,
-          suffix: '"…',
-        })
-      : 'is searching files…';
-  },
-  kill_process: (args) => {
-    const { pid } = args;
-    return pid
-      ? fit({ prefix: 'is stopping process ', content: pid, suffix: '…' })
-      : 'is stopping a process…';
-  },
-  leave_thread: () => 'is leaving the thread…',
-  list_canvases: (args) => {
-    const { query } = args;
-    return query
-      ? fit({ prefix: 'is listing canvases: "', content: query, suffix: '"…' })
-      : 'is listing canvases…';
-  },
-  list_channels: (args) => {
-    const { query } = args;
-    return query
-      ? fit({ prefix: 'is listing channels: "', content: query, suffix: '"…' })
-      : 'is listing channels…';
-  },
-  list_files: (args) => {
-    const { path } = args;
-    return path && path !== '.'
+      : 'is reading a web page…',
+  file_stat: withArg({
+    key: 'path',
+    idle: 'is checking a file…',
+    prefix: 'is checking ',
+    suffix: '…',
+    display: fileName,
+  }),
+  generate_image: withArg({
+    key: 'prompt',
+    idle: 'is generating an image…',
+    prefix: 'is generating an image of "',
+    suffix: '"…',
+  }),
+  get_channel_info: fixed('is checking a channel…'),
+  get_permalink: fixed('is getting a Slack link…'),
+  get_process_output: withArg({
+    key: 'pid',
+    idle: 'is checking a process…',
+    prefix: 'is checking process ',
+    suffix: '…',
+  }),
+  get_slack_emoji: withArg({
+    key: 'name',
+    idle: 'is looking at an emoji…',
+    prefix: 'is looking at :',
+    suffix: ':…',
+    display: (name) => name.replaceAll(':', ''),
+  }),
+  get_slack_file: fixed('is downloading a Slack file…'),
+  get_user: fixed('is looking up a user…'),
+  grep: withArg({
+    key: 'pattern',
+    idle: 'is searching files…',
+    prefix: 'is searching files for "',
+    suffix: '"…',
+  }),
+  kill_process: withArg({
+    key: 'pid',
+    idle: 'is stopping a process…',
+    prefix: 'is stopping process ',
+    suffix: '…',
+  }),
+  join_thread: fixed('is rejoining the thread…'),
+  leave_thread: fixed('is leaving the thread…'),
+  list_canvases: withArg({
+    key: 'query',
+    idle: 'is listing canvases…',
+    prefix: 'is listing canvases: "',
+    suffix: '"…',
+  }),
+  list_channels: withArg({
+    key: 'query',
+    idle: 'is listing channels…',
+    prefix: 'is listing channels: "',
+    suffix: '"…',
+  }),
+  list_files: ({ path }) =>
+    path && path !== '.'
       ? fit({ prefix: 'is listing ', content: fileName(path), suffix: '…' })
-      : 'is listing files…';
-  },
-  list_scheduled_tasks: () => 'is checking scheduled tasks…',
-  list_threads: () => 'is listing threads…',
-  load_tool: () => 'is loading a tool…',
-  lookup_canvas_sections: () => 'is inspecting a canvas…',
-  pause_scheduled_task: () => 'is pausing a scheduled task…',
-  post_message: (args) => {
-    const { target } = args;
+      : 'is listing files…',
+  list_scheduled_tasks: fixed('is checking scheduled tasks…'),
+  list_threads: fixed('is listing threads…'),
+  load_tool: fixed('is loading a tool…'),
+  lookup_canvas_sections: fixed('is inspecting a canvas…'),
+  pause_scheduled_task: fixed('is pausing a scheduled task…'),
+  post_message: ({ target }) => {
     if (target?.type === 'user') {
       return 'is sending a DM…';
     }
@@ -164,106 +166,94 @@ const statuses: Record<string, (args: Args) => string> = {
     }
     return 'is sending a message…';
   },
-  react: (args) => {
-    const { emoji } = args;
+  react: ({ action, emoji }) => {
     if (!emoji) {
       return 'is adding a reaction…';
     }
-    return args.action === 'remove'
-      ? fit({
-          prefix: 'is removing a :',
-          content: emoji,
-          suffix: ': reaction…',
-        })
-      : fit({ prefix: 'is adding a :', content: emoji, suffix: ': reaction…' });
+    return fit({
+      prefix: action === 'remove' ? 'is removing a :' : 'is adding a :',
+      content: emoji,
+      suffix: ': reaction…',
+    });
   },
-  read_canvas: () => 'is reading a canvas…',
-  read_conversation_history: () => 'is reading Slack history…',
-  read_file: (args) => {
-    const { path } = args;
-    return path
-      ? fit({ prefix: 'is reading ', content: fileName(path), suffix: '…' })
-      : 'is reading a file…';
-  },
-  resume_scheduled_task: () => 'is resuming a scheduled task…',
-  search_slack: (args) => {
-    const { query } = args;
-    return query
-      ? fit({
-          prefix: 'is searching Slack for "',
-          content: query,
-          suffix: '"…',
-        })
-      : 'is searching Slack…';
-  },
-  search_web: (args) => {
-    const { query } = args;
-    return query
-      ? fit({
-          prefix: 'is searching the web for "',
-          content: query,
-          suffix: '"…',
-        })
-      : 'is searching the web…';
-  },
-  search_tools: (args) => {
-    const { query } = args;
-    return query
-      ? fit({
-          prefix: 'is looking for a tool: "',
-          content: query,
-          suffix: '"…',
-        })
-      : 'is looking for a tool…';
-  },
-  skill_search: (args) => {
-    const { query } = args;
-    return query
-      ? fit({
-          prefix: 'is looking for a skill: "',
-          content: query,
-          suffix: '"…',
-        })
-      : 'is looking for a skill…';
-  },
-  slack: () => 'is working in Slack…',
-  submit_feedback: (args) => {
-    const { kind } = args;
-    return kind && kind !== 'other'
+  read_canvas: fixed('is reading a canvas…'),
+  read_conversation_history: fixed('is reading Slack history…'),
+  read_file: withArg({
+    key: 'path',
+    idle: 'is reading a file…',
+    prefix: 'is reading ',
+    suffix: '…',
+    display: fileName,
+  }),
+  resume_scheduled_task: fixed('is resuming a scheduled task…'),
+  search_slack: withArg({
+    key: 'query',
+    idle: 'is searching Slack…',
+    prefix: 'is searching Slack for "',
+    suffix: '"…',
+  }),
+  search_tools: withArg({
+    key: 'query',
+    idle: 'is looking for a tool…',
+    prefix: 'is looking for a tool: "',
+    suffix: '"…',
+  }),
+  search_web: withArg({
+    key: 'query',
+    idle: 'is searching the web…',
+    prefix: 'is searching the web for "',
+    suffix: '"…',
+  }),
+  skill: withArg({
+    key: 'name',
+    idle: 'is loading a skill…',
+    prefix: 'is loading the ',
+    suffix: ' skill…',
+  }),
+  skill_search: withArg({
+    key: 'query',
+    idle: 'is looking for a skill…',
+    prefix: 'is looking for a skill: "',
+    suffix: '"…',
+  }),
+  slack: fixed('is working in Slack…'),
+  submit_feedback: ({ kind }) =>
+    kind && kind !== 'other'
       ? fit({ prefix: 'is passing on your ', content: kind, suffix: '…' })
-      : 'is passing on your feedback…';
-  },
-  summarize_thread: (args) => {
-    const { instructions } = args;
-    return instructions
-      ? fit({ prefix: 'is summarizing: ', content: instructions, suffix: '…' })
-      : 'is summarizing the thread…';
-  },
-  view_image: (args) => {
-    const { path } = args;
-    return path
-      ? fit({ prefix: 'is looking at ', content: fileName(path), suffix: '…' })
-      : 'is looking at an image…';
-  },
-  upload_emoji: (args) => {
-    const { name } = args;
-    return name
-      ? fit({ prefix: 'is adding the :', content: name, suffix: ': emoji…' })
-      : 'is adding an emoji…';
-  },
-  upload_file: () => 'is uploading a file…',
-  wait: (args) => {
-    const { reason } = args;
-    return reason
-      ? fit({ prefix: 'is waiting: ', content: reason, suffix: '…' })
-      : 'is waiting…';
-  },
-  write_file: (args) => {
-    const { path } = args;
-    return path
-      ? fit({ prefix: 'is writing ', content: fileName(path), suffix: '…' })
-      : 'is writing a file…';
-  },
+      : 'is passing on your feedback…',
+  summarize_thread: withArg({
+    key: 'instructions',
+    idle: 'is summarizing the thread…',
+    prefix: 'is summarizing: ',
+    suffix: '…',
+  }),
+  upload_emoji: withArg({
+    key: 'name',
+    idle: 'is adding an emoji…',
+    prefix: 'is adding the :',
+    suffix: ': emoji…',
+  }),
+  upload_file: fixed('is uploading a file…'),
+  view_image: withArg({
+    key: 'path',
+    idle: 'is looking at an image…',
+    prefix: 'is looking at ',
+    suffix: '…',
+    display: fileName,
+  }),
+  wait: withArg({
+    key: 'reason',
+    idle: 'is waiting…',
+    prefix: 'is waiting: ',
+    suffix: '…',
+  }),
+  write_file: withArg({
+    key: 'path',
+    idle: 'is writing a file…',
+    prefix: 'is writing ',
+    suffix: '…',
+    display: fileName,
+  }),
 };
 
 export function toolStatus({

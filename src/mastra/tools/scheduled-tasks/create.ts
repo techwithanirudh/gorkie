@@ -35,19 +35,14 @@ function assertMinimumInterval({
 
 export const createScheduledTaskTool = createTool({
   id: 'create_scheduled_task',
-  description:
-    minMinutes > 0
-      ? `Create a recurring schedule for the current Slack conversation. Use a valid cron expression and optional IANA timezone. Minimum interval is ${minMinutes} minutes between fires, each run costs model credits: never request a faster cadence, refuse and offer the nearest ${minMinutes}-minute-or-slower option instead.`
-      : 'Create a recurring schedule for the current Slack conversation. Use a valid cron expression and optional IANA timezone. No minimum interval in this environment; any cadence is allowed.',
+  description: `Create a recurring schedule for the current Slack conversation. Use a valid cron expression and optional IANA timezone. Minimum interval is ${minMinutes} minutes between fires, each run costs model credits: never request a faster cadence, refuse and offer the nearest ${minMinutes}-minute-or-slower option instead.`,
   inputSchema: z.strictObject({
     task: z.string().min(1).describe('Prompt to run on the schedule.'),
     cron: z
       .string()
       .min(1)
       .describe(
-        minMinutes > 0
-          ? `Cron expression for when to run. Minimum interval: ${minMinutes} minutes between fires.`
-          : 'Cron expression for when to run. Any cadence is allowed in this environment.'
+        `Cron expression for when to run. Minimum interval: ${minMinutes} minutes between fires.`
       ),
     name: z
       .string()
@@ -87,13 +82,7 @@ export const createScheduledTaskTool = createTool({
         ifIdle: {
           behavior: 'wake',
           streamOptions: {
-            // Without the live message, search_slack refuses this run as unattended.
-            requestContext: {
-              channel: {
-                ...channelContext(context.requestContext),
-                messageId: undefined,
-              },
-            },
+            requestContext: { channel: channelContext(context.requestContext) },
           },
         },
         ...(name ? { name } : {}),

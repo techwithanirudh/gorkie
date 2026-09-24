@@ -192,7 +192,7 @@ async function toOutput({
 export const searchSlackTool = createTool({
   id: 'search_slack',
   description:
-    'Run one Slack message search for past conversations, decisions, links, people, or internal references. Use Slack search syntax to narrow by keywords, names, channels, senders, or dates. Public channels only: DMs, private channels, and Slack Connect conversations are never searched. This returns one result page with short surrounding context. Use Slack code mode when the task needs multiple queries, exhaustive pagination, filtering, aggregation, or full conversation reads. Search runs as the workspace-wide public identity, so it needs a live message in the thread and never runs on scheduled or unattended turns.',
+    'Run one Slack message search for past conversations, decisions, links, people, or internal references. Use Slack search syntax to narrow by keywords, names, channels, senders, or dates. Public channels only: DMs, private channels, and Slack Connect conversations are never searched. This returns one result page with short surrounding context; pass the returned cursor back to page through more matches. Use Slack code mode when the task needs multiple queries, exhaustive pagination, filtering, aggregation, or full conversation reads.',
   inputSchema: z.strictObject({
     query: z
       .string()
@@ -230,12 +230,7 @@ export const searchSlackTool = createTool({
   },
   execute: async ({ query, cursor }, context) => {
     spendSlackCall(context.requestContext);
-    const { messageId, threadId } = channelContext(context.requestContext);
-    if (!messageId) {
-      throw new Error(
-        'Slack search needs a live message in this thread. gorkie does not run the workspace search identity on scheduled or unattended runs. Ask the user to mention the bot, then search again.'
-      );
-    }
+    const { threadId } = channelContext(context.requestContext);
     const token = env.SLACK_USER_TOKEN;
     await assertPublicOnly(token);
     return toOutput({

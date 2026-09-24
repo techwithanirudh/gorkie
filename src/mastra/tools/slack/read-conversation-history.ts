@@ -16,7 +16,7 @@ import {
 export const readConversationHistoryTool = createTool({
   id: 'read_conversation_history',
   description:
-    'Read one chronological page of raw messages from a Slack channel or thread when exact wording matters. Messages starting with ## are side comments and are left out unless includeComments is true; nothing else is filtered. Use search_slack for one keyword query, Slack code mode for query-driven or exhaustive conversation analysis, and summarize_thread when a long thread only needs a summary. The current conversation is always readable; other channels must be public, and public channels are joined automatically.',
+    'Read one chronological page of raw messages from a Slack channel or thread when exact wording matters. Messages starting with ## are side comments and are left out unless includeComments is true; nothing else is filtered. Use search_slack for one keyword query, Slack code mode for query-driven or exhaustive conversation analysis, and summarize_thread when a long thread only needs a summary. Pass the returned cursor back to page through more history. The current conversation is always readable; other channels must be public, and public channels are joined automatically.',
   inputSchema: z.strictObject({
     channelId: z
       .string()

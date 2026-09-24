@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { decryptSecret, encryptSecret } from '../../lib/crypto';
 import { rawId } from '../../lib/ids';
 import type { GitHubCredential } from '../../types';
@@ -48,6 +48,32 @@ export async function setGitHubCredential({
     .insert(githubCredentials)
     .values({ ...set, userId: rawId(userId) })
     .onConflictDoUpdate({ target: githubCredentials.userId, set });
+}
+
+export async function updateRefreshedGitHubCredential({
+  credential,
+  userId,
+}: {
+  credential: Pick<GitHubCredential, 'expiresAt' | 'refreshToken' | 'token'>;
+  userId: string;
+}): Promise<boolean> {
+  const updated = await db
+    .update(githubCredentials)
+    .set({
+      expiresAt: credential.expiresAt ?? null,
+      refreshToken: credential.refreshToken
+        ? encryptSecret(credential.refreshToken)
+        : null,
+      token: encryptSecret(credential.token),
+    })
+    .where(
+      and(
+        eq(githubCredentials.userId, rawId(userId)),
+        eq(githubCredentials.kind, 'app')
+      )
+    )
+    .returning({ userId: githubCredentials.userId });
+  return updated.length > 0;
 }
 
 export async function removeGitHubCredential(userId: string): Promise<void> {

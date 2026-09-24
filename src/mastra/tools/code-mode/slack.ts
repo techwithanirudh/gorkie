@@ -100,7 +100,13 @@ type CodeModeInstance = Awaited<ReturnType<typeof createCodeModeInstance>>;
 const instances = new Map<string, Promise<CodeModeInstance>>();
 
 async function codeMode(workspaceAccess: boolean): Promise<CodeModeInstance> {
-  const mcp = await mcpTools();
+  // Code mode calls tool.execute() directly, which skips Mastra's
+  // requireApproval check, so only tools the server labels read-only go in.
+  const mcp = Object.fromEntries(
+    Object.entries(await mcpTools()).filter(
+      ([, tool]) => tool.mcp?.annotations?.readOnlyHint === true
+    )
+  );
   // Keyed on the MCP tool names so an instance built during an MCP outage is replaced once the tools come back.
   const key = `${workspaceAccess ? 'workspace' : 'slack'}:${Object.keys(mcp).sort().join(',')}`;
   const existing = instances.get(key);

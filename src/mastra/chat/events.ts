@@ -1,7 +1,9 @@
 import { Chat } from 'chat';
+import { isUserAllowed } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
 import { registerAppHome } from './app-home';
 import { slack } from './client';
+import { stopThread } from './commands/stop';
 import { content } from './content';
 import {
   feedbackIds,
@@ -20,6 +22,16 @@ export function registerEvents(): void {
         logger.error('[events] setSuggestedPrompts failed', { error })
       )
   );
+
+  // The Slack adapter aborts its own Chat SDK turn on the native stop button,
+  // but channels never hands that signal to the Mastra run, so stop it here.
+  bot.onAgentSessionStopped(async (event) => {
+    if (!(await isUserAllowed(event.userId))) {
+      return;
+    }
+    const outcome = await stopThread(event.threadId);
+    logger.info('[events] native stop', { outcome, threadId: event.threadId });
+  });
 
   registerAppHome();
 

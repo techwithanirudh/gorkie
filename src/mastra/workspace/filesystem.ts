@@ -4,6 +4,8 @@ import type {
   FileContent,
   FileEntry,
   FileStat,
+  FilesystemGrepOptions,
+  FilesystemGrepResult,
   FilesystemInfo,
   ListOptions,
   ProviderStatus,
@@ -21,15 +23,18 @@ import {
   NotDirectoryError,
   PermissionError,
   StaleFileError,
+  UnsupportedGrepPatternError,
 } from '@mastra/core/workspace';
 import type { E2BSandbox } from '@mastra/e2b';
 import {
+  CommandExitError,
   FileNotFoundError as E2BFileNotFoundError,
   type EntryInfo,
   FileType,
 } from 'e2b';
 import { lookup } from 'mime-types';
-import { file as fileLimits } from '../config';
+import { file as fileLimits, sandbox as sandboxConfig } from '../config';
+import { parseRipgrepJson, ripgrepCommand } from './ripgrep';
 
 function modifiedTime(info: { modifiedTime?: Date }): Date {
   return info.modifiedTime ?? new Date(0);
@@ -389,6 +394,45 @@ export class E2BFilesystem extends MastraFilesystem {
       modifiedAt: modifiedTime(info),
       mimeType: lookup(filePath) || undefined,
     };
+  }
+
+  // One ripgrep run inside the sandbox. Without this, Mastra's grep walks the
+  // tree and reads every file over the E2B API one request at a time.
+  async grep(options: FilesystemGrepOptions): Promise<FilesystemGrepResult[]> {
+    await this.ensureReady();
+    const root = this.resolve(options.path);
+
+    try {
+      const { stdout } = await this.sandbox.retryOnDead(() =>
+        this.sandbox.e2b.commands.run(ripgrepCommand({ ...options, root }), {
+          timeoutMs: sandboxConfig.executionTimeout,
+        })
+      );
+      return parseRipgrepJson({
+        output: stdout,
+        contextLines: options.contextLines,
+        maxTotalMatches: options.maxTotalMatches,
+        root,
+      });
+    } catch (error) {
+      if (!(error instanceof CommandExitError)) {
+        throw error;
+      }
+      const stderr = error.stderr.trim();
+      // Mastra catches this and falls back to its host-side grep, which
+      // handles the JS regex syntax ripgrep rejects.
+      if (/regex parse error|PCRE2|not allowed in a regex/.test(stderr)) {
+        const unsupported = new UnsupportedGrepPatternError(
+          options.pattern,
+          stderr
+        );
+        unsupported.cause = error;
+        throw unsupported;
+      }
+      throw new Error(`ripgrep exited with ${error.exitCode}: ${stderr}`, {
+        cause: error,
+      });
+    }
   }
 
   realpath(inputPath: string): Promise<string> {

@@ -1,7 +1,6 @@
 import { Chat } from 'chat';
-import { agent as agentConfig } from '../../../config';
 import { chatChannelId } from '../../../lib/ids';
-import { isAgentSchedule } from '../../../tools/scheduled-tasks/queries';
+import { isScheduledTask } from '../../../tools/scheduled-tasks/queries';
 import type { PublishHome } from '../../../types';
 import { getMastra } from '../../mastra-instance';
 import { ids } from './ids';
@@ -20,8 +19,7 @@ export function registerScheduledTasks({
     const schedule = await mastra.schedules.get(id);
     const resourceId = chatChannelId(event.user.userId);
     if (
-      !(schedule && isAgentSchedule(schedule)) ||
-      schedule.agentId !== agentConfig.id ||
+      !(schedule && isScheduledTask(schedule)) ||
       schedule.resourceId !== resourceId
     ) {
       return;

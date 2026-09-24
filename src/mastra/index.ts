@@ -17,7 +17,7 @@ import { buildAllowlist } from './lib/allowed-users';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
-import { WAIT_SCHEDULE_KIND } from './types';
+import { isWaitSchedule } from './tools/scheduled-tasks/queries';
 
 process.on('unhandledRejection', (err: unknown) => {
   logger.error('[process] unhandled rejection', { err });
@@ -28,27 +28,63 @@ process.on('uncaughtException', (err: Error) => {
 
 const isProduction = env.NODE_ENV === 'production';
 
+// DuckDB is single-writer: a second process holding the file lock must not
+// take the bot down with it, it just runs without local traces.
+const traceStore = isProduction
+  ? undefined
+  : await new DuckDBStore({
+      path: join(env.PROJECT_ROOT, 'observability.duckdb'),
+    })
+      .getStore('observability')
+      .then(async (store) => {
+        await store?.init();
+        return store;
+      })
+      .catch((error: unknown) => {
+        logger.error('[observability] local trace store failed to open', {
+          error,
+        });
+      });
+if (traceStore) {
+  const prune = () =>
+    traceStore
+      .prune({
+        logs: { maxAge: '7d' },
+        metrics: { maxAge: '7d' },
+        scores: { maxAge: '7d' },
+        spans: { maxAge: '7d' },
+      })
+      .catch((error: unknown) => {
+        logger.warn('[observability] pruning old traces failed', { error });
+      });
+  // Fired and forgotten: pruning must not hold boot, and a failure only leaves
+  // old traces behind. unref() keeps the timer from holding the process open.
+  prune();
+  setInterval(prune, 24 * 60 * 60 * 1000).unref();
+}
+
+// Before the Mastra constructor, which starts channels without awaiting them:
+// a Slack message handled mid-migration would read and write threads the
+// migration is renaming.
+await runMigrations();
+
 export const mastra = new Mastra({
   agents: { orchestrator, summarizer, research, explore },
   schedules: {
     prepare: async ({ mastra: runtime, schedule }) => {
       const current = await runtime.schedules.get(schedule.id);
-      if (current?.metadata?.kind === WAIT_SCHEDULE_KIND) {
+      if (current && isWaitSchedule(current)) {
         await runtime.schedules.delete(schedule.id);
       }
     },
   },
-  storage: isProduction
-    ? postgresStore
-    : new MastraCompositeStore({
+  storage: traceStore
+    ? new MastraCompositeStore({
         id: 'composite-storage',
         default: postgresStore,
-        domains: {
-          observability: await new DuckDBStore({
-            path: join(env.PROJECT_ROOT, 'observability.duckdb'),
-          }).getStore('observability'),
-        },
-      }),
+        domains: { observability: traceStore },
+      })
+    : postgresStore,
   observability: new Observability({
     configs: {
       default: {
@@ -62,7 +98,7 @@ export const mastra = new Mastra({
         ],
         serviceName: 'orchestrator',
         exporters: [
-          ...(isProduction ? [] : [new MastraStorageExporter()]),
+          ...(traceStore ? [new MastraStorageExporter()] : []),
           new LangfuseFeedbackExporter(),
           new LangfuseExporter({
             baseUrl: env.LANGFUSE_BASE_URL,
@@ -79,9 +115,10 @@ export const mastra = new Mastra({
   logger,
 });
 
-await runMigrations();
-await mastra.startWorkers();
+// Before anything awaits: channels may already be handing Slack messages to
+// handlers that call getMastra().
 setMastra(mastra);
+await mastra.startWorkers();
 
 // Mastra starts channels itself without awaiting them. initialize() is
 // idempotent and returns that same promise, so this hooks the post-init wiring

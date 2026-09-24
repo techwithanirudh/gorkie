@@ -4,9 +4,8 @@ import { env } from '@/env';
 import {
   getGitHubCredential,
   removeGitHubCredential,
-  setGitHubCredential,
+  updateRefreshedGitHubCredential,
 } from '../../db/queries/github';
-import type { GitHubCredential } from '../../types';
 import { logger } from '../logger';
 import { githubUser } from './api';
 import { toAccount } from './device-flow';
@@ -14,11 +13,9 @@ import { toAccount } from './device-flow';
 const refreshes = new Map<string, Promise<string | undefined>>();
 
 async function refreshAccount({
-  account,
   spent,
   userId,
 }: {
-  account: GitHubCredential;
   spent: string;
   userId: string;
 }): Promise<string | undefined> {
@@ -30,16 +27,14 @@ async function refreshAccount({
       refreshToken: spent,
     });
     const refreshed = toAccount(authentication);
-    await setGitHubCredential({
-      credential: {
-        ...refreshed,
-        kind: 'app',
-        login: account.login,
-        scopes: [],
-      },
-      userId,
-    });
-    return refreshed.token;
+    // Update-only and scoped to kind 'app': a disconnect or a token reconnect
+    // that lands mid-refresh must not be resurrected or overwritten.
+    if (
+      await updateRefreshedGitHubCredential({ credential: refreshed, userId })
+    ) {
+      return refreshed.token;
+    }
+    return (await getGitHubCredential(userId))?.token;
   } catch (error) {
     // Never log `error` directly: an octokit refresh failure carries the
     // client_secret and refresh_token. Pull out only the status and error code.
@@ -63,6 +58,7 @@ async function refreshAccount({
     if (current && current.refreshToken !== spent) {
       return current.token;
     }
+    // Only this code means the refresh token is dead; a transient failure must not log the user out.
     if (code === 'bad_refresh_token') {
       await removeGitHubCredential(userId);
       return;
@@ -93,7 +89,6 @@ export async function githubAccessToken(
     return inFlight;
   }
   const started = refreshAccount({
-    account,
     spent: account.refreshToken,
     userId,
   }).finally(() => refreshes.delete(userId));

@@ -21,6 +21,8 @@ export const turnFooter = {
     const { threadId } = channelContext(args.requestContext);
     const { startTime } = args.state;
 
+    // Gated on the reply text, not on whether skip ran: a turn that answered
+    // and then skipped still earned its footer, and a skip-only turn has none.
     if (
       !(threadId && args.result.text.trim()) ||
       typeof startTime !== 'number'

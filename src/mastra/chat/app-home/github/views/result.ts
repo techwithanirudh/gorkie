@@ -6,6 +6,7 @@ export const failedModal = (reason: string) => {
     {
       expired_token: 'The code ran out before GitHub confirmed.',
       interrupted: 'Gorkie restarted while waiting, losing track of this code.',
+      unreachable: 'Gorkie could not get a sign-in code from GitHub.',
     }[reason] ?? `GitHub stopped the sign-in: ${reason}.`;
   return Modal({
     callbackId: ids.modal,

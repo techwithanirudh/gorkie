@@ -25,7 +25,7 @@ export const polling = new Map<
   string,
   {
     controller: AbortController;
-    device: DeviceLogin;
+    device: DeviceLogin | undefined;
     method: GitHubCredentialKind;
     viewId: string | undefined;
   }
@@ -120,23 +120,23 @@ async function openConnect({
   triggerId: string;
   userId: string;
 }): Promise<void> {
-  let device: DeviceLogin;
-  try {
-    device = await startDeviceLogin();
-  } catch (error) {
-    logger.error('[github] could not start device login', { error, userId });
-    return;
-  }
-
   polling.get(userId)?.controller.abort();
   const controller = new AbortController();
-  polling.set(userId, { controller, device, method: 'app', viewId: undefined });
-  let opened: Awaited<ReturnType<typeof slack.webClient.views.open>>;
+  polling.set(userId, {
+    controller,
+    device: undefined,
+    method: 'app',
+    viewId: undefined,
+  });
+  // The trigger_id expires about 3 seconds after the click, so the modal opens
+  // before the GitHub round trip for a device code, not after it.
+  let viewId: string | undefined;
   try {
-    opened = await slack.webClient.views.open({
+    const opened = await slack.webClient.views.open({
       trigger_id: triggerId,
-      view: connectView({ device, method: 'app' }),
+      view: connectView({ device: undefined, loading: true, method: 'app' }),
     });
+    viewId = opened.view?.id;
   } catch (error) {
     logger.error('[github] could not open the connect modal', {
       error,
@@ -147,9 +147,51 @@ async function openConnect({
     }
     return;
   }
+  const registered = polling.get(userId);
+  if (registered?.controller === controller) {
+    polling.set(userId, { ...registered, viewId });
+  }
+
+  let device: DeviceLogin;
+  try {
+    device = await startDeviceLogin();
+  } catch (error) {
+    logger.error('[github] could not start device login', { error, userId });
+    const failed = polling.get(userId);
+    if (failed?.controller !== controller) {
+      return;
+    }
+    polling.delete(userId);
+    if (viewId && failed.method === 'app') {
+      await slack
+        .updateModal(viewId, failedModal('unreachable'))
+        .catch((updateError: unknown) =>
+          logger.debug('[github] could not update the sign-in modal', {
+            error: updateError,
+            userId,
+          })
+        );
+    }
+    return;
+  }
+
   const current = polling.get(userId);
-  if (current?.controller === controller) {
-    polling.set(userId, { ...current, viewId: opened.view?.id });
+  if (current?.controller !== controller) {
+    return;
+  }
+  polling.set(userId, { ...current, device });
+  if (viewId && current.method === 'app') {
+    try {
+      await slack.webClient.views.update({
+        view_id: viewId,
+        view: connectView({ device, method: 'app' }),
+      });
+    } catch (error) {
+      logger.warn('[github] could not show the device code', {
+        error,
+        userId,
+      });
+    }
   }
 
   awaitDeviceLogin({ ...device, signal: controller.signal })
@@ -178,6 +220,7 @@ async function switchMethod({
       view_id: view.id,
       view: connectView({
         device: pending?.device,
+        loading: Boolean(pending),
         method,
         warning: pending
           ? undefined

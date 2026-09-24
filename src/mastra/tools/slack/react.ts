@@ -8,7 +8,7 @@ import { assertCanPostTo } from './utils';
 export const reactTool = createTool({
   id: 'react',
   description:
-    'Add or remove an emoji reaction on a Slack message in the current conversation, by message timestamp or message URL. Messages in other channels or DMs cannot be reacted to.',
+    'Add or remove an emoji reaction on a Slack message in the current conversation, by message timestamp or message URL. Messages in other channels or DMs cannot be reacted to. This does not end the turn: continue with a written answer when one is useful. For a reaction-only response, call skip after this tool.',
   inputSchema: z.strictObject({
     channelId: z
       .string()

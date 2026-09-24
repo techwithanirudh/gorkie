@@ -1,6 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { Chat } from 'chat';
 import { z } from 'zod';
+import { setThreadState } from '../../chat/state';
 import { channelContext } from '../../lib/context';
 
 export const leaveThreadTool = createTool({
@@ -22,7 +23,7 @@ export const leaveThreadTool = createTool({
       throw new Error('No current thread.');
     }
     const thread = Chat.getSingleton().thread(threadId);
-    await thread.setState({ respondOnThreadMessages: false });
+    await setThreadState({ thread, patch: { respondOnThreadMessages: false } });
     await thread.unsubscribe();
     return { threadId };
   },

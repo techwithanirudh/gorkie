@@ -3,12 +3,16 @@ import { and, eq, isNotNull, notLike } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { env } from '@/env';
 import { encryptedPrefix, encryptSecret } from '../lib/crypto';
-import { db } from './client';
+import { db, postgresStore } from './client';
 import { mcpServers } from './schema';
 
 export { postgresStore } from './client';
 
 export async function runMigrations(): Promise<void> {
+  // Mastra creates and upgrades its own tables lazily, on the first storage
+  // call. Some migrations rewrite Mastra tables and name their current
+  // columns, so bring them to this version's shape first.
+  await postgresStore.init();
   await migrate(db, {
     migrationsFolder: join(env.PROJECT_ROOT, 'drizzle'),
   });

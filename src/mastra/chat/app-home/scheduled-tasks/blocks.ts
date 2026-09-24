@@ -1,6 +1,6 @@
 import { agent as agentConfig } from '../../../config';
 import { chatChannelId } from '../../../lib/ids';
-import { isAgentSchedule } from '../../../tools/scheduled-tasks/queries';
+import { isScheduledTask } from '../../../tools/scheduled-tasks/queries';
 import type { HomeSection } from '../../../types';
 import { getMastra } from '../../mastra-instance';
 import { ids } from './ids';
@@ -12,7 +12,7 @@ export async function scheduledTasksBlocks(
     agentId: agentConfig.id,
     resourceId: chatChannelId(userId),
   });
-  const tasks = schedules.filter(isAgentSchedule);
+  const tasks = schedules.filter(isScheduledTask);
   const header = {
     type: 'section',
     text: { type: 'mrkdwn', text: '*Scheduled Tasks*' },

@@ -1,5 +1,6 @@
 import { Chat } from 'chat';
 import { rawId } from '../lib/ids';
+import { logger } from '../lib/logger';
 import { type UserProfile, userProfileSchema } from '../types';
 import { slack } from './client';
 
@@ -62,6 +63,8 @@ export async function resolveUserProfile(
   await bot
     .getState()
     .set(cacheKey, resolved, ttl)
-    .catch(() => undefined);
+    .catch((error: unknown) => {
+      logger.debug('[slack] could not cache user profile', { error, userId });
+    });
   return resolved;
 }

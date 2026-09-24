@@ -187,7 +187,7 @@ async function downloadSlackFile({
 export const getSlackFileTool = createTool({
   id: 'get_slack_file',
   description:
-    'Download one Slack upload, snippet, or image into the thread sandbox for reading or processing. Pass a Slack file id such as F0123ABCD, or a Slack file permalink containing one. Use fetch_url for web URLs and read_canvas for canvases. Preserve a useful image extension so read_file can infer its MIME type.',
+    'Download one Slack upload, snippet, or image into the thread sandbox for reading or processing. Pass a Slack file id such as F0123ABCD, or a Slack file permalink containing one. Use fetch_url for web URLs and read_canvas for canvases. To look at a downloaded image, pass the saved path to view_image; read_file cannot show you a picture.',
   inputSchema: z.strictObject({
     file: z
       .string()

@@ -6,27 +6,33 @@ import { option, text } from './shared';
 
 export const connectView = ({
   device,
+  loading,
   method,
   warning,
 }: {
   device: DeviceLogin | undefined;
+  loading?: boolean;
   method: GitHubCredentialKind;
   warning?: string;
 }): ModalView => {
-  const app = device
-    ? [
-        text(
-          `*1.* <https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new|Choose which repositories Gorkie may use>. Pick "Only select repositories" to keep it narrow.`
-        ),
-        text(
-          `*2.* Open <${device.verificationUri}|${device.verificationUri}> and enter this code:`
-        ),
-        text(`\`${device.userCode}\``),
-        text(
-          'GitHub keeps these separate, so do both. This closes itself once GitHub confirms, and the code lasts 15 minutes.'
-        ),
-      ]
-    : [text('Press Cancel and start again to get a code.')];
+  let app = [text('Press Cancel and start again to get a code.')];
+  if (loading) {
+    app = [text('Getting a sign-in code from GitHub...')];
+  }
+  if (device) {
+    app = [
+      text(
+        `*1.* <https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new|Choose which repositories Gorkie may use>. Pick "Only select repositories" to keep it narrow.`
+      ),
+      text(
+        `*2.* Open <${device.verificationUri}|${device.verificationUri}> and enter this code:`
+      ),
+      text(`\`${device.userCode}\``),
+      text(
+        'GitHub keeps these separate, so do both. This closes itself once GitHub confirms, and the code lasts 15 minutes.'
+      ),
+    ];
+  }
   const pat = [
     text(
       'An app only reaches repositories it was installed on, so it cannot fork or open a pull request against one somebody else owns. A classic token can.'

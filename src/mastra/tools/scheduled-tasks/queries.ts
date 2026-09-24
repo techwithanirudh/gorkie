@@ -1,31 +1,17 @@
 import type { AgentSchedule, AnySchedule } from '@mastra/core/schedules';
-import type { MastraUnion } from '@mastra/core/tools';
 import { agent as agentConfig } from '../../config';
+import { WAIT_SCHEDULE_KIND } from '../../types';
 
-export function isAgentSchedule(
-  schedule: AnySchedule
-): schedule is AgentSchedule {
-  return schedule.agentId !== undefined;
+export const waitMetadata = { kind: WAIT_SCHEDULE_KIND };
+
+export function isWaitSchedule(schedule: AnySchedule): boolean {
+  return schedule.metadata?.kind === WAIT_SCHEDULE_KIND;
 }
 
-export async function ownedScheduleService({
-  context,
-  id,
-}: {
-  context: { agent?: { resourceId?: string }; mastra?: MastraUnion };
-  id: string;
-}) {
-  const service = context.mastra?.schedules;
-  const resourceId = context.agent?.resourceId;
-  if (!(service && resourceId)) {
-    throw new Error('A resourceId is required to manage a schedule.');
-  }
-  const schedule = await service.get(id);
-  if (
-    schedule?.agentId !== agentConfig.id ||
-    schedule.resourceId !== resourceId
-  ) {
-    throw new Error(`Schedule ${id} was not found in this conversation.`);
-  }
-  return service;
+// Waits are one-shot agent schedules too, so without the kind check they
+// would show up, and could be paused or deleted, as the user's tasks.
+export function isScheduledTask(
+  schedule: AnySchedule
+): schedule is AgentSchedule {
+  return schedule.agentId === agentConfig.id && !isWaitSchedule(schedule);
 }

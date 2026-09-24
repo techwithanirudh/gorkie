@@ -8,10 +8,28 @@ import { handleCommand } from './commands';
 import { withHistory } from './history';
 import { isComment } from './message';
 import { offerOptIn } from './onboarding';
-import { threadState } from './state';
+import { setThreadState, threadState } from './state';
 
 function isFromBot(message: Message): boolean {
   return message.author.isBot === true || message.author.userId === 'USLACKBOT';
+}
+
+function declined({
+  message,
+  reason,
+  thread,
+}: {
+  message: Message;
+  reason: string;
+  thread: Thread;
+}): void {
+  logger.debug('[chat] message not answered', {
+    author: message.author.userName,
+    isMention: message.isMention,
+    messageId: message.id,
+    reason,
+    threadId: thread.id,
+  });
 }
 
 async function runTurn({
@@ -40,7 +58,7 @@ async function runTurn({
     await withHistory({ message: attachments(message), thread })
   );
   if (!thread.isDM) {
-    await thread.setState({ lastSeenMessage: message.id });
+    await setThreadState({ thread, patch: { lastSeenMessage: message.id } });
   }
 }
 
@@ -50,14 +68,16 @@ export const onMention: ChannelHandler = async (
   defaultHandler
 ) => {
   if (isFromBot(message)) {
+    declined({ message, reason: 'from a bot', thread });
     return;
   }
   if (!(await isUserAllowed(message.author.userId))) {
+    declined({ message, reason: 'not on the allow-list', thread });
     await offerOptIn({ thread, user: message.author });
     return;
   }
   if (slack.decodeThreadId(message.threadId).threadTs === message.id) {
-    await thread.setState({ respondOnThreadMessages: true });
+    await setThreadState({ thread, patch: { respondOnThreadMessages: true } });
   }
   if (await handleCommand({ message, thread })) {
     return;
@@ -71,14 +91,25 @@ export const onSubscribedMessage: ChannelHandler = async (
   defaultHandler
 ) => {
   if (isFromBot(message) || isComment(message)) {
+    declined({
+      message,
+      reason: isFromBot(message) ? 'from a bot' : 'a comment',
+      thread,
+    });
     return;
   }
   const state = await threadState(thread);
   const isFollowingThread = state?.respondOnThreadMessages === true;
   if (!(isFollowingThread || message.isMention)) {
+    declined({
+      message,
+      reason: 'not a mention and not following this thread',
+      thread,
+    });
     return;
   }
   if (!(await isUserAllowed(message.author.userId))) {
+    declined({ message, reason: 'not on the allow-list', thread });
     return;
   }
   if (await handleCommand({ message, thread })) {
@@ -93,9 +124,11 @@ export const onDirectMessage: ChannelHandler = async (
   defaultHandler
 ) => {
   if (isFromBot(message)) {
+    declined({ message, reason: 'from a bot', thread });
     return;
   }
   if (!(await isUserAllowed(message.author.userId))) {
+    declined({ message, reason: 'not on the allow-list', thread });
     await offerOptIn({ thread, user: message.author });
     return;
   }

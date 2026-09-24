@@ -2,7 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { agent as agentConfig } from '../config';
 import { channelContext } from '../lib/context';
-import { WAIT_SCHEDULE_KIND } from '../types/tools/index';
+import { isWaitSchedule, waitMetadata } from './scheduled-tasks/queries';
 
 export const waitTool = createTool({
   id: 'wait',
@@ -33,7 +33,7 @@ export const waitTool = createTool({
     const schedules = context.mastra?.schedules;
     if (!schedules) {
       throw new Error(
-        'Could not resolve this conversation to a memory thread yet. Send another message and try again.'
+        'The scheduler is not available, so this conversation cannot wait.'
       );
     }
     const threadId = context.agent?.threadId;
@@ -48,11 +48,7 @@ export const waitTool = createTool({
     });
     await Promise.all(
       previous
-        .filter(
-          (task) =>
-            task.metadata?.kind === WAIT_SCHEDULE_KIND &&
-            task.lastFireAt !== undefined
-        )
+        .filter((task) => isWaitSchedule(task) && task.lastFireAt !== undefined)
         .map((task) => schedules.delete(task.id))
     );
 
@@ -77,16 +73,10 @@ export const waitTool = createTool({
       ifIdle: {
         behavior: 'wake',
         streamOptions: {
-          // Without the live message, search_slack refuses this run as unattended.
-          requestContext: {
-            channel: {
-              ...channelContext(context.requestContext),
-              messageId: undefined,
-            },
-          },
+          requestContext: { channel: channelContext(context.requestContext) },
         },
       },
-      metadata: { kind: WAIT_SCHEDULE_KIND },
+      metadata: waitMetadata,
     });
 
     return {

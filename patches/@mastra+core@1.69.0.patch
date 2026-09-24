@@ -1,6 +1,6 @@
---- a/dist/agent-CEHR0Wd8.js
-+++ b/dist/agent-CEHR0Wd8.js
-@@ -19590,7 +19590,10 @@
+--- a/dist/agent-DwtTO5Px.js
++++ b/dist/agent-DwtTO5Px.js
+@@ -21028,7 +21028,10 @@
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -12,20 +12,58 @@
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -20823,6 +20826,12 @@
+@@ -22227,6 +22230,7 @@
+ 						let runId;
+ 						let toolName;
+ 						let toolArgs;
++						let persistedRequesterId;
+ 						const stashed = this.pendingApprovalCards.get(toolCallId);
+ 						if (stashed?.runId) {
+ 							runId = stashed.runId;
+@@ -22251,6 +22255,7 @@
+ 										runId = toolData.parentRunId ?? toolData.runId;
+ 										toolName = toolData.toolName;
+ 										toolArgs = toolData.args;
++										persistedRequesterId = toolData.requesterId;
+ 										break;
+ 									}
+ 									if (runId) break;
+@@ -22261,6 +22266,16 @@
  							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
  							return;
  						}
-+						const approvalRequesterId = stashed?.requesterId;
++						// After a restart the in-memory stash is empty, so the requester comes from
++						// what was persisted with the suspended run. With none, refuse the click
++						// rather than let anyone in the channel answer.
++						const fromMemoryStore = !stashed?.runId;
++						const approvalRequesterId = fromMemoryStore ? persistedRequesterId : stashed.requesterId;
 +						const actingUserId = event.user?.userId;
-+						if (approvalRequesterId && (!actingUserId || approvalRequesterId !== actingUserId)) {
++						if ((fromMemoryStore || approvalRequesterId) && (!approvalRequesterId || !actingUserId || approvalRequesterId !== actingUserId)) {
 +							this.log("info", `Ignoring tool approval action from ${actingUserId}: only ${approvalRequesterId} may answer toolCallId=${toolCallId}`);
 +							return;
 +						}
  						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
  						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
  						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -21315,7 +21324,7 @@
+@@ -22281,7 +22296,7 @@
+ 							});
+ 							const { requestContext } = handlerContext;
+ 							requestContext.set("channel", channelContext);
+-							const renderContext = this._buildRenderContext(chatThread, platform);
++							const renderContext = this._buildRenderContext(chatThread, platform, void 0, approvalRequesterId);
+ 							requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
+ 							try {
+ 								await this.dispatchDecline({
+@@ -22318,7 +22333,7 @@
+ 						const renderContext = this._buildRenderContext(chatThread, platform, {
+ 							toolCallId,
+ 							messageId
+-						});
++						}, approvalRequesterId);
+ 						requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
+ 						await this.dispatchApproval({
+ 							runId,
+@@ -22754,7 +22769,7 @@
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -34,7 +72,7 @@
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -21377,14 +21386,17 @@
+@@ -22816,14 +22831,17 @@
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -54,7 +92,7 @@
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -25626,6 +25638,16 @@
+@@ -27353,6 +27371,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -71,7 +109,7 @@
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -25646,7 +25668,11 @@
+@@ -27373,7 +27401,11 @@
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -84,7 +122,7 @@
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -25674,7 +25700,7 @@
+@@ -27401,7 +27433,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -93,9 +131,22 @@
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
---- a/dist/agent-BMi0F5ou.cjs
-+++ b/dist/agent-BMi0F5ou.cjs
-@@ -19592,7 +19592,10 @@
+@@ -28331,10 +28363,12 @@
+ 				const suspendTransform = getTransformedToolPayload(toolStateTransformMetadata, "transcript", "suspend");
+ 				const transformedArgs = type === "approval" ? hasTransformedToolPayload(approvalTransform) ? approvalTransform.transformed : hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : args : hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : args;
+ 				const transformedSuspendPayload = type === "suspension" ? hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : suspendPayload : void 0;
++				const channelRequesterId = requestContext?.get?.("channel")?.userId;
+ 				const entry = {
+ 					toolCallId,
+ 					toolName,
+ 					args: transformedArgs,
++					...typeof channelRequesterId === "string" && channelRequesterId.length > 0 ? { requesterId: channelRequesterId } : {},
+ 					...parentToolName ? {
+ 						parentToolName,
+ 						parentArgs
+--- a/dist/agent-DVnXHd4C.cjs
++++ b/dist/agent-DVnXHd4C.cjs
+@@ -21030,7 +21030,10 @@
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -107,20 +158,58 @@
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -20825,6 +20828,12 @@
+@@ -22229,6 +22232,7 @@
+ 						let runId;
+ 						let toolName;
+ 						let toolArgs;
++						let persistedRequesterId;
+ 						const stashed = this.pendingApprovalCards.get(toolCallId);
+ 						if (stashed?.runId) {
+ 							runId = stashed.runId;
+@@ -22253,6 +22257,7 @@
+ 										runId = toolData.parentRunId ?? toolData.runId;
+ 										toolName = toolData.toolName;
+ 										toolArgs = toolData.args;
++										persistedRequesterId = toolData.requesterId;
+ 										break;
+ 									}
+ 									if (runId) break;
+@@ -22263,6 +22268,16 @@
  							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
  							return;
  						}
-+						const approvalRequesterId = stashed?.requesterId;
++						// After a restart the in-memory stash is empty, so the requester comes from
++						// what was persisted with the suspended run. With none, refuse the click
++						// rather than let anyone in the channel answer.
++						const fromMemoryStore = !stashed?.runId;
++						const approvalRequesterId = fromMemoryStore ? persistedRequesterId : stashed.requesterId;
 +						const actingUserId = event.user?.userId;
-+						if (approvalRequesterId && (!actingUserId || approvalRequesterId !== actingUserId)) {
++						if ((fromMemoryStore || approvalRequesterId) && (!approvalRequesterId || !actingUserId || approvalRequesterId !== actingUserId)) {
 +							this.log("info", `Ignoring tool approval action from ${actingUserId}: only ${approvalRequesterId} may answer toolCallId=${toolCallId}`);
 +							return;
 +						}
  						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
  						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
  						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -21317,7 +21326,7 @@
+@@ -22283,7 +22298,7 @@
+ 							});
+ 							const { requestContext } = handlerContext;
+ 							requestContext.set("channel", channelContext);
+-							const renderContext = this._buildRenderContext(chatThread, platform);
++							const renderContext = this._buildRenderContext(chatThread, platform, void 0, approvalRequesterId);
+ 							requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
+ 							try {
+ 								await this.dispatchDecline({
+@@ -22320,7 +22335,7 @@
+ 						const renderContext = this._buildRenderContext(chatThread, platform, {
+ 							toolCallId,
+ 							messageId
+-						});
++						}, approvalRequesterId);
+ 						requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
+ 						await this.dispatchApproval({
+ 							runId,
+@@ -22756,7 +22771,7 @@
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -129,7 +218,7 @@
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -21379,14 +21388,17 @@
+@@ -22818,14 +22833,17 @@
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -149,7 +238,7 @@
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -25628,6 +25640,16 @@
+@@ -27355,6 +27373,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -166,7 +255,7 @@
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -25648,7 +25670,11 @@
+@@ -27375,7 +27403,11 @@
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -179,7 +268,7 @@
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -25676,7 +25702,7 @@
+@@ -27403,7 +27435,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -188,3 +277,16 @@
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
+@@ -28333,10 +28365,12 @@
+ 				const suspendTransform = require_payload_transform.getTransformedToolPayload(toolStateTransformMetadata, "transcript", "suspend");
+ 				const transformedArgs = type === "approval" ? require_payload_transform.hasTransformedToolPayload(approvalTransform) ? approvalTransform.transformed : require_payload_transform.hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : args : require_payload_transform.hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : require_payload_transform.hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : args;
+ 				const transformedSuspendPayload = type === "suspension" ? require_payload_transform.hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : suspendPayload : void 0;
++				const channelRequesterId = requestContext?.get?.("channel")?.userId;
+ 				const entry = {
+ 					toolCallId,
+ 					toolName,
+ 					args: transformedArgs,
++					...typeof channelRequesterId === "string" && channelRequesterId.length > 0 ? { requesterId: channelRequesterId } : {},
+ 					...parentToolName ? {
+ 						parentToolName,
+ 						parentArgs

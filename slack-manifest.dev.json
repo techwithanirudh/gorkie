@@ -1,7 +1,7 @@
 {
   "display_information": {
-    "name": "gorkie",
-    "description": "gork but big brain",
+    "name": "gorkie (dev)",
+    "description": "Local development copy of gorkie, on its own Socket Mode connection.",
     "background_color": "#000000"
   },
   "features": {
@@ -11,7 +11,7 @@
       "messages_tab_read_only_enabled": false
     },
     "bot_user": {
-      "display_name": "gorkie",
+      "display_name": "gorkie-dev",
       "always_online": true
     },
     "agent_view": {

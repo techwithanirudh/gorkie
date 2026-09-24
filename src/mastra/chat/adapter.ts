@@ -154,21 +154,13 @@ export class SlackAgentAdapter extends SlackAdapter {
     return lookup;
   }
 
-  protected override async resolveInlineMentions(
-    text: string,
-    skipSelfMention: boolean
-  ) {
+  protected override async resolveInlineMentions(text: string) {
     const mentionNames = new Map<string, string>();
     const missingIds = new Set<string>();
-    const { botUserId } = this;
 
     for (const mention of text.matchAll(mentionPattern)) {
       const [, userId, label] = mention;
-      if (
-        !userId ||
-        mentionNames.has(userId) ||
-        (skipSelfMention && userId === botUserId)
-      ) {
+      if (!userId || mentionNames.has(userId)) {
         continue;
       }
       if (label) {

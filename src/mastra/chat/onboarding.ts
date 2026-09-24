@@ -10,6 +10,7 @@ import {
 import { env } from '@/env';
 import { addAllowedUser } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
+import { ALREADY_IN_CHANNEL } from '../lib/logger/slack';
 import { slackErrorSchema } from '../types';
 import { slack } from './client';
 
@@ -70,7 +71,7 @@ export async function acceptOptIn(event: ActionEvent): Promise<void> {
       await slack.webClient.conversations.invite({ channel, users: userId });
     } catch (error) {
       const slackError = slackErrorSchema.safeParse(error).data?.data?.error;
-      if (slackError !== 'already_in_channel') {
+      if (slackError !== ALREADY_IN_CHANNEL) {
         logger.warn('[onboarding] failed to invite to opt-in channel', {
           channel,
           error,

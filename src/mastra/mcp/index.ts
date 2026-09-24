@@ -6,21 +6,27 @@ const client = new MCPClient({
   servers: {
     context7: {
       url: new URL('https://mcp.context7.com/mcp'),
+      // The URL is a constant, so this is not about who picks the address: it
+      // bounds where a redirect can take the client.
+      allowedHosts: ['mcp.context7.com'],
     },
   },
 });
 client.__setLogger(logger);
 
-let listed: ReturnType<MCPClient['listTools']> | undefined;
+type MCPTools = Awaited<ReturnType<MCPClient['listTools']>>;
 
-export function mcpTools(): ReturnType<MCPClient['listTools']> {
+let listed: Promise<MCPTools> | undefined;
+
+export function mcpTools(): Promise<MCPTools> {
   if (listed) {
     return listed;
   }
-  const listing = client.listTools().then(
-    (tools) => {
-      // An unreachable server lists as {}, so leave it uncached and retry next turn.
-      if (Object.keys(tools).length === 0 && listed === listing) {
+  const listing = client.listToolsWithErrors().then(
+    ({ tools, errors }) => {
+      // A server that fails to list is dropped from `tools`, not thrown, so
+      // leave a partial listing uncached and retry it next turn.
+      if (Object.keys(errors).length > 0 && listed === listing) {
         listed = undefined;
       }
       return tools;

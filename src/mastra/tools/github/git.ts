@@ -21,6 +21,16 @@ export const git = async ({
   try {
     const { stdout } = await sandbox.e2b.commands.run(command, {
       ...(cwd ? { cwd } : {}),
+      // These run inside the credential window, so hooks or an fsmonitor the
+      // agent wrote into the checkout must not run with GitHub auth attached.
+      // Env config reaches every git in a compound command, unlike `-c`.
+      envs: {
+        GIT_CONFIG_COUNT: '2',
+        GIT_CONFIG_KEY_0: 'core.hooksPath',
+        GIT_CONFIG_VALUE_0: '/dev/null',
+        GIT_CONFIG_KEY_1: 'core.fsmonitor',
+        GIT_CONFIG_VALUE_1: 'false',
+      },
       timeoutMs: sandboxConfig.gitTimeout,
     });
     return stdout.trim();

@@ -5,6 +5,7 @@ import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
 import { logger } from '../../lib/logger';
+import { ALREADY_IN_CHANNEL } from '../../lib/logger/slack';
 import type { ChannelContext } from '../../types';
 import { slackErrorSchema, type Target } from '../../types/tools/index';
 
@@ -121,8 +122,7 @@ export async function joinChannel(channelId: string): Promise<void> {
     joinedChannels.add(id);
   } catch (error) {
     if (
-      slackErrorSchema.safeParse(error).data?.data?.error ===
-      'already_in_channel'
+      slackErrorSchema.safeParse(error).data?.data?.error === ALREADY_IN_CHANNEL
     ) {
       joinedChannels.add(id);
       return;

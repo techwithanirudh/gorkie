@@ -27,7 +27,12 @@ export const env = createEnv({
     LANGFUSE_PUBLIC_KEY: z.string().min(1),
     LANGFUSE_SECRET_KEY: z.string().min(1),
 
-    E2B_API_KEY: z.string().min(1),
+    E2B_API_KEY: z
+      .string()
+      .regex(
+        /^e2b_[0-9a-f]+$/,
+        'must be an E2B API key: "e2b_" followed by hex characters'
+      ),
 
     CREDENTIALS_KEY: z
       .base64()

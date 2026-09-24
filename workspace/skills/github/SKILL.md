@@ -13,7 +13,7 @@ The branch a pull request merges into is not always `main`. Ask which one they w
 
 ## 2. Work in the sandbox
 
-`github_checkout`, then edit and commit on a feature branch. Never `main` or `master`: `github_push_branch` refuses both, so a change committed on a default branch has to be moved before it can go anywhere.
+`github_checkout`, then edit and commit on a feature branch. Never the default branch, `main`, or `master`: `github_push_branch` refuses all three, so a change committed on a default branch has to be moved before it can go anywhere.
 
 ## 3. Run what CI runs, before pushing
 

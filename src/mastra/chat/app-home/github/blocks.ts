@@ -1,4 +1,5 @@
 import { env } from '@/env';
+import { levelsFor } from '../../../lib/github';
 import type {
   GitHubCredential,
   GitHubPermission,
@@ -23,6 +24,13 @@ export function githubBlocks({
   const pat = credential?.kind === 'pat' ? credential : undefined;
 
   const scope = threads ? '  ·  `runs in shared threads`' : '';
+  const threadLevel = levelsFor(true).includes(permission)
+    ? permission
+    : 'write';
+  let access = `${PRESETS[permission].status}${scope}`;
+  if (threads && threadLevel !== permission) {
+    access = `${PRESETS[permission].status} in DMs  ·  ${PRESETS[threadLevel].status} in shared threads`;
+  }
   let status = 'Not connected';
   let detail =
     'Sign in with the app for access scoped to the repositories you pick. A classic token also reaches repositories somebody else owns.';
@@ -32,10 +40,10 @@ export function githubBlocks({
       'Gorkie could not read your stored connection, so GitHub tools will not run. Disconnect and sign in again to replace it.';
   } else if (credential?.kind === 'pat') {
     status = `*${credential.login}*`;
-    detail = `${PRESETS[permission].status}${scope}  ·  using your personal token`;
+    detail = `${access}  ·  using your personal token`;
   } else if (credential && installations > 0) {
     status = `*${credential.login}*`;
-    detail = `${PRESETS[permission].status}${scope}  ·  Gorkie uses your GitHub account`;
+    detail = `${access}  ·  Gorkie uses your GitHub account`;
   } else if (credential) {
     status = `*${credential.login}*`;
     detail = `Not installed on any repositories, so Gorkie cannot reach code${scope}  ·  <https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new|choose repositories>`;
