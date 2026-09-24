@@ -5,6 +5,7 @@ export const sandbox = {
   template: 'gorkie-workspace:2.2',
   executionTimeout: 15 * 60 * 1000,
   timeout: 16 * 60 * 1000,
+  extendThrottleMs: 2 * 60 * 1000,
   // A job outlives its turn, so the VM lifetime is re-armed while one runs.
   // The cap matches E2B Hobby's one-hour sandbox limit.
   background: {

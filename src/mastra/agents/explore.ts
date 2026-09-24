@@ -42,7 +42,5 @@ export const explore = new Agent({
       'save_artifact',
     ],
   },
-  // No `sandbox` processor: a subagent's request context carries the parent's
-  // channel, so ending the turn here would end the parent's turn mid-run.
   outputProcessors: [stepGuard, workingModel('explore')],
 });

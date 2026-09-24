@@ -168,7 +168,6 @@ export class E2BFilesystem extends MastraFilesystem {
     );
   }
 
-  // Appended in the sandbox, so the existing file never crosses the E2B API.
   async appendFile(inputPath: string, content: FileContent): Promise<void> {
     await this.ensureReady();
     const filePath = this.resolve(inputPath);

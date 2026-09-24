@@ -27,7 +27,6 @@ export const PRESETS = {
   { description: string; label: string; status: string }
 >;
 
-// A radio that sends anything unexpected falls back to the DM-only scope.
 export const scopeSchema = z.enum(['dm', 'threads']).catch('dm');
 
 export const SCOPE_LABELS = {

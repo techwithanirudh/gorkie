@@ -12,8 +12,6 @@ import type { ChannelContext } from '../types';
 import { requireSandbox } from '../workspace';
 import { startJob } from '../workspace/jobs';
 
-// Rebuilt from the thread id alone, as after a restart: there is no sender to
-// recover, so user-scoped tools stay off for the turn it starts.
 interface ThreadOnlyChannelContext {
   channelId: string;
   isDM: boolean;

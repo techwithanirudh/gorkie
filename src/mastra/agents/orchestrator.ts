@@ -165,8 +165,6 @@ export const orchestrator = new Agent({
       },
       observationalMemory: {
         model: summarizerModel,
-        // Skill bodies are instructions, not conversation: observing them would
-        // bake stale skill text into the log.
         hooks: { beforeObservation: skillResultRedactor() },
         activateAfterIdle: 'auto',
         activateOnProviderChange: true,

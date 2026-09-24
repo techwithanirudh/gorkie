@@ -37,7 +37,7 @@ async function readThreadState(
   return parsed.data;
 }
 
-export async function threadState(
+export async function threadStateOrNull(
   thread: Pick<Thread, 'id'>
 ): Promise<ThreadState | null> {
   try {
@@ -66,8 +66,6 @@ export async function setThreadState({
   const previous = pendingWrites.get(thread.id);
   const write = (async () => {
     await previous;
-    // Unlike a read, a failed read here skips the write: writing the patch
-    // alone would erase whatever the unreadable state held.
     try {
       const current = await readThreadState(thread);
       const store = await threadStateStore();

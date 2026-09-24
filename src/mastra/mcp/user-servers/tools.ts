@@ -5,8 +5,6 @@ import { logger } from '../../lib/logger';
 import { describeMCPError } from '../errors';
 import { dropClient, resolveClient } from './client';
 
-// Process memory, so the Home warning is gone after a restart until the
-// user's next turn lists tools again.
 export const unlabelledServers = new Set<string>();
 
 export const coverageKey = ({

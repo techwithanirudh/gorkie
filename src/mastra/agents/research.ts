@@ -44,7 +44,5 @@ export const research = new Agent({
   }),
   inputProcessors: historyProcessors,
   defaultOptions: runDefaults(config.maxTokens.subagentOutput),
-  // No `sandbox` processor: a subagent's request context carries the parent's
-  // channel, so ending the turn here would end the parent's turn mid-run.
   outputProcessors: [stepGuard, workingModel('research')],
 });

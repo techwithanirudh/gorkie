@@ -39,6 +39,5 @@ export function runDefaults(maxOutputTokens: number): AgentExecutionOptions {
 }
 
 // A subagent without memory of its own inherits the orchestrator's Postgres
-// memory for each delegation, observational memory included. The orchestrator
-// deletes each delegation thread from this store once the delegation completes.
+// memory for each delegation, observational memory included.
 export const delegationMemory = new Memory({ storage: new InMemoryStore() });

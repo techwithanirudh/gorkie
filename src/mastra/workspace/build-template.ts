@@ -59,11 +59,7 @@ async function main(): Promise<void> {
         mode: 0o755,
       })
       .setUser('user')
-      .runCmd([
-        // agent-browser runs as user, so stealth-browser.sh resolves the binary
-        // from user's cache.
-        'python3 -m cloakbrowser install',
-      ])
+      .runCmd(['python3 -m cloakbrowser install'])
       .setWorkdir(config.workdir),
     config.template,
     {

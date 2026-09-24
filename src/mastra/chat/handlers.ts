@@ -16,7 +16,7 @@ import { banStatus } from './moderation';
 import { banNotice } from './moderation/cards';
 import { notify } from './notify';
 import { offerOptIn } from './onboarding';
-import { sentBeforeStop, setThreadState, threadState } from './state';
+import { sentBeforeStop, setThreadState, threadStateOrNull } from './state';
 import { syncTitle } from './title';
 import { claimTurn } from './usage';
 
@@ -57,7 +57,7 @@ async function turnAwayNotOptedIn({
   if (status === 'allowed') {
     return false;
   }
-  if (status === 'uncached') {
+  if (status === 'list-not-loaded') {
     // Not awaited: paging a large channel's members would hold this reply.
     rebuildAllowlist().catch((error: unknown) =>
       logger.error('[allowlist] failed to rebuild opt-in cache', { error })
@@ -206,7 +206,7 @@ export const onMention: ChannelHandler = async (
   if (await turnAwayNotOptedIn({ message, offer: true, thread })) {
     return;
   }
-  const state = await threadState(thread);
+  const state = await threadStateOrNull(thread);
   const sees = thread.isDM
     ? undefined
     : await focusFilter({ state, threadId: thread.id });
@@ -239,7 +239,7 @@ export const onSubscribedMessage: ChannelHandler = async (
     });
     return;
   }
-  const state = await threadState(thread);
+  const state = await threadStateOrNull(thread);
   const isFollowingThread = state?.respondOnThreadMessages === true;
   if (!(isFollowingThread || message.isMention)) {
     declined({
@@ -293,7 +293,7 @@ export const onDirectMessage: ChannelHandler = async (
   if (await turnAwayNotOptedIn({ message, offer: true, thread })) {
     return;
   }
-  const state = await threadState(thread);
+  const state = await threadStateOrNull(thread);
   if (await handleCommand({ message, state, thread })) {
     return;
   }

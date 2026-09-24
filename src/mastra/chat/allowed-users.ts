@@ -4,9 +4,7 @@ import { rawId } from '../lib/ids';
 import { logger } from '../lib/logger';
 import { slack } from './client';
 
-// 'uncached' means the allow-list has not been built yet; the caller decides
-// whether to trigger a rebuild.
-type OptInStatus = 'allowed' | 'not-allowed' | 'unknown' | 'uncached';
+type OptInStatus = 'allowed' | 'not-allowed' | 'unknown' | 'list-not-loaded';
 
 function allowlistKey(channel: string): string {
   return `slack:allowed-users:${channel}`;
@@ -51,7 +49,7 @@ export async function optInStatus(userId: string): Promise<OptInStatus> {
     logger.warn('[allowlist] failed to read opt-in cache', { error, userId });
     return 'unknown';
   }
-  return 'uncached';
+  return 'list-not-loaded';
 }
 
 export async function setMembership({

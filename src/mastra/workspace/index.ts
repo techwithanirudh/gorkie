@@ -28,9 +28,7 @@ import {
   WRITE_FILE,
 } from './tool-names';
 
-// Keyed by thread, not by context: a delegated subagent runs on a copy of the
-// orchestrator's context, so its sandbox use would be invisible at turn end.
-const reached = new Set<string>();
+const threadsUsingSandbox = new Set<string>();
 const extendedAt = new WeakMap<E2BSandbox, number>();
 const unscopedSandboxKey = '__unscoped__';
 
@@ -50,16 +48,12 @@ function sandboxKey(requestContext: RequestContext): string {
   return channelContext(requestContext).threadId || unscopedSandboxKey;
 }
 
-// A sandbox not attached yet gets the full timeout when it connects, so only
-// an attached one needs pushing out. Every workspace tool call lands here, so
-// a deadline pushed in the last two minutes is left alone rather than paying
-// an E2B round trip per call.
 async function extendSandbox(sandbox: E2BSandbox): Promise<void> {
   if (!sandbox.sandboxId) {
     return;
   }
   const last = extendedAt.get(sandbox);
-  if (last !== undefined && Date.now() - last < config.timeout / 8) {
+  if (last !== undefined && Date.now() - last < config.extendThrottleMs) {
     return;
   }
   try {
@@ -113,7 +107,7 @@ async function getSandbox(
   if (!(sandbox instanceof E2BSandbox)) {
     return;
   }
-  reached.add(sandboxKey(requestContext));
+  threadsUsingSandbox.add(sandboxKey(requestContext));
   return sandbox;
 }
 
@@ -123,7 +117,7 @@ export async function endSandboxTurn(
   requestContext: RequestContext
 ): Promise<void> {
   const key = sandboxKey(requestContext);
-  if (!reached.has(key)) {
+  if (!threadsUsingSandbox.has(key)) {
     return;
   }
   const { threadId } = channelContext(requestContext);
@@ -137,7 +131,7 @@ export async function endSandboxTurn(
   } catch (error) {
     logger.debug('[sandbox] failed to pause', { error });
   }
-  reached.delete(key);
+  threadsUsingSandbox.delete(key);
   if (threadId) {
     workspace.clearSandboxCache(threadId);
   }
@@ -151,8 +145,6 @@ async function beforeToolCall({
   WorkspaceToolBeforeHookResult | undefined
 > {
   const call = toolCallContext.safeParse(context).data;
-  // Every run without a thread would share the one unscoped sandbox, and with
-  // it the files and processes of whoever ran there before.
   if (!call || sandboxKey(call.requestContext) === unscopedSandboxKey) {
     return {
       proceed: false,

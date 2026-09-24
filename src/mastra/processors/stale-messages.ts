@@ -1,6 +1,6 @@
 import type { ProcessInputArgs } from '@mastra/core/processors';
 import { z } from 'zod';
-import { threadState } from '../chat/state';
+import { threadStateOrNull } from '../chat/state';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
 
@@ -26,7 +26,8 @@ export const staleMessages = {
     if (!threadId) {
       return messageList;
     }
-    const cutoff = (await threadState({ id: threadId }))?.dropMessagesBefore;
+    const cutoff = (await threadStateOrNull({ id: threadId }))
+      ?.dropMessagesBefore;
     if (!cutoff) {
       return messageList;
     }

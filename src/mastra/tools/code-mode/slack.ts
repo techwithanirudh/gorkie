@@ -126,8 +126,6 @@ export async function codeMode({
       ([, tool]) => tool.mcp?.annotations?.readOnlyHint === true
     )
   );
-  // Keyed on the MCP tool set as well as the access level, so an instance built
-  // while an MCP server was down is rebuilt once its tools come back.
   const key = `${workspaceAccess ? 'workspace' : 'slack'}:${Object.keys(mcp).sort().join(',')}`;
   const existing = instances.get(key);
   if (existing) {

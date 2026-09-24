@@ -58,8 +58,6 @@ export function turnUsage(userId: string): Promise<TurnUsage> {
   return readUsage({ executor: db, userId });
 }
 
-// Counts and inserts under a per-user lock, so concurrent turns from one user
-// cannot all take the last free turn.
 export async function recordTurnWithinLimit(
   userId: string
 ): Promise<{ recorded: boolean; usage: TurnUsage }> {

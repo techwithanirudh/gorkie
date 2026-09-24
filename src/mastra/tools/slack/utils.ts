@@ -5,7 +5,7 @@ import { Chat } from 'chat';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { focusFilter } from '../../chat/focus';
-import { threadState } from '../../chat/state';
+import { threadStateOrNull } from '../../chat/state';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
 import { logger } from '../../lib/logger';
@@ -219,7 +219,7 @@ export async function focusedMessages({
   const sees =
     threadId && threadId === currentThreadId
       ? await focusFilter({
-          state: await threadState({ id: threadId }),
+          state: await threadStateOrNull({ id: threadId }),
           threadId,
         })
       : undefined;

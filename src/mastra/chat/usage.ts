@@ -3,9 +3,8 @@ import { recordTurnWithinLimit } from '../db/queries/usage';
 import { logger } from '../lib/logger';
 import { isModerator } from './moderation/moderators';
 
-// 'unchecked' means the usage lookup failed and the turn went ahead unrecorded.
 type TurnClaim =
-  | { status: 'claimed' | 'unchecked' }
+  | { status: 'claimed' | 'lookup-failed-unrecorded' }
   | { status: 'over-limit'; notice: string };
 
 export async function claimTurn(userId: string): Promise<TurnClaim> {
@@ -30,6 +29,6 @@ export async function claimTurn(userId: string): Promise<TurnClaim> {
     };
   } catch (error) {
     logger.error('[usage] turn limit check failed', { error, userId });
-    return { status: 'unchecked' };
+    return { status: 'lookup-failed-unrecorded' };
   }
 }

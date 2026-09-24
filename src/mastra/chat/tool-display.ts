@@ -1,7 +1,7 @@
 import { toolDisplay as config } from '../config';
 import { getUserSettings } from '../db/queries/settings';
 import type { ToolDisplayMode, ToolDisplaySource } from '../types';
-import { threadState } from './state';
+import { threadStateOrNull } from './state';
 
 export async function resolveToolDisplay({
   threadId,
@@ -11,7 +11,7 @@ export async function resolveToolDisplay({
   userId?: string;
 }): Promise<{ mode: ToolDisplayMode; source: ToolDisplaySource }> {
   const [thread, personal] = await Promise.all([
-    threadId ? threadState({ id: threadId }) : undefined,
+    threadId ? threadStateOrNull({ id: threadId }) : undefined,
     userId ? getUserSettings(userId) : undefined,
   ]);
   if (thread?.toolDisplay) {

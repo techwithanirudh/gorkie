@@ -14,7 +14,6 @@ const markers = [
   'stepIsContinued',
 ];
 
-// Not a patch hunk: stock code that processors/tool-display.ts depends on.
 const stockContracts = ['"__mastra_chat_channel_render"'];
 
 // Native streaming depends on the adapter patch that continues a reply in a
@@ -24,7 +23,6 @@ const slackDist = join(root, 'node_modules/@chat-adapter/slack/dist/index.js');
 const missing = [
   ...['agent-DwtTO5Px.js', 'agent-DVnXHd4C.cjs'].flatMap((file) => {
     const path = join(dist, file);
-    // The bundle names are content hashes, so any @mastra/core bump renames them.
     if (!existsSync(path)) {
       return [
         `${file}: patched bundle not found, rebuild the patch for the new @mastra/core version`,

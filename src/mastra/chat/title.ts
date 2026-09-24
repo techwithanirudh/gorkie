@@ -3,7 +3,7 @@ import { agent as agentConfig } from '../config';
 import { slack } from './client';
 import { getMastra } from './mastra-instance';
 import { memoryThread } from './memory-thread';
-import { setThreadState, threadState } from './state';
+import { setThreadState, threadStateOrNull } from './state';
 
 async function titleFor({
   message,
@@ -55,7 +55,7 @@ export async function syncTitle({
     return;
   }
   const title = await titleFor({ message, threadId: thread.id });
-  const state = await threadState(thread);
+  const state = await threadStateOrNull(thread);
   if (!title || state?.lastSentSlackTitle === title) {
     return;
   }

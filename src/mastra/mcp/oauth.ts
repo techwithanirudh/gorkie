@@ -23,7 +23,6 @@ type DiscoveryState = Parameters<
 
 const refreshing = new Map<string, Promise<void>>();
 
-// A corrupt row reads as absent instead of throwing out of the caller.
 const storedJson = z.string().transform((raw, ctx) => {
   try {
     return JSON.parse(raw);
@@ -135,8 +134,8 @@ export class MCPServerOAuth extends MCPOAuthClientProvider {
   // each other. Refreshing just before expiry, once per server, avoids that.
   override async tokens(): Promise<OAuthTokens | undefined> {
     const tokens = await super.tokens();
-    // A sign-in flow sets onRedirect; only background turns refresh ahead.
-    if (this.#onRedirect) {
+    const inSignInFlow = this.#onRedirect !== undefined;
+    if (inSignInFlow) {
       return tokens;
     }
     const savedAt = Number(await this.#store.get('tokens_saved_at'));

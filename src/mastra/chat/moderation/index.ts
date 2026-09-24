@@ -16,11 +16,9 @@ import { decisionCard } from './cards';
 import { moderationIds } from './ids';
 import { isModerator } from './moderators';
 
-// 'unknown' means the lookup failed; every caller lets the user through then,
-// so a database outage never locks everyone out.
 type BanStatus =
   | { status: 'banned'; ban: ActiveBan }
-  | { status: 'clear' | 'unknown' };
+  | { status: 'clear' | 'lookup-failed' };
 
 const DURATION: Record<Exclude<BanDuration, 'perm'>, Duration> = {
   '1h': { hours: 1 },
@@ -35,7 +33,7 @@ export async function banStatus(userId: string): Promise<BanStatus> {
     return ban ? { status: 'banned', ban } : { status: 'clear' };
   } catch (error) {
     logger.error('[moderation] ban lookup failed', { error, userId });
-    return { status: 'unknown' };
+    return { status: 'lookup-failed' };
   }
 }
 

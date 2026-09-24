@@ -12,8 +12,6 @@ export class LangfuseFeedbackExporter extends BaseExporter {
 
   private readonly langfuse: LangfuseClient | undefined;
 
-  // The LangfuseExporter's client, so feedback and traces share one connection.
-  // It is undefined when the exporter disabled itself for missing credentials.
   constructor(langfuse: LangfuseClient | undefined) {
     super();
     this.langfuse = langfuse;

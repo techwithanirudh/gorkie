@@ -120,7 +120,6 @@ export function registerMCPServers(): void {
 
   bot.onAction(ids.add, async (event) => {
     const servers = await listMCPServers(event.user.userId);
-    // A Home tab published before the last add can still show the button.
     if (servers.length >= mcp.maxServers) {
       return;
     }
