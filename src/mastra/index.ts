@@ -162,6 +162,12 @@ export const mastra = new Mastra({
     onError: deleteFiredWait,
     onAbort: deleteFiredWait,
   },
+  // Creates `mastra_background_tasks`. Only run_background opts in; its own
+  // completion hook wakes the thread.
+  backgroundTasks: {
+    enabled: true,
+    cleanup: { cleanupIntervalMs: 60 * 60 * 1000 },
+  },
   workers: [new TurnDrainWorker()],
   storage: traceStore
     ? new MastraCompositeStore({

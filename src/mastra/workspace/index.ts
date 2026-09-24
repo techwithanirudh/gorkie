@@ -13,6 +13,7 @@ import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
 import { SandboxBrowser } from './browser';
 import { E2BFilesystem } from './filesystem';
+import { endJob, hasLiveJob, startJob } from './jobs';
 import { createSandbox } from './sandbox';
 import {
   DELETE_FILE,
@@ -29,6 +30,18 @@ import {
 
 const reached = new WeakSet<RequestContext>();
 const unscopedSandboxKey = '__unscoped__';
+
+const toolCallContext = z.object({
+  agent: z.object({ toolCallId: z.string() }).optional(),
+  requestContext: z.instanceof(RequestContext),
+});
+const backgroundCommand = z.looseObject({ background: z.literal(true) });
+const backgroundTimeout = backgroundCommand.extend({
+  timeout: z.coerce
+    .number()
+    .positive()
+    .max(config.background.maxTimeoutSeconds),
+});
 
 function sandboxKey(requestContext: RequestContext): string {
   return channelContext(requestContext).threadId || unscopedSandboxKey;
@@ -90,6 +103,11 @@ export async function pauseSandbox(
     // Dynamic: the Slack card module imports this one for the browser.
     const { endLiveView } = await import('../chat/live-view');
     await endLiveView({ threadId });
+    // Pausing freezes a background job mid-run (it only advanced during later
+    // turns); the job keeps the VM alive itself and E2B pauses it after.
+    if (hasLiveJob(threadId)) {
+      return;
+    }
   }
   try {
     const sandbox = await getSandbox(requestContext);
@@ -147,13 +165,41 @@ export const workspace: Workspace = new Workspace({
   tools: {
     // Custom sandbox tools extend through requireSandbox instead.
     hooks: {
-      beforeToolCall: async ({ context }) => {
-        const requestContext = z
-          .object({ requestContext: z.instanceof(RequestContext) })
-          .safeParse(context).data?.requestContext;
-        const sandbox = requestContext && (await getSandbox(requestContext));
-        if (sandbox) {
-          await extendSandbox(sandbox);
+      beforeToolCall: async ({ context, input, workspaceToolName }) => {
+        const background =
+          workspaceToolName === WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND &&
+          backgroundCommand.safeParse(input).success;
+        const timeout = backgroundTimeout.safeParse(input).data?.timeout;
+        if (background && timeout === undefined) {
+          // Nothing else bounds a background process once the turn-end pause
+          // stops freezing it.
+          return {
+            proceed: false,
+            output: `A background command needs a \`timeout\` in seconds, at most ${config.background.maxTimeoutSeconds}. Run it again with one.`,
+          };
+        }
+        const call = toolCallContext.safeParse(context).data;
+        const sandbox = call && (await getSandbox(call.requestContext));
+        if (!(call && sandbox)) {
+          return;
+        }
+        await extendSandbox(sandbox);
+        const { threadId } = channelContext(call.requestContext);
+        // Registered before the spawn so a fast exit cannot beat it.
+        if (background && timeout && threadId && call.agent) {
+          startJob({
+            id: call.agent.toolCallId,
+            threadId,
+            sandbox,
+            timeoutMs: timeout * 1000,
+          });
+        }
+      },
+      afterToolCall: ({ context, error }) => {
+        const toolCallId =
+          toolCallContext.safeParse(context).data?.agent?.toolCallId;
+        if (error !== undefined && toolCallId) {
+          endJob(toolCallId);
         }
       },
     },
@@ -184,7 +230,14 @@ export const workspace: Workspace = new Workspace({
       // `background: true` process is killed the moment the turn ends. Mastra
       // documents `false` as the setting for cloud sandboxes like E2B, where
       // the process is supposed to outlive the agent that started it.
-      backgroundProcesses: { abortSignal: false },
+      backgroundProcesses: {
+        abortSignal: false,
+        onExit: ({ toolCallId }) => {
+          if (toolCallId) {
+            endJob(toolCallId);
+          }
+        },
+      },
     },
     [WORKSPACE_TOOLS.SANDBOX.GET_PROCESS_OUTPUT]: {
       name: GET_PROCESS_OUTPUT,

@@ -17,6 +17,12 @@ export const turnFooter = {
     args.state.startTime ??= Date.now();
     if (
       args.part.type === 'tool-call' &&
+      args.part.payload.toolName === 'run_background'
+    ) {
+      args.state.background = true;
+    }
+    if (
+      args.part.type === 'tool-call' &&
       args.part.payload.toolName !== 'skip'
     ) {
       args.state.toolCalls =
@@ -47,9 +53,16 @@ export const turnFooter = {
       typeof toolCalls === 'number' && toolCalls > 0
         ? ` · ${toolCalls} ${toolCalls === 1 ? 'tool' : 'tools'}`
         : '';
-    const text = `done in ${elapsed || 'under a second'}${tools}`;
-    const traceId = args.tracingContext?.currentSpan?.traceId;
-    if (!traceId) {
+    // A run_background job wakes the thread with its own reply and footer, so
+    // this turn is not done yet and has nothing to rate.
+    const background = args.state.background === true;
+    const text = background
+      ? "working in the background, I'll reply here when it's done…"
+      : `done in ${elapsed || 'under a second'}${tools}`;
+    const traceId = background
+      ? undefined
+      : args.tracingContext?.currentSpan?.traceId;
+    if (!(background || traceId)) {
       logger.warn('[turn-footer] no trace id, posting without rating buttons', {
         threadId,
       });

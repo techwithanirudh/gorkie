@@ -187,6 +187,12 @@ const statuses: Record<string, (args: Args) => string> = {
     display: fileName,
   }),
   resume_scheduled_task: fixed('is resuming a scheduled task…'),
+  run_background: withArg({
+    key: 'reason',
+    idle: 'is starting a background job…',
+    prefix: 'is starting a background job: ',
+    suffix: '…',
+  }),
   search_slack: withArg({
     key: 'query',
     idle: 'is searching Slack…',
