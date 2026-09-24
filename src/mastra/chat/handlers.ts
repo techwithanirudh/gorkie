@@ -154,7 +154,6 @@ async function runTurn({
       size: attachment.size,
       url: attachment.url,
     })),
-    textLength: message.text.length,
   });
 
   const prompt = await withHistory({ message: attachments(message), thread });
