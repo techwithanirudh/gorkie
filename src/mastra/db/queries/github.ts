@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { decryptSecret, encryptSecret } from '../../lib/crypto';
 import { rawId } from '../../lib/ids';
 import type { GitHubCredential } from '../../types';
@@ -17,12 +17,10 @@ export async function getGitHubCredential(
   }
   return {
     expiresAt: row.expiresAt ?? undefined,
-    kind: row.kind,
     login: row.login,
     refreshToken: row.refreshToken
       ? decryptSecret(row.refreshToken)
       : undefined,
-    scopes: row.scopes ? row.scopes.split(',') : [],
     token: decryptSecret(row.token),
   };
 }
@@ -36,12 +34,10 @@ export async function setGitHubCredential({
 }): Promise<void> {
   const set = {
     expiresAt: credential.expiresAt ?? null,
-    kind: credential.kind,
     login: credential.login,
     refreshToken: credential.refreshToken
       ? encryptSecret(credential.refreshToken)
       : null,
-    scopes: credential.scopes.length ? credential.scopes.join(',') : null,
     token: encryptSecret(credential.token),
   };
   await db
@@ -66,12 +62,7 @@ export async function updateRefreshedGitHubCredential({
         : null,
       token: encryptSecret(credential.token),
     })
-    .where(
-      and(
-        eq(githubCredentials.userId, rawId(userId)),
-        eq(githubCredentials.kind, 'app')
-      )
-    )
+    .where(eq(githubCredentials.userId, rawId(userId)))
     .returning({ userId: githubCredentials.userId });
   return updated.length > 0;
 }

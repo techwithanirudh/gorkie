@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { Mastra } from '@mastra/core/mastra';
 import { SpanType } from '@mastra/core/observability';
+import { SimpleAuth } from '@mastra/core/server';
 import { MastraCompositeStore } from '@mastra/core/storage';
 import { DuckDBStore } from '@mastra/duckdb';
 import { LangfuseExporter } from '@mastra/langfuse';
@@ -17,6 +18,7 @@ import { buildAllowlist } from './lib/allowed-users';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
+import { oauthRoutes } from './server/oauth';
 import { isWaitSchedule } from './tools/scheduled-tasks/queries';
 
 process.on('unhandledRejection', (err: unknown) => {
@@ -70,6 +72,38 @@ await runMigrations();
 
 export const mastra = new Mastra({
   agents: { orchestrator, summarizer, research, explore },
+  server: {
+    host: env.HOST,
+    port: env.PORT,
+    cors: false,
+    build: { openAPIDocs: false, swaggerUI: false },
+    apiRoutes: oauthRoutes,
+    ...(env.GORKIE_API_TOKEN
+      ? {
+          auth: new SimpleAuth({
+            tokens: {
+              [env.GORKIE_API_TOKEN]: { id: 'operator', name: 'operator' },
+            },
+          }),
+        }
+      : {}),
+    // Mastra skips server middleware for public routes (the Slack webhook), so
+    // this only sees routes that need a token. Those are for operators on the
+    // host, never for anything that arrived through the tunnel or a proxy.
+    middleware: [
+      {
+        path: '*',
+        handler: async (c, next) => {
+          const proxied =
+            c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for');
+          if (proxied && c.req.path !== '/health') {
+            return c.text('Not found', 404);
+          }
+          await next();
+        },
+      },
+    ],
+  },
   schedules: {
     prepare: async ({ mastra: runtime, schedule }) => {
       const current = await runtime.schedules.get(schedule.id);

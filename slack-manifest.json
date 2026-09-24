@@ -66,6 +66,7 @@
   },
   "settings": {
     "event_subscriptions": {
+      "request_url": "https://<your-host>/api/agents/orchestrator/channels/slack/webhook",
       "bot_events": [
         "agent_session_stopped",
         "app_context_changed",
@@ -78,10 +79,11 @@
       ]
     },
     "interactivity": {
-      "is_enabled": true
+      "is_enabled": true,
+      "request_url": "https://<your-host>/api/agents/orchestrator/channels/slack/webhook"
     },
     "org_deploy_enabled": false,
-    "socket_mode_enabled": true,
+    "socket_mode_enabled": false,
     "token_rotation_enabled": false,
     "is_mcp_enabled": true
   }

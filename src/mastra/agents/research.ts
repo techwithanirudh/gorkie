@@ -8,6 +8,7 @@ import { Memory } from '@mastra/memory';
 import { agent as config } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { sandbox } from '../processors/sandbox';
+import { stepGuard } from '../processors/step-guard';
 import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
 import { description, prompt } from '../prompts/agents/research';
@@ -59,5 +60,5 @@ export const research = new Agent({
     maxSteps: config.maxSteps,
     autoResumeSuspendedTools: true,
   },
-  outputProcessors: [sandbox, workingModel('research')],
+  outputProcessors: [stepGuard, sandbox, workingModel('research')],
 });

@@ -5,10 +5,9 @@ import { SlackAgentAdapter } from './adapter';
 import { content } from './content';
 
 export const slack = new SlackAgentAdapter({
-  mode: 'socket',
   agentView: true,
-  appToken: env.SLACK_APP_TOKEN,
   botToken: env.SLACK_BOT_TOKEN,
+  signingSecret: env.SLACK_SIGNING_SECRET,
   logger: chatLogger,
   // Native streaming silently loses the whole reply when a long turn's
   // placeholder is expired by Slack (chat.stopStream -> message_not_found; the

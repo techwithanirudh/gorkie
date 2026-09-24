@@ -127,10 +127,10 @@ export const workspace: Workspace = new Workspace({
       name: WRITE_FILE,
       requireReadBeforeWrite: true,
     },
-    [WORKSPACE_TOOLS.FILESYSTEM.EDIT_FILE]: {
-      name: EDIT_FILE,
-      requireReadBeforeWrite: true,
-    },
+    // No read-before-write here: Mastra clears the read record after every
+    // successful write, so a second edit to the same file was rejected as
+    // unread. The exact-match old_string already fails on stale content.
+    [WORKSPACE_TOOLS.FILESYSTEM.EDIT_FILE]: { name: EDIT_FILE },
     [WORKSPACE_TOOLS.FILESYSTEM.LIST_FILES]: { name: LIST_FILES },
     [WORKSPACE_TOOLS.FILESYSTEM.DELETE]: { name: DELETE_FILE },
     [WORKSPACE_TOOLS.FILESYSTEM.FILE_STAT]: { name: FILE_STAT },

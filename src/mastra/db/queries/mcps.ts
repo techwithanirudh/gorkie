@@ -4,6 +4,7 @@ import { rawId } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 import {
   type MCPServerConfig,
+  mcpOAuthStatusSchema,
   type StoredMCPServer,
   type ToolPermission,
   toolPermissionSchema,
@@ -25,6 +26,16 @@ export async function listMCPServers(
       permission: toolPermissionSchema.parse(row.permission),
       url: row.url,
       lastError: row.lastError ?? undefined,
+      ...(row.oauthStatus
+        ? {
+            oauth: {
+              status: mcpOAuthStatusSchema
+                .catch('needs-auth')
+                .parse(row.oauthStatus),
+              connectedAt: row.oauthConnectedAt ?? undefined,
+            },
+          }
+        : {}),
     };
     if (!row.token) {
       return server;

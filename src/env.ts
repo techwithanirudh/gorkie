@@ -8,13 +8,18 @@ export const env = createEnv({
       .enum(['development', 'production', 'test'])
       .default('development'),
 
+    HOST: z.string().default('127.0.0.1'),
+    PORT: z.coerce.number().int().positive().default(4111),
+    PUBLIC_BASE_URL: z.url().optional(),
+    GORKIE_API_TOKEN: z.string().min(32).optional(),
+
     // Set in .env to the repo root. Not MASTRA_PROJECT_ROOT: `mastra dev` sets
     // that after .env loads and points it at `.mastra`, so migrations and the
     // DuckDB file anchored to it land in the wrong directory.
     PROJECT_ROOT: z.string().default(process.cwd()),
 
     SLACK_BOT_TOKEN: z.string().min(1),
-    SLACK_APP_TOKEN: z.string().min(1),
+    SLACK_SIGNING_SECRET: z.string().min(1),
     SLACK_USER_TOKEN: z.string().min(1),
     OPT_IN_CHANNEL: z.string().optional(),
 
@@ -53,3 +58,14 @@ export const env = createEnv({
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
 });
+
+// Once Slack reaches the server over HTTP, every other route must need a token
+// and any public URL must be https.
+if (env.NODE_ENV === 'production') {
+  if (!env.GORKIE_API_TOKEN) {
+    throw new Error('GORKIE_API_TOKEN is required in production.');
+  }
+  if (env.PUBLIC_BASE_URL && !env.PUBLIC_BASE_URL.startsWith('https://')) {
+    throw new Error('PUBLIC_BASE_URL must be https in production.');
+  }
+}

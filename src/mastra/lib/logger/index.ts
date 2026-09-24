@@ -22,6 +22,12 @@ export const logger = new PinoLogger({
           'refresh_token',
           'clientSecret',
           'refreshToken',
+          'access_token',
+          'accessToken',
+          'code_verifier',
+          'codeVerifier',
+          'id_token',
+          'idToken',
         ].map((field) => prefix + field)
       ),
     censor: '[redacted]',

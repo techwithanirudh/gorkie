@@ -7,19 +7,13 @@ async function githubApi({
 }: {
   path: string;
   token: string;
-}): Promise<{ data: unknown; scopes: string[] } | { error: string }> {
+}): Promise<{ data: unknown } | { error: string }> {
   try {
     const response = await request(`GET ${path}`, {
       headers: { authorization: `Bearer ${token}`, 'user-agent': 'gorkie' },
       request: { signal: AbortSignal.timeout(10_000) },
     });
-    return {
-      data: response.data,
-      scopes: (response.headers['x-oauth-scopes'] ?? '')
-        .split(',')
-        .map((scope) => scope.trim())
-        .filter(Boolean),
-    };
+    return { data: response.data };
   } catch (error) {
     const status = z.object({ status: z.number() }).safeParse(error)
       .data?.status;
@@ -31,7 +25,7 @@ async function githubApi({
 
 export async function githubUser(
   token: string
-): Promise<{ login: string; scopes: string[] } | { error: string }> {
+): Promise<{ login: string } | { error: string }> {
   const body = await githubApi({ path: '/user', token });
   if ('error' in body) {
     return body;
@@ -39,7 +33,7 @@ export async function githubUser(
   const login = z.object({ login: z.string().min(1) }).safeParse(body.data)
     .data?.login;
   return login
-    ? { login, scopes: body.scopes }
+    ? { login }
     : { error: "GitHub didn't return an account for that token." };
 }
 

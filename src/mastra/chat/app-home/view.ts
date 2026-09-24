@@ -60,7 +60,7 @@ export async function publishHome(userId: string): Promise<void> {
     settled({ label: 'mcp', userId, work: listMCPServers(userId) }),
     credentialResult,
     credentialResult.then(({ credential }) =>
-      credential?.kind === 'app' ? countInstallations(credential.token) : 0
+      credential ? countInstallations(credential.token) : 0
     ),
     settled({ label: 'settings', userId, work: getGitHubSettings(userId) }),
     settled({
@@ -79,8 +79,9 @@ export async function publishHome(userId: string): Promise<void> {
       permission: githubPermissionSchema.parse(github?.permission),
       threads: github?.threads === true,
       unreadable,
+      userId,
     }),
-    mcpServersBlocks(mcpServers ?? []),
+    mcpServersBlocks({ servers: mcpServers ?? [], userId }),
     ...(scheduled ? [scheduled] : []),
   ];
 

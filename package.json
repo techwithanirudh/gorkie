@@ -17,6 +17,8 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "dev": "mastra dev --request-context-presets ./studio/request-context.json",
+    "dev:e2e": "bash ./scripts/dev-e2e.sh",
+    "dev:tunnel": "untun tunnel http://127.0.0.1:4111",
     "fix": "ultracite fix .",
     "postbuild": "bun run scripts/postbuild.ts && cd .mastra/output && bun install",
     "prepare": "lefthook install",
@@ -32,6 +34,7 @@
     "@mastra/deployer": "^1.69.0",
     "@mastra/duckdb": "^1.10.0",
     "@mastra/e2b": "^0.12.1",
+    "@mastra/factory": "0.17.0",
     "@mastra/langfuse": "^1.5.8",
     "@mastra/loggers": "^1.3.2",
     "@mastra/mcp": "1.18.0",
@@ -52,8 +55,10 @@
     "drizzle-orm": "1.0.0-rc.4",
     "e2b": "^2.36.1",
     "exa-js": "^2.16.3",
+    "hono": "4.13.8",
     "ipaddr.js": "^2.5.0",
     "mime-types": "^3.0.2",
+    "oauth4webapi": "3.8.8",
     "zod": "^4"
   },
   "devDependencies": {
@@ -70,7 +75,8 @@
     "lefthook": "^2.1.10",
     "mastra": "^1.31.1",
     "typescript": "^6.0.3",
-    "ultracite": "7.9.4"
+    "ultracite": "7.9.4",
+    "untun": "^0.2.2"
   },
   "engines": {
     "node": ">=24.0.0"

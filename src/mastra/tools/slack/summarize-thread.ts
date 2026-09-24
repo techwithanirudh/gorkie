@@ -72,7 +72,10 @@ export const summarizeThreadTool = createTool({
     const transcript = lines.join('\n');
 
     const prompt = `${instructions ? `Focus requested by the user: ${instructions}\n\n` : ''}<transcript>\n${transcript}\n</transcript>`;
-    const { text } = await summarizer.generate(prompt);
+    const { text } = await summarizer.generate(prompt, {
+      requestContext: context.requestContext,
+      tracingContext: context.tracingContext,
+    });
 
     return {
       messageCount: result.messages.length,

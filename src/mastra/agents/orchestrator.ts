@@ -28,6 +28,7 @@ import { userMCPTools } from '../mcp/user-servers';
 import { profileSchema } from '../memory/profile';
 import { delegatedTools } from '../processors/delegated-tools';
 import { sandbox } from '../processors/sandbox';
+import { stepGuard } from '../processors/step-guard';
 import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
@@ -161,6 +162,7 @@ export const orchestrator = new Agent({
     new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
   ],
   outputProcessors: [
+    stepGuard,
     delegatedTools,
     sandbox,
     turnFooter,

@@ -26,7 +26,7 @@ export async function githubTools({
     if (access.state !== 'connected') {
       return {};
     }
-    const { credential, direct, level } = access;
+    const { direct, level } = access;
 
     const built = createGithubTools({
       token: async () => {
@@ -42,10 +42,6 @@ export async function githubTools({
 
     const tools: Record<string, unknown> = {};
     for (const name of ALLOWLIST) {
-      // An app structurally cannot fork a repository it is not installed on.
-      if (name === 'forkRepository' && credential.kind !== 'pat') {
-        continue;
-      }
       // The SDK's formatter is AI SDK shaped; Mastra hands it the result alone.
       const { toModelOutput: format, ...tool } = built[name];
       const id = `github_${name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()}`;
@@ -78,12 +74,10 @@ export async function githubTools({
     if (direct && threadId) {
       tools.github_checkout = checkoutTool({
         approval: !isDM || asksBefore({ kind: 'read', level }),
-        canFork: credential.kind === 'pat',
         userId,
       });
       tools.github_push_branch = pushTool({
         approval: asksBefore({ kind: 'write', level }),
-        canFork: credential.kind === 'pat',
         userId,
       });
     }

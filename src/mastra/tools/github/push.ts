@@ -7,17 +7,15 @@ import { checkoutPath, git, withCredential } from './git';
 
 export const pushTool = ({
   approval,
-  canFork,
   userId,
 }: {
   approval: boolean;
-  canFork: boolean;
   userId: string;
 }) =>
   createTool({
     id: 'github_push_branch',
     description:
-      'Push a committed branch of a sandbox checkout to GitHub. The branch must already exist locally with the work committed; the default branch, main, and master are refused. Use this when a change spans more than a couple of files, then open the pull request with github_create_pull_request. To push to a fork, set `checkout` to the repo you cloned and `repository` to the fork.',
+      'Push a committed branch of a sandbox checkout to GitHub. The branch must already exist locally with the work committed; the default branch, main, and master are refused. Use this when a change spans more than a couple of files, then open the pull request with github_create_pull_request. To push to a fork the app is installed on (for example their own fork), set `checkout` to the repo you cloned and `repository` to the fork. Gorkie cannot create forks.',
     requireApproval: approval,
     inputSchema: z.strictObject({
       repository: repositorySchema.describe(
@@ -74,9 +72,9 @@ export const pushTool = ({
               await push();
             } else if (/denied|permission|403|forbidden/i.test(message)) {
               throw new Error(
-                canFork
-                  ? `${message}\n\nThis account cannot push to ${repository}. Fork it with github_fork_repository, then call github_push_branch again with checkout set to "${source}" (the repo you cloned) and repository set to your fork, then open the pull request from the fork into ${repository}.`
-                  : `${message}\n\nThis GitHub App connection cannot push to ${repository} and cannot fork it, because an app only reaches repositories it is installed on. Say so, and offer a classic token from the Home tab or a pull request they open themselves.`,
+                `${message}
+
+This GitHub App connection cannot push to ${repository}, because an app only reaches repositories it is installed on. Say so, and offer the diff or a patch so they can open the pull request themselves.`,
                 { cause: error }
               );
             } else {

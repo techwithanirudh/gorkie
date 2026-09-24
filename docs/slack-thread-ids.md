@@ -46,7 +46,7 @@ already, so it does not change.
 ## Deploying
 
 1. Stop the bot. Nothing may write to these tables during the rename, and two
-   instances fighting over one Socket Mode connection fail in confusing ways.
+   instances running at once share the scheduler and workers and fail in confusing ways.
 2. Back up the database. There is no down migration:
 
    ```sh

@@ -6,10 +6,7 @@ function adapt(prefix: string): ChatLogger {
   return {
     child: (childPrefix) => adapt(`${prefix}:${childPrefix}`),
     debug: (message, ...args) => logger.debug(tag(message), logMeta(args)),
-    info: (message, ...args) =>
-      message === 'Processing socket mode retry'
-        ? logger.debug(tag(message), logMeta(args))
-        : logger.info(tag(message), logMeta(args)),
+    info: (message, ...args) => logger.info(tag(message), logMeta(args)),
     warn: (message, ...args) => logger.warn(tag(message), logMeta(args)),
     error: (message, ...args) => logger.error(tag(message), logMeta(args)),
   };

@@ -1,4 +1,4 @@
-import { refreshToken } from '@octokit/oauth-methods';
+import { deleteAuthorization, refreshToken } from '@octokit/oauth-methods';
 import { z } from 'zod';
 import { env } from '@/env';
 import {
@@ -6,9 +6,22 @@ import {
   removeGitHubCredential,
   updateRefreshedGitHubCredential,
 } from '../../db/queries/github';
+import type { GitHubAccount } from '../../types';
 import { logger } from '../logger';
-import { githubUser } from './api';
-import { toAccount } from './device-flow';
+
+export function toAccount(authentication: {
+  expiresAt?: string;
+  refreshToken?: string;
+  token: string;
+}): GitHubAccount {
+  return {
+    expiresAt: authentication.expiresAt
+      ? new Date(authentication.expiresAt)
+      : undefined,
+    refreshToken: authentication.refreshToken,
+    token: authentication.token,
+  };
+}
 
 const refreshes = new Map<string, Promise<string | undefined>>();
 
@@ -27,8 +40,7 @@ async function refreshAccount({
       refreshToken: spent,
     });
     const refreshed = toAccount(authentication);
-    // Update-only and scoped to kind 'app': a disconnect or a token reconnect
-    // that lands mid-refresh must not be resurrected or overwritten.
+    // Update-only: a disconnect that lands mid-refresh must not be resurrected.
     if (
       await updateRefreshedGitHubCredential({ credential: refreshed, userId })
     ) {
@@ -74,9 +86,6 @@ export async function githubAccessToken(
   if (!account) {
     return;
   }
-  if (account.kind === 'pat') {
-    return account.token;
-  }
   const expiresSoon =
     account.expiresAt !== undefined &&
     account.expiresAt.getTime() - Date.now() < 5 * 60 * 1000;
@@ -96,20 +105,18 @@ export async function githubAccessToken(
   return started;
 }
 
-export async function verifyGitHubPat(
-  token: string
-): Promise<
-  { login: string; scopes: string[]; token: string } | { error: string }
-> {
-  const user = await githubUser(token);
-  if ('error' in user) {
-    return { error: 'GitHub rejected that token.' };
+export async function revokeGitHubGrant(token: string): Promise<void> {
+  try {
+    await deleteAuthorization({
+      clientId: env.GITHUB_APP_CLIENT_ID,
+      clientSecret: env.GITHUB_APP_CLIENT_SECRET,
+      clientType: 'github-app',
+      token,
+    });
+  } catch (error) {
+    // Never log `error` directly: it carries the client_secret and token.
+    logger.warn('[github] could not revoke the grant on disconnect', {
+      status: z.object({ status: z.number() }).safeParse(error).data?.status,
+    });
   }
-  if (user.scopes.length === 0) {
-    return {
-      error:
-        'That looks like a fine-grained token. Those only reach your own repositories, which the GitHub App already covers. Use a classic token with `public_repo`.',
-    };
-  }
-  return { login: user.login, scopes: user.scopes, token };
 }

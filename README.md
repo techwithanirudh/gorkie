@@ -12,7 +12,7 @@ own.
 
 The bot is a long-lived Bun process. [Mastra][mastra]'s built-in
 [channels][channels] feature handles Slack events, wiring the [Vercel Chat
-SDK][chat-sdk] Slack adapter in Socket Mode while the agent runs on Mastra's
+SDK][chat-sdk] Slack adapter in webhook mode while the agent runs on Mastra's
 native runtime. Each Slack thread gets its own [E2B][e2b] sandbox, so gorkie
 runs commands and inspects files without touching the host machine.
 
@@ -72,8 +72,9 @@ See [TODO.md](./TODO.md) for open work and known issues.
 ## Getting started
 
 Create a new [Slack app](https://api.slack.com/apps) from a manifest using
-[`slack-manifest.json`](./slack-manifest.json), which turns on Socket Mode,
-the App Home, scopes, and event subscriptions. You also need [Bun][bun], a
+[`slack-manifest.json`](./slack-manifest.json), which sets the webhook request
+URLs, the App Home, scopes, and event subscriptions. Replace `<your-host>` with
+the public hostname in front of the bot (see [docs/webhook-mode.md](docs/webhook-mode.md)). You also need [Bun][bun], a
 [PostgreSQL][postgres] database, an [E2B][e2b] API key, an [Exa][exa] API key,
 and model keys for both [Hack Club][hackclub] and [OpenCode][opencode].
 
@@ -94,16 +95,32 @@ bun run build:template
 bun run dev
 ```
 
-Local development uses Slack Socket Mode, so the bot needs no public HTTP
-tunnel to receive Slack events. It logs `[gorkie] online` once connected.
+Slack delivers events and interactivity over HTTP to
+`/api/agents/orchestrator/channels/slack/webhook`, so local development needs a
+tunnel. Create a second Slack app from
+[`slack-manifest.dev.json`](./slack-manifest.dev.json) (`gorkie (dev)`), put its
+bot token and signing secret in your local `.env`, set `GORKIE_API_TOKEN`
+(`openssl rand -hex 32`), then:
 
-Do not run two local instances against the same Slack app token. Their Socket
-Mode connections race, and the resulting behavior is hard to diagnose.
+```bash
+# Starts mastra dev, waits for /health, then opens an untun tunnel
+bun run dev:e2e
 
-For local development, create a second Slack app from
-[`slack-manifest.dev.json`](./slack-manifest.dev.json) (`gorkie (dev)`) and put
-its tokens, including its own `SLACK_APP_TOKEN`, in your local `.env`. Dev then
-holds its own Socket Mode connection and never races production for events.
+# Or run them separately
+bun run dev
+bun run dev:tunnel
+```
+
+Paste the printed tunnel host plus `/api/agents/orchestrator/channels/slack/webhook`
+into both request URLs of the dev app (Event Subscriptions and Interactivity).
+The tunnel URL changes on every run. Through the tunnel only the Slack webhook
+and `/health` answer; every other route returns 404, and the rest of `/api`
+needs `Authorization: Bearer $GORKIE_API_TOKEN` even on the host. The bot logs
+`[agent] online` once channels are ready.
+
+Never run two instances at once, dev against prod or two dev copies: they share
+the Mastra scheduler, workers and the DuckDB lock, so scheduled tasks can fire
+twice and one process loses local traces.
 
 For a production-style run: `bun run build` then `bun run start`.
 
@@ -118,7 +135,10 @@ local database named `gorkie`. Mastra creates its tables on first run.
 |---|---|---|
 | `PROJECT_ROOT` | yes | Absolute path to this repo. `mastra dev`/`start` run from `.mastra/output`, so migrations, skills, and the DuckDB file resolve against this instead of cwd |
 | `SLACK_BOT_TOKEN` | yes | Bot User OAuth token (`xoxb-…`) |
-| `SLACK_APP_TOKEN` | yes | App-level token with `connections:write` (`xapp-…`) |
+| `SLACK_SIGNING_SECRET` | yes | Signing secret (Basic Information) used to verify Slack's webhook requests |
+| `GORKIE_API_TOKEN` | production | 32+ character bearer token every non-public route requires (`openssl rand -hex 32`). Required in production and whenever tunnelling |
+| `PUBLIC_BASE_URL` | for GitHub | Public https origin of the bot; the GitHub sign-in redirects to `/oauth/github/callback` under it |
+| `HOST` / `PORT` | no | Bind address and port, default `127.0.0.1` / `4111`. Keep loopback; expose only through the tunnel |
 | `SLACK_USER_TOKEN` | yes | Slack user token, not the bot token, used for public-channel search. Mint it with `search:read.public` only; gorkie verifies the granted scopes on first use and refuses the token if it also carries `search:read.im`, `search:read.mpim`, or `search:read.private`. See [docs/slack-search.md](docs/slack-search.md) |
 | `OPT_IN_CHANNEL` | no | Slack channel id gating access to members only (opt-in allowlist); unset means everyone is allowed |
 | `HACKCLUB_API_KEY` | yes | Hack Club AI proxy key, tried for every model |
@@ -130,8 +150,8 @@ local database named `gorkie`. Mastra creates its tables on first run.
 | `E2B_API_KEY` | yes | E2B sandbox key (`e2b_…`) |
 | `CREDENTIALS_KEY` | yes | Encrypts connected GitHub and MCP tokens at rest (`openssl rand -base64 32`) |
 | `GITHUB_APP_SLUG` | yes | The app's URL slug, used to link people to the install page |
-| `GITHUB_APP_CLIENT_ID` | yes | GitHub App client id, for the App Home sign-in (see [docs/github-app.md](./docs/github-app.md)) |
-| `GITHUB_APP_CLIENT_SECRET` | yes | GitHub App client secret, used to refresh expiring user tokens |
+| `GITHUB_APP_CLIENT_ID` | yes | GitHub App client id, for the App Home web sign-in (see [docs/github-app.md](./docs/github-app.md)) |
+| `GITHUB_APP_CLIENT_SECRET` | yes | GitHub App client secret, for the sign-in code exchange, token refresh and revoking on disconnect |
 | `EXA_API_KEY` | yes | Exa key, powers `search_web`/`fetch_url` |
 | `AGENTMAIL_API_KEY` | no | Lets the sandbox reach the AgentMail API as `gorkie@agentmail.to`, without the key entering the sandbox |
 
@@ -174,6 +194,20 @@ Three layers, each covering something different:
 
 App Home custom instructions are separate from all three. They are stored per
 user and injected as a `<user_instructions>` block on every turn.
+
+## MCP servers and OAuth
+
+People add their own MCP servers from the Home tab. A server that takes a
+static token gets it as a bearer header. A server that advertises OAuth (RFC
+9728 protected resource metadata) gets a Connect button instead: it opens
+`/oauth/mcp/start`, which signs the person in with dynamic client registration
+and PKCE through `@mastra/mcp`'s `MCPOAuthClientProvider`, and the callback at
+`/oauth/mcp/callback` stores the tokens encrypted in `mcp_oauth`. Tokens refresh
+shortly before they expire. A revoked or expired sign-in marks the server
+"sign-in expired" and Gorkie stops connecting to it until the person presses
+Reconnect. Every request the sign-in makes to URLs taken from the server's
+metadata goes through the same private-address check as the server URL itself.
+Needs `PUBLIC_BASE_URL`; without it OAuth servers show as not set up.
 
 ## The Mastra patch
 
@@ -220,8 +254,8 @@ src/
     mcp/                        MCPClient scaffold for connecting external MCP servers
 ```
 
-Constructing the Mastra instance registers the agent, which opens the Slack
-Socket Mode connection.
+Constructing the Mastra instance registers the agent and its Slack webhook route
+(`/api/agents/orchestrator/channels/slack/webhook`).
 
 ## Development
 

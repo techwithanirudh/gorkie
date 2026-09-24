@@ -1,24 +1,23 @@
 import {
   boolean,
+  foreignKey,
   pgTable,
   primaryKey,
   text,
   timestamp,
 } from 'drizzle-orm/pg-core';
 import type {
-  GitHubCredentialKind,
   GitHubPermission,
+  MCPOAuthStatus,
   ToolPermission,
 } from '../types';
 
 export const githubCredentials = pgTable('github_credentials', {
   userId: text('user_id').primaryKey(),
-  kind: text('kind').$type<GitHubCredentialKind>().notNull(),
   login: text('login').notNull(),
   token: text('token').notNull(),
   refreshToken: text('refresh_token'),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
-  scopes: text('scopes'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -33,12 +32,35 @@ export const mcpServers = pgTable(
     token: text('token'),
     permission: text('permission').$type<ToolPermission>(),
     lastError: text('last_error'),
+    oauthStatus: text('oauth_status').$type<MCPOAuthStatus>(),
+    oauthConnectedAt: timestamp('oauth_connected_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
     primaryKey({ columns: [table.userId, table.name], name: 'mcp_servers_pk' }),
+  ]
+);
+
+export const mcpOAuth = pgTable(
+  'mcp_oauth',
+  {
+    userId: text('user_id').notNull(),
+    serverName: text('server_name').notNull(),
+    key: text('key').notNull(),
+    value: text('value').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.userId, table.serverName, table.key],
+      name: 'mcp_oauth_pk',
+    }),
+    foreignKey({
+      columns: [table.userId, table.serverName],
+      foreignColumns: [mcpServers.userId, mcpServers.name],
+      name: 'mcp_oauth_server_fk',
+    }).onDelete('cascade'),
   ]
 );
 

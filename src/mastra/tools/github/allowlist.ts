@@ -9,7 +9,6 @@ export const ALLOWLIST: GithubToolName[] = [
   'compareCommits',
   'createIssue',
   'createPullRequest',
-  'forkRepository',
   'getCiFailureContext',
   'getCommit',
   'getFileContent',

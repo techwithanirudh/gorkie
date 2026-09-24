@@ -1,5 +1,6 @@
 import { Chat, Modal, type ModalErrorsResponse, TextInput } from 'chat';
 import { mcp } from '../../../config';
+import { setMCPOAuthStatus } from '../../../db/queries/mcp-oauth';
 import {
   insertMCPServer,
   listMCPServers,
@@ -8,8 +9,11 @@ import {
   setMCPServerPermission,
 } from '../../../db/queries/mcps';
 import { logger } from '../../../lib/logger';
+import { advertisesOAuth } from '../../../mcp/errors';
+import { revokeMCPOAuth } from '../../../mcp/oauth';
 import { findMCPUrlError } from '../../../mcp/security';
 import { findMCPConnectionError } from '../../../mcp/user-servers';
+import { dropClient } from '../../../mcp/user-servers/client';
 import {
   mcpServerSchema,
   type PublishHome,
@@ -46,7 +50,7 @@ async function addServer({
   const isGitHub = new URL(parsed.data.url).host === 'api.githubcopilot.com';
   if (isGitHub || parsed.data.name.toLowerCase() === 'github') {
     const message =
-      'GitHub has its own section above. Use Sign in with GitHub instead.';
+      'GitHub has its own section above. Use Connect GitHub there instead.';
     return {
       action: 'errors',
       errors: isGitHub ? { url: message } : { name: message },
@@ -79,15 +83,24 @@ async function addServer({
 
   // The connection probe can outlast Slack's 3 second modal-submit ack window.
   const server = parsed.data;
-  findMCPConnectionError({ userId, server })
-    .then(async (connectionError) => {
-      await setMCPServerError({
-        userId,
+  const probe = async () => {
+    if (!server.token && (await advertisesOAuth(server.url))) {
+      await setMCPOAuthStatus({
+        error: null,
         name: server.name,
-        error: connectionError ?? null,
+        status: 'disconnected',
+        userId,
       });
-      await publishHome(userId);
-    })
+      return;
+    }
+    await setMCPServerError({
+      userId,
+      name: server.name,
+      error: (await findMCPConnectionError({ userId, server })) ?? null,
+    });
+  };
+  probe()
+    .then(() => publishHome(userId))
     .catch((error: unknown) => {
       logger.debug('[mcp] background connection probe failed', {
         error,
@@ -143,7 +156,27 @@ export function registerMCPServers({
     if (!name) {
       return;
     }
+    await revokeMCPOAuth({ name, userId: event.user.userId });
     await removeMCPServer({ name, userId: event.user.userId });
+    await dropClient(event.user.userId);
+    await publishHome(event.user.userId);
+  });
+
+  bot.onAction(ids.connect, () => undefined);
+
+  bot.onAction(ids.disconnect, async (event) => {
+    const name = event.value;
+    if (!name) {
+      return;
+    }
+    await revokeMCPOAuth({ name, userId: event.user.userId });
+    await setMCPOAuthStatus({
+      error: null,
+      name,
+      status: 'disconnected',
+      userId: event.user.userId,
+    });
+    await dropClient(event.user.userId);
     await publishHome(event.user.userId);
   });
 

@@ -38,3 +38,20 @@ export async function findMCPUrlError(
     ? "This URL resolves to a private or reserved address, which isn't allowed."
     : undefined;
 }
+
+// OAuth discovery, registration, token and revocation URLs come from the
+// server's own metadata, so each hop is re-validated and never auto-followed.
+export async function guardedFetch(
+  input: string | URL,
+  init?: RequestInit
+): Promise<Response> {
+  const error = await findMCPUrlError(String(input));
+  if (error) {
+    throw new Error(`Blocked OAuth request: ${error}`);
+  }
+  return fetch(input, {
+    ...init,
+    redirect: 'manual',
+    signal: AbortSignal.timeout(10_000),
+  });
+}

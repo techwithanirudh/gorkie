@@ -1,17 +1,14 @@
 import { Chat } from 'chat';
-import {
-  getGitHubCredential,
-  removeGitHubCredential,
-} from '../../../db/queries/github';
+import { removeGitHubCredential } from '../../../db/queries/github';
 import {
   clearGitHubSettings,
   getGitHubSettings,
   setGitHubSettings,
 } from '../../../db/queries/settings';
+import { githubAccessToken, revokeGitHubGrant } from '../../../lib/github';
 import { logger } from '../../../lib/logger';
 import { githubPermissionSchema, type PublishHome } from '../../../types';
 import { slack } from '../../client';
-import { polling } from './connect';
 import { ids } from './ids';
 import { configureView, selectedPermission, viewOf } from './views';
 
@@ -24,15 +21,11 @@ export function registerSettings({
 
   bot.onAction(ids.configure, async (event) => {
     const { userId } = event.user;
-    const [settings, credential] = await Promise.all([
-      getGitHubSettings(userId),
-      getGitHubCredential(userId),
-    ]);
+    const settings = await getGitHubSettings(userId);
     try {
       await slack.webClient.views.open({
         trigger_id: event.triggerId ?? '',
         view: configureView({
-          pat: credential?.kind === 'pat',
           permission: settings.permission,
           threads: settings.threads,
         }),
@@ -51,13 +44,11 @@ export function registerSettings({
       return;
     }
     const threads = event.value === 'threads';
-    const credential = await getGitHubCredential(event.user.userId);
     try {
       await slack.webClient.views.update({
         hash: view.hash,
         view_id: view.id,
         view: configureView({
-          pat: credential?.kind === 'pat',
           permission: githubPermissionSchema.parse(
             selectedPermission({
               raw: event.raw,
@@ -85,10 +76,16 @@ export function registerSettings({
   });
 
   bot.onAction(ids.disconnect, async (event) => {
-    const pending = polling.get(event.user.userId);
-    polling.delete(event.user.userId);
-    pending?.controller.abort();
+    // Refreshed first because GitHub only revokes with a live token.
+    const token = await githubAccessToken(event.user.userId).catch(
+      () => undefined
+    );
     await removeGitHubCredential(event.user.userId);
+    // Revoking the grant makes the next sign-in show GitHub's consent screen
+    // instead of silently reusing the old authorization.
+    if (token) {
+      await revokeGitHubGrant(token);
+    }
     await clearGitHubSettings(event.user.userId);
     await publishHome(event.user.userId);
   });

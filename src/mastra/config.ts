@@ -47,7 +47,7 @@ export const scheduledTasks = {
 };
 
 export const workingModel = {
-  ttl: 30 * 60 * 1000,
+  ttl: 5 * 60 * 1000,
 };
 
 export const mcp = {

@@ -51,8 +51,7 @@ bot from any channel; channel membership belongs to the installation, and only
 uninstalling the app drops it. With token rotation off, the bot token value is
 stable across a reinstall, so revoking all tokens still lets you re-copy the
 same `xoxb-` value (or revoke only the user token to leave the bot untouched).
-The Socket Mode app-level token (`xapp-`) is not an OAuth token and is
-unaffected by revoking.
+The signing secret is not an OAuth token and is unaffected by revoking.
 
 ## Verifying
 

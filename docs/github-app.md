@@ -1,14 +1,14 @@
 # GitHub App setup
 
-Gorkie connects to GitHub through a GitHub App. People sign in from Slack's App
-Home with the OAuth device flow. They get a short code like `WDJB-MJHT`, enter
-it at <https://github.com/login/device>, and choose which repositories Gorkie
-may use. Gorkie then calls GitHub's API with that person's user access token,
-so it acts as them, limited to the repos they picked.
+Gorkie connects to GitHub through a GitHub App. People connect from Slack's App
+Home: **Connect GitHub** opens a browser page on Gorkie's server, GitHub's
+standard web sign-in, and a callback back to Gorkie. Gorkie then calls GitHub's
+API with that person's user access token, so it acts as them, limited to the
+repositories they installed the app on.
 
-Gorkie needs no inbound network access. It never receives webhooks and never
-handles an OAuth callback. All traffic is outbound, so this works behind
-Tailscale or anywhere else.
+The sign-in needs Gorkie's public HTTPS URL (`PUBLIC_BASE_URL`, see
+[webhook-mode.md](./webhook-mode.md)). Without it the Home tab says GitHub
+sign-in is not set up and shows no Connect button.
 
 Register the app once. Hand the prompt below to an agent, or follow it
 yourself.
@@ -20,13 +20,10 @@ Register a GitHub App for the Gorkie Slack bot and report back the credentials.
 
 ## Context
 Gorkie is a Slack bot. People connect their own GitHub account from Slack's App
-Home using the OAuth device flow (they get a short code, enter it at
-github.com/login/device, and pick which repos Gorkie may use). Gorkie then calls
-GitHub's API with that person's user access token, so it acts as them, limited to
-the repos they picked.
-
-Gorkie needs no inbound network access. It never receives webhooks and never
-handles an OAuth callback. All traffic is outbound.
+Home through GitHub's OAuth web flow. Gorkie then calls GitHub's API with that
+person's user access token, limited to the repos they installed the app on.
+Gorkie's public base URL is <PUBLIC_BASE_URL> (for example
+https://gorkie.example.com).
 
 ## Create the app
 Go to https://github.com/settings/apps/new (or an org's
@@ -37,10 +34,12 @@ Settings > Developer settings > GitHub Apps > New GitHub App).
 | GitHub App name | `Gorkie` (must be unique across GitHub; if taken, try `Gorkie Slack`) |
 | Description | `Gorkie works with your GitHub repositories from Slack: reading code, opening issues, and raising pull requests as you. It only touches repositories you choose here, and only what your own account can already do. Anything it opens carries your name.` |
 | Homepage URL | any URL you control, e.g. the repo URL. Not used at runtime. |
-| Callback URL | leave blank if allowed. If the form insists, `http://localhost/callback` (never called). |
+| Callback URL | `<PUBLIC_BASE_URL>/oauth/github/callback`. For local development add a second one, `http://localhost:4111/oauth/github/callback`. |
 | Expire user authorization tokens | checked (default). Gorkie refreshes them automatically. |
 | Request user authorization (OAuth) during installation | unchecked. See below. |
-| Enable Device Flow | checked. REQUIRED, the whole flow depends on it |
+| Enable Device Flow | unchecked. Gorkie no longer uses it. |
+| Setup URL | `<PUBLIC_BASE_URL>/oauth/github/installed` |
+| Redirect on update | checked |
 | Webhook > Active | unchecked. No webhook URL, no secret. |
 | Where can this GitHub App be installed? | `Any account` if people outside your org will use it, otherwise `Only on this account` |
 
@@ -77,78 +76,82 @@ unless specifically asked.
 
 Subscribe to no events.
 
-## Installing is a separate step
-Creating the app does not give it access to anything. After creating it, click
-"Install App", pick the account, and choose "Only select repositories" to
-control what Gorkie can reach. Signing in from Slack authorises a person; it
-does not install the app or grant repository access.
-
 ## After creating
-1. Note the Client ID (looks like `Iv23li...`). Not the App ID, and not the
-   client secret yet.
+1. Note the Client ID (looks like `Iv23li...`). Not the App ID.
 2. Click "Generate a new client secret", copy it immediately, it is shown once.
 3. Do NOT generate a private key. Gorkie does not use one.
-4. Click "Install App", choose the account or org, and select the repositories
-   Gorkie should reach. "Only select repositories" is preferred.
 
 ## Report back
+- `GITHUB_APP_SLUG` = the app's URL slug
 - `GITHUB_APP_CLIENT_ID` = the Client ID
 - `GITHUB_APP_CLIENT_SECRET` = the client secret
-- Which account/org it was installed on, and how many repositories
-- Confirm Device Flow is enabled and webhooks are off
-
-These two values go in Gorkie's `.env`. Both are required; the bot will not
-start without them.
+- Confirm the Callback URL, the Setup URL with "Redirect on update", Device
+  Flow off, and webhooks off
 ````
 
 ## Why these settings
 
-**Enable Device Flow** is the one that breaks everything if missed. Without it
-`createDeviceCode` returns 404 and nobody can sign in.
+**Callback URL** must match `PUBLIC_BASE_URL` exactly, because Gorkie sends it
+as the `redirect_uri` and GitHub refuses any other. A GitHub App can list
+several, so production and `http://localhost:4111` for development coexist.
 
-**Request user authorization (OAuth) during installation is off** because Gorkie
-has no callback to receive what it sends. Ticking it makes GitHub finish every
-installation by redirecting to the callback URL with an authorization code
-attached, so with a placeholder callback each person lands on a dead page
-reading `localhost/callback?code=…&installation_id=…`. The install still works
-and the code is discarded. Leaving the box off ends the installation on GitHub's
-own confirmation page instead.
+**Request user authorization (OAuth) during installation is off.** With it on,
+GitHub disables the Setup URL, and people who already installed the app, or
+org members who can only request an install, never reach the authorization
+step. It also cannot carry Gorkie's signed `state`, so the callback could not
+tell which Slack user to connect. Gorkie chains the two itself instead: after
+sign-in, if the person has no installations yet, the callback sends them to the
+install page, and the Setup URL brings them back to a "done" page.
 
-Installing and signing in therefore stay separate. The device flow has no
-callback by design, so it cannot receive an installation result. App Home covers
-the gap by calling `GET /user/installations` after sign-in and showing an
-install link when nobody has installed anything.
+**Setup URL with Redirect on update** gives the install and "Configure" pages
+on GitHub somewhere to return to. The page it lands on changes nothing and
+never trusts the `installation_id` GitHub appends; the Home tab re-reads
+installations the next time it opens.
 
-GitHub's web flow is the obvious alternative, and it does install and authorise
-in one pass, but only by redirecting to a callback GitHub's servers can reach.
-Gorkie's own server is not publicly exposed, so that callback would have to be a
-second deployment, and the only way for it to hand the token back is to write to
-Gorkie's database directly. That means copying both `DATABASE_URL` and
-`CREDENTIALS_KEY` into another service, a poor trade for saving one step in
-something each person does once.
+**Device Flow off.** Gorkie used to sign people in with a device code. The web
+flow replaced it, so leaving device flow on only widens what the client id can
+do. Turn it off once this version is deployed.
 
 **No private key.** A private key mints installation tokens, which act as
 `gorkie[bot]` rather than as a person. Gorkie uses user access tokens so actions
 carry the name of whoever asked. Only the client id and secret are read.
 
-**No webhooks.** Those are for an app that reacts to GitHub events, which would
-need a public HTTPS endpoint. Gorkie is driven from Slack.
+**No webhooks.** Those are for an app that reacts to GitHub events. Gorkie is
+driven from Slack.
 
 **Expiring tokens** are GitHub's default, and Gorkie refreshes them five minutes
-before they lapse. Unchecking that box is supported too. Tokens then never
-expire, `githubAccessToken` skips the refresh path, and
-`GITHUB_APP_CLIENT_SECRET` goes unused. That is one fewer failure mode, paid for
-with credentials that live forever.
+before they lapse. Disconnecting from the Home tab also revokes the grant on
+GitHub, so the next sign-in shows GitHub's consent screen again.
+
+## How the sign-in is protected
+
+The Home tab's **Connect GitHub** button carries a signed ticket (Factory's
+`createStateSigner`, keyed from `CREDENTIALS_KEY`) naming the Slack user. The
+page it opens shows that user's name and asks them to continue, which sets a
+short-lived cookie holding a random nonce and sends them to GitHub with a
+signed `state` carrying the same nonce. The callback only accepts a `state`
+whose nonce matches the cookie in the same browser, so a sign-in link forwarded
+to someone else cannot attach their GitHub account to another Slack user.
+Tickets and states expire after ten minutes.
+
+## Classic tokens
+
+Classic personal access tokens are no longer supported, and a migration
+deletes any that were saved. They only existed so Gorkie could fork, and the
+app cannot. Gorkie now offers a diff or patch for repositories it cannot push
+to.
 
 ## After it exists
 
-Set both values in `.env`:
+Set the values in `.env`:
 
 ```bash
+PUBLIC_BASE_URL="https://gorkie.example.com"
+GITHUB_APP_SLUG="gorkie"
 GITHUB_APP_CLIENT_ID="Iv23li..."
 GITHUB_APP_CLIENT_SECRET="..."
 ```
 
-Anyone in Slack can then open Gorkie's Home tab and click **Sign in with
-GitHub**. To change which repositories are shared later, they go to
+Anyone in Slack can then open Gorkie's Home tab and click **Connect GitHub**.
+To change which repositories are shared later, they go to
 <https://github.com/settings/installations> without touching Slack.

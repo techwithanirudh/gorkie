@@ -1,5 +1,6 @@
 import { env } from '@/env';
 import { levelsFor } from '../../../lib/github';
+import { oauthStartLink } from '../../../server/oauth';
 import type {
   GitHubCredential,
   GitHubPermission,
@@ -14,14 +15,16 @@ export function githubBlocks({
   permission,
   threads,
   unreadable,
+  userId,
 }: {
   credential: GitHubCredential | undefined;
   installations: number;
   permission: GitHubPermission;
   threads: boolean;
   unreadable: boolean;
+  userId: string;
 }): HomeSection {
-  const pat = credential?.kind === 'pat' ? credential : undefined;
+  const signIn = oauthStartLink({ provider: 'github', slackUserId: userId });
 
   const scope = threads ? '  ·  `runs in shared threads`' : '';
   const threadLevel = levelsFor(true).includes(permission)
@@ -32,15 +35,13 @@ export function githubBlocks({
     access = `${PRESETS[permission].status} in DMs  ·  ${PRESETS[threadLevel].status} in shared threads`;
   }
   let status = 'Not connected';
-  let detail =
-    'Sign in with the app for access scoped to the repositories you pick. A classic token also reaches repositories somebody else owns.';
+  let detail = signIn
+    ? 'Sign in with GitHub for access scoped to the repositories you pick.'
+    : 'GitHub sign-in is not set up on this Gorkie yet.';
   if (unreadable) {
     status = '*Unavailable*';
     detail =
       'Gorkie could not read your stored connection, so GitHub tools will not run. Disconnect and sign in again to replace it.';
-  } else if (credential?.kind === 'pat') {
-    status = `*${credential.login}*`;
-    detail = `${access}  ·  using your personal token`;
   } else if (credential && installations > 0) {
     status = `*${credential.login}*`;
     detail = `${access}  ·  Gorkie uses your GitHub account`;
@@ -50,10 +51,44 @@ export function githubBlocks({
   }
 
   const connected = Boolean(credential) || unreadable;
-  const forgets = pat ? 'your token' : 'your sign-in';
-  const afterwards = pat
-    ? 'The token itself keeps working until you delete it on GitHub.'
-    : "The app stays installed on your repositories until you remove it in GitHub's settings.";
+  const connect = (label: string, primary: boolean) =>
+    signIn
+      ? [
+          {
+            type: 'button',
+            text: { type: 'plain_text', text: label },
+            action_id: ids.connect,
+            url: signIn,
+            ...(primary ? { style: 'primary' } : {}),
+          },
+        ]
+      : [];
+
+  const elements = connected
+    ? [
+        ...connect('Reconnect', false),
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Configure' },
+          action_id: ids.configure,
+        },
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Disconnect' },
+          action_id: ids.disconnect,
+          style: 'danger',
+          confirm: {
+            title: { type: 'plain_text', text: 'Disconnect GitHub?' },
+            text: {
+              type: 'mrkdwn',
+              text: "Gorkie forgets your sign-in, revokes it on GitHub, and stops using GitHub. The app stays installed on your repositories until you remove it in GitHub's settings.",
+            },
+            confirm: { type: 'plain_text', text: 'Disconnect' },
+            deny: { type: 'plain_text', text: 'Cancel' },
+          },
+        },
+      ]
+    : connect('Connect GitHub', true);
 
   return {
     fixed: [
@@ -65,45 +100,7 @@ export function githubBlocks({
         type: 'context',
         elements: [{ type: 'mrkdwn', text: detail }],
       },
-      {
-        type: 'actions',
-        elements: connected
-          ? [
-              {
-                type: 'button',
-                text: { type: 'plain_text', text: 'Reconnect' },
-                action_id: ids.connect,
-              },
-              {
-                type: 'button',
-                text: { type: 'plain_text', text: 'Configure' },
-                action_id: ids.configure,
-              },
-              {
-                type: 'button',
-                text: { type: 'plain_text', text: 'Disconnect' },
-                action_id: ids.disconnect,
-                style: 'danger',
-                confirm: {
-                  title: { type: 'plain_text', text: 'Disconnect GitHub?' },
-                  text: {
-                    type: 'mrkdwn',
-                    text: `Gorkie forgets ${forgets} and stops using GitHub. ${afterwards}`,
-                  },
-                  confirm: { type: 'plain_text', text: 'Disconnect' },
-                  deny: { type: 'plain_text', text: 'Cancel' },
-                },
-              },
-            ]
-          : [
-              {
-                type: 'button',
-                text: { type: 'plain_text', text: 'Connect GitHub' },
-                action_id: ids.connect,
-                style: 'primary',
-              },
-            ],
-      },
+      ...(elements.length > 0 ? [{ type: 'actions', elements }] : []),
     ],
     trailing: [{ type: 'divider' }],
   };

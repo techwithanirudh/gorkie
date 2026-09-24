@@ -25,11 +25,9 @@ const inspectRepository = async ({
 
 export const checkoutTool = ({
   approval,
-  canFork,
   userId,
 }: {
   approval: boolean;
-  canFork: boolean;
   userId: string;
 }) =>
   createTool({
@@ -92,9 +90,7 @@ export const checkoutTool = ({
       return {
         path,
         sha,
-        note: canFork
-          ? `${edit} You do not have push access to this repo. Fork it with github_fork_repository, then github_push_branch to push a branch to your fork, then github_create_pull_request from the fork to the original.`
-          : `${edit} You do not have push access to this repo and this GitHub connection cannot fork (an app only pushes where it is installed). You can read and open issues here, but not push changes. Say so rather than attempting a push that will fail.`,
+        note: `${edit} You do not have push access to this repo, and Gorkie cannot fork (the GitHub App only pushes where it is installed). You can read and open issues here, but not push changes. Say so, and offer the diff or a patch they can apply and open the pull request themselves.`,
       };
     },
   });

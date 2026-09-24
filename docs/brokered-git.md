@@ -31,7 +31,7 @@ Git never sees the header the firewall adds: a failing clone, a `GIT_TRACE_CURL=
 
 `Bearer` returns 401 from GitHub's git endpoint, so the header must be `Basic`. Git trusts E2B's interception CA with no extra configuration, so `GIT_SSL_CAINFO` is unnecessary. `GIT_TERMINAL_PROMPT: '0'` is set in `sandboxEnv()` so a 401 fails instead of blocking on a username prompt until the sandbox times out.
 
-Tested with a `gho_` token from the `gh` CLI rather than a `ghu_` device-flow token. Both are user access tokens presented the same way, but worth reconfirming on the first real device-flow push.
+Tested with a `gho_` token from the `gh` CLI rather than a `ghu_` user token from the GitHub App sign-in. Both are user access tokens presented the same way, but worth reconfirming on the first real push.
 
 ## Residual risk
 

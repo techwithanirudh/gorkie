@@ -1,7 +1,7 @@
 # gorkie
 
 This project is a customizable AI assistant for Slack, built on Bun,
-TypeScript, Mastra channels, Chat SDK's Slack adapter in Socket Mode, E2B
+TypeScript, Mastra channels, Chat SDK's Slack adapter in webhook mode, E2B
 sandboxes, Postgres, and Mastra observability (local DuckDB in development,
 plus Langfuse).
 
@@ -36,7 +36,7 @@ is what is finished, and it is where the reasoning lives.
 
 One Mastra `Agent` (`orchestrator`) serves Slack through Mastra's built-in
 `channels`, delegating to `research` and `explore` for scoped subagent work.
-Channels owns Socket Mode, streaming, live tool widgets, typing
+Channels owns the Slack webhook route, streaming, live tool widgets, typing
 status, thread-history backfill, and `MastraStateAdapter`.
 
 The agent brain runs on the host. Code execution runs in a per-thread **E2B** sandbox (isolated cloud Linux VM). Model keys, Slack tokens, and DB credentials live on the host and never enter the sandbox.
@@ -64,7 +64,7 @@ itself because it implements no `onFeedbackEvent` handler.
 - Never read `process.env` outside `src/env.ts`.
 - Ask first: dependency changes, schema-shape changes, destructive git operations.
 - Every model in `src/mastra/providers.ts` must hold at least 1M input tokens. The orchestrator, `research` and `explore` share one fallback ladder, so a short-context entry does not degrade one agent, it breaks whichever agent happens to fail over onto it mid-thread. Check the context window on models.dev before adding one. Separately, `agent.maxTokens.output` must stay under the smallest output cap in use (65,536, `google/gemini-3.5-flash-lite`), which is also why Observational Memory overrides Mastra's 100,000 default.
-- Never start, restart, or kill `mastra dev`/`mastra start`/the built server on your own initiative. This is a live Slack bot; the user runs it themselves, and two instances racing for the same Slack Socket Mode connection causes real, confusing failures. If you must verify a code change actually works, ask the user to test it in their own running instance, or use `mastra api` against whatever they already have running instead of launching a new process.
+- Never start, restart, or kill `mastra dev`/`mastra start`/the built server on your own initiative. This is a live Slack bot; the user runs it themselves, and two instances running at once share the Mastra scheduler, workers and the DuckDB lock, so scheduled tasks can fire twice and one process loses local traces. If you must verify a code change actually works, ask the user to test it in their own running instance, or use `mastra api` against whatever they already have running instead of launching a new process.
 
 ## Coding Rules
 

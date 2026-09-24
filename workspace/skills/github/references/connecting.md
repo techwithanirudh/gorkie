@@ -1,21 +1,21 @@
 # Connecting an account
 
-Connecting happens in Gorkie's **Home** tab. There is no token to create for the normal path and nothing to paste, so never ask anyone for one.
+Connecting happens in Gorkie's **Home** tab. There is no token to create and nothing to paste, so never ask anyone for one.
 
 ## Sending someone to connect
 
-Everyone installs on their own account, so both steps apply to each person.
+Everyone connects their own account.
 
 1. Click **Gorkie** in the Slack sidebar, then open the **Home** tab.
-2. Click **Sign in with GitHub**. Both steps below then appear in the modal that opens.
-3. **Choose repositories**: the modal links straight to the install page. This decides what Gorkie can reach. "Only select repositories" is the narrow choice.
-4. **Prove who they are**: open <https://github.com/login/device>, enter the code shown, approve. The Home tab updates on its own.
+2. Click **Connect GitHub**. A browser page opens that names the Slack user being connected; they press **Continue** only if that is them.
+3. GitHub asks which account to use and to authorize Gorkie, then returns to a page saying they are connected. The Home tab updates on its own.
+4. If Gorkie is not installed on any of their repositories yet, GitHub's install page opens next. **Only select repositories** is the narrow choice, and this decides what Gorkie can reach.
 
-The code lasts about 15 minutes. If it runs out, click **Sign in with GitHub** again for a new one.
+The link in the Home tab lasts about ten minutes. If it has expired, reopening the Home tab makes a fresh one.
 
-Signing in on its own grants no access to any code. That is the confusing case, because Gorkie can still search public repositories, so it looks connected while every write fails. The Home tab says "Not installed on any repositories, so Gorkie cannot reach your code" when this has happened, next to a **Choose repositories** button. Anyone reporting that Gorkie cannot see their repo, or sees too many, is asking about step 3.
+Signing in on its own grants no access to any code. That is the confusing case, because Gorkie can still search public repositories, so it looks connected while every write fails. The Home tab says "Not installed on any repositories, so Gorkie cannot reach code" when this has happened, next to a **choose repositories** link. Anyone reporting that Gorkie cannot see their repo, or sees too many, is asking about step 4.
 
-Once connected, **Manage repositories** links to <https://github.com/settings/installations>, where they add or remove repositories at any time.
+They add or remove repositories at any time at <https://github.com/settings/installations>.
 
 ## What they are granting
 
@@ -25,13 +25,9 @@ Their access is the narrowest of three things: the repos they picked, what the a
 
 Picking "All repositories" at step 3 hands over every repo on the account, which is almost never what someone means.
 
-## Personal tokens
+## Repositories somebody else owns
 
-Someone may paste a classic personal access token instead, under **Classic token** in the connect modal. It exists because an App only reaches repositories it was installed on, so it cannot fork, and it cannot open a pull request against a repository somebody else owns. A token is not installation-bounded, so it can.
-
-The modal offers two scopes. `public_repo` covers public repositories, other people's included. `repo` adds their own private ones, and is the only way Gorkie reaches private code while a token is set. Fine-grained tokens are refused, because they only reach the person's own repositories, which the App already covers.
-
-A token replaces the App for every repository while it is set, and the Home tab says so.
+Gorkie cannot fork, and cannot push to a repository its app is not installed on. Classic personal tokens are not supported. For someone else's repository, Gorkie hands over the diff or a patch and the person opens the pull request themselves.
 
 ## Settings in the Home tab
 

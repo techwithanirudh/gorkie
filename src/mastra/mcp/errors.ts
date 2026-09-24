@@ -47,7 +47,27 @@ function upstreamMessage({ line }: { line: string }): {
   return { text, rpcCode: rpc?.code };
 }
 
-const advertisesOAuth = new Map<string, Promise<boolean>>();
+const oauthLookups = new Map<string, Promise<boolean>>();
+
+// Manual redirects keep the probe on the already-validated host. Missing or
+// unreachable metadata means "unknown", which reads the same as no OAuth.
+// Cached per URL because a server stuck on 401 is re-described every turn.
+export function advertisesOAuth(url: string): Promise<boolean> {
+  let lookup = oauthLookups.get(url);
+  if (!lookup) {
+    const signal = AbortSignal.timeout(2000);
+    lookup = discoverOAuthProtectedResourceMetadata(
+      url,
+      undefined,
+      (input, init) => fetch(input, { ...init, redirect: 'manual', signal })
+    ).then(
+      () => true,
+      () => false
+    );
+    oauthLookups.set(url, lookup);
+  }
+  return lookup;
+}
 
 async function authHint({
   server,
@@ -67,31 +87,14 @@ async function authHint({
   if (status !== 401) {
     return;
   }
-  // Manual redirects keep the probe on the already-validated host. Missing or
-  // unreachable metadata means "unknown", which reads the same as no OAuth.
-  // Cached per URL because a server stuck on 401 is re-described every turn.
-  let lookup = advertisesOAuth.get(server.url);
-  if (!lookup) {
-    const signal = AbortSignal.timeout(2000);
-    lookup = discoverOAuthProtectedResourceMetadata(
-      server.url,
-      undefined,
-      (input, init) => fetch(input, { ...init, redirect: 'manual', signal })
-    ).then(
-      () => true,
-      () => false
-    );
-    advertisesOAuth.set(server.url, lookup);
-  }
-  const oauth = await lookup;
-  if (server.token && oauth) {
-    return 'The server rejected the access token. It advertises OAuth sign-in, which Gorkie does not support yet; use an API key or personal access token if the server offers one.';
-  }
+  const oauth = await advertisesOAuth(server.url);
   if (oauth) {
-    return 'The server requires sign-in. It advertises OAuth, which Gorkie does not support yet; add an API key or personal access token if the server offers one.';
+    return server.token
+      ? 'The server rejected the access token. It supports OAuth sign-in: remove this server, add it again without a token, then press Connect in the Home tab.'
+      : 'The server uses OAuth sign-in. Press Connect on this server in the Home tab.';
   }
   if (server.token) {
-    return 'The server rejected the access token. Check that it is correct and not expired; this server may require OAuth.';
+    return 'The server rejected the access token. Check that it is correct and not expired.';
   }
   return 'The server requires authentication. Remove this server and add it again with an access token.';
 }

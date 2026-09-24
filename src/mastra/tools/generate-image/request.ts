@@ -25,7 +25,10 @@ const completionSchema = z.looseObject({
     .optional(),
 });
 
-export async function editImages({
+// Generation and editing both go through chat completions. The OpenRouter
+// provider's imageModel posts to `/images`, a route the Hack Club proxy does
+// not serve: it answers 404 for every model id.
+export async function requestImages({
   prompt,
   referenceImages,
   sandbox,
@@ -85,8 +88,15 @@ export async function editImages({
   if (!response.ok) {
     // The status alone still makes a useful error if the body is unreadable.
     const body = await response.text().catch(() => '');
+    // A bare 404 or an unknown-model 400 reads to the model like a refusal, so
+    // it rephrases and retries, even after waiting.
+    if (response.status === 404 || body.includes('not a valid model ID')) {
+      throw new Error(
+        `Image model unavailable (${response.status} for "${images.model}"). Do not retry, and do not wait and retry. Tell the user image generation is currently down.`
+      );
+    }
     throw new Error(
-      `Image editing failed (${response.status}): ${body.slice(0, 300)}`
+      `Image generation failed (${response.status}): ${body.slice(0, 300)}`
     );
   }
   const message = completionSchema

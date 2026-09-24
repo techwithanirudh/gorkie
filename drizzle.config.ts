@@ -8,6 +8,11 @@ export default defineConfig({
   // tables (memory, channel state, schedules, background tasks), which drizzle
   // does not manage; without this, `db:push`/`db:check` would treat them as
   // drift and try to drop them.
-  tablesFilter: ['github_credentials', 'mcp_servers', 'user_settings'],
+  tablesFilter: [
+    'github_credentials',
+    'mcp_oauth',
+    'mcp_servers',
+    'user_settings',
+  ],
   dbCredentials: { url: process.env.DATABASE_URL ?? '' },
 });

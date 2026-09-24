@@ -1,21 +1,28 @@
 import { createHash } from 'node:crypto';
 import { MCPClient } from '@mastra/mcp';
+import { env } from '@/env';
 import { logger } from '../../lib/logger';
-import type { MCPServerConfig } from '../../types';
+import type { MCPServerConfig, StoredMCPServer } from '../../types';
+import { findMCPOAuthHostError, MCPServerOAuth, mcpOAuthHosts } from '../oauth';
 import { findMCPUrlError } from '../security';
 import { approvalFor } from './approval';
 
 export function serverConnection({
+  oauth,
   server,
   url,
 }: {
+  oauth?: { hosts: string[]; provider: MCPServerOAuth };
   server: MCPServerConfig;
   url: URL;
 }) {
   return {
     url,
-    allowedHosts: [url.host],
-    ...(server.token
+    // The SDK sends OAuth discovery, refresh and token requests through the
+    // transport's fetch, so the authorization server hosts must be allowed too.
+    allowedHosts: oauth ? [url.host, ...oauth.hosts] : [url.host],
+    ...(oauth ? { authProvider: oauth.provider } : {}),
+    ...(server.token && !oauth
       ? {
           requestInit: {
             headers: { Authorization: `Bearer ${server.token}` },
@@ -41,7 +48,7 @@ async function buildClient({
   stale,
 }: {
   userId: string;
-  servers: MCPServerConfig[];
+  servers: StoredMCPServer[];
   stale: Promise<UserClient> | undefined;
 }): Promise<UserClient> {
   // A stale client that never connected has nothing to disconnect.
@@ -56,15 +63,40 @@ async function buildClient({
   }
   // Re-check at connect: DNS can be re-pointed at an internal address after add.
   const checked = await Promise.all(
-    servers.map(async (server) => ({
-      server,
-      error: await findMCPUrlError(server.url),
-    }))
+    servers.map(async (server) => {
+      const urlError = await findMCPUrlError(server.url);
+      if (urlError || !server.oauth) {
+        return { server, error: urlError };
+      }
+      if (!env.PUBLIC_BASE_URL) {
+        return { server, error: 'OAuth sign-in is not set up on this Gorkie.' };
+      }
+      if (server.oauth.status !== 'connected') {
+        return {
+          server,
+          error:
+            server.oauth.status === 'needs-auth'
+              ? 'Sign-in expired or was revoked. Press Reconnect on this server in the Home tab.'
+              : 'Not signed in yet. Press Connect on this server in the Home tab.',
+        };
+      }
+      const hosts = await mcpOAuthHosts({ name: server.name, userId });
+      const hostError = await findMCPOAuthHostError(hosts);
+      if (hostError) {
+        return { server, error: `Sign-in server rejected: ${hostError}` };
+      }
+      const provider = new MCPServerOAuth({
+        redirectUri: `${env.PUBLIC_BASE_URL}/oauth/mcp/callback`,
+        server,
+        userId,
+      });
+      return { server, error: undefined, oauth: { hosts, provider } };
+    })
   );
   const rejected = new Map<string, string>();
   for (const { server, error } of checked) {
     if (error) {
-      logger.warn('[mcp] server failed url revalidation at connect', {
+      logger.warn('[mcp] server not connected at build', {
         error,
         name: server.name,
         userId,
@@ -79,12 +111,16 @@ async function buildClient({
     servers: Object.fromEntries(
       checked
         .filter(({ error }) => !error)
-        .map(({ server }) => {
+        .map(({ server, oauth }) => {
           const url = new URL(server.url);
           return [
             server.name,
             {
-              ...serverConnection({ server, url }),
+              ...serverConnection({
+                server,
+                url,
+                ...(oauth ? { oauth } : {}),
+              }),
               requireToolApproval: approvalFor(server.permission),
             },
           ];
@@ -117,7 +153,7 @@ export function resolveClient({
   servers,
 }: {
   userId: string;
-  servers: MCPServerConfig[];
+  servers: StoredMCPServer[];
 }): Promise<UserClient> {
   const key = servers
     .map((server) =>
@@ -127,6 +163,10 @@ export function resolveClient({
         server.permission,
         server.token
           ? createHash('sha256').update(server.token).digest('hex').slice(0, 16)
+          : '',
+        // A refresh keeps the client; a reconnect (new connectedAt) rebuilds it.
+        server.oauth
+          ? `oauth:${server.oauth.status}:${server.oauth.connectedAt?.getTime() ?? ''}`
           : '',
       ].join(' ')
     )
