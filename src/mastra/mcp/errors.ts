@@ -94,7 +94,7 @@ async function authHint({
       : 'The server uses OAuth sign-in. Press Connect on this server in the Home tab.';
   }
   if (server.token) {
-    return 'The server rejected the access token. Check that it is correct and not expired.';
+    return 'The server rejected the access token, so Gorkie stopped connecting to it. Remove this server and add it again with a valid token.';
   }
   return 'The server requires authentication. Remove this server and add it again with an access token.';
 }

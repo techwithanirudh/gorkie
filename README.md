@@ -155,6 +155,7 @@ local database named `gorkie`. Mastra creates its tables on first run.
 | `LANGFUSE_BASE_URL` | no | Self-hosted Langfuse only; defaults to `https://cloud.langfuse.com` |
 | `E2B_API_KEY` | yes | E2B sandbox key (`e2b_…`) |
 | `CREDENTIALS_KEY` | yes | Encrypts connected GitHub and MCP tokens at rest (`openssl rand -base64 32`) |
+| `CREDENTIALS_KEY_PREVIOUS` | no | The old key during a rotation. Boot re-encrypts GitHub, MCP token and MCP sign-in rows with `CREDENTIALS_KEY`; remove it after one clean start. A secret neither key opens shows as disconnected and asks the person to reconnect |
 | `GITHUB_APP_SLUG` | yes | The app's URL slug, used to link people to the install page |
 | `GITHUB_APP_CLIENT_ID` | yes | GitHub App client id, for the App Home web sign-in (see [docs/github-app.md](./docs/github-app.md)) |
 | `GITHUB_APP_CLIENT_SECRET` | yes | GitHub App client secret, for the sign-in code exchange, token refresh and revoking on disconnect |

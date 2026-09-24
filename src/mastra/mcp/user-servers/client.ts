@@ -64,6 +64,9 @@ async function buildClient({
   // Re-check at connect: DNS can be re-pointed at an internal address after add.
   const checked = await Promise.all(
     servers.map(async (server) => {
+      if (server.credentialError) {
+        return { server, error: server.credentialError };
+      }
       const urlError = await findMCPUrlError(server.url);
       if (urlError || !server.oauth) {
         return { server, error: urlError };
@@ -168,6 +171,8 @@ export function resolveClient({
         server.oauth
           ? `oauth:${server.oauth.status}:${server.oauth.connectedAt?.getTime() ?? ''}`
           : '',
+        // A server that just failed auth drops out of the cached client.
+        server.credentialError ? 'stopped' : '',
       ].join(' ')
     )
     .sort((a, b) => (a < b ? -1 : 1))

@@ -60,6 +60,13 @@ export const env = createEnv({
         message:
           'CREDENTIALS_KEY must be 32 bytes, base64 encoded. Generate one with: openssl rand -base64 32',
       }),
+    CREDENTIALS_KEY_PREVIOUS: z
+      .base64()
+      .refine((value) => Buffer.from(value, 'base64').length === 32, {
+        message:
+          'CREDENTIALS_KEY_PREVIOUS must be the old 32-byte base64 CREDENTIALS_KEY',
+      })
+      .optional(),
 
     GITHUB_APP_SLUG: z.string().min(1),
     GITHUB_APP_CLIENT_ID: z.string().min(1),

@@ -36,6 +36,7 @@ export const mcpOAuthStatusSchema = z.enum([
 export type MCPOAuthStatus = z.infer<typeof mcpOAuthStatusSchema>;
 
 export type StoredMCPServer = MCPServerConfig & {
+  credentialError?: string;
   lastError?: string;
   oauth?: { connectedAt?: Date; status: MCPOAuthStatus };
 };

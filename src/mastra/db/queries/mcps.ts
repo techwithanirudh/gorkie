@@ -26,6 +26,12 @@ export async function listMCPServers(
       permission: toolPermissionSchema.parse(row.permission),
       url: row.url,
       lastError: row.lastError ?? undefined,
+      // describeMCPError always writes the status, and a rejected credential
+      // fails the same way every turn until the server is re-added (a new
+      // row) or reconnected (which clears lastError).
+      credentialError: row.lastError?.includes('(HTTP 401)')
+        ? row.lastError
+        : undefined,
       ...(row.oauthStatus
         ? {
             oauth: {
@@ -48,11 +54,9 @@ export async function listMCPServers(
         name: row.name,
         userId,
       });
-      return {
-        ...server,
-        lastError:
-          'The saved token can no longer be decrypted. Reconnect this server with its token.',
-      };
+      const unreadable =
+        'Gorkie can no longer read the saved token. Remove this server and add it again with its token.';
+      return { ...server, credentialError: unreadable, lastError: unreadable };
     }
   });
 }
