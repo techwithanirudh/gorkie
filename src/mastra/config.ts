@@ -2,7 +2,7 @@ import type { Duration } from '@mastra/core/storage';
 import { env } from '@/env';
 import type { ToolDisplayMode } from './types';
 export const sandbox = {
-  template: 'gorkie-workspace:2.1',
+  template: 'gorkie-workspace:2.2',
   executionTimeout: 15 * 60 * 1000,
   timeout: 16 * 60 * 1000,
   // A job outlives its turn, so the VM lifetime is re-armed while one runs.
@@ -28,14 +28,6 @@ export const sandbox = {
 
 export const agentmail = {
   inbox: 'gorkie@agentmail.to',
-};
-
-export const liveView = {
-  cdpPort: 9222,
-  cloakServe: { path: '/usr/local/bin/cloakserve', version: '0.5.10' },
-  startupTimeoutMs: 30_000,
-  versionProbeTimeoutMs: 5000,
-  refreshMs: 15_000,
 };
 
 export const upload = {

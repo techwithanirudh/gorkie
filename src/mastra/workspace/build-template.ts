@@ -1,6 +1,6 @@
 import { defaultBuildLogger, Template } from 'e2b';
 import { env } from '@/env';
-import { sandbox as config, liveView } from '../config';
+import { sandbox as config } from '../config';
 
 async function main(): Promise<void> {
   console.log(`[sandbox] building e2b template: ${config.template}`);
@@ -51,10 +51,7 @@ async function main(): Promise<void> {
         'python3 -m pip install --no-cache-dir --break-system-packages --no-user pillow matplotlib numpy pandas requests agentmail gTTS SpeechRecognition pydub',
         'npm install -g agent-browser wrangler',
         'bash -lc "yes | agent-browser install --with-deps"',
-        `python3 -m pip install --no-cache-dir --break-system-packages --no-user 'cloakbrowser[serve]==${liveView.cloakServe.version}'`,
-        // TODO(slopradar): review: security (supply chain, low) | cloakserve is fetched from a mutable git tag with no integrity check and installed as an executable in the image (same shape as the nodesource `curl | bash` above) | pin a commit SHA in liveView.cloakServe and verify a sha256 before chmod
-        `curl -fsSL https://raw.githubusercontent.com/CloakHQ/CloakBrowser/v${liveView.cloakServe.version}/bin/cloakserve -o ${liveView.cloakServe.path}`,
-        `chmod 755 ${liveView.cloakServe.path}`,
+        'python3 -m pip install --no-cache-dir --break-system-packages --no-user cloakbrowser==0.5.10',
         'mv /usr/local/bin/agent-browser /usr/local/bin/agent-browser-real',
         'python3 -c "from cloakbrowser.download import ensure_binary; ensure_binary()"',
         `chown -R user:user ${config.workdir}`,
@@ -64,7 +61,8 @@ async function main(): Promise<void> {
       })
       .setUser('user')
       .runCmd([
-        // cloakserve runs as user, so its browser binary lives in user's cache.
+        // agent-browser runs as user, so stealth-browser.sh resolves the binary
+        // from user's cache.
         'python3 -m cloakbrowser install',
         'git config --global user.name gorkie-agent',
         'git config --global user.email gorkie@agentmail.to',

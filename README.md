@@ -152,8 +152,7 @@ bun run dev:tunnel
 Paste the printed tunnel host plus `/api/agents/orchestrator/channels/slack/webhook`
 into both request URLs of the dev app (Event Subscriptions and Interactivity).
 The tunnel URL changes on every run. Through the tunnel only the public routes
-answer (the Slack webhook, `/health`, and the sign-in and live-view routes
-listed in [docs/webhook-mode.md](docs/webhook-mode.md#the-public-surface)); every
+answer (the Slack webhook, `/health`, and the sign-in routes listed in [docs/webhook-mode.md](docs/webhook-mode.md#the-public-surface)); every
 other route returns 404, and the rest of `/api` needs
 `Authorization: Bearer $GORKIE_API_TOKEN` even on the host. The bot logs
 `[agent] online` once channels are ready.
@@ -262,31 +261,6 @@ App Home (`user_settings.mcp_threads`), and there a server set to ask only
 before deleting still asks before writing
 (`mcp/user-servers/approval.ts`).
 
-## Live browser view
-
-When gorkie drives a browser, the thread gets a "gorkie is browsing" card: a
-Slack `video` block that plays the live view inline on desktop, a Watch live
-button, and a thumbnail that refreshes about every 15 seconds. The browser is
-CloakBrowser running inside the thread's E2B sandbox (`cloakserve` on port
-9222); `SandboxBrowser` (`src/mastra/workspace/browser.ts`), a subclass of
-`@mastra/browser-viewer`'s `BrowserViewer`, attaches to it from the host for the
-screencast and injects the sandbox's loopback CDP address into every
-`agent-browser` command. Chrome never runs on the host.
-
-- The page at `/live/<ticket>` and its WebSocket need a signed ticket that
-  expires after 10 minutes. Anyone holding the link can watch; nobody can
-  click or type into the browser.
-- Sandboxes are created with `allowPublicTraffic: false`, so the CDP port is
-  only reachable with the sandbox's traffic token, which stays on the host.
-  E2B only accepts that setting at creation, so sandboxes created earlier skip
-  the live view and keep the browser `agent-browser` starts itself.
-- The card turns into "browser session ended" when the turn ends.
-
-Setup: set `PUBLIC_BASE_URL`, add its host to the Slack app's
-`unfurl_domains` and the `links.embed:write` bot scope (both manifests already
-list them), reinstall the app, and rebuild the E2B template with
-`bun run build:template`.
-
 ## The Mastra patch
 
 [`patches/@mastra+core@1.69.0.patch`](./patches/@mastra+core@1.69.0.patch)
@@ -317,11 +291,6 @@ carries six fixes:
 - **Detailed cards show the tool's summary.** Timeline task output prefers the
   tool's `transform.display` summary over the truncated raw result.
 
-[`patches/@mastra+browser-viewer@0.2.4.patch`](./patches/@mastra+browser-viewer@0.2.4.patch)
-adds an optional options argument to `connectToExternalCdp`, forwarded to
-Playwright's `connectOverCDP`, so the live view can send E2B's
-`e2b-traffic-access-token` header.
-
 [`patches/@chat-adapter+slack@4.41.0.patch`](./patches/@chat-adapter+slack@4.41.0.patch)
 patches the Slack adapter's `dist/index.js`, which native streaming needs:
 
@@ -334,7 +303,7 @@ patches the Slack adapter's `dist/index.js`, which native streaming needs:
   plan or task chunk, and at the final stop. Nothing already shown in an earlier
   segment is sent twice.
 
-`scripts/verify-mastra-patch.ts` checks all three patches after every build.
+`scripts/verify-mastra-patch.ts` checks both patches after every build.
 
 The upstream issue for the first two is mastra-ai/mastra#21280. Rollup
 content-hashes the bundle file names, so a version bump makes the patch fail to

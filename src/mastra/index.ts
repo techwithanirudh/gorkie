@@ -21,13 +21,11 @@ import { observability as observabilityConfig, shutdown } from './config';
 import { runMigrations } from './db';
 import { postgresStore } from './db/client';
 import { buildAllowlist } from './lib/allowed-users';
-import { verifyLiveViewTicket } from './lib/crypto';
 import { rawId } from './lib/ids';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
 import { trimPayloads } from './observability/trim-payloads';
-import { liveViewRoutes } from './server/live-view';
 import { oauthRoutes } from './server/oauth';
 import { isWaitSchedule } from './tools/scheduled-tasks/queries';
 import { channelSchema } from './types';
@@ -150,7 +148,7 @@ export const mastra = new Mastra({
     cors: false,
     drainTimeout: shutdown.drainTimeoutMs,
     build: { openAPIDocs: false, swaggerUI: false },
-    apiRoutes: [...oauthRoutes, ...liveViewRoutes],
+    apiRoutes: oauthRoutes,
     ...(env.GORKIE_API_TOKEN
       ? {
           auth: new SimpleAuth({
@@ -210,24 +208,15 @@ export const mastra = new Mastra({
 });
 
 // Operator routes are for the host, never for anything that arrived through the
-// tunnel or a proxy. Set here rather than as `server.middleware`: that runs
-// after Mastra registers the screencast WebSocket and its browser session and
-// close routes, which then answer before the guard sees them. Mastra skips this
-// for public routes (the Slack webhook, OAuth and live view pages).
+// tunnel or a proxy. Mastra skips this for public routes (the Slack webhook and
+// OAuth pages).
 mastra.setServerMiddleware([
   {
     path: '*',
     handler: async (c, next) => {
       const proxied =
         c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for');
-      // Mastra registers the screencast WebSocket with no auth of its own,
-      // so a proxied viewer needs a live-view ticket for that exact thread.
-      const ticket = verifyLiveViewTicket(c.req.query('t'));
-      const liveViewer =
-        c.req.path === `/browser/${orchestrator.id}/stream` &&
-        ticket !== undefined &&
-        ticket.threadId === c.req.query('threadId');
-      if (proxied && c.req.path !== '/health' && !liveViewer) {
+      if (proxied && c.req.path !== '/health') {
         return c.text('Not found', 404);
       }
       await next();

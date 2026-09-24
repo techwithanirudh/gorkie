@@ -32,8 +32,7 @@
         "usage_hint": "@user [reason]",
         "should_escape": true
       }
-    ],
-    "unfurl_domains": ["<YOUR-TUNNEL-URL>"]
+    ]
   },
   "oauth_config": {
     "scopes": {
@@ -57,7 +56,6 @@
         "im:history",
         "im:read",
         "im:write",
-        "links.embed:write",
         "links:read",
         "mpim:history",
         "mpim:read",
@@ -81,7 +79,6 @@
         "app_context_changed",
         "app_home_opened",
         "app_mention",
-        "link_shared",
         "member_joined_channel",
         "member_left_channel",
         "message.channels",

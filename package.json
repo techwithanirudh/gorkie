@@ -30,7 +30,6 @@
     "@chat-adapter/slack": "^4.41.0",
     "@github-tools/sdk": "^1.11.1",
     "@langfuse/client": "^5.11.1",
-    "@mastra/browser-viewer": "0.2.4",
     "@mastra/core": "1.69.0",
     "@mastra/deployer": "^1.69.0",
     "@mastra/duckdb": "^1.10.0",
@@ -83,7 +82,6 @@
   },
   "patchedDependencies": {
     "@chat-adapter/slack@4.41.0": "patches/@chat-adapter+slack@4.41.0.patch",
-    "@mastra/browser-viewer@0.2.4": "patches/@mastra+browser-viewer@0.2.4.patch",
     "@mastra/core@1.69.0": "patches/@mastra+core@1.69.0.patch"
   }
 }

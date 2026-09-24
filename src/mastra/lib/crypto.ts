@@ -10,12 +10,7 @@ import {
   type StateSigner,
 } from '@mastra/factory/state-signing';
 import { env } from '@/env';
-import {
-  type LiveViewTicket,
-  liveViewTicketSchema,
-  type OAuthToken,
-  oauthTokenSchema,
-} from '../types';
+import { type OAuthToken, oauthTokenSchema } from '../types';
 
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
@@ -92,21 +87,19 @@ export function decryptSecret(stored: string): string {
 }
 
 // Factory's signer expires a state after 10 minutes.
-function rotatingSigner(info: string): Pick<StateSigner, 'sign' | 'verify'> {
-  const derive = (key: Buffer) =>
-    createStateSigner(
-      Buffer.from(hkdfSync('sha256', key, '', info, 32)).toString('hex')
-    );
-  const signer = derive(current.key);
-  const fallback = previous ? derive(previous.key) : undefined;
-  return {
-    sign: (...args) => signer.sign(...args),
-    verify: (signed) =>
-      signer.verify(signed) ?? fallback?.verify(signed) ?? null,
-  };
-}
-
-const stateSigner = rotatingSigner('gorkie-oauth-state');
+const deriveSigner = (key: Buffer): StateSigner =>
+  createStateSigner(
+    Buffer.from(hkdfSync('sha256', key, '', 'gorkie-oauth-state', 32)).toString(
+      'hex'
+    )
+  );
+const signer = deriveSigner(current.key);
+const fallbackSigner = previous ? deriveSigner(previous.key) : undefined;
+const stateSigner: Pick<StateSigner, 'sign' | 'verify'> = {
+  sign: (...args) => signer.sign(...args),
+  verify: (signed) =>
+    signer.verify(signed) ?? fallbackSigner?.verify(signed) ?? null,
+};
 
 export function signOAuthToken(token: Omit<OAuthToken, 'nonce'>): {
   nonce: string;
@@ -146,20 +139,4 @@ export function verifyOAuthToken({
   return parsed.success && parsed.data.purpose === purpose
     ? parsed.data
     : undefined;
-}
-
-const liveViewSigner = rotatingSigner('gorkie-live-view');
-
-export function signLiveViewTicket(ticket: LiveViewTicket): string {
-  return liveViewSigner.sign('live', ticket.threadId);
-}
-
-export function verifyLiveViewTicket(
-  signed: string | undefined
-): LiveViewTicket | undefined {
-  const tenant = liveViewSigner.verify(signed);
-  if (tenant?.orgId !== 'live') {
-    return;
-  }
-  return liveViewTicketSchema.safeParse({ threadId: tenant.userId }).data;
 }

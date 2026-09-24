@@ -17,10 +17,6 @@ const markers = [
 // Not a patch hunk: stock code that processors/tool-display.ts depends on.
 const stockContracts = ['"__mastra_chat_channel_render"'];
 
-// The live view reaches a restricted E2B sandbox only with its traffic token,
-// which the browser-viewer patch forwards to connectOverCDP.
-const viewerDist = join(root, 'node_modules/@mastra/browser-viewer/dist');
-
 // Native streaming depends on the adapter patch that continues a reply in a
 // new message when Slack reports the streamed one as message_not_found.
 const slackDist = join(root, 'node_modules/@chat-adapter/slack/dist/index.js');
@@ -44,16 +40,6 @@ const missing = [
         .map((contract) => `${file}: stock contract ${contract}`),
     ];
   }),
-  ...['index.js', 'index.cjs']
-    .filter(
-      (file) =>
-        !readFileSync(join(viewerDist, file), 'utf8').includes(
-          'connectOverCDP(cdpUrl, cdpOptions)'
-        )
-    )
-    .map(
-      (file) => `browser-viewer ${file}: connectOverCDP(cdpUrl, cdpOptions)`
-    ),
   ...(readFileSync(slackDist, 'utf8').includes('STREAM_GONE_ERROR')
     ? []
     : ['@chat-adapter/slack index.js: STREAM_GONE_ERROR']),

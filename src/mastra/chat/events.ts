@@ -10,7 +10,6 @@ import {
   onFeedbackClick,
   recordFeedbackDetails,
 } from './feedback';
-import { registerLiveView } from './live-view';
 import { banStatus, registerModeration } from './moderation';
 import { acceptOptIn, optInIds } from './onboarding';
 
@@ -40,7 +39,6 @@ export function registerEvents(): void {
 
   registerAppHome();
   registerModeration();
-  registerLiveView();
 
   bot.onAction(optInIds.accept, acceptOptIn);
 

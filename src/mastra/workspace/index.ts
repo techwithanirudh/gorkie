@@ -14,7 +14,6 @@ import { env } from '@/env';
 import { sandbox as config } from '../config';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
-import { SandboxBrowser } from './browser';
 import { E2BFilesystem } from './filesystem';
 import { findJob, hasLiveJob, startJob } from './jobs';
 import { createSandbox } from './sandbox';
@@ -121,13 +120,10 @@ async function getSandbox(
 export async function endSandboxTurn(
   requestContext: RequestContext
 ): Promise<void> {
-  const { threadId } = channelContext(requestContext);
-  if (threadId) {
-    await browser.closeThreadSession(threadId);
-  }
   if (!reached.has(requestContext)) {
     return;
   }
+  const { threadId } = channelContext(requestContext);
   // An E2B pause freezes a running background job.
   if (threadId && hasLiveJob(threadId)) {
     return;
@@ -215,11 +211,6 @@ function afterToolCall({
 
 export { codeModeToolNames } from './tool-names';
 
-export const browser = new SandboxBrowser({
-  sandboxFor: (threadId) =>
-    requireSandbox(new RequestContext([['channel', { threadId }]])),
-});
-
 export const workspace: Workspace = new Workspace({
   id: 'main-workspace',
   name: 'Workspace',
@@ -240,7 +231,6 @@ export const workspace: Workspace = new Workspace({
     });
   },
   sandboxCacheKey: ({ requestContext }) => sandboxKey(requestContext),
-  browser,
   skillSource: new LocalSkillSource({
     basePath: join(env.PROJECT_ROOT, 'workspace/skills'),
   }),
