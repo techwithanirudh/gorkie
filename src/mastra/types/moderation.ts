@@ -12,3 +12,9 @@ export type ActiveBan = Pick<
   ModerationEvent,
   'actorId' | 'expiresAt' | 'reason'
 >;
+
+// 'unknown' means the lookup failed; every caller lets the user through then,
+// so a database outage never locks everyone out.
+export type BanStatus =
+  | { status: 'banned'; ban: ActiveBan }
+  | { status: 'clear' | 'unknown' };

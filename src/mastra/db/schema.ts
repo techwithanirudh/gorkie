@@ -2,6 +2,7 @@ import {
   boolean,
   foreignKey,
   index,
+  integer,
   pgTable,
   primaryKey,
   text,
@@ -37,6 +38,7 @@ export const mcpServers = pgTable(
     token: text('token'),
     permission: text('permission').$type<ToolPermission>(),
     lastError: text('last_error'),
+    lastErrorHttpStatus: integer('last_error_http_status'),
     oauthStatus: text('oauth_status').$type<MCPOAuthStatus>(),
     oauthConnectedAt: timestamp('oauth_connected_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })

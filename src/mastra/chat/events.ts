@@ -10,7 +10,8 @@ import {
   onFeedbackClick,
   recordFeedbackDetails,
 } from './feedback';
-import { isBanned, registerModeration } from './moderation';
+import { registerLiveView } from './live-view';
+import { banStatus, registerModeration } from './moderation';
 import { acceptOptIn, optInIds } from './onboarding';
 
 export function registerEvents(): void {
@@ -29,7 +30,7 @@ export function registerEvents(): void {
   bot.onAgentSessionStopped(async (event) => {
     if (
       (await optInStatus(event.userId)) !== 'allowed' ||
-      (await isBanned(event.userId))
+      (await banStatus(event.userId)).status === 'banned'
     ) {
       return;
     }
@@ -39,6 +40,7 @@ export function registerEvents(): void {
 
   registerAppHome();
   registerModeration();
+  registerLiveView();
 
   bot.onAction(optInIds.accept, acceptOptIn);
 

@@ -70,7 +70,7 @@ export async function updateRefreshedGitHubCredential({
   return updated.length > 0;
 }
 
-export async function setGitHubCredentialError({
+export async function updateGitHubCredentialError({
   error,
   forgetRefreshToken,
   userId,

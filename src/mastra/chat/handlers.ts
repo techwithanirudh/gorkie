@@ -3,7 +3,7 @@ import type {
   ChannelHandler,
 } from '@mastra/core/channels';
 import type { Message, Thread } from 'chat';
-import { optInStatus } from '../lib/allowed-users';
+import { optInStatus, rebuildAllowlist } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
 import { attachments } from './attachments';
 import { slack } from './client';
@@ -11,11 +11,11 @@ import { handleCommand } from './commands';
 import { focusFilter } from './focus';
 import { withHistory } from './history';
 import { isComment } from './message';
-import { isBanned } from './moderation';
+import { banStatus } from './moderation';
 import { banNotice } from './moderation/cards';
 import { notify } from './notify';
 import { offerOptIn } from './onboarding';
-import { setThreadState, threadState } from './state';
+import { sentBeforeStop, setThreadState, threadState } from './state';
 import { syncTitle } from './title';
 import { claimTurn } from './usage';
 
@@ -30,13 +30,13 @@ async function turnAwayBanned({
   message: Message;
   thread: Thread;
 }): Promise<boolean> {
-  const ban = await isBanned(message.author.userId);
-  if (!ban) {
+  const check = await banStatus(message.author.userId);
+  if (check.status !== 'banned') {
     return false;
   }
   declined({ message, reason: 'banned', thread });
   await notify({
-    text: banNotice(ban.expiresAt),
+    text: banNotice(check.ban.expiresAt),
     thread,
     user: message.author,
   });
@@ -56,12 +56,18 @@ async function turnAwayNotOptedIn({
   if (status === 'allowed') {
     return false;
   }
+  if (status === 'uncached') {
+    // Not awaited: paging a large channel's members would hold this reply.
+    rebuildAllowlist().catch((error: unknown) =>
+      logger.error('[allowlist] failed to rebuild opt-in cache', { error })
+    );
+  }
   declined({
     message,
     reason:
-      status === 'unknown'
-        ? 'could not check the allow-list'
-        : 'not on the allow-list',
+      status === 'not-allowed'
+        ? 'not on the allow-list'
+        : 'could not check the allow-list',
     thread,
   });
   if (!offer) {
@@ -145,19 +151,15 @@ async function runTurn({
   });
 
   const prompt = await withHistory({ message: attachments(message), thread });
-  const state = await threadState(thread);
-  if (
-    state?.dropMessagesBefore &&
-    message.metadata.dateSent.getTime() < state.dropMessagesBefore
-  ) {
+  if (sentBeforeStop({ message, state: await threadState(thread) })) {
     declined({ message, reason: 'sent before a stop or leave', thread });
     return;
   }
-  const overLimit = await claimTurn(message.author.userId);
-  if (overLimit) {
+  const claim = await claimTurn(message.author.userId);
+  if (claim.status === 'over-limit') {
     declined({ message, reason: 'over the turn limit', thread });
     await notify({
-      text: overLimit,
+      text: claim.notice,
       thread,
       user: message.author,
     });
@@ -171,7 +173,14 @@ async function runTurn({
     await setThreadState({ thread, patch: { lastSeenMessage: message.id } });
     return;
   }
-  syncTitle({ message, thread });
+  // Not awaited: generating a title is a model call, and the handler should
+  // not hold the thread's next message behind it.
+  syncTitle({ message, thread }).catch((error: unknown) => {
+    logger.warn('[chat] could not set the thread title', {
+      error,
+      threadId: thread.id,
+    });
+  });
 }
 
 export const onMention: ChannelHandler = async (
@@ -230,7 +239,7 @@ export const onSubscribedMessage: ChannelHandler = async (
     if (await turnAwayBanned({ message, thread })) {
       return;
     }
-  } else if (await isBanned(message.author.userId)) {
+  } else if ((await banStatus(message.author.userId)).status === 'banned') {
     declined({ message, reason: 'banned', thread });
     return;
   }
@@ -275,13 +284,13 @@ export const onDirectMessage: ChannelHandler = async (
 
 // defaultHandler is Mastra's tool approve/deny button handler.
 export const onAction: ActionChannelHandler = async (event, defaultHandler) => {
-  const ban = await isBanned(event.user.userId);
-  if (!ban) {
+  const check = await banStatus(event.user.userId);
+  if (check.status !== 'banned') {
     await defaultHandler();
     return;
   }
   await notify({
-    text: banNotice(ban.expiresAt),
+    text: banNotice(check.ban.expiresAt),
     thread: event.thread,
     user: event.user,
   });

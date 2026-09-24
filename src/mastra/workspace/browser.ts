@@ -9,6 +9,7 @@ import type { E2BSandbox } from '@mastra/e2b';
 import { z } from 'zod';
 import { liveView as config } from '../config';
 import { logger } from '../lib/logger';
+import type { BrowserSessionHooks } from '../types';
 
 const versionSchema = z.object({ webSocketDebuggerUrl: z.string().min(1) });
 
@@ -19,9 +20,9 @@ const versionSchema = z.object({ webSocketDebuggerUrl: z.string().min(1) });
 const noHostChrome = '/nonexistent/gorkie-never-launches-chrome-on-the-host';
 
 interface SandboxCdp {
-  external: string;
+  edgeUrl: string;
   headers: Record<string, string>;
-  internal: string;
+  loopbackUrl: string;
 }
 
 async function readVersion({
@@ -126,16 +127,16 @@ async function sandboxCdp({
   }
   const path = new URL(webSocketUrl).pathname;
   return {
-    internal: `ws://127.0.0.1:${config.cdpPort}${path}`,
-    external: `wss://${origin.host}${path}`,
+    loopbackUrl: `ws://127.0.0.1:${config.cdpPort}${path}`,
+    edgeUrl: `wss://${origin.host}${path}`,
     headers,
   };
 }
 
 export class SandboxBrowser extends BrowserViewer {
   private readonly sandboxFor: (threadId: string) => Promise<E2BSandbox>;
-  private connectedHook?: (threadId: string) => Promise<void>;
-  private readonly internalUrls = new Map<string, string>();
+  private sessionHooks?: BrowserSessionHooks;
+  private readonly loopbackUrls = new Map<string, string>();
 
   constructor({
     sandboxFor,
@@ -151,8 +152,8 @@ export class SandboxBrowser extends BrowserViewer {
     this.sandboxFor = sandboxFor;
   }
 
-  onConnected(hook: (threadId: string) => Promise<void>): void {
-    this.connectedHook = hook;
+  onSession(hooks: BrowserSessionHooks): void {
+    this.sessionHooks = hooks;
   }
 
   private async connectThread(threadId: string | undefined): Promise<void> {
@@ -174,7 +175,7 @@ export class SandboxBrowser extends BrowserViewer {
     if (!cdp) {
       return;
     }
-    const connected = await this.connectToExternalCdp(cdp.external, threadId, {
+    const connected = await this.connectToExternalCdp(cdp.edgeUrl, threadId, {
       headers: cdp.headers,
     }).then(
       () => true,
@@ -189,8 +190,11 @@ export class SandboxBrowser extends BrowserViewer {
     if (!connected) {
       return;
     }
-    this.internalUrls.set(threadId, cdp.internal);
-    await this.connectedHook?.(threadId).catch((error: unknown) => {
+    this.loopbackUrls.set(threadId, cdp.loopbackUrl);
+    if (!this.sessionHooks) {
+      return;
+    }
+    await this.sessionHooks.connected(threadId).catch((error: unknown) => {
       logger.warn('[live-view] failed to post the live view', {
         error,
         threadId,
@@ -211,12 +215,18 @@ export class SandboxBrowser extends BrowserViewer {
   // The session's own CDP URL is the E2B edge address; agent-browser runs in
   // the sandbox and reaches the same Chrome over loopback without the token.
   override getCdpUrl(threadId?: string): string | null {
-    return this.internalUrls.get(threadId ?? this.getCurrentThread()) ?? null;
+    return this.loopbackUrls.get(threadId ?? this.getCurrentThread()) ?? null;
   }
 
   override async closeThreadSession(threadId: string): Promise<void> {
-    this.internalUrls.delete(threadId);
-    await super.closeThreadSession(threadId);
+    this.loopbackUrls.delete(threadId);
+    await super.closeThreadSession(threadId).catch((error: unknown) => {
+      logger.debug('[live-view] failed to close the browser session', {
+        error,
+        threadId,
+      });
+    });
+    await this.sessionHooks?.closed(threadId);
   }
 
   async screenshot(threadId: string): Promise<Buffer | undefined> {

@@ -53,7 +53,15 @@ export class TurnDrainWorker extends MastraWorker {
           orchestrator
             .listSuspendedRuns({ threadId: run.threadId })
             .then(({ runs }) => runs.some(({ runId }) => runId === run.runId))
-            .catch(() => false)
+            // A run whose suspension cannot be checked is waited on as if it
+            // were streaming: draining too long beats cutting a turn short.
+            .catch((error: unknown) => {
+              logger.debug('[shutdown] could not check a run for suspension', {
+                error,
+                threadId: run.threadId,
+              });
+              return false;
+            })
         )
       );
       return active.filter((_, index) => !parked[index]);

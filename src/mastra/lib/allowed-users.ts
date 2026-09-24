@@ -48,10 +48,7 @@ export async function optInStatus(userId: string): Promise<OptInStatus> {
     logger.warn('[allowlist] failed to read opt-in cache', { error, userId });
     return 'unknown';
   }
-  rebuildAllowlist({ channel }).catch((error: unknown) =>
-    logger.error('[allowlist] failed to rebuild opt-in cache', { error })
-  );
-  return 'unknown';
+  return 'uncached';
 }
 
 export async function setMembership({
@@ -94,12 +91,9 @@ export async function setMembership({
   }
 }
 
-async function rebuildAllowlist({
-  channel,
-}: {
-  channel: string;
-}): Promise<void> {
-  if (building) {
+export async function rebuildAllowlist(): Promise<void> {
+  const channel = env.OPT_IN_CHANNEL;
+  if (!channel || building) {
     return;
   }
   building = true;
@@ -157,7 +151,7 @@ export async function buildAllowlist(): Promise<void> {
   });
 
   try {
-    await rebuildAllowlist({ channel });
+    await rebuildAllowlist();
   } catch (error) {
     logger.error('[allowlist] failed to build opt-in cache', {
       channel,

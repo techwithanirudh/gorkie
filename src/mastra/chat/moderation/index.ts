@@ -8,7 +8,7 @@ import {
 } from '../../db/queries/moderation';
 import { chatChannelId, rawId } from '../../lib/ids';
 import { logger } from '../../lib/logger';
-import type { BanDuration, ModerationEvent } from '../../types';
+import type { BanDuration, BanStatus, ModerationEvent } from '../../types';
 import { publishHome } from '../app-home/view';
 import { slack } from '../client';
 import { notify } from '../notify';
@@ -23,11 +23,13 @@ const DURATION: Record<Exclude<BanDuration, 'perm'>, Duration> = {
   '30d': { days: 30 },
 };
 
-export async function isBanned(userId: string) {
+export async function banStatus(userId: string): Promise<BanStatus> {
   try {
-    return await activeBan(userId);
+    const ban = await activeBan(userId);
+    return ban ? { status: 'banned', ban } : { status: 'clear' };
   } catch (error) {
     logger.error('[moderation] ban lookup failed', { error, userId });
+    return { status: 'unknown' };
   }
 }
 

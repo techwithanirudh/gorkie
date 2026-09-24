@@ -6,17 +6,17 @@ function isPublicAddress(address: string): boolean {
   return ipaddr.process(address).range() === 'unicast';
 }
 
-export async function findMCPUrlError(
+export async function checkMCPUrl(
   rawUrl: string
-): Promise<string | undefined> {
+): Promise<{ url: URL; error?: never } | { error: string }> {
   let url: URL;
   try {
     url = new URL(rawUrl);
   } catch {
-    return 'Enter a valid URL.';
+    return { error: 'Enter a valid URL.' };
   }
   if (url.protocol !== 'https:') {
-    return 'Only https:// server URLs are allowed.';
+    return { error: 'Only https:// server URLs are allowed.' };
   }
   const hostname =
     url.hostname.startsWith('[') && url.hostname.endsWith(']')
@@ -24,8 +24,11 @@ export async function findMCPUrlError(
       : url.hostname;
   if (ipaddr.isValid(hostname)) {
     return isPublicAddress(hostname)
-      ? undefined
-      : "This URL points to a private or reserved address, which isn't allowed.";
+      ? { url }
+      : {
+          error:
+            "This URL points to a private or reserved address, which isn't allowed.",
+        };
   }
   let addresses: string[];
   try {
@@ -33,11 +36,14 @@ export async function findMCPUrlError(
       (entry) => entry.address
     );
   } catch {
-    return "Couldn't resolve that hostname.";
+    return { error: "Couldn't resolve that hostname." };
   }
   return addresses.some((address) => !isPublicAddress(address))
-    ? "This URL resolves to a private or reserved address, which isn't allowed."
-    : undefined;
+    ? {
+        error:
+          "This URL resolves to a private or reserved address, which isn't allowed.",
+      }
+    : { url };
 }
 
 // OAuth discovery, registration, token and revocation URLs come from the
@@ -46,7 +52,7 @@ export async function guardedFetch(
   input: string | URL,
   init?: RequestInit
 ): Promise<Response> {
-  const error = await findMCPUrlError(String(input));
+  const { error } = await checkMCPUrl(String(input));
   if (error) {
     throw new Error(`Blocked OAuth request: ${error}`);
   }

@@ -9,7 +9,7 @@ export const connections: CommandHandler = async ({ message, thread }) => {
   const items = ['• context7 (built in)'];
 
   try {
-    const github = await githubAccess({ userId });
+    const github = await githubAccess({ isDM: thread.isDM, userId });
     let status = 'not connected';
     if (github.state === 'connected') {
       status = github.credential.lastError

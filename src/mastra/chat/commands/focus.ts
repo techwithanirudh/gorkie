@@ -18,7 +18,7 @@ export const focus: CommandHandler = async ({ message, thread }) => {
     .replace(/^!focus\b/i, '')
     .trim();
   if (!argument) {
-    const current = (await threadState(thread))?.focus ?? [];
+    const current = (await threadState(thread))?.focusedUserIds ?? [];
     await reply(
       current.length > 0
         ? `focused on ${current.map((id) => `<@${id}>`).join(', ')}, plus whoever brought me into this thread and gorkie moderators. \`!focus off\` undoes it.`

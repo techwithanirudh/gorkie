@@ -22,7 +22,7 @@ export async function recallModel(): Promise<string | undefined> {
   }
 }
 
-export async function rememberModel({
+export async function pinModelOnce({
   modelId,
   modelProvider,
 }: {

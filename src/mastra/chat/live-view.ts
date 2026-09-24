@@ -13,8 +13,6 @@ interface LiveCard {
 
 const cards = new Map<string, LiveCard>();
 
-browser.onConnected((threadId) => startLiveView({ threadId }));
-
 async function liveBlocks(threadId: string) {
   const url = await browser.getCurrentUrl(threadId).catch(() => null);
   const ticket = signLiveViewTicket({ threadId });
@@ -95,19 +93,9 @@ async function startLiveView({
   cards.set(threadId, { channel, timer, ts: posted.ts });
 }
 
-export async function endLiveView({
-  threadId,
-}: {
-  threadId: string;
-}): Promise<void> {
+async function endLiveView({ threadId }: { threadId: string }): Promise<void> {
   const card = cards.get(threadId);
   cards.delete(threadId);
-  await browser.closeThreadSession(threadId).catch((error: unknown) => {
-    logger.debug('[live-view] failed to close the browser session', {
-      error,
-      threadId,
-    });
-  });
   if (!card) {
     return;
   }
@@ -127,4 +115,11 @@ export async function endLiveView({
     .catch((error: unknown) => {
       logger.debug('[live-view] failed to end the card', { error, threadId });
     });
+}
+
+export function registerLiveView(): void {
+  browser.onSession({
+    connected: (threadId) => startLiveView({ threadId }),
+    closed: (threadId) => endLiveView({ threadId }),
+  });
 }

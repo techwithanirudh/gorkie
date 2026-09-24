@@ -7,6 +7,31 @@ import { branchSchema, repositorySchema } from '../../types';
 import { requireSandbox } from '../../workspace';
 import { checkoutPath, git, withCredential } from './git';
 
+// The schema only knows main and master; a repo whose default is anything else
+// is caught only by asking GitHub, so a push that cannot confirm it is refused.
+async function refuseDefaultBranch({
+  branch,
+  repository,
+  userId,
+}: {
+  branch: string;
+  repository: string;
+  userId: string;
+}): Promise<void> {
+  const token = await githubAccessToken(userId);
+  const access = token ? await repoAccess({ repository, token }) : undefined;
+  if (!access || 'error' in access || !access.defaultBranch) {
+    throw new Error(
+      `Could not confirm the default branch of ${repository}${access && 'error' in access ? ` (${access.error})` : ''}, so the push was not attempted.`
+    );
+  }
+  if (branch === access.defaultBranch) {
+    throw new Error(
+      `${branch} is the default branch of ${repository}, and direct pushes to it are not allowed. Push a feature branch and open a pull request.`
+    );
+  }
+}
+
 export const pushTool = ({
   approval,
   userId,
@@ -38,20 +63,7 @@ export const pushTool = ({
     execute: async ({ repository, branch, checkout }, context) => {
       const sandbox = await requireSandbox(context.requestContext);
       const path = checkoutPath(checkout ?? repository);
-      const token = await githubAccessToken(userId);
-      const access = token
-        ? await repoAccess({ repository, token })
-        : undefined;
-      if (!access || 'error' in access || !access.defaultBranch) {
-        throw new Error(
-          `Could not confirm the default branch of ${repository}${access && 'error' in access ? ` (${access.error})` : ''}, so the push was not attempted.`
-        );
-      }
-      if (branch === access.defaultBranch) {
-        throw new Error(
-          `${branch} is the default branch of ${repository}, and direct pushes to it are not allowed. Push a feature branch and open a pull request.`
-        );
-      }
+      await refuseDefaultBranch({ branch, repository, userId });
       const remote = `https://github.com/${repository}.git`;
       const push = () =>
         git({

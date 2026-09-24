@@ -86,7 +86,9 @@ export async function setMCPOAuthStatus({
     .set({
       oauthStatus: status,
       ...(status === 'connected' ? { oauthConnectedAt: new Date() } : {}),
-      ...(error === undefined ? {} : { lastError: error }),
+      ...(error === undefined
+        ? {}
+        : { lastError: error, lastErrorHttpStatus: null }),
     })
     .where(
       and(eq(mcpServers.userId, rawId(userId)), eq(mcpServers.name, name))

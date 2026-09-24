@@ -60,15 +60,20 @@ export async function userMCPTools({
         if (error === (server.lastError ?? null)) {
           return;
         }
-        await setMCPServerError({ userId, name: server.name, error }).catch(
-          (writeError: unknown) => {
-            logger.warn('[mcp] failed to record server error', {
-              error: writeError,
-              name: server.name,
-              userId,
-            });
-          }
-        );
+        await setMCPServerError({
+          userId,
+          name: server.name,
+          error,
+          httpStatus: rejected.has(server.name)
+            ? undefined
+            : details?.httpStatus,
+        }).catch((writeError: unknown) => {
+          logger.warn('[mcp] failed to record server error', {
+            error: writeError,
+            name: server.name,
+            userId,
+          });
+        });
       })
     );
     return tools;

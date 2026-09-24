@@ -33,7 +33,7 @@ import { userMCPTools } from '../mcp/user-servers/tools';
 import { profileSchema } from '../memory/profile';
 import { delegatedTools } from '../processors/delegated-tools';
 import { outputBudget } from '../processors/output-budget';
-import { endSandboxTurn, sandbox } from '../processors/sandbox';
+import { sandbox } from '../processors/sandbox';
 import { staleMessages } from '../processors/stale-messages';
 import { stepGuard } from '../processors/step-guard';
 import { toolDisplay } from '../processors/tool-display';
@@ -52,7 +52,7 @@ import { workspaceCodeModePrompt } from '../tools/code-mode/slack';
 import { githubTools } from '../tools/github';
 import { orchestratorTools } from '../tools/toolsets';
 import { mastraToolDisplay } from '../types';
-import { workspace } from '../workspace';
+import { endSandboxTurn, workspace } from '../workspace';
 import { explore } from './explore';
 import { research } from './research';
 

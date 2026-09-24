@@ -1,14 +1,24 @@
 import type { AnySpan, SpanOutputProcessor } from '@mastra/core/observability';
 
+const encodedMediaMinLength = 20_000;
+const encodedMediaPreviewChars = 200;
+const maxTrimDepth = 8;
+
+// Base64 and data URLs carry no whitespace, while prose, code and JSON of this
+// length always do, so a long unbroken string is taken for encoded media.
+function isEncodedMedia(value: string): boolean {
+  return value.length > encodedMediaMinLength && !/\s/.test(value);
+}
+
 // Mastra caps a string at 128 KB, and a media payload repeats in every later
 // model step's input, which still adds up to tens of MB per trace.
 function trim({ value, depth }: { value: unknown; depth: number }): unknown {
   if (typeof value === 'string') {
-    return value.length > 20_000 && !/\s/.test(value)
-      ? `${value.slice(0, 200)}… [truncated, ${value.length} characters total]`
+    return isEncodedMedia(value)
+      ? `${value.slice(0, encodedMediaPreviewChars)}… [truncated, ${value.length} characters total]`
       : value;
   }
-  if (value === null || typeof value !== 'object' || depth >= 8) {
+  if (value === null || typeof value !== 'object' || depth >= maxTrimDepth) {
     return value;
   }
   if (Array.isArray(value)) {

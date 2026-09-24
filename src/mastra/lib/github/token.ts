@@ -4,7 +4,7 @@ import { env } from '@/env';
 import { github as githubConfig } from '../../config';
 import {
   getGitHubCredential,
-  setGitHubCredentialError,
+  updateGitHubCredentialError,
   updateRefreshedGitHubCredential,
 } from '../../db/queries/github';
 import type { GitHubAccount } from '../../types';
@@ -72,7 +72,7 @@ async function refreshAccount({
     }
     // Only GitHub's `bad_refresh_token` means the refresh token is dead.
     if (code === 'bad_refresh_token') {
-      await setGitHubCredentialError({
+      await updateGitHubCredentialError({
         error:
           'GitHub sign-in expired and could not be renewed. Reconnect to keep using GitHub.',
         forgetRefreshToken: true,
@@ -131,7 +131,7 @@ export async function revokeGitHubGrant(token: string): Promise<void> {
 }
 
 export async function recordGitHubUnauthorized(userId: string): Promise<void> {
-  await setGitHubCredentialError({
+  await updateGitHubCredentialError({
     error:
       'GitHub rejected the stored sign-in (401), so it was revoked or has lapsed. Reconnect to keep using GitHub.',
     forgetRefreshToken: false,

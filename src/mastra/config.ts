@@ -11,6 +11,11 @@ export const sandbox = {
     maxTimeoutSeconds: 60 * 60,
     keepaliveMs: 10 * 60 * 1000,
     outputTailChars: 10_000,
+    // Mastra's task timeout must outlast the command's own deadline, or the
+    // task fails before the tool can return the timed-out output.
+    taskTimeoutBufferSeconds: 120,
+    // E2B kills the process only if our own abort never reached it.
+    spawnBackstopSeconds: 60,
   },
   // A cold clone or a large push runs well past E2B's 60s request default, and
   // a timeout there retries the whole clone inside the credential window.

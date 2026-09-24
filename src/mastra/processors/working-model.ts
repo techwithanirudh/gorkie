@@ -1,6 +1,6 @@
 import type { ProcessOutputResultArgs } from '@mastra/core/processors';
 import { z } from 'zod';
-import { rememberModel } from '../lib/working-model';
+import { pinModelOnce } from '../lib/working-model';
 
 const responseSchema = z.object({
   modelMetadata: z.object({ modelProvider: z.string() }).optional(),
@@ -19,7 +19,7 @@ export function workingModel(agentKey: string) {
       const response = args.result.steps.at(-1)?.response;
       const modelId = response?.modelId;
       if (modelId) {
-        await rememberModel({
+        await pinModelOnce({
           modelId,
           modelProvider:
             responseSchema.safeParse(response).data?.modelMetadata

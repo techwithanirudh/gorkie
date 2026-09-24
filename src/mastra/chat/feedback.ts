@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { optInStatus } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
 import { getMastra } from './mastra-instance';
-import { isBanned } from './moderation';
+import { banStatus } from './moderation';
 
 export const feedbackIds = {
   action: 'message_feedback',
@@ -81,7 +81,7 @@ export async function onFeedbackClick(event: ActionEvent): Promise<void> {
     return;
   }
   if (
-    (await isBanned(event.user.userId)) ||
+    (await banStatus(event.user.userId)).status === 'banned' ||
     (await optInStatus(event.user.userId)) !== 'allowed'
   ) {
     logger.info('[feedback] ignored a rating from a blocked user', {

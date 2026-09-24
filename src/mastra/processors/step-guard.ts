@@ -5,7 +5,7 @@ import type {
 } from '@mastra/core/processors';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
-import { reasoningMarkers } from '../prompts/reasoning';
+import { reasoningMarkers } from '../lib/reasoning-markers';
 
 interface Scan {
   carry: string;

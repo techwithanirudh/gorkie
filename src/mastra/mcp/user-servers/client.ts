@@ -5,7 +5,7 @@ import { logger } from '../../lib/logger';
 import { oauthRedirectUri } from '../../server/oauth-link';
 import type { MCPServerConfig, StoredMCPServer } from '../../types';
 import { MCPServerOAuth, mcpOAuthHosts } from '../oauth';
-import { findMCPUrlError } from '../security';
+import { checkMCPUrl } from '../security';
 import { approvalFor } from './approval';
 
 export function serverConnection({
@@ -67,9 +67,13 @@ async function buildClient({
       if (server.credentialError) {
         return { server, error: server.credentialError };
       }
-      const urlError = await findMCPUrlError(server.url);
-      if (urlError || !server.oauth) {
-        return { server, error: urlError };
+      const urlCheck = await checkMCPUrl(server.url);
+      if (urlCheck.error !== undefined) {
+        return { server, error: urlCheck.error };
+      }
+      const { url } = urlCheck;
+      if (!server.oauth) {
+        return { server, url };
       }
       if (!env.PUBLIC_BASE_URL) {
         return { server, error: 'OAuth sign-in is not set up on this Gorkie.' };
@@ -85,7 +89,7 @@ async function buildClient({
       }
       const hosts = await mcpOAuthHosts({ name: server.name, userId });
       const hostErrors = await Promise.all(
-        hosts.map((host) => findMCPUrlError(`https://${host}`))
+        hosts.map(async (host) => (await checkMCPUrl(`https://${host}`)).error)
       );
       const hostError = hostErrors.find(Boolean);
       if (hostError) {
@@ -96,7 +100,7 @@ async function buildClient({
         server,
         userId,
       });
-      return { server, error: undefined, oauth: { hosts, provider } };
+      return { server, url, oauth: { hosts, provider } };
     })
   );
   const rejected = new Map<string, string>();
@@ -115,21 +119,18 @@ async function buildClient({
     id: `user-mcp-${userId}`,
     servers: Object.fromEntries(
       checked
-        .filter(({ error }) => !error)
-        .map(({ server, oauth }) => {
-          const url = new URL(server.url);
-          return [
-            server.name,
-            {
-              ...serverConnection({
-                server,
-                url,
-                ...(oauth ? { oauth } : {}),
-              }),
-              requireToolApproval: approvalFor(server.permission),
-            },
-          ];
-        })
+        .flatMap((check) => (check.url ? [check] : []))
+        .map(({ server, url, oauth }) => [
+          server.name,
+          {
+            ...serverConnection({
+              server,
+              url,
+              ...(oauth ? { oauth } : {}),
+            }),
+            requireToolApproval: approvalFor(server.permission),
+          },
+        ])
     ),
   });
   client.__setLogger(logger);

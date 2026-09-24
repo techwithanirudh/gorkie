@@ -13,7 +13,7 @@ async function threadOwner(threadId: string): Promise<string | undefined> {
 export async function focusFilter(
   threadId: string
 ): Promise<((userId: string) => boolean) | undefined> {
-  const focus = (await threadState({ id: threadId }))?.focus;
+  const focus = (await threadState({ id: threadId }))?.focusedUserIds;
   if (!focus?.length) {
     return;
   }
@@ -65,7 +65,10 @@ export async function setFocus({
     }
   }
   if (userIds.length === 0) {
-    await setThreadState({ thread: { id: threadId }, patch: { focus: [] } });
+    await setThreadState({
+      thread: { id: threadId },
+      patch: { focusedUserIds: [] },
+    });
     return {
       ok: true,
       text: "focus is off. i'll read and answer everyone in this thread again.",
@@ -74,7 +77,10 @@ export async function setFocus({
   const focus = [...new Set([actor, ...userIds.map(rawId)])].filter(
     (id) => id !== slack.botUserId
   );
-  await setThreadState({ thread: { id: threadId }, patch: { focus } });
+  await setThreadState({
+    thread: { id: threadId },
+    patch: { focusedUserIds: focus },
+  });
   return {
     ok: true,
     text: `focused on ${focus.map((id) => `<@${id}>`).join(', ')}. i'll only read and answer them here${owner && !focus.includes(owner) ? `, plus <@${owner}>` : ''}. \`!focus off\` undoes it.`,

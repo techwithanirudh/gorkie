@@ -5,3 +5,8 @@ export const liveViewTicketSchema = z.object({
 });
 
 export type LiveViewTicket = z.infer<typeof liveViewTicketSchema>;
+
+export interface BrowserSessionHooks {
+  closed: (threadId: string) => Promise<void>;
+  connected: (threadId: string) => Promise<void>;
+}

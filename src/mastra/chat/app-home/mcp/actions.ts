@@ -12,9 +12,9 @@ import { setMCPThreads } from '../../../db/queries/settings';
 import { logger } from '../../../lib/logger';
 import { advertisesOAuth } from '../../../mcp/errors';
 import { revokeMCPOAuth } from '../../../mcp/oauth';
-import { findMCPUrlError } from '../../../mcp/security';
+import { checkMCPUrl } from '../../../mcp/security';
 import { dropClient } from '../../../mcp/user-servers/client';
-import { findMCPConnectionError } from '../../../mcp/user-servers/probe';
+import { probeMCPConnection } from '../../../mcp/user-servers/probe';
 import {
   mcpServerSchema,
   type PublishHome,
@@ -57,7 +57,7 @@ async function addServer({
       errors: isGitHub ? { url: message } : { name: message },
     };
   }
-  const urlError = await findMCPUrlError(parsed.data.url);
+  const { error: urlError } = await checkMCPUrl(parsed.data.url);
   if (urlError) {
     return { action: 'errors', errors: { url: urlError } };
   }
@@ -97,7 +97,7 @@ async function addServer({
     await setMCPServerError({
       userId,
       name: server.name,
-      error: (await findMCPConnectionError({ userId, server })) ?? null,
+      ...(await probeMCPConnection({ userId, server })),
     });
   };
   probe()

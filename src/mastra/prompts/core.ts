@@ -1,4 +1,4 @@
-import { reasoningMarkers } from './reasoning';
+import { reasoningMarkers } from '../lib/reasoning-markers';
 
 export const corePrompt = `\
 <core>

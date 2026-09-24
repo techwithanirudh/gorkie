@@ -14,7 +14,7 @@ import { research } from './agents/research';
 import { summarizer } from './agents/summarizer';
 import { registerEvents } from './chat/events';
 import { setMastra } from './chat/mastra-instance';
-import { isBanned } from './chat/moderation';
+import { banStatus } from './chat/moderation';
 import { TurnDrainWorker } from './chat/turn-drain';
 import { claimTurn } from './chat/usage';
 import { observability as observabilityConfig, shutdown } from './config';
@@ -127,13 +127,13 @@ export const mastra = new Mastra({
       if (!creator) {
         return;
       }
-      if (await isBanned(creator)) {
+      if ((await banStatus(creator)).status === 'banned') {
         logger.info("[schedules] skipped a banned user's fire", {
           scheduleId: schedule.id,
         });
         return null;
       }
-      if (await claimTurn(rawId(creator))) {
+      if ((await claimTurn(rawId(creator))).status === 'over-limit') {
         logger.info('[schedules] skipped a fire over the turn limit', {
           scheduleId: schedule.id,
           userId: creator,

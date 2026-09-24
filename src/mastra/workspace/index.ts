@@ -13,7 +13,7 @@ import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
 import { SandboxBrowser } from './browser';
 import { E2BFilesystem } from './filesystem';
-import { attachPid, endJob, hasLiveJob, startJob } from './jobs';
+import { findJob, hasLiveJob, startJob } from './jobs';
 import { createSandbox } from './sandbox';
 import {
   DELETE_FILE,
@@ -105,13 +105,18 @@ async function getSandbox(
   return sandbox;
 }
 
-export async function pauseSandbox(
+// The output phase never runs on an abort or a thrown turn, so the
+// orchestrator's `onAbort`/`onError` call this too.
+export async function endSandboxTurn(
   requestContext: RequestContext
 ): Promise<void> {
+  const { threadId } = channelContext(requestContext);
+  if (threadId) {
+    await browser.closeThreadSession(threadId);
+  }
   if (!reached.has(requestContext)) {
     return;
   }
-  const { threadId } = channelContext(requestContext);
   // An E2B pause freezes a running background job.
   if (threadId && hasLiveJob(threadId)) {
     return;
@@ -195,7 +200,7 @@ export const workspace: Workspace = new Workspace({
           return;
         }
         if (error !== undefined) {
-          endJob(toolCallId);
+          findJob(toolCallId)?.end();
           return;
         }
         // execute_command reports a background spawn only as this sentence,
@@ -206,7 +211,7 @@ export const workspace: Workspace = new Workspace({
             ? output.match(/\(PID: ([^)\s]+)\)/)?.[1]
             : undefined;
         if (pid) {
-          attachPid({ id: toolCallId, pid });
+          findJob(toolCallId)?.attachPid(pid);
         }
       },
     },
@@ -241,7 +246,7 @@ export const workspace: Workspace = new Workspace({
         abortSignal: false,
         onExit: ({ toolCallId }) => {
           if (toolCallId) {
-            endJob(toolCallId);
+            findJob(toolCallId)?.end();
           }
         },
       },

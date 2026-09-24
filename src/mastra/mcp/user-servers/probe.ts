@@ -5,13 +5,13 @@ import type { MCPServerConfig } from '../../types';
 import { describeMCPError } from '../errors';
 import { serverConnection } from './client';
 
-export async function findMCPConnectionError({
+export async function probeMCPConnection({
   userId,
   server,
 }: {
   userId: string;
   server: MCPServerConfig;
-}): Promise<string | undefined> {
+}): Promise<{ error: string | null; httpStatus: number | undefined }> {
   const url = new URL(server.url);
   const probe = new MCPClient({
     id: `mcp-probe-${userId}-${server.name}`,
@@ -32,7 +32,10 @@ export async function findMCPConnectionError({
         name: server.name,
         userId,
       });
-      return await describeMCPError({ server, details });
+      return {
+        error: await describeMCPError({ server, details }),
+        httpStatus: details.httpStatus,
+      };
     }
   } catch (error) {
     logger.debug('[mcp] connection check failed', {
@@ -40,12 +43,15 @@ export async function findMCPConnectionError({
       name: server.name,
       userId,
     });
-    return await describeMCPError({
-      server,
-      details: {
-        message: error instanceof Error ? error.message : String(error),
-      },
-    });
+    return {
+      error: await describeMCPError({
+        server,
+        details: {
+          message: error instanceof Error ? error.message : String(error),
+        },
+      }),
+      httpStatus: undefined,
+    };
   } finally {
     await probe
       .disconnect()
@@ -53,4 +59,5 @@ export async function findMCPConnectionError({
         logger.debug('[mcp] probe disconnect failed', { error })
       );
   }
+  return { error: null, httpStatus: undefined };
 }

@@ -1,11 +1,12 @@
 import { formatDistanceToNowStrict } from 'date-fns';
 import { recordTurn, turnUsage } from '../db/queries/usage';
 import { logger } from '../lib/logger';
+import type { TurnClaim } from '../types';
 import { isModerator } from './moderation/moderators';
 
-export async function claimTurn(userId: string): Promise<string | undefined> {
+export async function claimTurn(userId: string): Promise<TurnClaim> {
   if (isModerator(userId)) {
-    return;
+    return { status: 'claimed' };
   }
   try {
     const { day, hour } = await turnUsage(userId);
@@ -17,10 +18,15 @@ export async function claimTurn(userId: string): Promise<string | undefined> {
       const wait = spent.window.resetsAt
         ? ` try again in ${formatDistanceToNowStrict(spent.window.resetsAt)}.`
         : '';
-      return `you've used all ${spent.window.limit} of your gorkie turns ${spent.span}.${wait} your home tab shows what's left.`;
+      return {
+        status: 'over-limit',
+        notice: `you've used all ${spent.window.limit} of your gorkie turns ${spent.span}.${wait} your home tab shows what's left.`,
+      };
     }
     await recordTurn(userId);
+    return { status: 'claimed' };
   } catch (error) {
     logger.error('[usage] turn limit check failed', { error, userId });
+    return { status: 'unchecked' };
   }
 }

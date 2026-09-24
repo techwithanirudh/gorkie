@@ -128,6 +128,14 @@ export function fetchPrivateSlackFile({
   });
 }
 
+function channelTarget(target: Target): { channel: string; threadTs?: string } {
+  if (target.type !== 'thread') {
+    return { channel: rawId(target.id) };
+  }
+  const { channel, threadTs } = slack.decodeThreadId(target.id);
+  return { channel, threadTs: threadTs || undefined };
+}
+
 export function assertCanPostTo({
   target,
   ctx,
@@ -148,11 +156,7 @@ export function assertCanPostTo({
     throw new Error('No current Slack channel to compare against.');
   }
 
-  const destination =
-    target.type === 'thread'
-      ? slack.decodeThreadId(target.id).channel
-      : target.id;
-  if (rawId(destination) !== rawId(ctx.channelId)) {
+  if (rawId(channelTarget(target).channel) !== rawId(ctx.channelId)) {
     throw new Error(
       'gorkie can only post into the channel this conversation is already in, not another channel. Ask someone in that channel to post there instead.'
     );
@@ -162,18 +166,14 @@ export function assertCanPostTo({
 export async function slackDestination(
   target: Target
 ): Promise<{ channel: string; threadTs?: string }> {
-  if (target.type === 'channel') {
-    await joinChannel(target.id);
-    return { channel: rawId(target.id) };
-  }
   if (target.type === 'user') {
     return {
       channel: rawId((await Chat.getSingleton().openDM(rawId(target.id))).id),
     };
   }
-  const { channel, threadTs } = slack.decodeThreadId(target.id);
-  await joinChannel(channel);
-  return { channel, threadTs: threadTs || undefined };
+  const destination = channelTarget(target);
+  await joinChannel(destination.channel);
+  return destination;
 }
 
 const joinedChannels = new Set<string>();

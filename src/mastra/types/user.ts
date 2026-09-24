@@ -13,4 +13,6 @@ export const userProfileSchema = z.object({
 
 export type UserProfile = z.infer<typeof userProfileSchema>;
 
-export type OptInStatus = 'allowed' | 'not-allowed' | 'unknown';
+// 'uncached' means the allow-list has not been built yet; the caller decides
+// whether to trigger a rebuild.
+export type OptInStatus = 'allowed' | 'not-allowed' | 'unknown' | 'uncached';

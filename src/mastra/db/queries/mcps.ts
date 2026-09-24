@@ -26,9 +26,10 @@ export async function listMCPServers(
       permission: toolPermissionSchema.parse(row.permission),
       url: row.url,
       lastError: row.lastError ?? undefined,
-      credentialError: row.lastError?.includes('(HTTP 401)')
-        ? row.lastError
-        : undefined,
+      credentialError:
+        row.lastErrorHttpStatus === 401
+          ? (row.lastError ?? undefined)
+          : undefined,
       ...(row.oauthStatus
         ? {
             oauth: {
@@ -62,14 +63,16 @@ export async function setMCPServerError({
   userId,
   name,
   error,
+  httpStatus,
 }: {
   userId: string;
   name: string;
   error: string | null;
+  httpStatus: number | undefined;
 }): Promise<void> {
   await db
     .update(mcpServers)
-    .set({ lastError: error })
+    .set({ lastError: error, lastErrorHttpStatus: httpStatus ?? null })
     .where(
       and(eq(mcpServers.userId, rawId(userId)), eq(mcpServers.name, name))
     );

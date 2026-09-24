@@ -2,7 +2,7 @@ import type { Message, Thread } from 'chat';
 import { logger } from '../../lib/logger';
 import type { CommandHandler } from '../../types';
 import { rawText, withoutLeadingMentions } from '../message';
-import { threadState } from '../state';
+import { sentBeforeStop, threadState } from '../state';
 import { compact } from './compact';
 import { connections } from './connections';
 import { display } from './display';
@@ -33,15 +33,15 @@ export async function handleCommand({
   if (!command) {
     return false;
   }
-  if (command !== stop) {
-    const cutoff = (await threadState(thread))?.dropMessagesBefore;
-    if (cutoff && message.metadata.dateSent.getTime() < cutoff) {
-      logger.debug('[commands] dropped, sent before a stop or leave', {
-        messageId: message.id,
-        threadId: thread.id,
-      });
-      return true;
-    }
+  if (
+    command !== stop &&
+    sentBeforeStop({ message, state: await threadState(thread) })
+  ) {
+    logger.debug('[commands] dropped, sent before a stop or leave', {
+      messageId: message.id,
+      threadId: thread.id,
+    });
+    return true;
   }
   await command({ message, thread });
   return true;

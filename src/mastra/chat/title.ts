@@ -1,6 +1,5 @@
 import type { Message, Thread } from 'chat';
 import { agent as agentConfig } from '../config';
-import { logger } from '../lib/logger';
 import { slack } from './client';
 import { getMastra } from './mastra-instance';
 import { memoryThread } from './memory-thread';
@@ -55,18 +54,11 @@ export async function syncTitle({
   if (!(thread.isDM && threadTs)) {
     return;
   }
-  try {
-    const title = await titleFor({ message, threadId: thread.id });
-    const state = await threadState(thread);
-    if (!title || state?.slackTitle === title) {
-      return;
-    }
-    await slack.setAssistantTitle(channel, threadTs, title);
-    await setThreadState({ thread, patch: { slackTitle: title } });
-  } catch (error) {
-    logger.warn('[chat] could not set the thread title', {
-      error,
-      threadId: thread.id,
-    });
+  const title = await titleFor({ message, threadId: thread.id });
+  const state = await threadState(thread);
+  if (!title || state?.lastSentSlackTitle === title) {
+    return;
   }
+  await slack.setAssistantTitle(channel, threadTs, title);
+  await setThreadState({ thread, patch: { lastSentSlackTitle: title } });
 }

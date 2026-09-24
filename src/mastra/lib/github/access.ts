@@ -35,11 +35,11 @@ async function read({
 const perRequest = new WeakMap<RequestContext, Promise<GitHubAccess>>();
 
 export function githubAccess({
-  isDM = false,
+  isDM,
   requestContext,
   userId,
 }: {
-  isDM?: boolean;
+  isDM: boolean;
   requestContext?: RequestContext;
   userId: string;
 }): Promise<GitHubAccess> {

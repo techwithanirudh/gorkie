@@ -8,9 +8,9 @@ import { claimTurn } from '../chat/usage';
 import { agent as agentConfig, sandbox as sandboxConfig } from '../config';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
-import type { ChannelContext } from '../types';
+import type { ChannelContext, ThreadOnlyChannelContext } from '../types';
 import { requireSandbox } from '../workspace';
-import { attachPid, attachSandbox, endJob, startJob } from '../workspace/jobs';
+import { startJob } from '../workspace/jobs';
 
 // The completion callback gets only the task record, whose `threadId` is the
 // memory thread. The woken run needs the Slack channel context the way `wait`
@@ -18,16 +18,15 @@ import { attachPid, attachSandbox, endJob, startJob } from '../workspace/jobs';
 // the job itself too.
 const wakeChannels = new Map<string, ChannelContext>();
 
-async function wakeThread(task: BackgroundTask): Promise<void> {
-  const saved = wakeChannels.get(task.id);
-  wakeChannels.delete(task.id);
-  const { threadId, resourceId } = task;
-  if (!(threadId && resourceId)) {
-    return;
-  }
-  let channel = saved;
+function threadOnlyChannel({
+  taskId,
+  threadId,
+}: {
+  taskId: string;
+  threadId: string;
+}): ThreadOnlyChannelContext | undefined {
   try {
-    channel ??= {
+    return {
       platform: 'slack',
       threadId,
       channelId: slack.channelIdFromThreadId(threadId),
@@ -36,12 +35,27 @@ async function wakeThread(task: BackgroundTask): Promise<void> {
   } catch (error) {
     logger.warn('[run_background] no Slack thread to wake', {
       error,
-      taskId: task.id,
+      taskId,
       threadId,
     });
+  }
+}
+
+async function wakeThread(task: BackgroundTask): Promise<void> {
+  const saved = wakeChannels.get(task.id);
+  wakeChannels.delete(task.id);
+  const { threadId, resourceId } = task;
+  if (!(threadId && resourceId)) {
     return;
   }
-  if (saved?.userId && (await claimTurn(saved.userId))) {
+  const channel = saved ?? threadOnlyChannel({ taskId: task.id, threadId });
+  if (!channel) {
+    return;
+  }
+  if (
+    channel.userId &&
+    (await claimTurn(channel.userId)).status === 'over-limit'
+  ) {
     logger.info('[run_background] wake skipped, over the turn limit', {
       taskId: task.id,
     });
@@ -111,7 +125,10 @@ export const runBackgroundTool = createTool({
   }),
   background: {
     enabled: true,
-    timeoutMs: (sandboxConfig.background.maxTimeoutSeconds + 120) * 1000,
+    timeoutMs:
+      (sandboxConfig.background.maxTimeoutSeconds +
+        sandboxConfig.background.taskTimeoutBufferSeconds) *
+      1000,
     onComplete: wakeThread,
     onFailed: wakeThread,
   },
@@ -132,17 +149,22 @@ export const runBackgroundTool = createTool({
     if (context.background) {
       wakeChannels.set(context.background.taskId, channel);
     }
-    startJob({ id, threadId: channel.threadId, timeoutMs: timeout * 1000 });
+    const job = startJob({
+      id,
+      threadId: channel.threadId,
+      timeoutMs: timeout * 1000,
+    });
     try {
       const sandbox = await requireSandbox(requestContext);
-      attachSandbox({ id, sandbox });
+      job.attachSandbox(sandbox);
       const deadline = AbortSignal.timeout(timeout * 1000);
       const handle = await sandbox.processes.spawn(command, {
         cwd: sandboxConfig.workdir,
         stdinMode: 'ignore',
-        timeout: (timeout + 60) * 1000,
+        timeout:
+          (timeout + sandboxConfig.background.spawnBackstopSeconds) * 1000,
       });
-      attachPid({ id, pid: handle.pid });
+      job.attachPid(handle.pid);
       const result = await handle.wait({
         abortSignal: context.abortSignal
           ? AbortSignal.any([deadline, context.abortSignal])
@@ -155,7 +177,7 @@ export const runBackgroundTool = createTool({
         stderr: result.stderr.slice(-sandboxConfig.background.outputTailChars),
       };
     } finally {
-      endJob(id);
+      job.end();
       // A cancelled task gets no completion callback to clear this.
       if (context.abortSignal?.aborted) {
         wakeChannels.delete(id);

@@ -1,6 +1,7 @@
 import type { E2BSandbox } from '@mastra/e2b';
 import { sandbox as config } from '../config';
 import { logger } from '../lib/logger';
+import type { BackgroundJob } from '../types';
 
 const jobs = new Map<
   string,
@@ -8,19 +9,45 @@ const jobs = new Map<
 >();
 const keepalives = new Map<string, ReturnType<typeof setInterval>>();
 
-export function hasLiveJob(threadId: string): boolean {
+function pruneExpiredJobs(): void {
   const now = Date.now();
-  let live = false;
   for (const [id, job] of jobs) {
     if (job.deadline <= now) {
       jobs.delete(id);
-    } else if (job.threadId === threadId) {
-      live = true;
     }
   }
-  return live;
 }
 
+export function hasLiveJob(threadId: string): boolean {
+  const now = Date.now();
+  return [...jobs.values()].some(
+    (job) => job.threadId === threadId && job.deadline > now
+  );
+}
+
+function jobHandle(id: string): BackgroundJob {
+  return {
+    attachSandbox: (sandbox) => {
+      const job = jobs.get(id);
+      if (job) {
+        job.sandbox = sandbox;
+      }
+    },
+    attachPid: (pid) => {
+      const job = jobs.get(id);
+      if (job) {
+        job.pid = pid;
+      }
+    },
+    end: () => {
+      jobs.delete(id);
+    },
+  };
+}
+
+// Synchronous so a job is visible to the pause check before its caller's
+// first await; attaching the sandbox and pid is only possible through the
+// handle it returns.
 export function startJob({
   id,
   threadId,
@@ -31,55 +58,36 @@ export function startJob({
   threadId: string;
   sandbox?: E2BSandbox;
   timeoutMs: number;
-}): void {
+}): BackgroundJob {
   jobs.set(id, { threadId, deadline: Date.now() + timeoutMs, sandbox });
-  if (keepalives.has(threadId)) {
-    return;
-  }
-  const timer = setInterval(() => {
-    if (!hasLiveJob(threadId)) {
-      clearInterval(timer);
-      keepalives.delete(threadId);
-      return;
-    }
-    const sandbox = [...jobs.values()]
-      .filter((job) => job.threadId === threadId && job.sandbox)
-      .at(-1)?.sandbox;
-    sandbox
-      ?.retryOnDead(() => sandbox.e2b.setTimeout(config.timeout))
-      .catch((error: unknown) => {
-        logger.warn('[sandbox] failed to keep a background job alive', {
-          error,
-          threadId,
+  if (!keepalives.has(threadId)) {
+    const timer = setInterval(() => {
+      pruneExpiredJobs();
+      if (!hasLiveJob(threadId)) {
+        clearInterval(timer);
+        keepalives.delete(threadId);
+        return;
+      }
+      const sandbox = [...jobs.values()]
+        .filter((job) => job.threadId === threadId && job.sandbox)
+        .at(-1)?.sandbox;
+      sandbox
+        ?.retryOnDead(() => sandbox.e2b.setTimeout(config.timeout))
+        .catch((error: unknown) => {
+          logger.warn('[sandbox] failed to keep a background job alive', {
+            error,
+            threadId,
+          });
         });
-      });
-  }, config.background.keepaliveMs);
-  timer.unref();
-  keepalives.set(threadId, timer);
-}
-
-export function endJob(id: string): void {
-  jobs.delete(id);
-}
-
-export function attachSandbox({
-  id,
-  sandbox,
-}: {
-  id: string;
-  sandbox: E2BSandbox;
-}): void {
-  const job = jobs.get(id);
-  if (job) {
-    job.sandbox = sandbox;
+    }, config.background.keepaliveMs);
+    timer.unref();
+    keepalives.set(threadId, timer);
   }
+  return jobHandle(id);
 }
 
-export function attachPid({ id, pid }: { id: string; pid: string }): void {
-  const job = jobs.get(id);
-  if (job) {
-    job.pid = pid;
-  }
+export function findJob(id: string): BackgroundJob | undefined {
+  return jobs.has(id) ? jobHandle(id) : undefined;
 }
 
 export async function killJobs(threadId: string): Promise<number> {
