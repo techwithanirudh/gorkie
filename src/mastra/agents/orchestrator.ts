@@ -132,6 +132,9 @@ export const orchestrator = new Agent({
     maxSteps: config.maxSteps,
     stopWhen: [toolCall('skip'), toolCall('wait')],
     autoResumeSuspendedTools: true,
+    // The default strategy serialises every step once any approval tool (the
+    // GitHub push) is registered; 'called' serialises only a step that calls one.
+    toolCallConcurrency: { limit: 10, strategy: 'called' },
     onAbort: async () => {
       await pauseSandbox(requestContext);
       const { threadId } = channelContext(requestContext);

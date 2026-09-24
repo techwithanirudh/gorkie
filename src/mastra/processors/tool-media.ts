@@ -8,6 +8,25 @@ interface MediaPart {
 }
 
 type Prompt = Parameters<NonNullable<CompatRule['applyToPrompt']>>[0]['prompt'];
+type FilePart = Extract<
+  Extract<Prompt[number], { role: 'user' }>['content'][number],
+  { type: 'file' }
+>;
+
+const omittedNote =
+  "Image omitted to stay within the model's image limit. View it again (view_image, or get_slack_file then view_image for a Slack upload) if you still need it.";
+
+function decodedBytes(data: FilePart['data']): number {
+  if (data instanceof Uint8Array) {
+    return data.byteLength;
+  }
+  const text = data instanceof URL ? data.href : data;
+  // A remote URL is fetched by the provider, so it costs nothing inline here.
+  if (/^https?:/i.test(text)) {
+    return 0;
+  }
+  return Math.ceil((text.slice(text.indexOf(',') + 1).length * 3) / 4);
+}
 
 // Every gateway gorkie routes through is OpenAI-compatible, and none of them
 // understand `media` parts inside tool-result content: they JSON-stringify the
@@ -24,8 +43,17 @@ function relocateToolImages({
 }: {
   prompt: Prompt;
 }): Prompt | undefined {
-  const found: MediaPart[] = [];
+  const found: { part: MediaPart | FilePart; size: number }[] = [];
+  let toolImages = 0;
   for (const message of prompt) {
+    if (message.role === 'user') {
+      for (const part of message.content) {
+        if (part.type === 'file' && part.mediaType.startsWith('image/')) {
+          found.push({ part, size: decodedBytes(part.data) });
+        }
+      }
+      continue;
+    }
     if (message.role !== 'tool') {
       continue;
     }
@@ -35,34 +63,49 @@ function relocateToolImages({
       }
       for (const item of part.output.value) {
         if (item.type === 'media' && item.mediaType.startsWith('image/')) {
-          found.push(item);
+          found.push({ part: item, size: decodedBytes(item.data) });
+          toolImages++;
         }
       }
     }
   }
-  if (found.length === 0) {
-    return;
-  }
 
-  // Relocation concentrates every tool image into one request, and vision
-  // models cap inline images (GLM: 8 / 64 MiB, a non-retryable 400), so keep
-  // only the most recent images within budget.
-  const keep = new Set<MediaPart>();
+  // Relocation concentrates every tool image into one request, next to the
+  // Slack uploads already inline, and vision models cap inline images (GLM:
+  // 8 / 64 MiB, a non-retryable 400), so keep only the most recent images
+  // within budget, whichever route they came in by.
+  const keep = new Set<MediaPart | FilePart>();
   let bytes = 0;
   for (let i = found.length - 1; i >= 0; i--) {
-    const media = found[i];
-    const size = Math.ceil((media.data.length * 3) / 4);
+    const { part, size } = found[i];
     if (
       keep.size >= imageLimits.maxContextImages ||
       bytes + size > imageLimits.maxContextBytes
     ) {
       break;
     }
-    keep.add(media);
+    keep.add(part);
     bytes += size;
   }
+  if (toolImages === 0 && keep.size === found.length) {
+    return;
+  }
+
   const next: Prompt = [];
   for (const message of prompt) {
+    if (message.role === 'user') {
+      next.push({
+        ...message,
+        content: message.content.map((part) =>
+          part.type === 'file' &&
+          part.mediaType.startsWith('image/') &&
+          !keep.has(part)
+            ? { type: 'text', text: omittedNote }
+            : part
+        ),
+      });
+      continue;
+    }
     if (message.role !== 'tool') {
       next.push(message);
       continue;
@@ -98,10 +141,7 @@ function relocateToolImages({
         });
       }
       if (droppedImage) {
-        kept.push({
-          type: 'text',
-          text: "Image omitted to stay within the model's image limit. Call view_image on the file again if you still need it.",
-        });
+        kept.push({ type: 'text', text: omittedNote });
       }
       return { ...part, output: { ...part.output, value: kept } };
     });

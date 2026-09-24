@@ -3,9 +3,11 @@ import type { RequestContext } from '@mastra/core/request-context';
 import { createCodeMode, createCodeModeTool } from '@mastra/core/tools';
 import { E2BCodeModeTransport } from '@mastra/e2b';
 import { sandbox as sandboxConfig } from '../../config';
+import { channelContext } from '../../lib/context';
+import { logger } from '../../lib/logger';
 import { mcpTools } from '../../mcp';
 import { codeModePrompt } from '../../prompts/features/code-mode';
-import { codeModeToolNames, getSandbox } from '../../workspace';
+import { codeModeToolNames, requireSandbox } from '../../workspace';
 import { workspaceTools } from '../../workspace/tools';
 import { canvasTools } from '../canvas';
 import { slackTools } from '../slack';
@@ -57,10 +59,7 @@ async function createCodeModeInstance({
     if (!context.requestContext) {
       throw new Error('No request context available for Slack code mode.');
     }
-    const sandbox = await getSandbox(context.requestContext);
-    if (!sandbox) {
-      throw new Error('No E2B sandbox available for Slack code mode.');
-    }
+    const sandbox = await requireSandbox(context.requestContext);
 
     const { execute } = createCodeModeTool(
       {
@@ -80,16 +79,31 @@ async function createCodeModeInstance({
     }
     const outcome = await execute(input, context);
     const size = JSON.stringify(outcome ?? null)?.length ?? 0;
-    if (size <= 60_000) {
-      return outcome;
+    const result =
+      size <= 60_000
+        ? outcome
+        : {
+            success: false,
+            error: {
+              message: `The program returned ${size} characters, over the 60000 limit, so nothing was kept. Return a summary computed inside the program (counts, the few records that matter, a written answer) rather than the rows you read, or write the full data to a file and return its path.`,
+              name: 'ResultTooLarge',
+            },
+          };
+    if (result?.success === false) {
+      // A failed program is returned, not thrown, so the tool span would
+      // otherwise end clean and never show up under an ERROR filter.
+      const message = result.error?.message ?? 'Code mode program failed.';
+      logger.error('[code-mode] program failed', {
+        error: result.error,
+        logs: result.logs,
+        threadId: channelContext(context.requestContext).threadId,
+      });
+      context.tracingContext?.currentSpan?.error({
+        error: new Error(message),
+        endSpan: false,
+      });
     }
-    return {
-      success: false,
-      error: {
-        message: `The program returned ${size} characters, over the 60000 limit, so nothing was kept. Return a summary computed inside the program (counts, the few records that matter, a written answer) rather than the rows you read, or write the full data to a file and return its path.`,
-        name: 'ResultTooLarge',
-      },
-    };
+    return result;
   };
 
   return mode;

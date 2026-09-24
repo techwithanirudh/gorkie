@@ -59,6 +59,7 @@ export const research = new Agent({
     },
     maxSteps: config.maxSteps,
     autoResumeSuspendedTools: true,
+    toolCallConcurrency: { limit: 10, strategy: 'called' },
   },
   outputProcessors: [stepGuard, sandbox, workingModel('research')],
 });

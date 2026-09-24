@@ -6,6 +6,7 @@ const text = z.string().min(1).optional().catch(undefined);
 const argsSchema = z
   .object({
     action: text,
+    code: text,
     command: text,
     emoji: text,
     instructions: text,
@@ -216,7 +217,21 @@ const statuses: Record<string, (args: Args) => string> = {
     prefix: 'is looking for a skill: "',
     suffix: '"…',
   }),
-  slack: fixed('is working in Slack…'),
+  slack: ({ code }) => {
+    const calls = new Set(
+      Array.from(
+        code?.matchAll(/external_(\w+)\s*\(/g) ?? [],
+        ([, name]) => name
+      )
+    );
+    return calls.size > 0
+      ? fit({
+          prefix: 'is calling ',
+          content: [...calls].join(', '),
+          suffix: '…',
+        })
+      : 'is working in Slack…';
+  },
   submit_feedback: ({ kind }) =>
     kind && kind !== 'other'
       ? fit({ prefix: 'is passing on your ', content: kind, suffix: '…' })

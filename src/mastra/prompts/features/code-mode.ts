@@ -12,6 +12,13 @@ return { path: '${sandbox.workdir}/thread-export.json', count: rows.length, samp
 
 Overwriting a file that already exists requires reading it earlier in the same program; a new path needs no read. Node built-ins also work, but the program body is a function body, so load them with dynamic import (const { writeFile } = await import('node:fs/promises')) instead of a top-level import.
 
+external_read_file returns what the direct read_file shows you: a header line, then numbered lines, cut off on a large file. It is never the raw file, so JSON.parse on it always fails. To load a file's data inside the program, read it with Node:
+
+const { readFile } = await import('node:fs/promises');
+const rows = JSON.parse(await readFile('${sandbox.workdir}/thread-export.json', 'utf8'));
+
+An image read in code mode comes back as base64 text, not a picture. To look at an image, call view_image directly, outside code mode.
+
 Paths must stay under ${sandbox.workdir}. Files persist for the whole thread, so a later turn can read_file, grep, or execute_command over them, or upload_file the result to Slack.
 </files>
 `;
