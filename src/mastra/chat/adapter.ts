@@ -1,4 +1,8 @@
 import { SlackAdapter } from '@chat-adapter/slack';
+import {
+  moveAsterisksAfterMarkdownLinksInStream,
+  normalizeMarkdownMessage,
+} from './markdown';
 
 const mentionPattern = /<@([A-Z0-9_]+)(?:\|([^<>]+))?>/g;
 
@@ -55,10 +59,20 @@ export class SlackAgentAdapter extends SlackAdapter {
     return super.handleMessageEvent(...args);
   }
 
+  override postMessage(
+    ...args: Parameters<SlackAdapter['postMessage']>
+  ): ReturnType<SlackAdapter['postMessage']> {
+    const [threadId, message] = args;
+    return super.postMessage(threadId, normalizeMarkdownMessage(message));
+  }
+
   override async stream(
     ...args: Parameters<SlackAdapter['stream']>
   ): ReturnType<SlackAdapter['stream']> {
     const [threadId, textStream, options] = args;
+    const normalizedTextStream = moveAsterisksAfterMarkdownLinksInStream({
+      stream: textStream,
+    });
     const { channel } = this.decodeThreadId(threadId);
     const { chat } = this;
     if (
@@ -66,7 +80,7 @@ export class SlackAgentAdapter extends SlackAdapter {
       (options?.recipientUserId && options?.recipientTeamId) ||
       !chat
     ) {
-      return super.stream(threadId, textStream, options);
+      return super.stream(threadId, normalizedTextStream, options);
     }
     let recipient = this.recipients.get(threadId);
     if (!recipient) {
@@ -79,9 +93,9 @@ export class SlackAgentAdapter extends SlackAdapter {
       }
     }
     if (!recipient) {
-      return super.stream(threadId, textStream, options);
+      return super.stream(threadId, normalizedTextStream, options);
     }
-    return super.stream(threadId, textStream, {
+    return super.stream(threadId, normalizedTextStream, {
       ...options,
       recipientUserId: recipient.userId,
       recipientTeamId: recipient.teamId,
