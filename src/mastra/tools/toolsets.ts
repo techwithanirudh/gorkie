@@ -1,3 +1,4 @@
+import { agentmailTools } from './agentmail';
 import { readArtifactTool } from './artifacts';
 import { canvasTools } from './canvas';
 import { codeMode } from './code-mode/slack';
@@ -41,6 +42,7 @@ export async function orchestratorTools() {
 
 export const deferredTools = {
   ...scheduledTaskTools,
+  ...agentmailTools,
   get_channel_info: slackTools.get_channel_info,
   list_channels: slackTools.list_channels,
   list_threads: slackTools.list_threads,

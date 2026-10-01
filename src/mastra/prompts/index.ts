@@ -48,7 +48,7 @@ export async function instructions(
     codeMode,
     github,
     userInstructions &&
-      `<user_instructions>\nThe person who sent this message set these for you in App Home. They are explicit, so they win over the working-memory profile, which is inferred and belongs to whoever brought you into this thread.\n${userInstructions}\n</user_instructions>`,
+      `<user_instructions>\nThe person who sent this message set these for you in App Home.\n${userInstructions}\n</user_instructions>`,
     mcps,
   ].flatMap((content) => (content ? [{ role: 'system', content }] : []));
 }

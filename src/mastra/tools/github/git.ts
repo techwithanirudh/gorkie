@@ -5,7 +5,6 @@ import { githubAccessToken, repoAccess } from '../../lib/github';
 import { logger } from '../../lib/logger';
 import { sh } from '../../lib/shell';
 import { hasLiveJob } from '../../workspace/jobs';
-import { baseRules } from '../../workspace/network';
 
 export const checkoutPath = (repository: string): string =>
   `${sandboxConfig.workdir}/${repository.replace('/', '__')}`;
@@ -140,7 +139,6 @@ export const withCredential = async <T>({
         try {
           await sandbox.e2b.updateNetwork({
             rules: {
-              ...baseRules(),
               'github.com': [
                 {
                   transform: {
@@ -161,7 +159,7 @@ export const withCredential = async <T>({
         for (let attempt = 1; attempt <= 3 && !dropped; attempt++) {
           try {
             // biome-ignore lint/performance/noAwaitInLoops: retries are sequential
-            await sandbox.e2b.updateNetwork({ rules: baseRules() });
+            await sandbox.e2b.updateNetwork({ rules: {} });
             dropped = true;
           } catch (error) {
             logger.error('[github] failed to drop the credential', {

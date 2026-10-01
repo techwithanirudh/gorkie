@@ -82,6 +82,7 @@
   },
   "patchedDependencies": {
     "@chat-adapter/slack@4.41.0": "patches/@chat-adapter+slack@4.41.0.patch",
-    "@mastra/core@1.69.0": "patches/@mastra+core@1.69.0.patch"
+    "@mastra/core@1.69.0": "patches/@mastra+core@1.69.0.patch",
+    "@mastra/deployer@1.69.0": "patches/@mastra+deployer@1.69.0.patch"
   }
 }

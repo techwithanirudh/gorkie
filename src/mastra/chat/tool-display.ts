@@ -1,4 +1,5 @@
 import type { ToolDisplayEvent, ToolDisplayFn } from '@mastra/core/channels';
+import type { CardElement } from 'chat';
 import { toolDisplay as config } from '../config';
 import { statusUpdateInputSchema } from '../types';
 import { label } from './status/label';
@@ -158,17 +159,34 @@ function runningDetails(event: ToolDisplayEvent): string {
   );
 }
 
+// Undefined keeps Mastra's built-in approval card for every other tool.
+export function approvalPost({
+  approvals,
+  event,
+}: {
+  approvals: Map<string, CardElement>;
+  event: ToolDisplayEvent;
+}): ReturnType<ToolDisplayFn> {
+  const card = event.kind === 'approval' && approvals.get(event.toolCallId);
+  if (!card) {
+    return;
+  }
+  approvals.delete(event.toolCallId);
+  return { kind: 'post', message: card };
+}
+
 export function detailedToolDisplay({
+  approvals,
   summaries,
 }: {
+  approvals: Map<string, CardElement>;
   summaries: Map<string, string>;
 }): ToolDisplayFn {
   return (event) => {
-    if (
-      event.toolName === 'skip' ||
-      event.toolName === 'updateWorkingMemory' ||
-      event.kind === 'approval'
-    ) {
+    if (event.kind === 'approval') {
+      return approvalPost({ approvals, event });
+    }
+    if (event.toolName === 'skip') {
       return;
     }
     if (event.toolName === 'status_update') {

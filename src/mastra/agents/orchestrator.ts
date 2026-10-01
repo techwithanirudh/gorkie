@@ -20,7 +20,6 @@ import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
 import { chatLogger } from '../lib/logger/chat';
 import { userMCPTools } from '../mcp/user-servers/tools';
-import { profileSchema } from '../memory/profile';
 import { delegatedTools } from '../processors/delegated-tools';
 import { outputBudget } from '../processors/output-budget';
 import { sandbox } from '../processors/sandbox';
@@ -151,15 +150,6 @@ export const orchestrator = new Agent({
         model: summarizerModel[0].model,
         instructions: titlePrompt,
       },
-      // Resource scope follows channels' default resourceId, the Slack user
-      // whose message created the memory thread, so the profile travels with
-      // them across threads and DMs. The schema holds preferences only for that
-      // reason.
-      workingMemory: {
-        enabled: true,
-        scope: 'resource',
-        schema: profileSchema,
-      },
       observationalMemory: {
         model: summarizerModel,
         hooks: { beforeObservation: skillResultRedactor() },
@@ -168,7 +158,6 @@ export const orchestrator = new Agent({
         observation: {
           observeAttachments: ['image/*'],
           threadTitle: true,
-          manageWorkingMemory: true,
           instruction: observerPrompt,
           modelSettings: { maxOutputTokens: summarizerConfig.maxTokens.output },
           previousObserverTokens: summarizerConfig.maxTokens.previousObserver,

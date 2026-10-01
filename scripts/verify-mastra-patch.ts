@@ -21,6 +21,13 @@ const stockContracts = ['"__mastra_chat_channel_render"'];
 // new message when Slack reports the streamed one as message_not_found.
 const slackDist = join(root, 'node_modules/@chat-adapter/slack/dist/index.js');
 
+// The deployer's server is bundled into the build output, so the output has
+// no @mastra/deployer install and the marker is checked in the bundle instead.
+const deployerServer = [
+  join(root, 'node_modules/@mastra/deployer/dist/server/index.js'),
+  join(root, 'index.mjs'),
+].find((path) => existsSync(path));
+
 const missing = [
   ...['agent-DwtTO5Px.js', 'agent-DVnXHd4C.cjs'].flatMap((file) => {
     const path = join(dist, file);
@@ -43,6 +50,10 @@ const missing = [
   ...(readFileSync(slackDist, 'utf8').includes('STREAM_GONE_ERROR')
     ? []
     : ['@chat-adapter/slack index.js: STREAM_GONE_ERROR']),
+  ...(deployerServer &&
+  readFileSync(deployerServer, 'utf8').includes('preContextIsPublic')
+    ? []
+    : ['@mastra/deployer server: preContextIsPublic']),
 ];
 
 if (missing.length > 0) {

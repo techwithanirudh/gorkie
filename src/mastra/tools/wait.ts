@@ -6,7 +6,9 @@ import { channelWake, waitMetadata } from './scheduled-tasks/schedules';
 export const waitTool = createTool({
   id: 'wait',
   description:
-    "Pause the conversation and automatically resume it later, without blocking. Use for one-time delays, spaced-out polling, or giving a background job or external event time to progress. Before calling this, send a short text message telling the user what you're waiting for; the typing status clears the moment your turn ends, so that message is the only lasting sign you're still on it. Call this last and then stop; you will be woken up automatically when the wait is over. Calling it always ends your turn, the same as skip. For recurring work, use create_scheduled_task instead.",
+    "Pause the conversation and automatically resume it later, without blocking. Use for one-time delays, spaced-out polling, or giving a background job or external event time to progress. Before calling this, send a short text message telling the user what you're waiting for; the typing status clears the moment your turn ends, so that message is the only lasting sign you're still on it. Call this last and then stop; you will be woken up automatically when the wait is over. Calling it always ends your turn, the same as skip. The person who asked must approve each wait in Slack first, since the wake runs with their tools. For recurring work, use create_scheduled_task instead.",
+  // The wake runs unattended with the requester's tools.
+  requireApproval: true,
   inputSchema: z.strictObject({
     seconds: z
       .number()

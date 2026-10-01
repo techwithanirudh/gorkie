@@ -20,7 +20,7 @@ export const env = createEnv({
     HOST: z.string().default('127.0.0.1'),
     PORT: z.coerce.number().int().positive().default(4111),
     PUBLIC_BASE_URL: z.url().optional(),
-    GORKIE_API_TOKEN: z.string().min(32).optional(),
+    GORKIE_API_TOKEN: z.string().min(32),
 
     // Set in .env to the repo root. Not MASTRA_PROJECT_ROOT: `mastra dev` sets
     // that after .env loads and points it at `.mastra`, so migrations and the
@@ -81,11 +81,10 @@ export const env = createEnv({
 });
 
 // TODO(slopradar): library over hand-rolled : cross-field production rules are checked after createEnv with plain throws, outside the schema and its error formatting → express them in env-core's `createFinalSchema` (available in the installed 0.13.11) with a superRefine
-if (env.NODE_ENV === 'production') {
-  if (!env.GORKIE_API_TOKEN) {
-    throw new Error('GORKIE_API_TOKEN is required in production.');
-  }
-  if (env.PUBLIC_BASE_URL && !env.PUBLIC_BASE_URL.startsWith('https://')) {
-    throw new Error('PUBLIC_BASE_URL must be https in production.');
-  }
+if (
+  env.NODE_ENV === 'production' &&
+  env.PUBLIC_BASE_URL &&
+  !env.PUBLIC_BASE_URL.startsWith('https://')
+) {
+  throw new Error('PUBLIC_BASE_URL must be https in production.');
 }

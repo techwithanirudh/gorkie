@@ -40,8 +40,10 @@ Three layers, so one mistake does not expose the agent API:
 2. **Allowlist at the tunnel.** Only the Slack webhook, `/health`, and the
    OAuth routes under `/oauth/` are forwarded. Everything else gets a 404
    before it reaches the process.
-3. **Token on everything else.** With `GORKIE_API_TOKEN` set, `SimpleAuth`
-   requires `Authorization: Bearer <token>` on every non-public route. A server
+3. **Token on everything else.** `GORKIE_API_TOKEN` is required in every
+   environment (the bot refuses to start without it), and `SimpleAuth`
+   requires `Authorization: Bearer <token>` on every non-public route,
+   Studio included. A server
    middleware also returns 404 for any non-public request that carries
    `cf-connecting-ip` or `x-forwarded-for`, so a tunnel or proxy can never reach
    Studio or the agent API even with a leaked token. This relies on the proxy
@@ -53,6 +55,27 @@ Three layers, so one mistake does not expose the agent API:
 
 Never pass the token as `?apiKey=` (it lands in proxy logs), and never build
 production with `--studio`.
+
+### Request body size
+
+Mastra's context middleware reads every JSON `POST`/`PUT` body before routing
+and auth run, Mastra gives custom and channel routes no body limit, and the
+Slack adapter reads the whole body before it checks the signature. Server
+middleware (`setServerMiddleware`, `server.middleware`) runs after the context
+middleware and is skipped for public routes, so it cannot cap this.
+`patches/@mastra+deployer@1.69.0.patch` adds hono's `bodyLimit` in front of
+the context middleware:
+
+- Public routes (`requiresAuth: false`: the Slack webhook, `/oauth/*`) get
+  1 MiB, or `server.bodySizeLimit` if that is lower. Slack payloads are a few
+  kilobytes; the OAuth start form is one ticket.
+- Every other route keeps `server.bodySizeLimit`, Mastra's 4.5 MB default,
+  which its own API routes are sized for.
+
+A request with a larger `Content-Length` gets 413 without its body being read.
+A chunked request is read up to the cap, then gets 413. The cap is in the
+patch rather than `config.ts` because nothing in gorkie runs early enough to
+apply it, and `bun run build` fails if the marker goes missing.
 
 ## Production ingress: Cloudflare named tunnel
 
@@ -132,7 +155,8 @@ tasks could fire twice.
 
 Create the `gorkie (dev)` app from
 [`slack-manifest.dev.json`](../slack-manifest.dev.json) with its own signing
-secret, set `GORKIE_API_TOKEN` in `.env`, then run `bun run dev:e2e` (or
+secret, set `GORKIE_API_TOKEN` in `.env` (Studio asks for it on its sign-in
+screen), then run `bun run dev:e2e` (or
 `bun run dev` and `bun run dev:tunnel`). Paste the printed tunnel host plus
 `/api/agents/orchestrator/channels/slack/webhook` into both request URLs. The
 quick-tunnel URL changes on every run; a named Cloudflare tunnel with a fixed

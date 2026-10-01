@@ -13,7 +13,7 @@ import { explore } from './agents/explore';
 import { orchestrator } from './agents/orchestrator';
 import { research } from './agents/research';
 import { summarizer } from './agents/summarizer';
-import { buildAllowlist } from './chat/allowed-users';
+import { buildAllowlist, optInStatus } from './chat/allowed-users';
 import { registerEvents } from './chat/events';
 import { setMastra } from './chat/mastra-instance';
 import { banStatus } from './chat/moderation';
@@ -132,6 +132,24 @@ async function gateScheduledFire({
     });
     return null;
   }
+  // Only a confirmed opt-out skips. The allowlist is built after channels
+  // start, so fires due at boot would otherwise be dropped, and a skipped
+  // wait never comes back.
+  const optIn = await optInStatus(creator);
+  if (optIn === 'not-allowed') {
+    logger.info("[schedules] skipped an opted-out user's fire", {
+      scheduleId: schedule.id,
+      userId: creator,
+    });
+    return null;
+  }
+  if (optIn !== 'allowed') {
+    logger.warn('[schedules] fired without a confirmed opt-in', {
+      optIn,
+      scheduleId: schedule.id,
+      userId: creator,
+    });
+  }
   if ((await claimTurn(creator)).status === 'over-limit') {
     logger.info('[schedules] skipped a fire over the turn limit', {
       scheduleId: schedule.id,
@@ -158,15 +176,11 @@ export const mastra = new Mastra({
     drainTimeout: shutdown.drainTimeoutMs,
     build: { openAPIDocs: false, swaggerUI: false },
     apiRoutes: oauthRoutes,
-    ...(env.GORKIE_API_TOKEN
-      ? {
-          auth: new SimpleAuth({
-            tokens: {
-              [env.GORKIE_API_TOKEN]: { id: 'operator', name: 'operator' },
-            },
-          }),
-        }
-      : {}),
+    auth: new SimpleAuth({
+      tokens: {
+        [env.GORKIE_API_TOKEN]: { id: 'operator', name: 'operator' },
+      },
+    }),
   },
   schedules: {
     prepare: gateScheduledFire,

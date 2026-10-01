@@ -72,8 +72,8 @@ runs commands and inspects files without touching the host machine.
   token at the sandbox firewall for one git command; see
   [docs/brokered-git.md](./docs/brokered-git.md).
 - [Observational Memory][om] compresses a long conversation into an
-  observation log instead of carrying the full raw history, and working memory
-  keeps each person's stated reply preferences. See [Memory](#memory).
+  observation log instead of carrying the full raw history. See
+  [Memory](#memory).
 - Runtime skills in [`workspace/skills/`](./workspace/skills/), loaded by the
   agent on demand. Two are not obvious from the name: `web-page` publishes a
   single HTML page on a temporary Cloudflare Worker, and `github` covers the
@@ -137,7 +137,8 @@ Slack delivers events and interactivity over HTTP to
 tunnel. Create a second Slack app from
 [`slack-manifest.dev.json`](./slack-manifest.dev.json) (`gorkie (dev)`), put its
 bot token and signing secret in your local `.env`, set `GORKIE_API_TOKEN`
-(`openssl rand -hex 32`), then:
+(`openssl rand -hex 32`; the bot refuses to start without it, and Studio asks
+for it on its sign-in screen), then:
 
 ```bash
 # Starts mastra dev, waits for /health, then opens an untun tunnel
@@ -177,7 +178,7 @@ them without starting the bot, run `bun run db:migrate`.
 | `PROJECT_ROOT` | yes | Absolute path to this repo. `mastra dev`/`start` run from `.mastra/output`, so migrations, skills, and the DuckDB file resolve against this instead of cwd |
 | `SLACK_BOT_TOKEN` | yes | Bot User OAuth token (`xoxb-…`) |
 | `SLACK_SIGNING_SECRET` | yes | Signing secret (Basic Information) used to verify Slack's webhook requests |
-| `GORKIE_API_TOKEN` | production | 32+ character bearer token every non-public route requires (`openssl rand -hex 32`). Required in production and whenever tunnelling |
+| `GORKIE_API_TOKEN` | yes | 32+ character bearer token every non-public route requires, Studio included (`openssl rand -hex 32`). Required in every environment |
 | `PUBLIC_BASE_URL` | for sign-in | Public https origin of the bot. GitHub and MCP OAuth sign-in redirect to `/oauth/<provider>/callback` under it |
 | `HOST` / `PORT` | no | Bind address and port, default `127.0.0.1` / `4111`. Keep loopback; expose only through the tunnel |
 | `SLACK_USER_TOKEN` | yes | Slack user token, not the bot token, used for public-channel search. Mint it with `search:read.public` only; gorkie verifies the granted scopes on first use and refuses the token if it also carries `search:read.im`, `search:read.mpim`, or `search:read.private`. See [docs/slack-search.md](docs/slack-search.md) |
@@ -197,9 +198,9 @@ them without starting the bot, run `bun run db:migrate`.
 | `GITHUB_APP_CLIENT_ID` | yes | GitHub App client id, for the App Home web sign-in (see [docs/github-app.md](./docs/github-app.md)) |
 | `GITHUB_APP_CLIENT_SECRET` | yes | GitHub App client secret, for the sign-in code exchange, token refresh and revoking on disconnect |
 | `EXA_API_KEY` | yes | Exa key, powers `search_web`/`fetch_url` |
-| `AGENTMAIL_API_KEY` | no | Lets the sandbox reach the AgentMail API as `gorkie@agentmail.to`, without the key entering the sandbox |
+| `AGENTMAIL_API_KEY` | no | Enables the `agentmail_*` email tools for `gorkie@agentmail.to`. They run on the host through AgentMail's MCP server; the sandbox gets no email access. Use an inbox-scoped key limited to `message_read`, `message_send` and `message_update`, not an org key |
 | `EMOJI_PROXY_TOKEN` | no | Token for the Hack Club Slack emoji proxy. Enables `upload_emoji`; unset, the tool reports that emoji upload is not configured |
-| `NODE_ENV` | no | `development` (default), `production` or `test`. Production requires `GORKIE_API_TOKEN`, rejects a non-https `PUBLIC_BASE_URL`, and skips the local DuckDB trace store |
+| `NODE_ENV` | no | `development` (default), `production` or `test`. Production rejects a non-https `PUBLIC_BASE_URL`, and skips the local DuckDB trace store |
 | `LOG_LEVEL` | no | `debug`, `info` (default), `warn` or `error` |
 
 See [`.env.example`](./.env.example) for the full annotated list.
@@ -225,19 +226,19 @@ Three layers, each covering something different:
   channels' `resolveThreadId`, the same id the sandbox, thread state and the
   Langfuse session use. A drizzle migration renames older UUID threads; see
   [docs/slack-thread-ids.md](./docs/slack-thread-ids.md) for the runbook.
-- **Working and observational memory**
-  ([`agents/orchestrator.ts`](./src/mastra/agents/orchestrator.ts)):
-  - Working memory is scoped to the resource, the person who started the
-    thread. It holds their stated reply preferences, such as style, format,
-    language and timezone, and nothing else. The observer updates it only from
-    that person's own messages, so someone else in a shared thread cannot
-    rewrite it.
-  - Observational memory is scoped to the thread. It compresses long threads
-    into observations and reflections. Its `skillResultRedactor` hook strips
-    skill bodies before observation, and the observer and reflector prompts
-    treat quoted, fetched and tool-produced content as untrusted. Cross-thread
-    `recall` is deliberately off: in a public bot it would let one thread read
-    another person's DMs.
+- **Observational memory**
+  ([`agents/orchestrator.ts`](./src/mastra/agents/orchestrator.ts)) is scoped
+  to the thread. It compresses long threads into observations and
+  reflections. Its `skillResultRedactor` hook strips skill bodies before
+  observation, and the observer and reflector prompts treat quoted, fetched
+  and tool-produced content as untrusted. Cross-thread `recall` is
+  deliberately off: in a public bot it would let one thread read another
+  person's DMs.
+
+Working memory is off. Mastra scopes it to the resource, so one profile was
+shared by everyone in a thread, writable by any of them, and followed the
+thread owner into their DMs. Reply preferences live in App Home custom
+instructions instead.
 
 App Home custom instructions are separate from all three. They are stored per
 user and injected as a `<user_instructions>` block on every turn.
@@ -332,7 +333,6 @@ src/
     prompts/                    System prompt sections (core, personality, Slack, tools, guardrails)
     workspace/                  E2B sandbox workspace (per-thread, isolated) and its template build
     mcp/                        Built-in MCP servers, per-person MCP servers from App Home, their OAuth sign-in and URL checks
-    memory/                     Working-memory profile schema
     db/                         Drizzle schema, queries and boot-time migrations
     server/                     Public HTTP routes outside the Slack webhook
     observability/              Langfuse feedback, Slack identity on spans, payload trimming

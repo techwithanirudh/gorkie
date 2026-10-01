@@ -34,9 +34,14 @@ function assertMinimumInterval({
 
 export const createScheduledTaskTool = createTool({
   id: 'create_scheduled_task',
-  description: `Create a recurring schedule for the current Slack conversation. Use a valid cron expression and optional IANA timezone. Minimum interval is ${minMinutes} minutes between fires, each run costs model credits: never request a faster cadence, refuse and offer the nearest ${minMinutes}-minute-or-slower option instead.`,
+  description: `Create a recurring schedule for the current Slack conversation. Use a valid cron expression and optional IANA timezone. Minimum interval is ${minMinutes} minutes between fires, each run costs model credits: never request a faster cadence, refuse and offer the nearest ${minMinutes}-minute-or-slower option instead. The person who asked approves the exact prompt and schedule in Slack before it is created.`,
+  requireApproval: true,
   inputSchema: z.strictObject({
-    task: z.string().min(1).describe('Prompt to run on the schedule.'),
+    task: z
+      .string()
+      .min(1)
+      .max(4000)
+      .describe('Prompt to run on the schedule.'),
     cron: z
       .string()
       .min(1)

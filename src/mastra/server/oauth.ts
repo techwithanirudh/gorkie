@@ -19,6 +19,10 @@ import { mcpOAuth } from './mcp';
 import { oauthRedirectUri } from './oauth-link';
 import { oauthPage, privateHeaders } from './page';
 
+const publicOrigin = env.PUBLIC_BASE_URL
+  ? new URL(env.PUBLIC_BASE_URL).origin
+  : undefined;
+
 const providers: Record<OAuthProvider, OAuthProviderHandler> = {
   github: githubOAuth,
   mcp: mcpOAuth,
@@ -130,6 +134,24 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
         method: 'POST',
         requiresAuth: false,
         handler: async (c) => {
+          // Login CSRF: another site could auto-submit a stolen ticket and
+          // bind its owner's account to this browser. Browsers send Origin on
+          // every cross-site POST; Sec-Fetch-Site covers the rare same-origin
+          // POST without it.
+          const origin = c.req.header('origin');
+          if (
+            !(origin
+              ? origin === publicOrigin
+              : c.req.header('sec-fetch-site') === 'same-origin')
+          ) {
+            return oauthPage({
+              c,
+              status: 403,
+              tone: 'error',
+              title: 'Sign-in blocked',
+              text: 'This sign-in was not sent from the Gorkie sign-in page. Start again from the Gorkie Home tab in Slack.',
+            });
+          }
           const form = await c.req.parseBody();
           const started = await verifiedStart({
             c,

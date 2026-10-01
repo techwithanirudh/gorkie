@@ -14,6 +14,8 @@ export function manageTool({
   return createTool({
     id,
     description,
+    // Resuming restarts unattended runs with the creator's tools, like create.
+    requireApproval: action === 'resume',
     inputSchema: z.strictObject({
       id: z.string().min(1).describe('Schedule ID.'),
     }),

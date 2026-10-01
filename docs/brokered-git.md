@@ -32,7 +32,6 @@ All paths are under `src/mastra/`.
 <!-- TODO(slopradar): stale doc : the row names only `asksBefore()`, but the shared-thread clamp described at line 19 is `levelOutsideDM()` in the same file, applied in `lib/github/access.ts` → list `levelOutsideDM()` and `lib/github/access.ts` -->
 | `lib/approval.ts` | `asksBefore()`: maps the person's approval level and a tool's kind to "ask first" |
 | `lib/github/api.ts` | `repoAccess()`: reads whether a repository is private and whether the person can push |
-| `workspace/network.ts` | `baseRules()`: the sandbox's rules with no GitHub credential, restored when a window closes |
 
 ## The credential window
 
@@ -49,9 +48,9 @@ All paths are under `src/mastra/`.
   `core.fsmonitor=false`, passed as `GIT_CONFIG_*` environment variables so they
   reach every git in a compound command. Hooks or an fsmonitor the agent wrote
   into the checkout never run with GitHub auth attached.
-- The window closes by restoring `baseRules()`, retried three times. If it still
-  cannot close, the sandbox is killed and the tool says so, rather than leaving
-  a live credential behind.
+- The window closes by resetting the sandbox's network rules to none, retried
+  three times. If it still cannot close, the sandbox is killed and the tool says
+  so, rather than leaving a live credential behind.
 - `GIT_TERMINAL_PROMPT=0` is set in the sandbox environment
   (`workspace/sandbox.ts`), so a 401 fails instead of blocking on a username
   prompt until the sandbox times out.
@@ -71,8 +70,9 @@ on the current template (`2.2`):
   rule it succeeds.
 - `git push` authenticates, and `.git/config` and the sandbox environment hold
   no credential.
-- Clearing the rule mid-run revokes access immediately, and the
-  `api.agentmail.to` rule survives the reset.
+- Clearing the rule mid-run revokes access immediately. (The sandbox also had
+  an `api.agentmail.to` rule then, which survived the reset; that rule was
+  removed on 2026-10-01 when email moved to host-side tools.)
 - Re-running checkout reuses the existing clone and fetches a branch that exists
   only on the remote.
 
