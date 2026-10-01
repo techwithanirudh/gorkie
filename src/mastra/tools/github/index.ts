@@ -94,7 +94,7 @@ export async function githubTools({
     }
     if (direct && threadId) {
       tools.github_checkout = checkoutTool({
-        approval: !isDM || asksBefore({ kind: 'read', level }),
+        approval: asksBefore({ kind: 'read', level }),
         userId,
       });
       tools.github_push_branch = pushTool({

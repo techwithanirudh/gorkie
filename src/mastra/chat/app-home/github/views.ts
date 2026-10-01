@@ -34,7 +34,7 @@ export function configureModal({ permission, threads }: GitHubSettings) {
         })),
       }),
       CardText(
-        'In a shared thread Gorkie always asks at least before writing, so "Never ask" applies to DMs only. Gorkie reaches only the repositories you chose. <https://github.com/settings/installations|Change which ones> on GitHub.'
+        'This applies in DMs and shared threads alike. Gorkie reaches only the repositories you chose. <https://github.com/settings/installations|Change which ones> on GitHub.'
       ),
     ],
   });

@@ -65,8 +65,8 @@ runs commands and inspects files without touching the host machine.
   Memory observes the search that loaded it, and the model searches again.
 - GitHub tools act as the connected person. They work in a DM with that
   person, and in shared threads only if they enabled shared threads in App
-  Home, with approvals following their App Home settings (in a shared thread
-  "never ask" falls back to asking before writing). Code changes go
+  Home, with approvals following their App Home settings in every thread.
+  Code changes go
   through `github_checkout` and `github_push_branch`, which borrow the person's
   token at the sandbox firewall for one git command; see
   [docs/brokered-git.md](./docs/brokered-git.md).

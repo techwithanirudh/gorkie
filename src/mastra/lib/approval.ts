@@ -18,13 +18,3 @@ export function asksBefore({
 }): boolean {
   return KIND_RANK[kind] <= LEVEL_THRESHOLD[level];
 }
-
-export function levelOutsideDM<T extends ApprovalLevel>({
-  isDM,
-  level,
-}: {
-  isDM: boolean;
-  level: T;
-}): T | 'write' {
-  return isDM || level === 'all' ? level : 'write';
-}

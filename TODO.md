@@ -151,7 +151,9 @@ Three surfaces that are shipped, reachable by real people, and never verified en
 
 ## Customization
 
-Nothing open.
+- [x] **GitHub "never ask" in shared threads (asked 2026-10-01).** [Done: `levelOutsideDM` deleted from `lib/approval.ts` (no callers left after MCP and GitHub); `lib/github/access.ts` passes `github.permission` straight through; `app-home/github/blocks.ts` drops the split 'in DMs / in shared threads' status line; `tools/github/index.ts` checkout approval is `asksBefore({ kind: 'read', level })` instead of always asking outside DMs (that was a second override of never ask); App Home GitHub modal copy, README and `docs/brokered-git.md` updated. Shared-thread toggles unchanged: per person, default off. cspell now needs Node >=22.18 and this box has 22.17, so `bun run check:spelling` fails to start; run `bunx --bun cspell ...` meanwhile.] Owner: "make it like github shared threads opt-out-able and yeah never ask allow that though". Drop `levelOutsideDM` for GitHub too (`lib/github/access.ts`, `app-home/github/blocks.ts`), so the App Home level applies in every thread. Shared threads stay a per-person toggle in App Home for both GitHub and MCP (default off, unchanged). Update README and `docs/brokered-git.md`, which say "never ask" falls back in shared threads.
+- [ ] **Restore the old tool display (asked 2026-10-01).** Owner: "a while ago we had super good tool display 500 commits ago iirc tool-display.ts, we used the summary thing". Find that version in git history, compare with the current `chat/tool-display.ts` and `processors/tool-display.ts`, and bring back what made it good on top of Mastra channels.
+- [ ] **Redesign the MCP sign-in page (asked 2026-10-01).** Owner: "redesign our horrible signin mcp page". The pages served by `server/oauth.ts` for `/oauth/:provider/{start,callback}`.
 
 ## Known issues
 

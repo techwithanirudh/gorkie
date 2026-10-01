@@ -1,5 +1,4 @@
 import { github as githubConfig } from '../../../config';
-import { levelOutsideDM } from '../../../lib/approval';
 import { oauthStartLink } from '../../../server/oauth-link';
 import type {
   GitHubCredential,
@@ -26,11 +25,7 @@ export function githubBlocks({
 }): HomeSection {
   const signIn = oauthStartLink({ provider: 'github', slackUserId: userId });
   const scope = threads ? '  ·  `runs in shared threads`' : '';
-  const threadLevel = levelOutsideDM({ isDM: false, level: permission });
-  let access = `${PRESETS[permission].status}  ·  Gorkie uses your GitHub account${threads ? '' : ', in DMs only'}${scope}`;
-  if (threads && threadLevel !== permission) {
-    access = `${PRESETS[permission].status} in DMs  ·  ${PRESETS[threadLevel].status} in shared threads  ·  Gorkie uses your GitHub account`;
-  }
+  const access = `${PRESETS[permission].status}  ·  Gorkie uses your GitHub account${threads ? '' : ', in DMs only'}${scope}`;
 
   let status = 'Not connected';
   let detail = signIn
