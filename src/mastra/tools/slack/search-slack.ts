@@ -4,9 +4,9 @@ import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { search } from '../../config';
 import { channelContext } from '../../lib/context';
-import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { readableChannelIds } from './utils';
+import type { ChannelContext } from '../../types';
+import { readableChannels } from './access';
 
 const contextMessageSchema = z
   .looseObject({
@@ -19,9 +19,7 @@ const contextMessageSchema = z
     text: message.text ?? '',
     ts: message.ts,
     userId: message.user_id,
-    channelId: message.channel_id
-      ? chatChannelId(message.channel_id)
-      : undefined,
+    channelId: message.channel_id,
   }));
 
 const searchResponseSchema = z.looseObject({
@@ -51,9 +49,7 @@ const searchResponseSchema = z.looseObject({
             .transform((message) => ({
               author: message.author_name,
               userId: message.author_user_id,
-              channelId: message.channel_id
-                ? chatChannelId(message.channel_id)
-                : undefined,
+              channelId: message.channel_id,
               channelName: message.channel_name,
               text: (message.content ?? '').slice(0, search.snippetChars),
               // TODO(slopradar): tunable values inline : context size 3 (x2 here), context snippet 400 (line ~137) and page size `limit: 10` (line ~202) are search knobs → move them into config.search beside snippetChars
@@ -102,10 +98,10 @@ async function assertPublicOnly(token: string): Promise<void> {
 
 async function toOutput({
   response,
-  threadId,
+  ctx,
 }: {
   response: SearchResponse;
-  threadId?: string;
+  ctx: ChannelContext;
 }) {
   const messages = response.results?.messages ?? [];
   const channelIds = new Set<string>();
@@ -121,9 +117,9 @@ async function toOutput({
     }
   }
 
-  const readable = await readableChannelIds({
+  const readable = await readableChannels({
     channelIds: [...channelIds],
-    currentThreadId: threadId,
+    ctx,
   });
 
   return {
@@ -139,6 +135,9 @@ async function toOutput({
       return [
         {
           ...message,
+          channelId: slack.channelIdFromThreadId(
+            slack.encodeThreadId({ channel: channelId, threadTs: '' })
+          ),
           before: contextText(message.before),
           after: contextText(message.after),
         },
@@ -189,7 +188,7 @@ export const searchSlackTool = createTool({
   },
   execute: async ({ query, cursor }, context) => {
     spendSlackCall(context.requestContext);
-    const { threadId } = channelContext(context.requestContext);
+    const ctx = channelContext(context.requestContext);
     const token = env.SLACK_USER_TOKEN;
     await assertPublicOnly(token);
     return toOutput({
@@ -205,7 +204,7 @@ export const searchSlackTool = createTool({
           token,
         })
       ),
-      threadId,
+      ctx,
     });
   },
 });

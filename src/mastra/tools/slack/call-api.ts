@@ -3,17 +3,20 @@ import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { slack as slackConfig } from '../../config';
 import { channelContext } from '../../lib/context';
-import { parseSlackId, rawId } from '../../lib/ids';
+import { parseSlackInput } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { requireSandbox, sandboxPath, writeSandboxFile } from '../../workspace';
-import { assertReadableChannel, joinChannel } from './utils';
+import { openReadableChannel } from './access';
 
-const slackId = z.string().min(1).transform(rawId);
+const slackId = z
+  .string()
+  .min(1)
+  .transform((value) => parseSlackInput(value).channel ?? value);
 const slackTs = z
   .string()
   .min(1)
-  .transform((value) => parseSlackId({ input: value }).ts ?? value);
+  .transform((value) => parseSlackInput(value).threadTs ?? value);
 
 const methods = new Map<
   string,
@@ -129,11 +132,10 @@ Responses can be large, so the full JSON is written to a file in the thread sand
     const args = parsed.data;
     const channel = allowed.channelParam && args[allowed.channelParam];
     if (typeof channel === 'string') {
-      await assertReadableChannel({
+      await openReadableChannel({
         channelId: channel,
-        currentThreadId: channelContext(context.requestContext).threadId,
+        ctx: channelContext(context.requestContext),
       });
-      await joinChannel(channel);
     }
     spendSlackCall(context.requestContext);
 

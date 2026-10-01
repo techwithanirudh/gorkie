@@ -1,6 +1,6 @@
 import { Chat } from 'chat';
-import { chatChannelId } from '../../../lib/ids';
 import { isScheduledTask } from '../../../tools/scheduled-tasks/schedules';
+import { slack } from '../../client';
 import { getMastra } from '../../mastra-instance';
 import { publishHome } from '../view';
 import { ids } from './ids';
@@ -13,10 +13,9 @@ export function registerScheduledTasks(): void {
     }
     const mastra = getMastra();
     const schedule = await mastra.schedules.get(id);
-    const resourceId = chatChannelId(event.user.userId);
     if (
       !(schedule && isScheduledTask(schedule)) ||
-      schedule.resourceId !== resourceId
+      schedule.resourceId !== `${slack.name}:${event.user.userId}`
     ) {
       return;
     }

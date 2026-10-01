@@ -7,7 +7,7 @@ import type { ToolExecutionContext } from '@mastra/core/tools';
 import { z } from 'zod';
 import { agent as agentConfig } from '../../config';
 import { channelContext } from '../../lib/context';
-import { rawId } from '../../lib/ids';
+import { parseSlackInput } from '../../lib/ids';
 
 export const waitMetadata = { kind: 'wait' } as const;
 
@@ -46,7 +46,7 @@ export function ownSchedules(context: ToolExecutionContext) {
   if (!resourceId) {
     throw new Error('No current Slack resource for scheduled tasks.');
   }
-  if (!userId || rawId(userId) !== rawId(resourceId)) {
+  if (!userId || parseSlackInput(resourceId).channel !== userId) {
     throw new Error(
       'Only the person who started this conversation can manage its scheduled tasks. Ask them, or start your own thread or DM.'
     );

@@ -1,6 +1,5 @@
 import { Chat } from 'chat';
 import { env } from '@/env';
-import { rawId } from '../lib/ids';
 import { logger } from '../lib/logger';
 import { slack } from './client';
 
@@ -145,7 +144,7 @@ export async function buildAllowlist(): Promise<void> {
   }
 
   Chat.getSingleton().onMemberJoinedChannel(async (event) => {
-    if (rawId(event.channelId) === channel) {
+    if (slack.decodeThreadId(event.channelId).channel === channel) {
       await setMembership({ allowed: true, userId: event.userId });
     }
   });

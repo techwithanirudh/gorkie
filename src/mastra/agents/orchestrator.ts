@@ -202,7 +202,7 @@ export const orchestrator = new Agent({
     // Slack thread and its Langfuse session. Runs only when a thread is first
     // created; later turns find it through the channel_externalThreadId mapping.
     resolveThreadId: ({ thread }) => thread.id,
-    threadContext: { maxMessages: 0 },
+    threadContext: { maxMessages: 0, addSystemMessage: false },
     handlers: {
       onMention,
       onSubscribedMessage,

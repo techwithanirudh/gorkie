@@ -1,6 +1,5 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { decryptSecret, encryptSecret } from '../../lib/crypto';
-import { rawId } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 import {
   type MCPServerConfig,
@@ -18,7 +17,7 @@ export async function listMCPServers(
   const rows = await db
     .select()
     .from(mcpServers)
-    .where(eq(mcpServers.userId, rawId(userId)))
+    .where(eq(mcpServers.userId, userId))
     .orderBy(asc(mcpServers.createdAt));
   return rows.map((row) => {
     const server = {
@@ -74,9 +73,7 @@ export async function setMCPServerError({
   await db
     .update(mcpServers)
     .set({ lastError: error, lastErrorHttpStatus: httpStatus ?? null })
-    .where(
-      and(eq(mcpServers.userId, rawId(userId)), eq(mcpServers.name, name))
-    );
+    .where(and(eq(mcpServers.userId, userId), eq(mcpServers.name, name)));
 }
 
 export async function insertMCPServer({
@@ -88,14 +85,13 @@ export async function insertMCPServer({
   server: MCPServerConfig;
   maxServers: number;
 }): Promise<'ok' | 'limit-reached' | 'name-taken'> {
-  const id = rawId(userId);
   return await db.transaction(async (tx) => {
     // TODO(slopradar): lock key collision : same advisory key as recordTurnWithinLimit (usage.ts:66) → scope the key, see the note there.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${id}))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
     const existing = await tx
       .select({ name: mcpServers.name })
       .from(mcpServers)
-      .where(eq(mcpServers.userId, id));
+      .where(eq(mcpServers.userId, userId));
     if (existing.some((row) => row.name === server.name)) {
       return 'name-taken';
     }
@@ -109,7 +105,7 @@ export async function insertMCPServer({
       threads: server.threads,
       token,
       url: server.url,
-      userId: id,
+      userId,
     });
     return 'ok';
   });
@@ -124,9 +120,7 @@ export async function removeMCPServer({
 }): Promise<void> {
   await db
     .delete(mcpServers)
-    .where(
-      and(eq(mcpServers.userId, rawId(userId)), eq(mcpServers.name, name))
-    );
+    .where(and(eq(mcpServers.userId, userId), eq(mcpServers.name, name)));
 }
 
 export async function setMCPServerAccess({
@@ -143,7 +137,5 @@ export async function setMCPServerAccess({
   await db
     .update(mcpServers)
     .set({ permission, threads })
-    .where(
-      and(eq(mcpServers.userId, rawId(userId)), eq(mcpServers.name, name))
-    );
+    .where(and(eq(mcpServers.userId, userId), eq(mcpServers.name, name)));
 }

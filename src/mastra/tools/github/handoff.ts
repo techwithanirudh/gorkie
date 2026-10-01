@@ -1,5 +1,5 @@
 import { slack } from '../../chat/client';
-import { rawId } from '../../lib/ids';
+import { parseSlackInput } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 
 export async function handoff({
@@ -14,10 +14,10 @@ export async function handoff({
   let link: string | undefined;
   if (channelId && threadId) {
     try {
-      const { threadTs } = slack.decodeThreadId(threadId);
+      const { channel, threadTs } = slack.decodeThreadId(threadId);
       link = (
         await slack.webClient.chat.getPermalink({
-          channel: rawId(channelId),
+          channel,
           message_ts: threadTs,
         })
       ).permalink;
@@ -35,7 +35,7 @@ Read this thread and find the task being asked for. DM it to <@${userId}> in thi
 ${[
   'Task:',
   '<the task, as you understand it from this thread>',
-  channelId ? `Channel: <#${rawId(channelId)}>` : undefined,
+  channelId ? `Channel: <#${parseSlackInput(channelId).channel}>` : undefined,
   link ? `Thread: ${link}` : undefined,
 ]
   .filter(Boolean)

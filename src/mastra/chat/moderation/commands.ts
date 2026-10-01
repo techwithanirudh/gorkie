@@ -1,7 +1,6 @@
 import type { SlashCommandChannelHandler } from '@mastra/core/channels';
 import { z } from 'zod';
 import { activeBans } from '../../db/queries/moderation';
-import { rawId } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 import { banDurationSchema } from '../../types';
 import { slack } from '../client';
@@ -75,11 +74,11 @@ export const onSlashCommand: SlashCommandChannelHandler = async (event) => {
     return;
   }
   let refusal: string | undefined;
-  if (rawId(userId) === rawId(actorId)) {
+  if (userId === actorId) {
     refusal = "you can't ban yourself.";
   } else if (isModerator(userId)) {
     refusal = "moderators can't be banned. remove them from MODERATORS first.";
-  } else if (slack.botUserId && rawId(userId) === slack.botUserId) {
+  } else if (slack.botUserId && userId === slack.botUserId) {
     refusal = "gorkie can't ban itself.";
   }
   if (refusal) {

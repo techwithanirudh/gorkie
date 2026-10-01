@@ -1,7 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
-import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
 
 export const listChannelsTool = createTool({
@@ -48,7 +47,9 @@ export const listChannelsTool = createTool({
       channel.id
         ? [
             {
-              channelId: chatChannelId(channel.id),
+              channelId: slack.channelIdFromThreadId(
+                slack.encodeThreadId({ channel: channel.id, threadTs: '' })
+              ),
               name: channel.name,
               archived: channel.is_archived ?? false,
               member: channel.is_member ?? false,

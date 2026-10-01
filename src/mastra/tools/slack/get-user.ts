@@ -1,6 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { resolveUserProfile } from '../../chat/names';
+import { parseSlackInput } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
 
 export const getUserTool = createTool({
@@ -31,7 +32,9 @@ export const getUserTool = createTool({
   execute: async ({ userId }, context) => {
     spendSlackCall(context.requestContext);
 
-    const profile = await resolveUserProfile(userId);
+    const profile = await resolveUserProfile(
+      parseSlackInput(userId).channel ?? userId
+    );
     if (!profile) {
       throw new Error(`Could not find a user with id ${userId}.`);
     }

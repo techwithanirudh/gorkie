@@ -4,9 +4,9 @@ import { summarizer } from '../../agents/summarizer';
 import { slack } from '../../chat/client';
 import { isComment } from '../../chat/message';
 import { channelContext } from '../../lib/context';
-import { chatChannelId } from '../../lib/ids';
+import { parseSlackInput } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { assertReadableChannel, joinChannel, slackThreadId } from './utils';
+import { openReadableChannel } from './access';
 
 export const summarizeThreadTool = createTool({
   id: 'summarize_thread',
@@ -37,15 +37,14 @@ export const summarizeThreadTool = createTool({
   },
   execute: async ({ threadId, instructions }, context) => {
     const ctx = channelContext(context.requestContext);
-    const suppliedThreadId = threadId ?? ctx.threadId;
-    if (!suppliedThreadId) {
-      throw new Error('No thread to summarize.');
+    const { channel, threadTs } = parseSlackInput(threadId ?? ctx.threadId);
+    if (!(channel && threadTs)) {
+      throw new Error(
+        'Pass a thread id (slack:<conversation-id>:ts) or a message permalink, or run inside a thread.'
+      );
     }
-    const target = slackThreadId({ threadId: suppliedThreadId });
-
-    const channelId = chatChannelId(slack.channelIdFromThreadId(target));
-    await assertReadableChannel({ channelId, currentThreadId: ctx.threadId });
-    await joinChannel(channelId);
+    const target = slack.encodeThreadId({ channel, threadTs });
+    await openReadableChannel({ channelId: channel, ctx });
 
     spendSlackCall(context.requestContext);
 

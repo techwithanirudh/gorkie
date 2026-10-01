@@ -1,7 +1,6 @@
 import { Chat } from 'chat';
 import { z } from 'zod';
 import { slack as slackConfig } from '../config';
-import { rawId } from '../lib/ids';
 import { logger } from '../lib/logger';
 import { slack } from './client';
 
@@ -20,9 +19,8 @@ type UserProfile = z.infer<typeof userProfileSchema>;
 
 // TODO(slopradar): unclear file name : file is `names.ts` but holds only resolveUserProfile → rename the file `user-profile.ts`
 export async function resolveUserProfile(
-  id: string
+  userId: string
 ): Promise<UserProfile | undefined> {
-  const userId = rawId(id);
   const cacheKey = `slack:user-profile:${userId}`;
   const bot = Chat.getSingleton();
   const cached = userProfileSchema.safeParse(

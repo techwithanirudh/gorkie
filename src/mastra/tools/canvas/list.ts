@@ -2,9 +2,9 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
-import { rawId } from '../../lib/ids';
+import { parseSlackInput } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { assertReadableChannel, readableChannelIds } from '../slack/utils';
+import { assertCanRead, readableChannels } from '../slack/access';
 
 const canvasFile = z
   .looseObject({
@@ -81,14 +81,12 @@ export const listCanvasesTool = createTool({
   execute: async ({ query, scope, channelId, limit, page }, context) => {
     const ctx = channelContext(context.requestContext);
     const id = scope === 'workspace' ? undefined : (channelId ?? ctx.channelId);
-    if (scope === 'channel' && !id) {
+    const { channel } = parseSlackInput(id);
+    if (scope === 'channel' && !channel) {
       throw new Error('No channel to list canvases from.');
     }
-    if (id) {
-      await assertReadableChannel({
-        channelId: id,
-        currentThreadId: ctx.threadId,
-      });
+    if (channel) {
+      await assertCanRead({ channelId: channel, ctx });
     }
 
     spendSlackCall(context.requestContext);
@@ -97,7 +95,7 @@ export const listCanvasesTool = createTool({
       types: 'canvas',
       count: limit,
       page,
-      ...(id ? { channel: rawId(id) } : {}),
+      ...(channel ? { channel } : {}),
     });
     const matches = (response.files ?? [])
       .map((f) => canvasFile.parse(f))
@@ -105,11 +103,11 @@ export const listCanvasesTool = createTool({
         (canvas) =>
           !query || canvas.title?.toLowerCase().includes(query.toLowerCase())
       );
-    const readable = id
+    const readable = channel
       ? undefined
-      : await readableChannelIds({
+      : await readableChannels({
           channelIds: [...new Set(matches.flatMap((c) => c.channelIds))],
-          currentThreadId: ctx.threadId,
+          ctx,
         });
     const canvases = matches.flatMap(({ channelIds, ...canvas }) =>
       !readable || channelIds.some((channelId) => readable.has(channelId))

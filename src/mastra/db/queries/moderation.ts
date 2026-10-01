@@ -1,5 +1,4 @@
 import { desc, eq } from 'drizzle-orm';
-import { rawId } from '../../lib/ids';
 import type { ActiveBan, ModerationEvent } from '../../types';
 import { db } from '../client';
 import { moderationEvents } from '../schema';
@@ -16,7 +15,7 @@ export async function activeBan(
   const [row] = await db
     .select()
     .from(moderationEvents)
-    .where(eq(moderationEvents.userId, rawId(userId)))
+    .where(eq(moderationEvents.userId, userId))
     .orderBy(desc(moderationEvents.createdAt))
     .limit(1);
   return row && isLive(row) ? row : undefined;
@@ -47,8 +46,8 @@ export async function recordDecision({
     .insert(moderationEvents)
     .values({
       action,
-      userId: rawId(userId),
-      actorId: rawId(actorId),
+      userId,
+      actorId,
       reason: reason ?? null,
       expiresAt: expiresAt ?? null,
     })

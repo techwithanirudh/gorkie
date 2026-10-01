@@ -1,6 +1,5 @@
 import { eq } from 'drizzle-orm';
 import { decryptSecret, encryptSecret } from '../../lib/crypto';
-import { rawId } from '../../lib/ids';
 import type { GitHubAccount, GitHubCredential } from '../../types';
 import { db } from '../client';
 import { githubCredentials } from '../schema';
@@ -11,7 +10,7 @@ export async function getGitHubCredential(
   const [row] = await db
     .select()
     .from(githubCredentials)
-    .where(eq(githubCredentials.userId, rawId(userId)));
+    .where(eq(githubCredentials.userId, userId));
   if (!row) {
     return;
   }
@@ -44,7 +43,7 @@ export async function setGitHubCredential({
   };
   await db
     .insert(githubCredentials)
-    .values({ ...set, userId: rawId(userId) })
+    .values({ ...set, userId })
     .onConflictDoUpdate({ target: githubCredentials.userId, set });
 }
 
@@ -67,7 +66,7 @@ export async function updateRefreshedGitHubCredential({
         : null,
       token: encryptSecret(credential.token),
     })
-    .where(eq(githubCredentials.userId, rawId(userId)))
+    .where(eq(githubCredentials.userId, userId))
     .returning({ userId: githubCredentials.userId });
   return updated.length > 0;
 }
@@ -87,11 +86,11 @@ export async function updateGitHubCredentialError({
       lastError: error,
       ...(forgetRefreshToken ? { refreshToken: null } : {}),
     })
-    .where(eq(githubCredentials.userId, rawId(userId)));
+    .where(eq(githubCredentials.userId, userId));
 }
 
 export async function removeGitHubCredential(userId: string): Promise<void> {
   await db
     .delete(githubCredentials)
-    .where(eq(githubCredentials.userId, rawId(userId)));
+    .where(eq(githubCredentials.userId, userId));
 }

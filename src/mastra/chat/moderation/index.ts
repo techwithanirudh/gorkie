@@ -6,7 +6,6 @@ import {
   getModerationEvent,
   recordDecision,
 } from '../../db/queries/moderation';
-import { chatChannelId, rawId } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 import type { ActiveBan, BanDuration, ModerationEvent } from '../../types';
 import { refreshHome } from '../app-home/view';
@@ -63,7 +62,11 @@ export async function decide({
   logger.info(`[moderation] ${action}`, { actorId, duration, userId });
   if (env.LOGS_CHANNEL) {
     await Chat.getSingleton()
-      .channel(chatChannelId(env.LOGS_CHANNEL))
+      .channel(
+        slack.channelIdFromThreadId(
+          slack.encodeThreadId({ channel: env.LOGS_CHANNEL, threadTs: '' })
+        )
+      )
       .post(decisionCard({ event }))
       .catch((error: unknown) =>
         logger.error('[moderation] could not post to the logs channel', {
@@ -73,7 +76,7 @@ export async function decide({
   } else {
     logger.warn('[moderation] LOGS_CHANNEL is not set, card not posted');
   }
-  refreshHome(rawId(userId));
+  refreshHome(userId);
   return event;
 }
 
@@ -104,7 +107,7 @@ export function registerModeration(): void {
       .editMessage(
         event.threadId,
         event.messageId,
-        decisionCard({ event: ban, liftedBy: rawId(event.user.userId) })
+        decisionCard({ event: ban, liftedBy: event.user.userId })
       )
       .catch((error: unknown) =>
         logger.warn('[moderation] could not update the ban card', { error })

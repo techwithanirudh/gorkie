@@ -5,7 +5,7 @@ import { logger } from '../../lib/logger';
 import { sh } from '../../lib/shell';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { requireSandbox, sandboxPath } from '../../workspace';
-import { fetchPrivateSlackFile, readableFile } from './utils';
+import { fetchPrivateSlackFile, readableFile } from './files';
 
 // TODO(slopradar): duplication across files : a private byte formatter while upload-emoji.ts, view-image.ts, upload-file.ts and generate-image/request.ts each inline their own MB math → one shared formatBytes in src/mastra/lib used by all five
 function formatBytes(value: number): string {
@@ -28,7 +28,7 @@ async function downloadSlackFile({
 }) {
   const sandbox = await requireSandbox(requestContext);
 
-  // TODO(slopradar): duplicate model : three different Slack file id regexes (here, canvas/utils.ts:8 `^F[A-Z0-9]+$`, chat/attachments.ts:22 `\bF[A-Z0-9]{6,}\b`) → one fileIdOf/fileIdSchema in lib/ids.ts beside parseSlackId
+  // TODO(slopradar): duplicate model : three different Slack file id regexes (here, canvas/utils.ts:8 `^F[A-Z0-9]+$`, chat/attachments.ts:22 `\bF[A-Z0-9]{6,}\b`) → one fileIdOf/fileIdSchema in lib/ids.ts beside parseSlackInput
   const fileId = /(?<![A-Z0-9])(F[A-Z0-9]{6,})/.exec(file)?.[1];
   if (!fileId) {
     throw new Error(
@@ -77,7 +77,10 @@ async function downloadSlackFile({
   };
   const expectedSize =
     fileInfo.size ??
-    (await fetchPrivateSlackFile({ method: 'HEAD', signal: abortSignal, url })
+    (await fetchPrivateSlackFile({
+      init: { method: 'HEAD', signal: abortSignal },
+      url,
+    })
       .then((response) =>
         // A missing header is unknown, not zero: Number(null) is 0.
         Number(response.headers.get('content-length') ?? Number.NaN)
@@ -121,10 +124,12 @@ async function downloadSlackFile({
   // fetchPrivateSlackFile throws on any non-2xx, so only a resume the server
   // answered in full instead of from the offset is left to catch.
   const response = await fetchPrivateSlackFile({
-    ...(resumeOffset > 0
-      ? { headers: { range: `bytes=${resumeOffset}-` } }
-      : {}),
-    signal: abortSignal,
+    init: {
+      ...(resumeOffset > 0
+        ? { headers: { range: `bytes=${resumeOffset}-` } }
+        : {}),
+      signal: abortSignal,
+    },
     url,
   });
   if (resumeOffset > 0 && response.status !== 206) {

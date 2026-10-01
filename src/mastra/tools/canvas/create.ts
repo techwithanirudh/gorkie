@@ -2,7 +2,6 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
-import { chatChannelId, rawId } from '../../lib/ids';
 import { slackErrorSchema } from '../../types/tools/index';
 import { assertCanManageChannel } from './utils';
 
@@ -42,13 +41,15 @@ export const createCanvasTool = createTool({
   execute: async ({ mode, title, channelId, markdown }, context) => {
     const ctx = channelContext(context.requestContext);
     if (mode === 'standalone') {
-      if (channelId) {
-        assertCanManageChannel({ channelIds: [channelId], ctx });
-      }
+      const current = channelId
+        ? assertCanManageChannel({ channelIds: [channelId], ctx })
+        : undefined;
       // TODO(slopradar): duplication : the title and document_content spreads are built twice (here and the channel branch below) → build `const content = { ...title, ...document_content }` once before branching
       const response = await slack.webClient.canvases.create({
         ...(title ? { title } : {}),
-        ...(channelId ? { channel_id: rawId(channelId) } : {}),
+        ...(current
+          ? { channel_id: slack.decodeThreadId(current).channel }
+          : {}),
         ...(markdown
           ? { document_content: { type: 'markdown' as const, markdown } }
           : {}),
@@ -59,7 +60,7 @@ export const createCanvasTool = createTool({
       return {
         mode,
         canvasId: response.canvas_id,
-        ...(channelId ? { channelId: chatChannelId(channelId) } : {}),
+        ...(current ? { channelId: current } : {}),
       };
     }
 
@@ -67,10 +68,13 @@ export const createCanvasTool = createTool({
     if (!targetChannelId) {
       throw new Error('No channel to create a channel canvas for.');
     }
-    assertCanManageChannel({ channelIds: [targetChannelId], ctx });
+    const current = assertCanManageChannel({
+      channelIds: [targetChannelId],
+      ctx,
+    });
     try {
       const response = await slack.webClient.conversations.canvases.create({
-        channel_id: rawId(targetChannelId),
+        channel_id: slack.decodeThreadId(current).channel,
         ...(title ? { title } : {}),
         ...(markdown
           ? { document_content: { type: 'markdown' as const, markdown } }
@@ -83,7 +87,7 @@ export const createCanvasTool = createTool({
       }
       return {
         mode,
-        channelId: chatChannelId(targetChannelId),
+        channelId: current,
         canvasId: response.canvas_id,
       };
     } catch (error) {

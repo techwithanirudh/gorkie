@@ -1,6 +1,5 @@
 import { and, count, eq, gt, lt, min, sql } from 'drizzle-orm';
 import { usage as config } from '../../config';
-import { rawId } from '../../lib/ids';
 import type { TurnUsage } from '../../types';
 import { db } from '../client';
 import { usageTurns } from '../schema';
@@ -32,7 +31,7 @@ async function readUsage({
     .from(usageTurns)
     .where(
       and(
-        eq(usageTurns.userId, rawId(userId)),
+        eq(usageTurns.userId, userId),
         gt(usageTurns.createdAt, new Date(now - DAY))
       )
     );
@@ -61,21 +60,20 @@ export function turnUsage(userId: string): Promise<TurnUsage> {
 export async function recordTurnWithinLimit(
   userId: string
 ): Promise<{ recorded: boolean; usage: TurnUsage }> {
-  const id = rawId(userId);
   return await db.transaction(async (tx) => {
     // TODO(slopradar): lock key collision : same advisory key as insertMCPServer (mcps.ts:93), so a turn claim and an MCP add for one user block each other
     // → one shared lockUser({ tx, scope }) using the two-key form pg_advisory_xact_lock(hashtext(scope), hashtext(id)).
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${id}))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
     const usage = await readUsage({ executor: tx, userId });
     if (usage.day.remaining === 0 || usage.hour.remaining === 0) {
       return { recorded: false, usage };
     }
-    await tx.insert(usageTurns).values({ userId: id });
+    await tx.insert(usageTurns).values({ userId });
     await tx
       .delete(usageTurns)
       .where(
         and(
-          eq(usageTurns.userId, id),
+          eq(usageTurns.userId, userId),
           lt(usageTurns.createdAt, new Date(Date.now() - DAY))
         )
       );

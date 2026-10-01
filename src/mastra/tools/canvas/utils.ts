@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { rawId } from '../../lib/ids';
+import { parseSlackInput } from '../../lib/ids';
 import type { ChannelContext } from '../../types';
 
 // TODO(slopradar): duplicate model : a third Slack file id pattern (see get-slack-file.ts) → derive canvasIdSchema from the single file id pattern in lib/ids.ts
@@ -17,14 +17,20 @@ export function assertCanManageChannel({
 }: {
   channelIds: string[];
   ctx: ChannelContext;
-}): void {
+}): string {
   const current = ctx.channelId;
   if (!current) {
     throw new Error('No current Slack channel to compare against.');
   }
-  if (!channelIds.some((channelId) => rawId(channelId) === rawId(current))) {
+  const { channel } = parseSlackInput(current);
+  if (
+    !channelIds.some(
+      (channelId) => parseSlackInput(channelId).channel === channel
+    )
+  ) {
     throw new Error(
       'Can only manage canvases for the current channel, not other channels.'
     );
   }
+  return current;
 }

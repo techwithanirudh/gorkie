@@ -8,7 +8,8 @@ import { channelContext } from '../../lib/context';
 import { type Target, targetSchema } from '../../types/tools/index';
 import { requireSandbox } from '../../workspace';
 import { confinePath } from '../../workspace/filesystem';
-import { assertCanPostTo, slackDestination } from './utils';
+import { assertCanPostTo } from './access';
+import { slackDestination } from './posting';
 
 async function uploadToSlack({
   comment,

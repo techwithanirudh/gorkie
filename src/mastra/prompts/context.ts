@@ -4,6 +4,16 @@ import { channelContext } from '../lib/context';
 export function contextPrompt(requestContext: RequestContext): string {
   const ctx = channelContext(requestContext);
   const lines: string[] = [];
+  if (ctx.botUserId) {
+    lines.push(
+      `You are <@${ctx.botUserId}> on Slack; messages that mention it are directed at you.`
+    );
+  }
+  lines.push(
+    ctx.isDM
+      ? 'This is a direct message with one person.'
+      : 'This is a shared channel or thread: not every message is directed at you.'
+  );
   if (ctx.channelId) {
     lines.push(`The current channel id is ${ctx.channelId}.`);
   }

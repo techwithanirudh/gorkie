@@ -2,10 +2,11 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
-import { chatChannelId } from '../../lib/ids';
+import { parseSlackInput } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { slackMessageSchema } from '../../types/tools/index';
-import { assertReadableChannel, formatMessage, joinChannel } from './utils';
+import { openReadableChannel } from './access';
+import { formatMessage } from './message';
 
 export const listThreadsTool = createTool({
   id: 'list_threads',
@@ -43,22 +44,18 @@ export const listThreadsTool = createTool({
   execute: async ({ channelId, limit, cursor }, context) => {
     spendSlackCall(context.requestContext);
     const ctx = channelContext(context.requestContext);
-    const id = channelId ?? ctx.channelId;
-    if (!id) {
+    const { channel } = parseSlackInput(channelId ?? ctx.channelId);
+    if (!channel) {
       throw new Error('No channel to list threads from.');
     }
+    await openReadableChannel({ channelId: channel, ctx });
 
-    const chId = chatChannelId(id);
-    // TODO(slopradar): duplication across files : the same chatChannelId, assertReadableChannel, joinChannel gate as read-conversation-history.ts → use the shared openReadableChannel helper proposed there; also rename `chId`
-    await assertReadableChannel({
-      channelId: chId,
-      currentThreadId: ctx.threadId,
-    });
-    await joinChannel(chId);
-
-    const result = await slack.listThreads(chId, { limit, cursor });
+    const conversation = slack.channelIdFromThreadId(
+      slack.encodeThreadId({ channel, threadTs: '' })
+    );
+    const result = await slack.listThreads(conversation, { limit, cursor });
     return {
-      channelId: chId,
+      channelId: conversation,
       threads: result.threads.map((thread) => ({
         id: thread.id,
         replyCount: thread.replyCount,

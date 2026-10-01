@@ -2,7 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { getMastra } from '../chat/mastra-instance';
 import { channelContext } from '../lib/context';
-import { rawId } from '../lib/ids';
+import { parseSlackInput } from '../lib/ids';
 import { logger } from '../lib/logger';
 
 export const submitFeedbackTool = createTool({
@@ -53,9 +53,9 @@ export const submitFeedbackTool = createTool({
         comment: body,
         feedbackSource: 'user',
         feedbackType: 'report',
-        feedbackUserId: rawId(ctx.userId),
+        feedbackUserId: ctx.userId,
         metadata: {
-          channelId: ctx.channelId ? rawId(ctx.channelId) : undefined,
+          channelId: parseSlackInput(ctx.channelId).channel,
           messageId: ctx.messageId,
           threadId: ctx.threadId,
         },

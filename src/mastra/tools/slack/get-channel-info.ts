@@ -1,8 +1,10 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
+import { parseSlackInput } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { assertReadableChannel } from './utils';
+import { assertCanRead } from './access';
 
 export const getChannelInfoTool = createTool({
   id: 'get_channel_info',
@@ -32,18 +34,23 @@ export const getChannelInfoTool = createTool({
   },
   execute: async ({ channelId }, context) => {
     const ctx = channelContext(context.requestContext);
-    const id = channelId ?? ctx.channelId;
-    if (!id) {
+    const { channel } = parseSlackInput(channelId ?? ctx.channelId);
+    if (!channel) {
       throw new Error('No channel to inspect.');
     }
     spendSlackCall(context.requestContext);
 
-    const info = await assertReadableChannel({
-      channelId: id,
-      currentThreadId: ctx.threadId,
-    });
+    const conversation = slack.channelIdFromThreadId(
+      slack.encodeThreadId({ channel, threadTs: '' })
+    );
+    const info = await slack.fetchChannelInfo(conversation);
+    // Only a non-public channel needs the current-conversation check, which
+    // makes no further call when it passes.
+    if (info.channelVisibility !== 'workspace') {
+      await assertCanRead({ channelId: channel, ctx });
+    }
     return {
-      channelId: info.id,
+      channelId: conversation,
       name: info.name,
       isDM: info.isDM ?? false,
       memberCount: info.memberCount,

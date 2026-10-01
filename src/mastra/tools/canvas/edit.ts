@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { slackErrorSchema } from '../../types/tools/index';
-import { readableFile } from '../slack/utils';
+import { readableFile } from '../slack/files';
 import { assertCanManageChannel, canvasIdSchema } from './utils';
 
 const markdownContentSchema = z.object({

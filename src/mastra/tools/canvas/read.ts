@@ -2,7 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { canvas as canvasConfig } from '../../config';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { fetchPrivateSlackFile, readableFile } from '../slack/utils';
+import { fetchPrivateSlackFile, readableFile } from '../slack/files';
 import { canvasIdSchema } from './utils';
 
 export const readCanvasTool = createTool({
@@ -38,8 +38,10 @@ export const readCanvasTool = createTool({
         `Could not resolve a content URL for canvas ${canvasId}. It may have been deleted, or the bot may not have access to it.`
       );
     }
-    // TODO(slopradar): unbounded IO : no signal, so a stop or abort does not cancel the download (get-slack-file.ts passes one) → fetchPrivateSlackFile({ url, signal: context.abortSignal })
-    const response = await fetchPrivateSlackFile({ url });
+    const response = await fetchPrivateSlackFile({
+      init: { signal: context.abortSignal },
+      url,
+    });
     const html = await response.text();
     const truncated = html.length > canvasConfig.maxReadChars;
     return {

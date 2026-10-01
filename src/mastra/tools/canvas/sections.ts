@@ -2,7 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { spendSlackCall } from '../../lib/slack-budget';
-import { readableFile } from '../slack/utils';
+import { readableFile } from '../slack/files';
 import { canvasIdSchema } from './utils';
 
 const sectionType = z.enum(['any_header', 'h1', 'h2', 'h3']);

@@ -1,7 +1,6 @@
 import type { OAuthStorage } from '@mastra/mcp';
 import { and, eq } from 'drizzle-orm';
 import { decryptSecret, encryptSecret } from '../../lib/crypto';
-import { rawId } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 import type { MCPOAuthStatus } from '../../types';
 import { db } from '../client';
@@ -14,10 +13,9 @@ export function mcpOAuthStorage({
   name: string;
   userId: string;
 }): OAuthStorage {
-  const id = rawId(userId);
   const where = (key: string) =>
     and(
-      eq(mcpOAuth.userId, id),
+      eq(mcpOAuth.userId, userId),
       eq(mcpOAuth.serverName, name),
       eq(mcpOAuth.key, key)
     );
@@ -36,7 +34,7 @@ export function mcpOAuthStorage({
           error: error instanceof Error ? error.message : 'unknown',
           key,
           name,
-          userId: id,
+          userId,
         });
       }
     },
@@ -44,7 +42,7 @@ export function mcpOAuthStorage({
       const encrypted = encryptSecret(value);
       await db
         .insert(mcpOAuth)
-        .values({ key, serverName: name, userId: id, value: encrypted })
+        .values({ key, serverName: name, userId, value: encrypted })
         .onConflictDoUpdate({
           target: [mcpOAuth.userId, mcpOAuth.serverName, mcpOAuth.key],
           set: { value: encrypted },
@@ -65,9 +63,7 @@ export async function clearMCPOAuth({
 }): Promise<void> {
   await db
     .delete(mcpOAuth)
-    .where(
-      and(eq(mcpOAuth.userId, rawId(userId)), eq(mcpOAuth.serverName, name))
-    );
+    .where(and(eq(mcpOAuth.userId, userId), eq(mcpOAuth.serverName, name)));
 }
 
 export async function setMCPOAuthStatus({
@@ -90,7 +86,5 @@ export async function setMCPOAuthStatus({
         ? {}
         : { lastError: error, lastErrorHttpStatus: null }),
     })
-    .where(
-      and(eq(mcpServers.userId, rawId(userId)), eq(mcpServers.name, name))
-    );
+    .where(and(eq(mcpServers.userId, userId), eq(mcpServers.name, name)));
 }

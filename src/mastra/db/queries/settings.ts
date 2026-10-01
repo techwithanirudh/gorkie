@@ -1,5 +1,4 @@
 import { eq } from 'drizzle-orm';
-import { rawId } from '../../lib/ids';
 import { type GitHubSettings, githubPermissionSchema } from '../../types';
 import { db } from '../client';
 import { userSettings } from '../schema';
@@ -8,7 +7,7 @@ export async function getUserSettings(userId: string) {
   const [row] = await db
     .select()
     .from(userSettings)
-    .where(eq(userSettings.userId, rawId(userId)));
+    .where(eq(userSettings.userId, userId));
   return {
     instructions: row?.instructions ?? undefined,
     github: {
@@ -31,7 +30,7 @@ export async function updateUserSettings({
   const stamped = { ...set, updatedAt: new Date() };
   await db
     .insert(userSettings)
-    .values({ ...stamped, userId: rawId(userId) })
+    .values({ ...stamped, userId })
     .onConflictDoUpdate({ target: userSettings.userId, set: stamped });
 }
 
@@ -39,5 +38,5 @@ export async function clearGitHubSettings(userId: string): Promise<void> {
   await db
     .update(userSettings)
     .set({ githubPermission: null, githubThreads: null, updatedAt: new Date() })
-    .where(eq(userSettings.userId, rawId(userId)));
+    .where(eq(userSettings.userId, userId));
 }

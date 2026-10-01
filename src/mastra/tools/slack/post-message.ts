@@ -3,9 +3,9 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
-import { rawId, threadIdOf } from '../../lib/ids';
 import { slackErrorSchema, targetSchema } from '../../types/tools/index';
-import { assertCanPostTo, slackDestination } from './utils';
+import { assertCanPostTo } from './access';
+import { slackDestination } from './posting';
 
 const markdownConverter = new SlackFormatConverter();
 
@@ -42,9 +42,7 @@ Errors: channel_not_found usually means the bot isn't a member of that private c
     assertCanPostTo({ target, ctx });
     try {
       const { channel, threadTs } = await slackDestination(target);
-      const requesterUser = ctx.userId
-        ? await slack.getUser(rawId(ctx.userId))
-        : null;
+      const requesterUser = ctx.userId ? await slack.getUser(ctx.userId) : null;
       const requester = requesterUser?.userName ?? ctx.userName;
       const botUser = slack.botUserId
         ? await slack.getUser(slack.botUserId)
@@ -66,10 +64,12 @@ Errors: channel_not_found usually means the bot isn't a member of that private c
       }
       return {
         messageId: sent.ts,
-        threadId: threadTs ? threadIdOf({ channel, ts: threadTs }) : undefined,
+        threadId: threadTs
+          ? slack.encodeThreadId({ channel, threadTs })
+          : undefined,
       };
     } catch (error) {
-      // TODO(slopradar): stale error mapping : assertCanPostTo now pins posts to the current channel or the requester's DM and slackDestination joins first, so "bot is not a member of that private channel" advice no longer fits → confirm these codes are unreachable, then drop this catch and the "Errors:" paragraph in the description
+      // TODO(slopradar): stale error mapping : assertCanPostTo now pins posts to the current channel (where the bot already is, so slackDestination no longer joins) or the requester's DM, so "bot is not a member of that private channel" advice no longer fits → confirm these codes are unreachable, then drop this catch and the "Errors:" paragraph in the description
       const code = slackErrorSchema.safeParse(error).data?.data?.error;
       if (code === 'channel_not_found') {
         throw new Error(

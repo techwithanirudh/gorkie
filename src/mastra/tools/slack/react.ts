@@ -2,8 +2,8 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
-import { chatChannelId, parseSlackId } from '../../lib/ids';
-import { assertCanPostTo } from './utils';
+import { parseSlackInput } from '../../lib/ids';
+import { assertCanPostTo } from './access';
 
 export const reactTool = createTool({
   id: 'react',
@@ -45,26 +45,22 @@ export const reactTool = createTool({
     context
   ) => {
     const ctx = channelContext(context.requestContext);
-    const target = parseSlackId({
-      input: url ?? messageId ?? ctx.messageId,
-      channel: channelId ?? ctx.channelId,
-    });
-    if (!target.channel) {
+    const message = parseSlackInput(url ?? messageId ?? ctx.messageId);
+    const channel =
+      message.channel ?? parseSlackInput(channelId ?? ctx.channelId).channel;
+    if (!channel) {
       throw new Error('No channel available for react.');
     }
-    if (!target.ts) {
+    if (!message.threadTs) {
       throw new Error('Pass messageId or url.');
     }
-    assertCanPostTo({
-      target: { type: 'channel', id: chatChannelId(target.channel) },
-      ctx,
-    });
+    assertCanPostTo({ target: { type: 'channel', id: channel }, ctx });
 
     const emoji = emojiInput.replaceAll(':', '');
     const request = {
-      channel: target.channel,
+      channel,
       name: emoji,
-      timestamp: target.ts,
+      timestamp: message.threadTs,
     };
     if (action === 'remove') {
       await slack.webClient.reactions.remove(request);
@@ -73,8 +69,10 @@ export const reactTool = createTool({
     }
     return {
       action,
-      channelId: chatChannelId(target.channel),
-      messageId: target.ts,
+      channelId: slack.channelIdFromThreadId(
+        slack.encodeThreadId({ channel, threadTs: message.threadTs })
+      ),
+      messageId: message.threadTs,
       emoji,
     };
   },

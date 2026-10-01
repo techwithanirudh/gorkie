@@ -133,6 +133,7 @@ export const slack = {
   maxCachedThreads: 10_000,
   recipientTtlMs: 30 * 24 * 60 * 60 * 1000,
   userLookupConcurrency: 4,
+  channelLookupConcurrency: 4,
   unresolvedUserTtlMs: 60 * 1000,
   profileTtlMs: 24 * 60 * 60 * 1000,
   failedProfileTtlMs: 60 * 1000,

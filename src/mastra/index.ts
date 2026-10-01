@@ -22,7 +22,7 @@ import { claimTurn } from './chat/usage';
 import { observability as observabilityConfig, shutdown } from './config';
 import { runMigrations } from './db';
 import { postgresStore } from './db/client';
-import { rawId } from './lib/ids';
+import { parseSlackInput } from './lib/ids';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
@@ -119,7 +119,7 @@ async function gateScheduledFire({
         'ifIdle' in current
           ? current.ifIdle?.streamOptions?.requestContext
           : undefined
-      ).data?.channel.userId ?? current.resourceId;
+      ).data?.channel.userId ?? parseSlackInput(current.resourceId).channel;
   if (!creator) {
     logger.warn('[schedules] skipped a fire with no resolvable creator', {
       scheduleId: schedule.id,
@@ -132,7 +132,7 @@ async function gateScheduledFire({
     });
     return null;
   }
-  if ((await claimTurn(rawId(creator))).status === 'over-limit') {
+  if ((await claimTurn(creator)).status === 'over-limit') {
     logger.info('[schedules] skipped a fire over the turn limit', {
       scheduleId: schedule.id,
       userId: creator,
