@@ -11,6 +11,7 @@ async function githubApi({
   try {
     const response = await request(`GET ${path}`, {
       headers: { authorization: `Bearer ${token}`, 'user-agent': 'gorkie' },
+      // TODO(slopradar): tunable in code : the GitHub request timeout is inline while MCP's lives in config.mcp.oauthRequestTimeoutMs → add config.github.requestTimeoutMs.
       request: { signal: AbortSignal.timeout(10_000) },
     });
     return { data: response.data };
@@ -44,6 +45,8 @@ export async function countInstallations(
   if ('error' in body) {
     return body;
   }
+  // TODO(slopradar): invented value : a body that fails to parse becomes "0 installations", which sends the callback to the install page (server/github.ts:61)
+  // → return { error } when the shape does not parse, as githubUser does.
   return {
     count:
       z.object({ total_count: z.number() }).safeParse(body.data).data

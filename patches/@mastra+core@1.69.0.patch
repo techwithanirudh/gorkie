@@ -34,7 +34,34 @@
  		if (!sessionRef.current) sessionRef.current = openSession();
  		for (const pendingPiece of pendingInitialText) sessionRef.current.push(pendingPiece);
  		pendingInitialText.length = 0;
-@@ -21028,7 +21041,10 @@
+@@ -20888,6 +20901,16 @@
+ 	const pushToolDisplayResult = (result) => {
+ 		if (result.openIfEmpty === false && !sessionRef.current) return;
+ 		pushToSession(result.chunk);
++		// A grouped plan takes its header from the latest task, as the built-in
++		// grouped renderer does, so a function-form display can render grouped.
++		// A plan_update the function returns itself (a status) keeps the header
++		// until the session closes.
++		if (result.chunk.type === "plan_update") planTitleRef.current = true;
++		const groupedTask = toolDisplay === "grouped" && result.chunk.type === "task_update";
++		if (groupedTask && !planTitleRef.current && !droppedTaskIds.has(result.chunk.id)) pushToSession({
++			type: "plan_update",
++			title: result.chunk.title
++		});
+ 	};
+ 	const lookupTaskTitle = (toolCallId, fallback) => {
+ 		const stash = getPendingApproval(toolCallId);
+@@ -20978,7 +21001,8 @@
+ 			}
+ 			const om = asOmChunk(chunk);
+ 			if (om) {
+-				if (!rendersToolsInPlan) continue;
++				// Memory work would title the plan "Updating memory"; detailed shows tools only.
++				if (!rendersToolsInPlan || toolDisplayFn) continue;
+ 				if (om.data.cycleId) {
+ 					if (!planTitleRef.current) {
+ 						pushToSession({
+@@ -21028,7 +21052,10 @@
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -46,21 +73,7 @@
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -21174,7 +21190,12 @@
- 				id: enr.toolCallId,
- 				title: taskTitle,
- 				status: "complete",
--				output: toolDisplay === "timeline" ? enr.resultText || void 0 : void 0
-+				output: toolDisplay === "timeline" ? (() => {
-+					const shown = getTransformedToolPayload(chunk.metadata, "display", "output-available")?.transformed;
-+					if (typeof shown?.summary === "string" && shown.summary) return shown.summary;
-+					if (typeof shown === "string" && shown) return shown;
-+					return enr.resultText || void 0;
-+				})() : void 0
- 			});
- 			continue;
- 		}
-@@ -22227,12 +22248,16 @@
+@@ -22227,12 +22254,16 @@
  						let runId;
  						let toolName;
  						let toolArgs;
@@ -78,7 +91,7 @@
  							const storage = mastra.getStorage();
  							const memoryStore = storage ? await storage.getStore("memory") : void 0;
  							if (!memoryStore) throw new Error("Storage is required for tool approval lookups");
-@@ -22248,12 +22273,13 @@
+@@ -22248,12 +22279,13 @@
  								const pending = msg.content?.metadata?.pendingToolApprovals;
  								if (pending) {
  									for (const toolData of Object.values(pending)) if (toolData.toolCallId === toolCallId) {
@@ -96,7 +109,7 @@
  								}
  							}
  						}
-@@ -22261,6 +22287,16 @@
+@@ -22261,6 +22293,16 @@
  							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
  							return;
  						}
@@ -113,7 +126,7 @@
  						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
  						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
  						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -22281,7 +22317,7 @@
+@@ -22281,7 +22323,7 @@
  							});
  							const { requestContext } = handlerContext;
  							requestContext.set("channel", channelContext);
@@ -122,7 +135,7 @@
  							requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  							try {
  								await this.dispatchDecline({
-@@ -22318,7 +22354,7 @@
+@@ -22318,7 +22360,7 @@
  						const renderContext = this._buildRenderContext(chatThread, platform, {
  							toolCallId,
  							messageId
@@ -131,7 +144,7 @@
  						requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  						await this.dispatchApproval({
  							runId,
-@@ -22754,7 +22790,7 @@
+@@ -22754,7 +22796,7 @@
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -140,7 +153,7 @@
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -22816,14 +22852,17 @@
+@@ -22816,14 +22858,17 @@
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -160,7 +173,7 @@
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -27353,6 +27392,16 @@
+@@ -27353,6 +27398,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -177,7 +190,7 @@
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -27373,7 +27422,11 @@
+@@ -27373,7 +27428,11 @@
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -190,7 +203,7 @@
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -27401,7 +27454,7 @@
+@@ -27401,7 +27460,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -199,7 +212,7 @@
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
-@@ -28331,10 +28384,12 @@
+@@ -28331,10 +28390,12 @@
  				const suspendTransform = getTransformedToolPayload(toolStateTransformMetadata, "transcript", "suspend");
  				const transformedArgs = type === "approval" ? hasTransformedToolPayload(approvalTransform) ? approvalTransform.transformed : hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : args : hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : args;
  				const transformedSuspendPayload = type === "suspension" ? hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : suspendPayload : void 0;
@@ -248,7 +261,34 @@
  		if (!sessionRef.current) sessionRef.current = openSession();
  		for (const pendingPiece of pendingInitialText) sessionRef.current.push(pendingPiece);
  		pendingInitialText.length = 0;
-@@ -21030,7 +21043,10 @@
+@@ -20890,6 +20903,16 @@
+ 	const pushToolDisplayResult = (result) => {
+ 		if (result.openIfEmpty === false && !sessionRef.current) return;
+ 		pushToSession(result.chunk);
++		// A grouped plan takes its header from the latest task, as the built-in
++		// grouped renderer does, so a function-form display can render grouped.
++		// A plan_update the function returns itself (a status) keeps the header
++		// until the session closes.
++		if (result.chunk.type === "plan_update") planTitleRef.current = true;
++		const groupedTask = toolDisplay === "grouped" && result.chunk.type === "task_update";
++		if (groupedTask && !planTitleRef.current && !droppedTaskIds.has(result.chunk.id)) pushToSession({
++			type: "plan_update",
++			title: result.chunk.title
++		});
+ 	};
+ 	const lookupTaskTitle = (toolCallId, fallback) => {
+ 		const stash = getPendingApproval(toolCallId);
+@@ -20980,7 +21003,8 @@
+ 			}
+ 			const om = asOmChunk(chunk);
+ 			if (om) {
+-				if (!rendersToolsInPlan) continue;
++				// Memory work would title the plan "Updating memory"; detailed shows tools only.
++				if (!rendersToolsInPlan || toolDisplayFn) continue;
+ 				if (om.data.cycleId) {
+ 					if (!planTitleRef.current) {
+ 						pushToSession({
+@@ -21030,7 +21054,10 @@
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -260,21 +300,7 @@
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -21176,7 +21192,12 @@
- 				id: enr.toolCallId,
- 				title: taskTitle,
- 				status: "complete",
--				output: toolDisplay === "timeline" ? enr.resultText || void 0 : void 0
-+				output: toolDisplay === "timeline" ? (() => {
-+					const shown = require_payload_transform.getTransformedToolPayload(chunk.metadata, "display", "output-available")?.transformed;
-+					if (typeof shown?.summary === "string" && shown.summary) return shown.summary;
-+					if (typeof shown === "string" && shown) return shown;
-+					return enr.resultText || void 0;
-+				})() : void 0
- 			});
- 			continue;
- 		}
-@@ -22229,12 +22250,16 @@
+@@ -22229,12 +22256,16 @@
  						let runId;
  						let toolName;
  						let toolArgs;
@@ -292,7 +318,7 @@
  							const storage = mastra.getStorage();
  							const memoryStore = storage ? await storage.getStore("memory") : void 0;
  							if (!memoryStore) throw new Error("Storage is required for tool approval lookups");
-@@ -22250,12 +22275,13 @@
+@@ -22250,12 +22281,13 @@
  								const pending = msg.content?.metadata?.pendingToolApprovals;
  								if (pending) {
  									for (const toolData of Object.values(pending)) if (toolData.toolCallId === toolCallId) {
@@ -310,7 +336,7 @@
  								}
  							}
  						}
-@@ -22263,6 +22289,16 @@
+@@ -22263,6 +22295,16 @@
  							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
  							return;
  						}
@@ -327,7 +353,7 @@
  						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
  						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
  						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -22283,7 +22319,7 @@
+@@ -22283,7 +22325,7 @@
  							});
  							const { requestContext } = handlerContext;
  							requestContext.set("channel", channelContext);
@@ -336,7 +362,7 @@
  							requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  							try {
  								await this.dispatchDecline({
-@@ -22320,7 +22356,7 @@
+@@ -22320,7 +22362,7 @@
  						const renderContext = this._buildRenderContext(chatThread, platform, {
  							toolCallId,
  							messageId
@@ -345,7 +371,7 @@
  						requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  						await this.dispatchApproval({
  							runId,
-@@ -22756,7 +22792,7 @@
+@@ -22756,7 +22798,7 @@
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -354,7 +380,7 @@
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -22818,14 +22854,17 @@
+@@ -22818,14 +22860,17 @@
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -374,7 +400,7 @@
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -27355,6 +27394,16 @@
+@@ -27355,6 +27400,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -391,7 +417,7 @@
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -27375,7 +27424,11 @@
+@@ -27375,7 +27430,11 @@
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -404,7 +430,7 @@
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -27403,7 +27456,7 @@
+@@ -27403,7 +27462,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -413,7 +439,7 @@
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
-@@ -28333,10 +28386,12 @@
+@@ -28333,10 +28392,12 @@
  				const suspendTransform = require_payload_transform.getTransformedToolPayload(toolStateTransformMetadata, "transcript", "suspend");
  				const transformedArgs = type === "approval" ? require_payload_transform.hasTransformedToolPayload(approvalTransform) ? approvalTransform.transformed : require_payload_transform.hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : args : require_payload_transform.hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : require_payload_transform.hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : args;
  				const transformedSuspendPayload = type === "suspension" ? require_payload_transform.hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : suspendPayload : void 0;

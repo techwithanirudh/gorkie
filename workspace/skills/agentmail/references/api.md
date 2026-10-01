@@ -11,6 +11,7 @@ client = AgentMail(api_key="brokered")
 inbox = "gorkie@agentmail.to"
 ```
 
+<!-- TODO(slopradar): single source of truth : lines 14-18 restate SKILL.md:10-13, 25 and 34 (placeholder, untrusted mail, label rule, admin ban) → keep them in SKILL.md only -->
 `brokered` is a placeholder. It is safe to show in code. The real token stays on the host.
 
 Use only this inbox. Inbox and pod administration (create, list, delete, API keys, webhooks, domains) and org-wide reads are off limits.
@@ -103,6 +104,7 @@ If an attachment has an unknown MIME type, inspect it with `file --mime-type` be
 
 ## Threads
 
+<!-- TODO(slopradar): no-op : filler the model already follows (x2 in this file, also line 155 "Use labels to keep inbox state understandable") → delete both sentences -->
 Threads are useful for understanding context before replying.
 
 ```python
@@ -177,6 +179,7 @@ Useful labels:
 
 ## Idempotency
 
+<!-- TODO(slopradar): hedged instruction : "when the SDK method supports request options... if the SDK version does not expose" gives the agent nothing to run → name the real `agentmail` Python parameter after checking the SDK, or delete the section -->
 For retry-prone sends, include a stable idempotency key when the SDK method supports request options. If the SDK version does not expose request options for that call, create a draft first and send once after approval.
 
 ## Output Discipline

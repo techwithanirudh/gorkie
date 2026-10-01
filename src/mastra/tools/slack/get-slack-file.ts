@@ -7,6 +7,7 @@ import { spendSlackCall } from '../../lib/slack-budget';
 import { requireSandbox, sandboxPath } from '../../workspace';
 import { fetchPrivateSlackFile, readableFile } from './utils';
 
+// TODO(slopradar): duplication across files : a private byte formatter while upload-emoji.ts, view-image.ts, upload-file.ts and generate-image/request.ts each inline their own MB math → one shared formatBytes in src/mastra/lib used by all five
 function formatBytes(value: number): string {
   if (value < 1024 * 1024) {
     return `${Math.ceil(value / 1024)} KB`;
@@ -27,6 +28,7 @@ async function downloadSlackFile({
 }) {
   const sandbox = await requireSandbox(requestContext);
 
+  // TODO(slopradar): duplicate model : three different Slack file id regexes (here, canvas/utils.ts:8 `^F[A-Z0-9]+$`, chat/attachments.ts:22 `\bF[A-Z0-9]{6,}\b`) → one fileIdOf/fileIdSchema in lib/ids.ts beside parseSlackId
   const fileId = /(?<![A-Z0-9])(F[A-Z0-9]{6,})/.exec(file)?.[1];
   if (!fileId) {
     throw new Error(
@@ -92,6 +94,7 @@ async function downloadSlackFile({
     return formatResult(expectedSize);
   }
 
+  // TODO(slopradar): owner call, deletion test : about 70 lines of resume state (.part, .next, .merge, HEAD probe, Range request, shell cat merge) only pays off when a call is aborted mid-download and re-run with the same id → stream to `${path}.part`, check the size, rename; drop resume unless large Slack files are a real workload
   // getInfo throws when there is no earlier partial download to resume.
   const existingPart = await sandbox
     .retryOnDead(() => sandbox.e2b.files.getInfo(partPath))

@@ -36,9 +36,11 @@ erDiagram
 **Attribute format:** `type name constraints`
 
 **Common constraints:**
+<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash (x28 in this file) → colon -->
 - `PK` - Primary Key
 - `FK` - Foreign Key
 - `UK` - Unique Key
+<!-- TODO(slopradar): wrong syntax : Mermaid ERD keys are only PK, FK and UK; `NN` fails to parse → delete it -->
 - `NN` - Not Null
 
 ## Relationships
@@ -48,10 +50,12 @@ erDiagram
 **Cardinality indicators:**
 - `||` - Exactly one
 - `|o` - Zero or one
+<!-- TODO(slopradar): wrong syntax : `}{` is not a cardinality; one-or-many is `}|` on the left and `|{` on the right → fix the list -->
 - `}{` - One or many
 - `}o` - Zero or many
 
 **Relationship line:**
+<!-- TODO(slopradar): wrong syntax doc : reversed. In Mermaid `--` (solid) is identifying and `..` (dashed) is non-identifying → swap -->
 - `--` - Non-identifying relationship
 - `..` - Identifying relationship (rare in practice)
 
@@ -420,6 +424,7 @@ erDiagram
 ```
 
 ### Junction Table (Many-to-Many)
+<!-- TODO(slopradar): wrong syntax : `uuid student_id FK PK` needs comma-separated keys, `PK, FK` → fix both lines -->
 ```mermaid
 erDiagram
     STUDENT }o--o{ COURSE : enrolls

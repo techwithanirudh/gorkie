@@ -9,6 +9,7 @@ Landing pages and portfolios are **visual products**. Text-only pages with fake-
 **Priority order for visual assets:**
 1. **Image-generation tool first.** If ANY image-gen tool is available in the environment (`generate_image`, MCP image tool, IDE-integrated gen, OpenAI image tools, etc.) you MUST use it to create section-specific assets: hero photography, product shots, texture backgrounds, mood images. Generate at the right aspect ratio for the section. Do not skip this step because hand-rolled CSS feels faster.
 2. **Real web images second.** When no gen tool is available, use real photography sources. Acceptable defaults:
+<!-- TODO(slopradar): contradicts web-page skill : picsum and the Simple Icons CDN (line 20) are remote assets, which `web-page/SKILL.md:30-32` bans for single pages → say which wins (inline generated images for web-page) -->
    * `https://picsum.photos/seed/{descriptive-seed}/{w}/{h}` for placeholder photography (seed should describe the section, e.g. `marrow-cookware-kitchen`)
    * Actual stock or brand URLs when the brief provides them
    * Open-license sources (Unsplash via direct URL, Pexels) if explicitly allowed
@@ -19,6 +20,7 @@ Landing pages and portfolios are **visual products**. Text-only pages with fake-
 **Real company logos for social proof.** When the brief calls for a "Trusted by / Used by / Customers" logo wall, do NOT default to plain text wordmarks (`<span>Acme Co</span>` styled in a row). Use real SVG logos:
 * **Source: Simple Icons** (`https://cdn.simpleicons.org/{slug}/ffffff` for any color, or `simple-icons` npm package). Covers most known brands.
 * **Alternative: devicon** for tech-stack logos (`@svgr/cli` or CDN).
+<!-- TODO(slopradar): self-contradiction : "make up an SVG mark" vs line 28 and SKILL.md:172 "NO hand-rolled decorative SVGs" → keep one rule -->
 * **Make-up the brand name? Then make-up an SVG mark too.** Generate a simple monogram (one letter in a circle, two-letter ligature, abstract glyph) rendered as an inline `<svg>` matching the page style. Plain text wordmarks for invented brand names look generic.
 * **Always** ensure logos render in both light and dark mode (white-on-dark, black-on-light, or single-color theme variable).
 * **LOGO-ONLY rule (mandatory):** logo wall = logos and nothing else. Do NOT print industry / category labels below each logo (no `Vercel` + `hosting` underneath, no `Stripe` + `payments`, no `Cloudflare` + `infra`). The logo is the credibility, the label adds nothing the user does not already know. Optional: brand name as alt-text for screen readers, optional link to the brand's site. That is it.
@@ -36,6 +38,7 @@ Landing pages and portfolios are **visual products**. Text-only pages with fake-
 * Use a real component preview (an actual mini-version of the UI inside the page)
 * Or skip the preview entirely and use editorial photography
 
+<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash (x5 in this file) → period -->
 **Hero needs a real visual.** Text + gradient blob is not a hero - it's a placeholder.
 
 ### 4.9 Content Density
@@ -79,6 +82,7 @@ Landing pages live on the **first impression**, not the full read. Cut ruthlessl
 * For very small font sizes (e.g. footer-style testimonials), the line cap can stretch slightly. Spirit: "fits in a glance."
 * **No em-dashes inside the quote text** as design flourish (long pauses, kinetic em-dashes, em-dash-bullets). See Section 9.G - em-dash is completely banned.
 * Attribution: name + role + (optionally) company. Never name only ("- Sarah").
+<!-- TODO(slopradar): self-contradiction : both "quote" examples on this line are straight ASCII, and it contradicts unslop rule 19 (straight quotes) → delete or state one rule with the actual characters -->
 * Quote marks: use real typographic quotes ( " " ) or none at all. Not straight ASCII ( " ).
 
 ### 4.11 Page Theme Lock (Light / Dark Mode Consistency)

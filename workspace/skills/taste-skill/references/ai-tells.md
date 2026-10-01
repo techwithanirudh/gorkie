@@ -25,6 +25,7 @@ Avoid these signatures unless the brief explicitly asks for them.
 ### 9.D Content & Data ("Jane Doe" Effect)
 * **NO generic names.** "John Doe", "Sarah Chan", "Jack Su" → use creative, realistic, locale-appropriate names.
 * **NO generic avatars.** No SVG "egg" or Lucide user icons → use believable photo placeholders or specific styling.
+<!-- TODO(slopradar): self-contradiction : "use organic, messy data (47.2%, a fake phone number)" invents precise figures that `assets-content.md:70-73` bans → delete this bullet -->
 * **NO fake-perfect numbers.** Avoid `99.99%`, `50%`, `1234567`. Use organic, messy data (`47.2%`, `+1 (312) 847-1928`).
 * **NO startup-slop brand names.** "Acme", "Nexus", "SmartFlow", "Cloudly" → invent contextual, premium names that sound real.
 * **NO filler verbs.** "Elevate", "Seamless", "Unleash", "Next-Gen", "Revolutionize" → concrete verbs only.
@@ -42,20 +43,24 @@ Avoid these signatures unless the brief explicitly asks for them.
 These patterns came out of real LLM-generated landing-page tests. They are the signatures the model defaults to when it tries to "look designed." Treat them as hard bans unless the brief explicitly calls for one.
 
 **Hero & top-of-page**
+<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash (x6 in this file) → comma or new sentence -->
 * **NO version labels in the hero.** `V0.6`, `v2.0`, `BETA`, `INVITE-ONLY PREVIEW`, `EARLY ACCESS`, `ALPHA` - banned as default eyebrows. Only acceptable when the brief is explicitly about a product launch / preview status.
 * **NO "Brand · No. 01"-style sub-eyebrows.** "Marrow · No. 01 · The 6-quart" type micro-meta lines. Skip them.
 
 **Section numbering & micro-labels**
 * **NO section-number eyebrows.** `00 / INDEX`, `001 · Capabilities`, `002 · Featured commission`, `06 · how it works`, `05 · The honest table` - banned. Eyebrows should name the topic in plain language, not enumerate.
 * **NO `01 / 4`-style pagination on images or bento tiles.** If the user can count, they don't need the label.
+<!-- TODO(slopradar): self-contradiction : allows "a simple arrow or Scroll" while line 92 bans scroll cues outright → keep line 92 only -->
 * **NO `Scroll · 001 Capabilities`-style scroll cues.** A simple arrow or "Scroll" is enough; no section-number prefix.
 * **NO "Index of Work, 2018 - 2026"-style range labels** as eyebrows. Just say what the section is.
 
 **Separators & dots**
 * **The middle-dot (`·`) is rationed.** Maximum 1 per line in metadata strips. Do NOT use it as the default separator for everything ("foo · bar · baz · qux · quux"). If you need a separator family, prefer line breaks, hairlines, or columns.
+<!-- TODO(slopradar): duplication : same rule as line 93 → keep one -->
 * **NO decorative colored status dots on every list/nav/badge.** A colored dot before "ONE Q4 SLOT OPEN" or before every nav link, or every task row - banned by default. Acceptable only when the dot conveys actual semantic state (a server status, an availability flag) and is used sparingly.
 
 **Em-dashes & typography flourishes**
+<!-- TODO(slopradar): duplication : the em dash ban is restated here, in 9.G, `assets-content.md:80` and SKILL.md:145 → keep 9.G and the pre-flight line -->
 * **NO em-dash (`—`) as a design element OR anywhere else.** See Section 9.G below for the complete, non-negotiable ban. The em-dash character is forbidden in headlines, eyebrows, pills, body copy, quotes, attribution, captions, button text, and alt text. Use a comma or period.
 * **NO `<br>`-broken-and-italicized headlines** as a default "design move." "for thirty\<br\>*years.*" type splits. Headlines should read naturally first, get clever only when the brief demands it.
 * **NO vertical rotated text** ("INDEX OF WORK, 2018 - 2026" rotated 90°). Agency-portfolio cliché. Use it only when the brief is explicitly agency / Awwwards / experimental AND it serves a real composition purpose.

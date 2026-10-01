@@ -34,6 +34,7 @@ config:
 ```
 
 **Available themes:**
+<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash (x18 in this file) → colon -->
 - `default` - Standard blue theme
 - `forest` - Green earth tones
 - `dark` - Dark mode friendly
@@ -237,6 +238,7 @@ flowchart LR
 
 ### Sequence Diagram Styling
 
+<!-- TODO(slopradar): wrong syntax : `%%{init}%%` directives must come before the diagram, here (and line 269) they sit at the end and are ignored; frontmatter replaces them anyway → move to the top or use frontmatter -->
 ```mermaid
 sequenceDiagram
     participant A
@@ -269,6 +271,7 @@ classDiagram
     %%{init: {'theme':'dark'}}%%
 ```
 
+<!-- TODO(slopradar): wrong example : the snippet shows no directional hint, only a comment → delete the section -->
 ## Directional Hints
 
 Control layout direction for specific nodes:
@@ -301,6 +304,7 @@ flowchart LR
     A --> B --> C
 ```
 
+<!-- TODO(slopradar): wrong syntax : `link A: ... @ url` is sequence-diagram syntax, not flowchart; click links and tooltips also do nothing in a PNG → delete "Click Events" and "Tooltips" -->
 ## Tooltips
 
 Add hover information:
@@ -405,6 +409,7 @@ flowchart TB
     linkStyle 4,5,6,7,8,9 stroke:#ff9800,stroke-width:1px
 ```
 
+<!-- TODO(slopradar): no-op : HTML embedding, the `mermaid@10` CDN snippet and React integration (line 496 onward) do not apply to a PNG rendered with mmdc, and v10 lacks `architecture-beta` and `look` → delete these sections -->
 ## Responsive Sizing
 
 Use CSS to make diagrams responsive:

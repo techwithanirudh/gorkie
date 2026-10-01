@@ -1,4 +1,5 @@
 import { env } from '@/env';
+import { github as githubConfig } from '../config';
 import { signOAuthToken } from '../lib/crypto';
 import type { OAuthProvider } from '../types';
 
@@ -28,4 +29,13 @@ export function oauthRedirectUri(provider: OAuthProvider): string | undefined {
     return;
   }
   return `${env.PUBLIC_BASE_URL}/oauth/${provider}/callback`;
+}
+
+export function githubInstallLink(slackUserId: string): string {
+  const { signed } = signOAuthToken({
+    provider: 'github',
+    purpose: 'install',
+    slackUserId,
+  });
+  return `${githubConfig.installUrl}?state=${encodeURIComponent(signed)}`;
 }

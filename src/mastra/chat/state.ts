@@ -6,8 +6,7 @@ import { getMastra } from './mastra-instance';
 const stateType = 'gorkie:chat';
 
 // Mastra's threadState domain, not Chat SDK `thread.state`: under channels'
-// MastraStateAdapter that is an in-process cache, so every restart dropped
-// whether a thread was being followed and where the history backfill stopped.
+// MastraStateAdapter that is an in-process cache that a restart empties.
 async function threadStateStore() {
   const store = await getMastra().getStorage()?.getStore('threadState');
   if (!store) {
@@ -16,8 +15,8 @@ async function threadStateStore() {
   return store;
 }
 
-// Stored state that no longer matches the schema reads as empty for both the
-// read and the write path, so a write replaces it instead of merging into it.
+// Stored state that fails the schema reads as empty, so the next write replaces
+// it instead of merging into it.
 async function readThreadState(
   thread: Pick<Thread, 'id'>
 ): Promise<ThreadState | null> {

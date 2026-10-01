@@ -5,18 +5,13 @@ import { rawText, withoutLeadingMentions } from '../message';
 import { sentBeforeStop } from '../state';
 import { compact } from './compact';
 import { connections } from './connections';
-import { display } from './display';
-import { focus } from './focus';
 import { help } from './help';
 import { stop } from './stop';
 
 const commands = new Map<string, CommandHandler>([
   ['compact', compact],
   ['connections', connections],
-  ['display', display],
-  ['focus', focus],
   ['help', help],
-  ['mcps', connections],
   ['stop', stop],
 ]);
 

@@ -14,6 +14,7 @@ export const summarizer = new Agent({
   model: summarizerModel,
   ...agentDefaults,
   inputProcessors: [
+    // TODO(slopradar): duplication : same ProviderHistoryCompat({ additionalRules: [moveToolImages] }) as agents/shared.ts:22 → export it once from shared.ts (e.g. `providerCompat`) and reuse it here and in historyProcessors
     new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
   ],
   defaultOptions: {

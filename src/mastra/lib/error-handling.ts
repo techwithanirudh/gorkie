@@ -15,6 +15,7 @@ function messageOf(error: unknown): string {
   return '';
 }
 
+// TODO(slopradar): one-shot builder : one caller (agents/shared.ts:13) and no per-call state → export the array as a const or inline it in shared.ts.
 export function defaultErrorProcessors() {
   return [
     // First: Mastra stops calling error processors at the first retry request.
@@ -49,6 +50,7 @@ export function defaultErrorProcessors() {
             }
             return /econnreset|socket hang up/i.test(messageOf(error));
           },
+          // TODO(slopradar): redundant option : equals the processor-level maxRetries above, which Mastra falls back to → drop it; only delayMs differs.
           maxRetries: 2,
           delayMs: ({ retryCount }) => 1000 * 2 ** retryCount,
         },

@@ -1,11 +1,12 @@
 import { mcp } from '../../../config';
+import { levelOutsideDM } from '../../../lib/approval';
 import { oauthStartLink } from '../../../server/oauth-link';
 import type {
   HomeSection,
   MCPOAuthStatus,
   StoredMCPServer,
 } from '../../../types';
-import { PRESETS, SCOPE_LABELS, scopeSchema } from '../presets';
+import { PRESETS } from '../presets';
 import { ids } from './ids';
 
 const oauthStatus = {
@@ -61,13 +62,22 @@ function oauthButtons({
   ];
 }
 
+function access({ permission, threads }: StoredMCPServer): string {
+  if (!threads) {
+    return `${PRESETS[permission].status}  \u00b7  \`DMs only\``;
+  }
+  const threadLevel = levelOutsideDM({ isDM: false, level: permission });
+  if (threadLevel !== permission) {
+    return `${PRESETS[permission].status} in DMs  \u00b7  ${PRESETS[threadLevel].status} in shared threads`;
+  }
+  return `${PRESETS[permission].status}  \u00b7  \`runs in shared threads\``;
+}
+
 export function mcpServersBlocks({
   servers,
-  threads,
   userId,
 }: {
   servers: StoredMCPServer[];
-  threads: boolean;
   userId: string;
 }): HomeSection {
   const header = {
@@ -103,34 +113,8 @@ export function mcpServersBlocks({
     };
   }
 
-  const scopes = scopeSchema.unwrap().options.map((value) => ({
-    text: { type: 'plain_text', text: SCOPE_LABELS[value] },
-    description: {
-      type: 'plain_text',
-      text: {
-        dm: 'Shared threads get none of these servers.',
-        threads:
-          'Anyone in the thread can steer them, and they always ask before writing there.',
-      }[value],
-    },
-    value,
-  }));
-
   return {
-    fixed: [
-      header,
-      {
-        type: 'actions',
-        elements: [
-          {
-            type: 'radio_buttons',
-            action_id: ids.threads,
-            options: scopes,
-            initial_option: scopes[threads ? 1 : 0],
-          },
-        ],
-      },
-    ],
+    fixed: [header],
     rows: servers.map((server, index) => [
       ...(index > 0 ? [{ type: 'divider' }] : []),
       {
@@ -142,7 +126,7 @@ export function mcpServersBlocks({
         elements: [
           {
             type: 'mrkdwn',
-            text: `${PRESETS[server.permission].status}${server.oauth ? `  \u00b7  ${oauthStatus[server.oauth.status]}` : ''}  \u00b7  \`${server.url}\``,
+            text: `${access(server)}${server.oauth ? `  \u00b7  ${oauthStatus[server.oauth.status]}` : ''}  \u00b7  \`${server.url}\``,
           },
         ],
       },

@@ -27,6 +27,7 @@ async function wakeThread(task: BackgroundTask): Promise<void> {
   }
   let channel: ChannelContext;
   try {
+    // TODO(slopradar): weak fallback : the rebuilt context has no userId, so the claimTurn limit below is silently skipped; per the comment above a restart loses the job anyway, so this branch is either dead or a limit bypass → when `saved` is missing, log and return instead of rebuilding
     channel = saved ?? {
       platform: 'slack',
       threadId,

@@ -4,6 +4,7 @@ The C4 model provides a hierarchical way to visualize software architecture at d
 
 ## C4 Model Levels
 
+<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash (x18 in this file) → colon -->
 1. **System Context** - Shows the system and its users/external systems
 2. **Container** - Shows applications, databases, and services within the system
 3. **Component** - Shows internal structure of containers

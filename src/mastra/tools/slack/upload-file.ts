@@ -128,6 +128,7 @@ export const uploadFileTool = createTool({
   outputSchema: z.strictObject({
     filename: z.string(),
     path: z.string(),
+    // TODO(slopradar): loosened type : fileId is always returned (line 53 throws without it) → z.string()
     fileId: z.string().optional(),
   }),
   transform: {

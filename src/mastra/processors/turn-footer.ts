@@ -8,7 +8,6 @@ import { feedbackBlock } from '../chat/feedback';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
 import { runBackgroundTool } from '../tools/run-background';
-import { skipTool } from '../tools/skip';
 
 export const turnFooter = {
   id: 'turn-footer',
@@ -20,14 +19,8 @@ export const turnFooter = {
     if (args.part.type !== 'tool-call') {
       return args.part;
     }
-    const { toolName } = args.part.payload;
-    if (toolName === runBackgroundTool.id) {
+    if (args.part.payload.toolName === runBackgroundTool.id) {
       args.state.background = true;
-    }
-    if (toolName !== skipTool.id) {
-      args.state.toolCalls =
-        (typeof args.state.toolCalls === 'number' ? args.state.toolCalls : 0) +
-        1;
     }
     return args.part;
   },
@@ -46,15 +39,10 @@ export const turnFooter = {
       intervalToDuration({ start: startTime, end: Date.now() }),
       { format: ['hours', 'minutes', 'seconds'] }
     );
-    const { toolCalls } = args.state;
-    const tools =
-      typeof toolCalls === 'number' && toolCalls > 0
-        ? ` · ${toolCalls} ${toolCalls === 1 ? 'tool' : 'tools'}`
-        : '';
     const background = args.state.background === true;
     const text = background
       ? "working in the background, I'll reply here when it's done…"
-      : `done in ${elapsed || 'under a second'}${tools}`;
+      : `done in ${elapsed || 'under a second'}`;
     const traceId = background
       ? undefined
       : args.tracingContext?.currentSpan?.traceId;

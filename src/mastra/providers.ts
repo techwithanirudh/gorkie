@@ -28,6 +28,7 @@ function opencode({
   };
 }
 
+// TODO(slopradar): unclear invariant : modelSlug probes three model shapes (the string branch never occurs, every entry comes from opencode() or hackclub()) and preferLastWorking then matches slugs by suffix in both directions → record each ladder entry's slug when building it and compare exactly
 function modelSlug(entry: ModelWithRetries): string | undefined {
   const { model } = entry;
   if (typeof model === 'string') {
@@ -68,6 +69,7 @@ async function preferLastWorking(
 
 function ladder(agentKey: string): () => Promise<ModelWithRetries[]> {
   const models: ModelWithRetries[] = [
+    // TODO(slopradar): deployment values in config.ts : `maxRetries: 3` is repeated on all five ladder and summarizer entries → one `agent.modelRetries` in config.ts, applied in opencode() and a hackclub wrapper
     {
       ...opencode({ modelId: 'glm-5.3-flash', fallbackSession: agentKey }),
       maxRetries: 3,

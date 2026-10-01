@@ -7,11 +7,13 @@ Part of the `taste-skill` skill. Section numbers match the index in SKILL.md.
 Unless the design read picks a real design system (Section 2.A), these are the defaults:
 
 ### 3.A Stack
+<!-- TODO(slopradar): wrong default for this sandbox : React Server Components need a server runtime, but deploys go through `wrangler deploy --temporary` static assets or the single-file `web-page` skill → default to a static build (Vite) or one HTML file -->
 * **Framework:** React or Next.js. Default to Server Components (RSC).
   * **RSC SAFETY:** Global state works ONLY in Client Components. In Next.js, wrap providers in a `"use client"` component.
   * **INTERACTIVITY ISOLATION:** Any component using Motion, scroll listeners, or pointer physics MUST be an isolated leaf with `'use client'` at the top. Server Components render static layouts only.
 * **Styling:** **Tailwind v4** (default). Tailwind v3 only if the existing project demands it.
   * For v4: do NOT use `tailwindcss` plugin in `postcss.config.js`. Use `@tailwindcss/postcss` or the Vite plugin.
+<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash (x10 in this file) → comma or new sentence -->
 * **Animation:** **Motion** (the library formerly known as Framer Motion). Import from `motion/react` (`import { motion } from "motion/react"`). The `framer-motion` package still works as a legacy alias - prefer `motion/react` in new code.
 * **Fonts:** Always use `next/font` (Next.js) or self-host with `@font-face` + `font-display: swap`. Never link Google Fonts via `<link>` in production.
 

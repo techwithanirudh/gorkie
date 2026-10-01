@@ -1,10 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { rawId } from '../../lib/ids';
-import {
-  type GitHubSettings,
-  githubPermissionSchema,
-  toolDisplayModeSchema,
-} from '../../types';
+import { type GitHubSettings, githubPermissionSchema } from '../../types';
 import { db } from '../client';
 import { userSettings } from '../schema';
 
@@ -19,8 +15,9 @@ export async function getUserSettings(userId: string) {
       permission: githubPermissionSchema.parse(row?.githubPermission),
       threads: row?.githubThreads === true,
     } satisfies GitHubSettings,
-    mcpThreads: row?.mcpThreads === true,
-    toolDisplay: toolDisplayModeSchema.safeParse(row?.toolDisplay).data,
+    // TODO(slopradar): unvalidated read : toolDisplay trusts the schema's $type cast while githubPermission above is Zod-parsed
+    // → parse with toolDisplayModeSchema (optional, catch undefined).
+    toolDisplay: row?.toolDisplay ?? undefined,
   };
 }
 

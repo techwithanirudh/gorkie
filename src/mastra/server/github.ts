@@ -4,14 +4,14 @@ import {
 } from '@octokit/oauth-methods';
 import { env } from '@/env';
 import { publishHome } from '../chat/app-home/view';
-import { github as githubConfig } from '../config';
 import { setGitHubCredential } from '../db/queries/github';
 import { countInstallations, githubUser, toAccount } from '../lib/github';
 import { logger } from '../lib/logger';
-import type { OAuthProviderHandler } from '../types';
+import type { OAuthPageContent, OAuthProviderHandler } from '../types';
+import { githubInstallLink } from './oauth-link';
 
-const failed = (text: string) => ({
-  page: { title: 'GitHub not connected', paragraphs: [text] },
+const failed = (text: string): { page: OAuthPageContent } => ({
+  page: { tone: 'error', title: 'GitHub not connected', text },
 });
 
 export const githubOAuth: OAuthProviderHandler = {
@@ -31,7 +31,7 @@ export const githubOAuth: OAuthProviderHandler = {
 
   complete: async ({ query, redirectUri, token }) => {
     if (query.error || !query.code) {
-      return failed('GitHub did not grant access. Nothing was changed.');
+      return failed('GitHub did not grant access, so nothing changed.');
     }
     const { authentication } = await exchangeWebFlowCode({
       clientId: env.GITHUB_APP_CLIENT_ID,
@@ -51,6 +51,8 @@ export const githubOAuth: OAuthProviderHandler = {
       credential: { ...account, login: user.login },
       userId: token.slackUserId,
     });
+    // TODO(slopradar): duplication : awaited publishHome plus catch-and-log is copied in mcp.ts and oauth.ts (x3); chat/app-home/view.ts already has refreshHome
+    // → call refreshHome, the result page does not depend on it.
     await publishHome(token.slackUserId).catch((error: unknown) =>
       logger.warn('[github] could not refresh the Home tab', {
         error,
@@ -59,14 +61,13 @@ export const githubOAuth: OAuthProviderHandler = {
     );
     const installations = await countInstallations(account.token);
     if ('count' in installations && installations.count === 0) {
-      return { redirect: githubConfig.installUrl };
+      return { redirect: githubInstallLink(token.slackUserId) };
     }
     return {
       page: {
+        tone: 'success',
         title: 'GitHub connected',
-        paragraphs: [
-          `Signed in as ${user.login}. Gorkie reaches the repositories you installed it on.`,
-        ],
+        text: `Signed in as ${user.login}. You can close this tab and go back to Slack.`,
       },
     };
   },

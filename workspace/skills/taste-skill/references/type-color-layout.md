@@ -15,6 +15,7 @@ LLMs default to clichés. Override these defaults proactively. Each rule has a c
 * **Pairings to know:** `Geist` + `Geist Mono`, `Satoshi` + `JetBrains Mono`, `Cabinet Grotesk` + `Inter Tight`, `GT America` + `IBM Plex Mono`.
 
 * **SERIF DISCIPLINE (VERY DISCOURAGED AS DEFAULT):**
+<!-- TODO(slopradar): vague attribution : unsourced superlatives ("most-tested in production rounds", "#1 violated rule in production tests" line 97, `ai-tells.md:97`, `redesign.md:24`) and line 41 "every premium-consumer site you have ever shipped" → delete the claims, keep the rules -->
   * Serif is **very discouraged as the default font for any project.** "It feels creative / premium / editorial" is NOT a reason to reach for serif. The agent's default mental model that "creative brief = serif" is the single most-tested AI tell in production rounds.
   * **Serif is only acceptable when ONE of these is explicitly true:**
     - The brand brief literally names a serif font, OR

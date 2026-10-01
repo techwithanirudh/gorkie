@@ -43,6 +43,7 @@ Share both the `*.workers.dev` URL and the claim URL. Re-running `wrangler deplo
 
 | Issue | Solution |
 |-------|----------|
+<!-- TODO(slopradar): circular fix : if `wrangler` is not found, `wrangler --version` fails too → say it lives under `/usr/local/bin` (npm prefix in `build-template.ts`) and check `PATH` -->
 | `command not found: wrangler` | Run `wrangler --version`; it is installed globally. Do not install it into the project. |
 | Auth errors | gorkie has no account; deploy with `wrangler deploy --temporary`, never `wrangler login` |
 | Startup time limit exceeded | Run `wrangler check startup` to profile startup and generate CPU profiles |

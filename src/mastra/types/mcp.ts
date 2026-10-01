@@ -9,6 +9,7 @@ const TOOL_PERMISSIONS = [
 
 export type ToolPermission = (typeof TOOL_PERMISSIONS)[number];
 
+// TODO(slopradar): weak fallback : `.catch('write')` also parses modal input (chat/app-home/mcp/actions.ts:207), turning an invalid submit into 'write' silently → plain enum for input, default only at the DB read (db/queries/mcps.ts:26)
 export const toolPermissionSchema = z.enum(TOOL_PERMISSIONS).catch('write');
 
 export const mcpServerSchema = z.object({
@@ -23,6 +24,7 @@ export const mcpServerSchema = z.object({
   url: z.url(),
   token: z.string().min(1).max(2000).optional(),
   permission: toolPermissionSchema.default('write'),
+  threads: z.boolean().default(true),
 });
 
 export type MCPServerConfig = z.infer<typeof mcpServerSchema>;

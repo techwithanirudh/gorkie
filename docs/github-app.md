@@ -37,7 +37,7 @@ Settings > Developer settings > GitHub Apps > New GitHub App).
 | Callback URL | `<PUBLIC_BASE_URL>/oauth/github/callback`. For local development add a second one, `http://localhost:4111/oauth/github/callback`. |
 | Expire user authorization tokens | checked (default). Gorkie refreshes them automatically. |
 | Request user authorization (OAuth) during installation | unchecked. See below. |
-| Enable Device Flow | unchecked. Gorkie no longer uses it. |
+| Enable Device Flow | unchecked. Gorkie does not use it. |
 | Setup URL | `<PUBLIC_BASE_URL>/oauth/github/installed` |
 | Redirect on update | checked |
 | Webhook > Active | unchecked. No webhook URL, no secret. |

@@ -9,7 +9,6 @@ import { optInStatus, rebuildAllowlist } from './allowed-users';
 import { attachments } from './attachments';
 import { slack } from './client';
 import { handleCommand } from './commands';
-import { focusFilter } from './focus';
 import { withHistory } from './history';
 import { isComment } from './message';
 import { banStatus } from './moderation';
@@ -50,6 +49,7 @@ async function turnAwayNotOptedIn({
   thread,
 }: {
   message: Message;
+  // TODO(slopradar): boolean parameter : `offer` switches between two behaviours, and onSubscribedMessage re-implements a silent ban check for the same reason → one gate `admit({ message, thread, notice: 'offer' | 'silent' })` returning the decline reason, used by all three handlers
   offer: boolean;
   thread: Thread;
 }): Promise<boolean> {
@@ -86,29 +86,6 @@ async function turnAwayNotOptedIn({
   return true;
 }
 
-async function turnAwayUnfocused({
-  message,
-  sees,
-  thread,
-}: {
-  message: Message;
-  sees: ((userId: string) => boolean) | undefined;
-  thread: Thread;
-}): Promise<boolean> {
-  if (!sees || sees(message.author.userId)) {
-    return false;
-  }
-  declined({ message, reason: 'outside the thread focus', thread });
-  if (message.isMention) {
-    await notify({
-      text: "i'm focused on specific people in this thread, so i can't pick this up. whoever brought me in can run `!focus off`.",
-      thread,
-      user: message.author,
-    });
-  }
-  return true;
-}
-
 function declined({
   message,
   reason,
@@ -131,14 +108,12 @@ async function runTurn({
   defaultHandler,
   follow = false,
   message,
-  sees,
   state,
   thread,
 }: {
   defaultHandler: Parameters<ChannelHandler>[2];
   follow?: boolean;
   message: Message;
-  sees: ((userId: string) => boolean) | undefined;
   state: ThreadState | null;
   thread: Thread;
 }): Promise<void> {
@@ -169,7 +144,6 @@ async function runTurn({
   }
   const prompt = await withHistory({
     message: attachments(message),
-    sees,
     state,
     thread,
   });
@@ -179,7 +153,6 @@ async function runTurn({
   await defaultHandler(thread, prompt);
   if (!thread.isDM) {
     await setThreadState({ thread, patch: { lastSeenMessage: message.id } });
-    return;
   }
   // Not awaited: generating a title is a model call, and the handler should
   // not hold the thread's next message behind it.
@@ -207,12 +180,6 @@ export const onMention: ChannelHandler = async (
     return;
   }
   const state = await threadStateOrNull(thread);
-  const sees = thread.isDM
-    ? undefined
-    : await focusFilter({ state, threadId: thread.id });
-  if (await turnAwayUnfocused({ message, sees, thread })) {
-    return;
-  }
   if (await handleCommand({ message, state, thread })) {
     return;
   }
@@ -220,7 +187,6 @@ export const onMention: ChannelHandler = async (
     defaultHandler,
     follow: slack.decodeThreadId(message.threadId).threadTs === message.id,
     message,
-    sees,
     state,
     thread,
   });
@@ -249,6 +215,7 @@ export const onSubscribedMessage: ChannelHandler = async (
     });
     return;
   }
+  // TODO(slopradar): duplication : the else branch below is an inline copy of turnAwayBanned minus the notice → fold into the shared gate proposed above turnAwayNotOptedIn
   if (message.isMention) {
     if (await turnAwayBanned({ message, thread })) {
       return;
@@ -266,18 +233,13 @@ export const onSubscribedMessage: ChannelHandler = async (
   ) {
     return;
   }
-  const sees = thread.isDM
-    ? undefined
-    : await focusFilter({ state, threadId: thread.id });
-  if (await turnAwayUnfocused({ message, sees, thread })) {
-    return;
-  }
   if (await handleCommand({ message, state, thread })) {
     return;
   }
-  await runTurn({ defaultHandler, message, sees, state, thread });
+  await runTurn({ defaultHandler, message, state, thread });
 };
 
+// TODO(slopradar): duplication : body is onMention line for line except `follow` (and DMs never need it) → one `answer({ follow })` function both handlers call
 export const onDirectMessage: ChannelHandler = async (
   thread,
   message,
@@ -297,7 +259,7 @@ export const onDirectMessage: ChannelHandler = async (
   if (await handleCommand({ message, state, thread })) {
     return;
   }
-  await runTurn({ defaultHandler, message, sees: undefined, state, thread });
+  await runTurn({ defaultHandler, message, state, thread });
 };
 
 // defaultHandler is Mastra's tool approve/deny button handler.

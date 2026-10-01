@@ -5,6 +5,7 @@ import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { env } from '@/env';
 import { optInStatus } from '../chat/allowed-users';
+import { publishHome } from '../chat/app-home/view';
 import { slack } from '../chat/client';
 import { signOAuthToken, verifyOAuthToken } from '../lib/crypto';
 import { logger } from '../lib/logger';
@@ -27,6 +28,8 @@ const cookie = {
   name: (provider: OAuthProvider) => `gorkie_oauth_${provider}`,
   options: {
     httpOnly: true,
+    // TODO(slopradar): duplicated tunable : the link lifetime is 600 s here, 600_000 ms at the nonce TTL below and Factory's fixed 10 minutes
+    // → one config.oauth.linkTtlMs feeding both.
     maxAge: 600,
     path: '/oauth',
     sameSite: 'Lax',
@@ -38,8 +41,9 @@ function providerNotFound(c: Context): Promise<Response> {
   return oauthPage({
     c,
     status: 404,
-    title: 'Not found',
-    paragraphs: ['This sign-in link is not available.'],
+    tone: 'error',
+    title: 'Link not found',
+    text: 'This sign-in link does not exist. Start again from the Gorkie Home tab in Slack.',
   });
 }
 
@@ -58,7 +62,11 @@ async function verifiedStart({
   if (!(provider && handler)) {
     return { response: await providerNotFound(c) };
   }
+  // TODO(slopradar): security S9 : the Chat state adapter is in-process memory (chat/state.ts:9), so a used start link replays after a restart
+  // → record the nonce in Postgres (Mastra threadState domain or a small table).
   const state = Chat.getSingleton().getState();
+  // TODO(slopradar): readability : one condition mixes four checks, two awaits and a consume/peek ternary
+  // → early returns per check, then a named `fresh` boolean for the nonce step.
   if (
     !token ||
     token.provider !== provider ||
@@ -75,10 +83,9 @@ async function verifiedStart({
       response: await oauthPage({
         c,
         status: 400,
+        tone: 'expired',
         title: 'Link expired',
-        paragraphs: [
-          'This sign-in link expired or was already used. Open the Gorkie Home tab in Slack and start again.',
-        ],
+        text: 'This sign-in link expired or was already used. Start again from the Gorkie Home tab in Slack.',
       }),
     };
   }
@@ -105,15 +112,16 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
           const name = user?.profile?.display_name || user?.real_name;
           const handle = user?.name ? `@${user.name} ` : '';
           const who = `${name ? `${name}, ` : ''}${handle}(${slackUserId})`;
-          const target = started.token.target
-            ? ` (${started.token.target})`
-            : '';
+          const service =
+            started.provider === 'github'
+              ? 'GitHub'
+              : (started.token.target ?? 'MCP server');
           return oauthPage({
             c,
-            title: `Connect ${started.provider}${target} to Gorkie`,
-            paragraphs: [
-              `This connects your ${started.provider} account to the Slack user ${who}. Continue only if that is you.`,
-            ],
+            tone: 'connect',
+            title: `Connect ${service}`,
+            text: `Gorkie will link your ${service} account to this Slack user. Continue only if this is you.`,
+            detail: { label: 'Slack user', value: who },
             form: { action: c.req.path, ticket },
           });
         },
@@ -132,6 +140,8 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
             return started.response;
           }
           const redirectUri = oauthRedirectUri(started.provider);
+          // TODO(slopradar): dead check : oauthRoutes exist only when PUBLIC_BASE_URL is set, so oauthRedirectUri cannot be undefined here (also the callback route)
+          // → build the URI from env.PUBLIC_BASE_URL inside the routes and drop the branch.
           if (!redirectUri) {
             return providerNotFound(c);
           }
@@ -157,10 +167,9 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
             return oauthPage({
               c,
               status: 502,
+              tone: 'error',
               title: 'Could not start sign-in',
-              paragraphs: [
-                'The provider could not be reached. Try again from the Home tab in a minute.',
-              ],
+              text: 'The sign-in service could not be reached. Wait a minute, then start again from the Gorkie Home tab in Slack.',
             });
           }
         },
@@ -194,10 +203,9 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
             return oauthPage({
               c,
               status: 400,
+              tone: 'expired',
               title: 'Sign-in not finished',
-              paragraphs: [
-                'This sign-in was started in another browser, expired, or was already used. Start again from the Home tab in Slack.',
-              ],
+              text: 'This sign-in expired, was already used, or was started in another browser. Start again from the Gorkie Home tab in Slack.',
             });
           }
           try {
@@ -222,10 +230,9 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
             return oauthPage({
               c,
               status: 502,
+              tone: 'error',
               title: 'Sign-in failed',
-              paragraphs: [
-                'Something went wrong finishing the sign-in. Start again from the Home tab in Slack.',
-              ],
+              text: 'Something went wrong finishing the sign-in. Start again from the Gorkie Home tab in Slack.',
             });
           }
         },
@@ -233,14 +240,29 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
       registerApiRoute('/oauth/github/installed', {
         method: 'GET',
         requiresAuth: false,
-        handler: (c) =>
-          oauthPage({
+        handler: async (c) => {
+          // GitHub hands back the state put on the install link, the only way
+          // to know whose Home tab to refresh. A stale or missing one still
+          // gets the page; the Home tab then updates on its next open.
+          const token = verifyOAuthToken({
+            purpose: 'install',
+            signed: c.req.query('state'),
+          });
+          if (token?.provider === 'github') {
+            await publishHome(token.slackUserId).catch((error: unknown) =>
+              logger.warn('[github] could not refresh the Home tab', {
+                error,
+                userId: token.slackUserId,
+              })
+            );
+          }
+          return oauthPage({
             c,
+            tone: 'success',
             title: 'GitHub updated',
-            paragraphs: [
-              'Gorkie now sees the repositories you picked. If an organization owner still has to approve the install, access starts once they do. Open the Gorkie Home tab in Slack to check.',
-            ],
-          }),
+            text: 'Gorkie now sees the repositories you picked. If an organization owner has to approve the install, access starts once they do.',
+          });
+        },
       }),
     ]
   : [];

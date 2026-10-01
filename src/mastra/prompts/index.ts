@@ -11,7 +11,6 @@ import { githubPrompt } from './github';
 import { guardrailsPrompt } from './guardrails';
 import { mcpPrompt } from './mcp';
 import { personalityPrompt } from './personality';
-import { reasoningPrompt } from './reasoning';
 import { slackPrompt } from './slack';
 import { toolsPrompt } from './tools';
 
@@ -51,6 +50,5 @@ export async function instructions(
     userInstructions &&
       `<user_instructions>\nThe person who sent this message set these for you in App Home. They are explicit, so they win over the working-memory profile, which is inferred and belongs to whoever brought you into this thread.\n${userInstructions}\n</user_instructions>`,
     mcps,
-    reasoningPrompt,
   ].flatMap((content) => (content ? [{ role: 'system', content }] : []));
 }

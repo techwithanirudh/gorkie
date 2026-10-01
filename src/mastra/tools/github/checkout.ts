@@ -46,11 +46,13 @@ export const checkoutTool = ({
           'An existing branch to fetch and check out, such as a pull request branch. Omit to stay on the default branch.'
         ),
     }),
+    // TODO(slopradar): inconsistent tool shape : github_checkout and github_push_branch (push.ts) are the only tools in scope with no outputSchema or transform.display, so their widget falls back to the generic label → add outputSchema { path, sha, note } and a display summary like the other tools
     execute: async ({ repository, branch }, context) => {
       const sandbox = await requireSandbox(context.requestContext);
       const path = checkoutPath(repository);
       const remote = `https://github.com/${repository}.git`;
 
+      // TODO(slopradar): repeated reads : requireApproval above already ran inspectRepository, so every approved checkout does two token lookups and two GET /repos calls → cache the access result per tool call (keyed by repository in the requestContext) or have repoAccess memoize per request like githubAccess
       const { canPush, needsCredential } = await inspectRepository({
         repository,
         userId,

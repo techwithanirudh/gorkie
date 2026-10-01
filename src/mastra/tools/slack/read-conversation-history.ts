@@ -8,7 +8,6 @@ import { spendSlackCall } from '../../lib/slack-budget';
 import { slackMessageSchema } from '../../types/tools/index';
 import {
   assertReadableChannel,
-  focusedMessages,
   formatMessage,
   joinChannel,
   slackThreadId,
@@ -17,7 +16,7 @@ import {
 export const readConversationHistoryTool = createTool({
   id: 'read_conversation_history',
   description:
-    'Read one chronological page of raw messages from a Slack channel or thread when exact wording matters. Messages starting with ## are side comments and are left out unless includeComments is true. In the current thread, while focus is on, messages from people outside the focus are left out too; nothing else is filtered. Use search_slack for one keyword query, Slack code mode for query-driven or exhaustive conversation analysis, and summarize_thread when a long thread only needs a summary. Pass the returned cursor back to page through more history. The current conversation is always readable; other channels must be public, and public channels are joined automatically.',
+    'Read one chronological page of raw messages from a Slack channel or thread when exact wording matters. Messages starting with ## are side comments and are left out unless includeComments is true; nothing else is filtered. Use search_slack for one keyword query, Slack code mode for query-driven or exhaustive conversation analysis, and summarize_thread when a long thread only needs a summary. Pass the returned cursor back to page through more history. The current conversation is always readable; other channels must be public, and public channels are joined automatically.',
   inputSchema: z.strictObject({
     channelId: z
       .string()
@@ -62,6 +61,7 @@ export const readConversationHistoryTool = createTool({
   ) => {
     const ctx = channelContext(context.requestContext);
     const suppliedThreadId = threadId ?? (channelId ? undefined : ctx.threadId);
+    // TODO(slopradar): unclear names : `tid` and `chId` abbreviate (also list-threads.ts:51) → slackThread and channel, or names that say which id format they hold
     const tid = suppliedThreadId
       ? slackThreadId({ channelId, threadId: suppliedThreadId })
       : undefined;
@@ -73,6 +73,7 @@ export const readConversationHistoryTool = createTool({
     }
 
     const chId = chatChannelId(resolvedChannelId);
+    // TODO(slopradar): duplication across files : chatChannelId, assertReadableChannel, joinChannel is the same three-step gate here, list-threads.ts:52, summarize-thread.ts:47 and call-api.ts:132 (x4) → one `openReadableChannel({ channelId, currentThreadId })` in slack/utils.ts that returns the chat channel id
     await assertReadableChannel({
       channelId: chId,
       currentThreadId: ctx.threadId,
@@ -85,15 +86,10 @@ export const readConversationHistoryTool = createTool({
       ? await slack.fetchMessages(tid, { limit, cursor })
       : await slack.fetchChannelMessages(chId, { limit, cursor });
 
-    const focused = await focusedMessages({
-      currentThreadId: ctx.threadId,
-      messages: result.messages,
-      threadId: tid,
-    });
     const kept = includeComments
-      ? focused
-      : focused.filter((message) => !isComment(message));
-    const omitted = focused.length - kept.length;
+      ? result.messages
+      : result.messages.filter((message) => !isComment(message));
+    const omitted = result.messages.length - kept.length;
 
     return {
       channelId: chId,

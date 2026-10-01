@@ -13,6 +13,7 @@ import { checkoutTool } from './checkout';
 import { handoff } from './handoff';
 import { pushTool } from './push';
 
+// TODO(slopradar): erased types : Record<string, unknown> drops every tool type, so orchestrator.ts spreads unchecked values into its tool map → return ToolsInput from @mastra/core/agent (the type code-mode/slack.ts already uses)
 export async function githubTools({
   channelId,
   isDM,
@@ -94,7 +95,7 @@ export async function githubTools({
     }
     if (direct && threadId) {
       tools.github_checkout = checkoutTool({
-        approval: asksBefore({ kind: 'read', level }),
+        approval: !isDM || asksBefore({ kind: 'read', level }),
         userId,
       });
       tools.github_push_branch = pushTool({

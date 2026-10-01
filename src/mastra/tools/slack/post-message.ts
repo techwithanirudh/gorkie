@@ -69,6 +69,7 @@ Errors: channel_not_found usually means the bot isn't a member of that private c
         threadId: threadTs ? threadIdOf({ channel, ts: threadTs }) : undefined,
       };
     } catch (error) {
+      // TODO(slopradar): stale error mapping : assertCanPostTo now pins posts to the current channel or the requester's DM and slackDestination joins first, so "bot is not a member of that private channel" advice no longer fits → confirm these codes are unreachable, then drop this catch and the "Errors:" paragraph in the description
       const code = slackErrorSchema.safeParse(error).data?.data?.error;
       if (code === 'channel_not_found') {
         throw new Error(

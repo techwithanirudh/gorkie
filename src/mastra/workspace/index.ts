@@ -68,6 +68,7 @@ export async function requireSandbox(
   requestContext: RequestContext
 ): Promise<E2BSandbox> {
   if (sandboxKey(requestContext) === unscopedSandboxKey) {
+    // TODO(slopradar): duplicated literal : this refusal text is repeated verbatim in beforeToolCall's output below → one const shared by both
     throw new Error(
       'No Slack thread bound for this run, so a sandbox tool cannot run here.'
     );
@@ -205,6 +206,7 @@ function afterToolCall({
   }
 }
 
+// TODO(slopradar): pass-through re-export : tool-names.ts is already its own module → have tools/code-mode/slack.ts import from '../../workspace/tool-names' and drop this line
 export { codeModeToolNames } from './tool-names';
 
 export const workspace: Workspace = new Workspace({
@@ -273,6 +275,7 @@ export const workspace: Workspace = new Workspace({
       },
     },
     [WORKSPACE_TOOLS.SANDBOX.GET_PROCESS_OUTPUT]: {
+      // TODO(slopradar): inconsistent source : get_process_output and kill_process are inline while every other model-facing name comes from tool-names.ts → add them there or inline all names
       name: 'get_process_output',
     },
     [WORKSPACE_TOOLS.SANDBOX.KILL_PROCESS]: { name: 'kill_process' },

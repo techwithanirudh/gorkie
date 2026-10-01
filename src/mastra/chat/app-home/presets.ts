@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ApprovalLevel } from '../../types';
 
+// TODO(slopradar): naming : SCREAMING_CASE (PRESETS, SCOPE_LABELS, moderation/index.ts DURATION) while every other module constant is camelCase → `presets`, `scopeLabels`, `banDurations`
 export const PRESETS = {
   all: {
     description: 'Even reading waits.',
@@ -31,5 +32,5 @@ export const scopeSchema = z.enum(['dm', 'threads']).catch('dm');
 
 export const SCOPE_LABELS = {
   dm: 'Only in a DM with you',
-  threads: 'Anywhere, including shared threads (dangerous)',
+  threads: 'Anywhere, including shared threads',
 } satisfies Record<z.infer<typeof scopeSchema>, string>;

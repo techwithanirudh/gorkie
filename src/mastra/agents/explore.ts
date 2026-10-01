@@ -33,6 +33,7 @@ export const explore = new Agent({
   defaultOptions: {
     ...runDefaults(config.maxTokens.subagentOutput),
     activeTools: [
+      // TODO(slopradar): magic strings : workspace tool names re-typed as literals, so a rename in workspace/tool-names.ts silently drops them from Explore → import READ_FILE, LIST_FILES, GREP, FILE_STAT from '../workspace/tool-names'
       'read_file',
       'list_files',
       'grep',

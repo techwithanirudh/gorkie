@@ -24,6 +24,7 @@ export interface GitHubSettings {
   threads: boolean;
 }
 
+// TODO(slopradar): weak fallback : `.catch('all')` also runs on modal input (chat/app-home/github/actions.ts:31), so a bad or tampered submit silently becomes 'all' instead of a field error; view.ts:130 re-parses an already parsed value → keep a plain enum for input, apply the default only where the DB row is read (db/queries/settings.ts:15)
 export const githubPermissionSchema = z.enum(GITHUB_PERMISSIONS).catch('all');
 
 export const repositorySchema = z

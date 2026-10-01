@@ -44,6 +44,7 @@ export const uploadEmojiTool = createTool({
     },
   },
   execute: async ({ name, path, aliasFor }, context) => {
+    // TODO(slopradar): dead tool : upload_emoji is always registered in deferredTools, so with EMOJI_PROXY_TOKEN unset tool search offers a tool that can only throw → add it to deferredTools in toolsets.ts only when env.EMOJI_PROXY_TOKEN is set, and drop this check
     if (!env.EMOJI_PROXY_TOKEN) {
       throw new Error(
         'Emoji upload is not configured. Set EMOJI_PROXY_TOKEN to enable it.'
@@ -59,6 +60,7 @@ export const uploadEmojiTool = createTool({
         sandbox.e2b.files.getInfo(filePath)
       );
       if (size > emoji.maxUploadBytes) {
+        // TODO(slopradar): duplication across files : five hand-written byte formatters disagree (here and view-image.ts, upload-file.ts use 1_000_000 and round to 0MB under 500KB; generate-image/request.ts uses 1024*1024; get-slack-file.ts has formatBytes) → one formatBytes in src/mastra/lib, or `pretty-bytes` (dependency change: ask)
         throw new Error(
           `${path} is ${Math.round(size / 1_000_000)}MB, too large for an emoji. Shrink it first.`
         );
@@ -73,6 +75,7 @@ export const uploadEmojiTool = createTool({
         new Blob([new Uint8Array(bytes)]),
         posix.basename(path) || name
       );
+      // TODO(slopradar): unbounded IO : both proxy fetches pass neither context.abortSignal nor a timeout, so a hung proxy holds the turn until the step limit (x2 in this file) → pass AbortSignal.any([context.abortSignal, AbortSignal.timeout(emoji.requestTimeoutMs)]) with the timeout in config.ts
       response = await fetch(`${emoji.proxyUrl}/upload`, {
         method: 'POST',
         headers,

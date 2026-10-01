@@ -26,6 +26,7 @@ export function runDefaults(maxOutputTokens: number): AgentExecutionOptions {
   return {
     modelSettings: {
       maxOutputTokens,
+      // TODO(slopradar): deployment values in config.ts : topP 0.95, reasoning 'medium', toolCallConcurrency limit 10 and maxProcessorRetries 2 (line 14) are per-deployment model tuning inlined here → move them under `agent` in config.ts
       topP: 0.95,
       reasoning: 'medium',
       timeout: config.modelTimeout,

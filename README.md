@@ -20,11 +20,12 @@ runs commands and inspects files without touching the host machine.
 
 - Slack-native replies for mentions, DMs, and subscribed thread follow-ups,
   streamed into the thread as they generate, with a typing indicator.
-- Tool display per person or per thread: Hidden (typing status only), Compact
-  (one live checklist of tool calls per reply) or Detailed (a card per call),
-  set from the Home tab or with `!display`.
-- Thread commands: `!help`, `!stop`, `!compact`, `!display`, `!focus` and
-  `!connections` (alias `!mcps`), handled before the agent runs
+<!-- TODO(slopradar): stale doc : the per-thread override is gone (no `!display`, no `toolDisplay` in `threadStateSchema`; `processors/tool-display.ts:50` reads only `user_settings.tool_display`) → say "Tool display per person, set from the Home tab" -->
+- Tool display per person or per thread: Default (typing status only) or
+  Detailed (a card per call with its inputs and result, helper agents' steps
+  inside their card), set from the Home tab.
+- Thread commands: `!help`, `!stop`, `!compact` and
+  `!connections`, handled before the agent runs
   (`chat/commands/`).
 - Optional opt-in allowlist (`OPT_IN_CHANNEL`): gate access to members of one
   channel, with an in-Slack opt-in card for everyone else.
@@ -65,8 +66,8 @@ runs commands and inspects files without touching the host machine.
   Memory observes the search that loaded it, and the model searches again.
 - GitHub tools act as the connected person. They work in a DM with that
   person, and in shared threads only if they enabled shared threads in App
-  Home, with approvals following their App Home settings in every thread.
-  Code changes go
+  Home, with approvals following their App Home settings (in a shared thread
+  "never ask" falls back to asking before writing). Code changes go
   through `github_checkout` and `github_push_branch`, which borrow the person's
   token at the sandbox firewall for one git command; see
   [docs/brokered-git.md](./docs/brokered-git.md).
@@ -84,9 +85,6 @@ runs commands and inspects files without touching the host machine.
 - Per-person usage limits: 40 turns an hour and 300 a day (`usage` in
   [`config.ts`](./src/mastra/config.ts)), counted in `chat/usage.ts` and also
   applied to scheduled task runs. Moderators are exempt.
-- Focus: the `focus` tool (and `!focus`) makes gorkie read and answer only
-  named people in a thread; whoever brought it in and moderators still get
-  through.
 - Background jobs: `run_background` starts a long sandbox command and wakes
   the thread with its exit code and output when it finishes.
 - Feedback: `submit_feedback` records bug reports, praise and requests about
@@ -112,6 +110,7 @@ See [TODO.md](./TODO.md) for open work and known issues.
 Create a new [Slack app](https://api.slack.com/apps) from a manifest using
 [`slack-manifest.json`](./slack-manifest.json), which sets the webhook request
 URLs, the App Home, scopes, and event subscriptions. Replace `<your-host>` with
+<!-- TODO(slopradar): stale prerequisites : omits Node, but `package.json` engines requires `node >=24` and `bun run check:spelling` fails on Node 22.17 → add Node 24+ to the list -->
 the public hostname in front of the bot (see [docs/webhook-mode.md](docs/webhook-mode.md)). You also need [Bun][bun], a
 [PostgreSQL][postgres] database, an [E2B][e2b] API key, an [Exa][exa] API key,
 and model keys for both [Hack Club][hackclub] and [OpenCode][opencode].
@@ -157,6 +156,7 @@ other route returns 404, and the rest of `/api` needs
 `Authorization: Bearer $GORKIE_API_TOKEN` even on the host. The bot logs
 `[agent] online` once channels are ready.
 
+<!-- TODO(slopradar): single source of truth : the same two-instance warning is in `AGENTS.md:72` and `docs/webhook-mode.md:127` → keep it in webhook-mode.md (the operator doc) and link to it here -->
 Never run two instances at once, dev against prod or two dev copies: they share
 the Mastra scheduler, workers and the DuckDB lock, so scheduled tasks can fire
 twice and one process loses local traces.
@@ -256,10 +256,12 @@ Reconnect. Every request the sign-in makes to URLs taken from the server's
 metadata goes through the same private-address check as the server URL itself.
 Needs `PUBLIC_BASE_URL`; without it OAuth servers show as not set up.
 
-A person's servers load for their own messages in a DM with gorkie. In a shared
-thread they load only if that person enabled shared threads for MCP servers in
-App Home (`user_settings.mcp_threads`), and there a server set to ask only
-before deleting still asks before writing
+A person's servers load for their own messages in a DM with gorkie. Each server
+also has a "Where can Gorkie use this server?" choice in its Add and Configure
+modals (`mcp_servers.threads`, default on): a server left on loads in shared
+<!-- TODO(slopradar): stale doc : incomplete. `levelOutsideDM` (`lib/approval.ts`) turns "never ask" into ask-before-writing too, not only "ask before deleting" → say "in a shared thread a server set to never ask or to ask only before deleting asks before writing" -->
+threads too, a server set to DMs only does not. In a shared thread a server set
+to ask only before deleting still asks before writing
 (`mcp/user-servers/approval.ts`).
 
 ## The Mastra patch
@@ -278,7 +280,7 @@ carries six fixes:
   `processorRetryCount` to 0, so the new model does not inherit the exhausted
   count of the model it replaces.
 - **The streamed message survives a retry.** A continued step (a retry or a
-  fallback escalation) no longer closes the Slack streaming session early.
+  fallback escalation) keeps the Slack streaming session open.
 - **Only the requester answers an approval.** A tool approval card records who
   triggered it, and clicks from anyone else in the thread are ignored. The
   requester is stored with the pending approval, so after a restart the check
@@ -286,11 +288,13 @@ carries six fixes:
   background wake) stash no requester in memory, so the check falls back to the
   stored one, the run's creator. It fails closed: a card with no recorded
   requester is refused.
-- **Plan widgets stay under Slack's cap.** A Compact (grouped) turn rolls into a
-  new message at a step boundary once it has 40 tasks, and never sends more than
-  Slack's 50, so long turns no longer crash the stream.
-- **Detailed cards show the tool's summary.** Timeline task output prefers the
-  tool's `transform.display` summary over the truncated raw result.
+- **Plan widgets stay under Slack's cap.** A Detailed (grouped) turn rolls into
+  a new message at a step boundary once it has 40 tasks, and never sends more
+  than Slack's 50, so long turns do not crash the stream.
+- **Grouped plans work with a custom renderer.** Detailed renders through
+  gorkie's own function (`chat/tool-display.ts`) inside one grouped plan per
+  turn; the patch sets the plan header from the latest task, as Mastra's
+  built-in grouped renderer does, since function-form results carry no header.
 
 [`patches/@chat-adapter+slack@4.41.0.patch`](./patches/@chat-adapter+slack@4.41.0.patch)
 patches the Slack adapter's `dist/index.js`, which native streaming needs:
@@ -322,7 +326,7 @@ src/
     providers.ts                Model ladders (orchestrator, research, explore, summarizer, images)
     agents/                     orchestrator, plus research, explore and summarizer
     chat/                       Slack side: event handlers, history backfill, thread state, commands,
-                                App Home, moderation, usage limits, focus, typing status
+                                App Home, moderation, usage limits, typing status
     tools/                      Tool registry: Slack, canvas, scheduled tasks, GitHub, web, code mode, images, background jobs
     processors/                 Input and output processors (tool search, tool display, output budget, sandbox, ...)
     prompts/                    System prompt sections (core, personality, Slack, tools, guardrails)

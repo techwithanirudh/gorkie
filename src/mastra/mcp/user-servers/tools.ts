@@ -1,10 +1,10 @@
 import type { ToolsInput } from '@mastra/core/agent';
 import { listMCPServers, setMCPServerError } from '../../db/queries/mcps';
-import { getUserSettings } from '../../db/queries/settings';
 import { logger } from '../../lib/logger';
 import { describeMCPError } from '../errors';
 import { dropClient, resolveClient } from './client';
 
+// TODO(slopradar): hidden shared state : a module-global Set written per turn here and read by app-home/mcp/views.ts, empty after a restart so Home hides the warning until the next turn → persist the flag on the server row (schema change: ask) or have Home derive it from the cached client's toolsets
 export const unlabelledServers = new Set<string>();
 
 export const coverageKey = ({
@@ -15,6 +15,7 @@ export const coverageKey = ({
   userId: string;
 }): string => `${userId}:${serverName}`;
 
+// TODO(slopradar): long function : ~75 lines doing listing, unlabelled bookkeeping, error recording and key flattening → split the label scan and the error write into named module functions called from here
 export async function userMCPTools({
   isDM,
   userId,
@@ -23,14 +24,20 @@ export async function userMCPTools({
   userId: string;
 }): Promise<ToolsInput> {
   try {
-    if (!(isDM || (await getUserSettings(userId)).mcpThreads)) {
-      return {};
-    }
     const servers = await listMCPServers(userId);
     if (servers.length === 0) {
       await dropClient(userId);
       return {};
     }
+    const allowed = new Set(
+      servers.filter((server) => isDM || server.threads).map(({ name }) => name)
+    );
+    if (allowed.size === 0) {
+      return {};
+    }
+    // The client is cached per user and keyed on the full server list. Building
+    // it from a subset would rebuild it on every DM and thread switch, and a new
+    // client under the same id disconnects the one a parallel turn is using.
     const { client, rejected } = await resolveClient({ servers, userId });
     const { toolsets, errorDetails } = await client.listToolsetsWithErrors();
 
@@ -73,12 +80,14 @@ export async function userMCPTools({
       })
     );
     return Object.fromEntries(
-      Object.entries(toolsets).flatMap(([serverName, tools]) =>
-        Object.entries(tools).map(([toolName, tool]) => [
-          `${serverName}_${toolName}`,
-          tool,
-        ])
-      )
+      Object.entries(toolsets)
+        .filter(([serverName]) => allowed.has(serverName))
+        .flatMap(([serverName, tools]) =>
+          Object.entries(tools).map(([toolName, tool]) => [
+            `${serverName}_${toolName}`,
+            tool,
+          ])
+        )
     );
   } catch (error) {
     logger.warn('[mcp] failed to list user servers', { error, userId });

@@ -4,8 +4,6 @@ import type { Message } from 'chat';
 import { Chat } from 'chat';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
-import { focusFilter } from '../../chat/focus';
-import { threadStateOrNull } from '../../chat/state';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
 import { logger } from '../../lib/logger';
@@ -42,6 +40,7 @@ export async function readableChannelIds({
   channelIds: string[];
   currentThreadId?: string;
 }): Promise<Set<string>> {
+  // TODO(slopradar): tunable inline and hand-rolled library : a local 4 duplicates config.slack.userLookupConcurrency, and the slice loop reimplements bounded concurrency (each batch waits for its slowest lookup) → read the limit from config.ts and use p-map's `concurrency` (already in the tree via @mastra/core; a direct dependency needs owner approval)
   const maxConcurrentVisibilityLookups = 4;
   const readable = new Set<string>();
   for (
@@ -88,6 +87,7 @@ export async function readableFile({
     throw new Error('This Slack resource is not associated with a channel.');
   }
 
+  // TODO(slopradar): wasted lookups : resolves visibility for every channel the file is shared into, though only "any readable" is used → check the current conversation first and stop at the first readable channel
   const readable = await readableChannelIds({
     channelIds,
     currentThreadId: channelContext(requestContext).threadId,
@@ -205,29 +205,6 @@ export function slackThreadId({
     threadIdOf(parseSlackId({ channel: channelId, input: threadId })) ??
     threadId
   );
-}
-
-export async function focusedMessages({
-  currentThreadId,
-  messages,
-  threadId,
-}: {
-  currentThreadId?: string;
-  messages: Message[];
-  threadId?: string;
-}): Promise<Message[]> {
-  const sees =
-    threadId && threadId === currentThreadId
-      ? await focusFilter({
-          state: await threadStateOrNull({ id: threadId }),
-          threadId,
-        })
-      : undefined;
-  return sees
-    ? messages.filter(
-        (message) => message.author.isMe || sees(message.author.userId)
-      )
-    : messages;
 }
 
 export function formatMessage(message: Message) {

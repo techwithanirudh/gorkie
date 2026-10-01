@@ -55,6 +55,8 @@ export async function updateRefreshedGitHubCredential({
   credential: GitHubAccount;
   userId: string;
 }): Promise<boolean> {
+  // TODO(slopradar): duplication : the sealed column set (expiresAt, lastError null, encrypted refreshToken and token) is built again from setGitHubCredential
+  // → one sealCredential(credential) mapping used by both.
   const updated = await db
     .update(githubCredentials)
     .set({

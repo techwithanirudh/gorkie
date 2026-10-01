@@ -4,8 +4,26 @@ import {
   unlabelledServers,
 } from '../../../mcp/user-servers/tools';
 import { type MCPServerConfig, toolPermissionSchema } from '../../../types';
-import { PRESETS } from '../presets';
+import { PRESETS, SCOPE_LABELS, scopeSchema } from '../presets';
 import { ids } from './ids';
+
+// TODO(slopradar): duplication : same scope RadioSelect as github/views.ts:12 with different copy, and `id: 'scope'` is a literal while github uses ids.scope → one `scopeSelect({ id, threads, descriptions })` in presets.ts
+export function scopeSelect(threads: boolean) {
+  return RadioSelect({
+    id: 'scope',
+    label: 'Where can Gorkie use this server?',
+    initialOption: threads ? 'threads' : 'dm',
+    options: scopeSchema.unwrap().options.map((value) => ({
+      label: SCOPE_LABELS[value],
+      description: {
+        dm: "Shared threads get none of this server's tools.",
+        threads:
+          'Anyone in the thread can steer it, and it always asks at least before writing there.',
+      }[value],
+      value,
+    })),
+  });
+}
 
 export function configureModal({
   server,
@@ -23,6 +41,7 @@ export function configureModal({
     submitLabel: 'Save',
     privateMetadata: server.name,
     children: [
+      scopeSelect(server.threads),
       RadioSelect({
         id: 'permission',
         label: 'When should Gorkie stop and ask?',

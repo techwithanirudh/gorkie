@@ -63,6 +63,8 @@ export async function recordTurnWithinLimit(
 ): Promise<{ recorded: boolean; usage: TurnUsage }> {
   const id = rawId(userId);
   return await db.transaction(async (tx) => {
+    // TODO(slopradar): lock key collision : same advisory key as insertMCPServer (mcps.ts:93), so a turn claim and an MCP add for one user block each other
+    // → one shared lockUser({ tx, scope }) using the two-key form pg_advisory_xact_lock(hashtext(scope), hashtext(id)).
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${id}))`);
     const usage = await readUsage({ executor: tx, userId });
     if (usage.day.remaining === 0 || usage.hour.remaining === 0) {
@@ -77,6 +79,8 @@ export async function recordTurnWithinLimit(
           lt(usageTurns.createdAt, new Date(Date.now() - DAY))
         )
       );
+    // TODO(slopradar): misleading return : usage here is the pre-insert count and the only caller (chat/usage.ts:15) ignores it when recorded
+    // → return { recorded: true } | { recorded: false; usage }.
     return { recorded: true, usage };
   });
 }

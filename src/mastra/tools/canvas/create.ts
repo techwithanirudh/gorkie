@@ -45,6 +45,7 @@ export const createCanvasTool = createTool({
       if (channelId) {
         assertCanManageChannel({ channelIds: [channelId], ctx });
       }
+      // TODO(slopradar): duplication : the title and document_content spreads are built twice (here and the channel branch below) → build `const content = { ...title, ...document_content }` once before branching
       const response = await slack.webClient.canvases.create({
         ...(title ? { title } : {}),
         ...(channelId ? { channel_id: rawId(channelId) } : {}),

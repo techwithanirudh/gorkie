@@ -42,6 +42,7 @@ function decodedBytes(data: FilePart['data']): number {
 // branches on `image/*`, `audio/*` and `application/pdf` and throws
 // `UnsupportedFunctionalityError` for anything else, which crashes the turn
 // rather than merely not working.
+// TODO(slopradar): long function : ~125 lines with a scan pass, a budget pass and a rewrite pass nested four deep → split into collectImages, keepWithinBudget and rewritePrompt helpers called from here
 function relocateToolImages({
   prompt,
 }: {

@@ -75,7 +75,12 @@ export const agent = {
   modelTimeout: { firstChunkMs: 2 * 60 * 1000, stepMs: 5 * 60 * 1000 },
 };
 
-export const toolDisplay: { default: ToolDisplayMode } = { default: 'hidden' };
+export const toolDisplay: {
+  default: ToolDisplayMode;
+  maxInline: number;
+  maxDetails: number;
+  maxOutput: number;
+} = { default: 'default', maxInline: 200, maxDetails: 1200, maxOutput: 4000 };
 
 export const summarizer = {
   maxTokens: { output: 32_768, previousObserver: 1000 },

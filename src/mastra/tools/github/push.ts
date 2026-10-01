@@ -58,6 +58,7 @@ export const pushTool = ({
         )
         .describe('Local branch to push.'),
     }),
+    // TODO(slopradar): inconsistent tool shape : no outputSchema or transform.display, unlike every non-GitHub tool → add outputSchema { branch, sha } and a "Pushed <branch>" summary
     execute: async ({ repository, branch, checkout }, context) => {
       const sandbox = await requireSandbox(context.requestContext);
       const path = checkoutPath(checkout ?? repository);

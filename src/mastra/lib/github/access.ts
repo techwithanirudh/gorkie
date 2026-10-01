@@ -2,6 +2,7 @@ import type { RequestContext } from '@mastra/core/request-context';
 import { getGitHubCredential } from '../../db/queries/github';
 import { getUserSettings } from '../../db/queries/settings';
 import type { GitHubCredential, GitHubPermission } from '../../types';
+import { levelOutsideDM } from '../approval';
 import { logger } from '../logger';
 
 type GitHubAccess =
@@ -33,7 +34,7 @@ async function read({
       state: 'connected',
       credential,
       direct: isDM || github.threads,
-      level: github.permission,
+      level: levelOutsideDM({ isDM, level: github.permission }),
     };
   } catch (error) {
     logger.warn('[github] could not read the connection', { error, userId });

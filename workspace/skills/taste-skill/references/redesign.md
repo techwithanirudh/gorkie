@@ -7,6 +7,7 @@ Part of the `taste-skill` skill. Section numbers match the index in SKILL.md.
 This skill handles **greenfield builds AND redesigns**. Misclassifying the mode is the single biggest source of bad redesign output.
 
 ### 11.A Detect the Mode (first action)
+<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash (x18 in this file) → colon or comma -->
 * **Greenfield** - no existing site, or full overhaul approved. Dial baseline from Section 1.
 * **Redesign - Preserve** - modernise without breaking the brand. Audit first, extract brand tokens, evolve gradually.
 * **Redesign - Overhaul** - new visual language on top of existing content. Treat as greenfield for visuals; preserve content and IA.
@@ -40,6 +41,7 @@ Apply in order - stop when the brief is satisfied:
 6. **Full block replacement** - only when the existing block is unsalvageable.
 
 ### 11.E Decision Tree: Targeted Evolution vs Full Redesign
+<!-- TODO(slopradar): invented numbers : the precise-looking figures this skill bans elsewhere (`assets-content.md:70`) → drop them -->
 * IA, content, and SEO sound → **targeted evolution** (Levers 1-4). ~70% of value at ~40% of risk.
 * Visual debt is structural (broken IA, no design system, broken mobile) → **full redesign** with strict content preservation.
 * Brand itself is changing → **greenfield**.

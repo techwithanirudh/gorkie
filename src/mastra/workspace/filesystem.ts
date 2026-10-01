@@ -327,6 +327,7 @@ export class E2BFilesystem extends MastraFilesystem {
   ): Promise<FileEntry[]> {
     const entries = await this.walk(inputPath, {
       includeHidden: true,
+      // TODO(slopradar): magic number : the 100 depth default is repeated in walk() → one value in config.ts (file.maxListDepth), or let walk own the default
       maxDepth: options?.recursive ? (options.maxDepth ?? 100) : 1,
     });
     let extensions: string[] | undefined;

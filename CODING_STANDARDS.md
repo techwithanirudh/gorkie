@@ -51,6 +51,7 @@ the rest is judgment applied consistently.
 
 ## Function design
 
+<!-- TODO(slopradar): rule gap : no exemption for library-shaped signatures (`guardedFetch(input, init)` mirrors `fetch`, `MastraFilesystem` methods are positional), open since slopradar Q8 → add "except where the signature implements a library contract" -->
 - **Dict params.** Any function with more than one parameter takes a
   single options object, not positional args.
 
@@ -122,6 +123,7 @@ before renaming or splitting anything, never from vibes.
   factories, task rendering), not just because a file got long.
 - Keep schemas terse. Add `.describe()` only for fields whose contract
   isn't obvious from the name.
+<!-- TODO(slopradar): single source of truth : type ownership is stated three times (lines 39-40, here, and the smells at 143-145) → keep the Types section, delete this bullet and the two smells -->
 - Type ownership: a private, single-file shape stays inline. A shared or
   exported shape lives in `src/mastra/types/`. Tool-owned shared shapes live
   under `types/tools/<tool>.ts`.
@@ -187,6 +189,7 @@ before renaming or splitting anything, never from vibes.
 
 ## Architecture boundaries
 
+<!-- TODO(slopradar): single source of truth : this section and the `process.env`/secrets bullets at 176-186 restate AGENTS.md "Boundaries" and will drift → replace with one line pointing at AGENTS.md -->
 These come from [AGENTS.md](./AGENTS.md); repeated here because violating
 them is a correctness bug, not a style nit.
 

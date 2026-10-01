@@ -192,6 +192,7 @@ export function resolveClient({
         server.credentialError ? 'stopped' : '',
       ].join(' ')
     )
+    // TODO(slopradar): redundant code : this comparator is the default string sort → use .sort() (or .toSorted())
     .sort((a, b) => (a < b ? -1 : 1))
     .join('\n');
   const cached = clients.get(userId);

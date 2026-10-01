@@ -8,6 +8,7 @@ description: Anti-slop frontend skill for landing pages, portfolios, and redesig
 > Landing pages, portfolios, and redesigns. Not dashboards, not data tables, not multi-step product UI.
 > Every rule below is **contextual**. None of it fires automatically. First read the brief, then pull only what fits.
 
+<!-- TODO(slopradar): contradicts the prompt : `prompts/features/sandbox.ts:15` makes the screenshot the default deliverable and deploys only when a live link is wanted → say "deliver a screenshot; deploy with `web-page`/`wrangler` when they want a link" -->
 The user sees the page only once it is deployed: ship a single page with the `web-page` skill, and anything with its own build with the `wrangler` skill (`wrangler deploy --temporary`). Screenshot the live URL with agent-browser and check it with `view_image` before sharing it.
 
 This file holds the brief inference, the dials, the scope and the pre-flight check. The detailed rules live in `references/`; read a file with `skill_read` (skillName `taste-skill`, path `references/<file>`) when the work touches it. Section numbers cited anywhere in this skill resolve through this index:
@@ -34,6 +35,7 @@ For a typical build, read `type-color-layout.md`, `assets-content.md` and `ai-te
 Before touching code or tweaking dials, **infer what the user actually wants**. Most LLM design output is bad because the model jumps to a default aesthetic instead of reading the room.
 
 ### 0.A Read these signals first
+<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash, against owner decision 16 and CODING_STANDARDS.md:160 (x20 in this file) → comma, colon before a list, or a new sentence -->
 1. **Page kind** - landing (SaaS / consumer / agency / event), portfolio (dev / designer / creative studio), redesign (preserve vs overhaul), editorial / blog.
 2. **Vibe words** the user used - "minimalist", "calm", "Linear-style", "Awwwards", "brutalist", "premium consumer", "Apple-y", "playful", "serious B2B", "editorial", "agency-y", "glassy", "dark tech".
 3. **Reference signals** - URLs they linked, screenshots they pasted, products they named, brands they're competing with.
@@ -149,6 +151,7 @@ Run this matrix before outputting code. This is the last filter.
 - [ ] **Button Contrast Check**: every CTA text is readable against its background (no white-on-white, WCAG AA 4.5:1)?
 - [ ] **CTA Button Wrap**: no CTA label wraps to 2+ lines at desktop?
 - [ ] **Form Contrast Check**: form inputs, placeholders, focus rings, labels all pass WCAG AA against the section background?
+<!-- TODO(slopradar): unverifiable rule : "different from your previous project" assumes cross-thread memory gorkie does not have (recall off, README:236); same at line 153, `type-color-layout.md:25,50` → delete the "previous project" clauses -->
 - [ ] **Serif discipline**: if a serif is used, it is NOT Fraunces or Instrument_Serif (or it is, with explicit brand justification)? Different serif from your previous project?
 - [ ] **Premium-consumer palette check**: if the brief is premium-consumer (cookware / wellness / artisan / luxury), the palette is NOT the AI-default beige+brass+oxblood+espresso family? Different family from your previous premium-consumer project?
 - [ ] **Italic descender clearance**: every italic word with `y g j p q` has `leading-[1.1]` min + `pb-1` reserve?

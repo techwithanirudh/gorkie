@@ -37,6 +37,7 @@ Declare services (nodes):
 service {serviceId}({icon})[{title}] (in {parentId})?
 ```
 
+<!-- TODO(slopradar): wrong syntax : `redis` here, `browser` (line 61) and `load_balancer`/`api` (lines 143-144) are not default icons (line 92 lists cloud, database, disk, internet, server) and render as broken boxes → use default icons or an `--iconPacks` pack -->
 ```mermaid
 architecture-beta
     service api(server)[API Server]

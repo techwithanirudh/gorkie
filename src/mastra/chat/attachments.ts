@@ -42,6 +42,7 @@ export function attachments(message: Message): Message {
         : undefined;
       const mimeType =
         attachment.mimeType ||
+        // TODO(slopradar): fabricated data : invents `image/png` for an image with no MIME type, so the model is told it can see a file channels may not have inlined → treat a missing mimeType as not inlined, or read the real type channels used
         (attachment.type === 'image' ? 'image/png' : undefined);
       const details = [
         attachmentLabel({ attachment, index }),
@@ -53,6 +54,7 @@ export function attachments(message: Message): Message {
       ].filter(Boolean);
       return `- ${details.join(', ')}`;
     }),
+    // TODO(slopradar): prompt copy outside prompts/ : tool-usage instruction to the model built in chat code → move to `src/mastra/prompts/` beside the get_slack_file guidance
     'Call get_slack_file with a Slack file id to download a file into the workspace, which you only need for an attached file if you want to work on it there.',
   ]
     .filter(Boolean)

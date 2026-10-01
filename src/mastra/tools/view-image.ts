@@ -5,6 +5,7 @@ import { image } from '../config';
 import { requireSandbox } from '../workspace';
 import { confinePath } from '../workspace/filesystem';
 
+// TODO(slopradar): structure : a shared media helper exported from a tool file and imported by slack/get-slack-emoji.ts and generate-image/request.ts → move viewableImageType to src/mastra/lib (e.g. lib/media.ts) so tools import a lib, not each other
 export function viewableImageType(bytes: Uint8Array): string | undefined {
   // Type by the actual bytes, never the extension: a mislabeled file (e.g. a
   // non-image renamed .png) sent as image/png makes the model gateway reject

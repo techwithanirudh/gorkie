@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { rawId } from '../../lib/ids';
 import type { ChannelContext } from '../../types';
 
+// TODO(slopradar): duplicate model : a third Slack file id pattern (see get-slack-file.ts) → derive canvasIdSchema from the single file id pattern in lib/ids.ts
 export const canvasIdSchema = z
   .string()
   .regex(

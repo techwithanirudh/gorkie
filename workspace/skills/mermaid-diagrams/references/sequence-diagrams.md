@@ -25,6 +25,7 @@ sequenceDiagram
 ```
 
 **Difference:**
+<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash (x10 in this file) → colon -->
 - `participant` - System components (services, classes, databases)
 - `actor` - External entities (users, external systems)
 

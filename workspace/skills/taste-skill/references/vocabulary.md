@@ -7,6 +7,7 @@ Part of the `taste-skill` skill. Section numbers match the index in SKILL.md.
 This is a vocabulary, not a library. The agent should KNOW these pattern names to communicate about them, design with them in mind, and reach for them when the design read calls for them.
 
 ### Hero Paradigms
+<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash (x50 in this file) → colon after each name -->
 * **Asymmetric Split Hero** - Text on one side, asset on the other, generous white space.
 * **Editorial Manifesto Hero** - Large type, no asset, almost-poster.
 * **Video / Media Mask Hero** - Type cut out as mask over video background.

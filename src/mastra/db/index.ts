@@ -13,21 +13,27 @@ import { db, postgresStore } from './client';
 import { setMCPOAuthStatus } from './queries/mcp-oauth';
 import { githubCredentials, mcpOAuth, mcpServers } from './schema';
 
-// Legacy rows hold the secret in plaintext and are sealed as they are. A
-// sealed row neither the current nor the previous key opens stays unreadable.
-function resealUnderCurrentKey(
-  stored: string
-): { sealed: string } | { unreadable: true } {
-  const legacyPlaintext = !isEncryptedSecret(stored);
+// `main` stored MCP server tokens in plaintext, so only those are sealed as they
+// are. A row neither the current nor the previous key opens stays unreadable.
+function resealUnderCurrentKey({
+  plaintextAllowed = false,
+  stored,
+}: {
+  plaintextAllowed?: boolean;
+  stored: string;
+}): { sealed: string } | { unreadable: true } {
+  const plaintext = plaintextAllowed && !isEncryptedSecret(stored);
   try {
     return {
-      sealed: encryptSecret(legacyPlaintext ? stored : decryptSecret(stored)),
+      sealed: encryptSecret(plaintext ? stored : decryptSecret(stored)),
     };
   } catch {
     return { unreadable: true };
   }
 }
 
+// TODO(slopradar): long function, wrong home : 115 lines with three copies of select-not-like, reseal, compare-and-set, inside db/index.ts
+// → move to db/reseal.ts and drive the three tables from one list of { table, keys, secret column }.
 async function resealSecrets(): Promise<void> {
   // The prefix carries the key id, so a row sealed under an older key or not
   // sealed at all fails this pattern.
@@ -62,9 +68,9 @@ async function resealSecrets(): Promise<void> {
 
   await Promise.all([
     ...github.map(async (row) => {
-      const token = resealUnderCurrentKey(row.token);
+      const token = resealUnderCurrentKey({ stored: row.token });
       const refreshToken = row.refreshToken
-        ? resealUnderCurrentKey(row.refreshToken)
+        ? resealUnderCurrentKey({ stored: row.refreshToken })
         : { sealed: null };
       if ('unreadable' in token || 'unreadable' in refreshToken) {
         unreadable.push(`github_credentials:${row.userId}`);
@@ -84,7 +90,9 @@ async function resealSecrets(): Promise<void> {
         );
     }),
     ...servers.map(async (row) => {
-      const token = row.token ? resealUnderCurrentKey(row.token) : undefined;
+      const token = row.token
+        ? resealUnderCurrentKey({ plaintextAllowed: true, stored: row.token })
+        : undefined;
       if (!(row.token && token) || 'unreadable' in token) {
         unreadable.push(`mcp_servers:${row.userId}:${row.name}`);
         return;
@@ -101,7 +109,7 @@ async function resealSecrets(): Promise<void> {
         );
     }),
     ...oauth.map(async (row) => {
-      const value = resealUnderCurrentKey(row.value);
+      const value = resealUnderCurrentKey({ stored: row.value });
       if ('unreadable' in value) {
         unreadable.push(`mcp_oauth:${row.userId}:${row.serverName}`);
         signedOut.set(`${row.userId}\n${row.serverName}`, {

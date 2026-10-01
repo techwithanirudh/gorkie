@@ -117,6 +117,7 @@ export const withCredential = async <T>({
 }: {
   operation: () => Promise<T>;
   sandbox: E2BSandbox;
+  // TODO(slopradar): security boundary : optional threadId means the live-job refusal below is silently skipped when it is missing, yet both tools are only registered when a thread exists (github/index.ts `direct && threadId`) → make threadId required and pass it from the tool factory instead of channelContext
   threadId?: string;
   userId: string;
 }): Promise<T> => {
@@ -130,6 +131,7 @@ export const withCredential = async <T>({
       sandbox.retryOnDead(async () => {
         // The github.com rule covers the whole sandbox, so a background job
         // running during the window could push with this token unapproved.
+        // TODO(slopradar): security S3 residual : the check is one-way; startJob (workspace/jobs.ts) never asks whether a window is open, so a run_background called in the same step after this check runs with the token attached → also refuse startJob while credentialWindows has the sandbox, and record the parallel execute_command gap in docs/brokered-git.md
         if (threadId && hasLiveJob(threadId)) {
           throw new Error(
             'A background command is still running in this sandbox, and GitHub credentials cannot be attached while it runs. Wait for it to finish or kill it, then try again.'

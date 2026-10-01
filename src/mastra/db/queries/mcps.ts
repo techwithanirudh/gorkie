@@ -24,6 +24,7 @@ export async function listMCPServers(
     const server = {
       name: row.name,
       permission: toolPermissionSchema.parse(row.permission),
+      threads: row.threads,
       url: row.url,
       lastError: row.lastError ?? undefined,
       credentialError:
@@ -89,6 +90,7 @@ export async function insertMCPServer({
 }): Promise<'ok' | 'limit-reached' | 'name-taken'> {
   const id = rawId(userId);
   return await db.transaction(async (tx) => {
+    // TODO(slopradar): lock key collision : same advisory key as recordTurnWithinLimit (usage.ts:66) → scope the key, see the note there.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${id}))`);
     const existing = await tx
       .select({ name: mcpServers.name })
@@ -104,6 +106,7 @@ export async function insertMCPServer({
     await tx.insert(mcpServers).values({
       name: server.name,
       permission: server.permission,
+      threads: server.threads,
       token,
       url: server.url,
       userId: id,
@@ -126,18 +129,20 @@ export async function removeMCPServer({
     );
 }
 
-export async function setMCPServerPermission({
+export async function setMCPServerAccess({
   name,
   permission,
+  threads,
   userId,
 }: {
   name: string;
   permission: ToolPermission;
+  threads: boolean;
   userId: string;
 }): Promise<void> {
   await db
     .update(mcpServers)
-    .set({ permission })
+    .set({ permission, threads })
     .where(
       and(eq(mcpServers.userId, rawId(userId)), eq(mcpServers.name, name))
     );

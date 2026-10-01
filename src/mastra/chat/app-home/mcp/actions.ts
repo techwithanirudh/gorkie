@@ -6,10 +6,9 @@ import {
   insertMCPServer,
   listMCPServers,
   removeMCPServer,
+  setMCPServerAccess,
   setMCPServerError,
-  setMCPServerPermission,
 } from '../../../db/queries/mcps';
-import { updateUserSettings } from '../../../db/queries/settings';
 import { logger } from '../../../lib/logger';
 import { advertisesOAuth } from '../../../mcp/errors';
 import { revokeMCPOAuth } from '../../../mcp/oauth';
@@ -20,8 +19,9 @@ import { mcpServerSchema, toolPermissionSchema } from '../../../types';
 import { scopeSchema } from '../presets';
 import { publishHome, refreshHome } from '../view';
 import { ids } from './ids';
-import { configureModal } from './views';
+import { configureModal, scopeSelect } from './views';
 
+// TODO(slopradar): long function : ~90 lines mixing validation, GitHub refusal, DB insert and a background probe chain → split out `probeAndPublish({ userId, server })` for the code after the limit checks
 async function addServer({
   userId,
   values,
@@ -33,6 +33,7 @@ async function addServer({
     name: values.name?.trim(),
     url: values.url?.trim(),
     token: values.token?.trim() || undefined,
+    threads: scopeSchema.parse(values.scope) === 'threads',
   });
   if (!parsed.success) {
     const errors: Record<string, string> = {};
@@ -106,6 +107,7 @@ async function addServer({
     })
     .then(probe)
     .then(() => publishHome(userId))
+    // TODO(slopradar): hidden error : a failed probe or second publishHome is logged at debug, so the server shows no error and nobody sees why → log at warn
     .catch((error: unknown) => {
       logger.debug('[mcp] background connection probe failed', {
         error,
@@ -120,6 +122,7 @@ export function registerMCPServers(): void {
 
   bot.onAction(ids.add, async (event) => {
     const servers = await listMCPServers(event.user.userId);
+    // TODO(slopradar): silent no-op : at the limit the Add click does nothing (stale Home tab shows the button) → refreshHome and notify the user, or open the modal and let insertMCPServer's limit-reached error show
     if (servers.length >= mcp.maxServers) {
       return;
     }
@@ -147,6 +150,7 @@ export function registerMCPServers(): void {
             optional: true,
             maxLength: 2000,
           }),
+          scopeSelect(true),
         ],
       })
     );
@@ -164,14 +168,6 @@ export function registerMCPServers(): void {
   });
 
   bot.onAction(ids.connect, () => undefined);
-
-  bot.onAction(ids.threads, async (event) => {
-    await updateUserSettings({
-      set: { mcpThreads: scopeSchema.parse(event.value) === 'threads' },
-      userId: event.user.userId,
-    });
-    await publishHome(event.user.userId);
-  });
 
   bot.onAction(ids.disconnect, async (event) => {
     const name = event.value;
@@ -209,9 +205,10 @@ export function registerMCPServers(): void {
       event.privateMetadata
     ).data;
     if (name) {
-      await setMCPServerPermission({
+      await setMCPServerAccess({
         name,
         permission: toolPermissionSchema.parse(event.values.permission),
+        threads: scopeSchema.parse(event.values.scope) === 'threads',
         userId: event.user.userId,
       });
     }

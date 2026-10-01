@@ -7,12 +7,10 @@ import { isComment } from './message';
 
 export async function withHistory({
   message,
-  sees,
   state,
   thread,
 }: {
   message: Message;
-  sees: ((userId: string) => boolean) | undefined;
   state: ThreadState | null;
   thread: Thread;
 }): Promise<Message> {
@@ -37,11 +35,7 @@ export async function withHistory({
       comments++;
       continue;
     }
-    if (
-      previous.id === message.id ||
-      previous.author.isMe ||
-      (sees && !sees(previous.author.userId))
-    ) {
+    if (previous.id === message.id || previous.author.isMe) {
       continue;
     }
     const mention = thread.mentionUser(previous.author.userId);
@@ -54,6 +48,7 @@ export async function withHistory({
     const files = previous.attachments
       .map((attachment, index) => attachmentLabel({ attachment, index }))
       .join(', ');
+    // TODO(slopradar): nested ternary in template : plural and attachment suffix ternaries nested inside one template literal → build `files` suffix in a named const before the push
     lines.push(
       `[${author} (${mention})${bot}] (msg:${previous.id}): ${text}${count > 0 ? ` [${count} attachment${count === 1 ? '' : 's'}: ${files}]` : ''}`
     );
@@ -70,6 +65,7 @@ export async function withHistory({
   const header: string[] = [];
   if (lines.length > 0) {
     header.push(
+      // TODO(slopradar): prompt copy outside prompts/ : model-facing instructions (x3 in this file, also attachments.ts:57) live in chat code → move the strings to `src/mastra/prompts/` and import them
       '[Recent messages in this thread, oldest first, that you have not seen yet]'
     );
     if (truncated) {
@@ -85,6 +81,7 @@ export async function withHistory({
     );
   }
   const text = [...header, '', message.text].join('\n');
+  // TODO(slopradar): mutated argument : overwrites the caller's Message (attachments.ts:61 does the same) so the `return message` hides a side effect → either name it `prependHistory(message): void` or return a copied Message; share one `setMessageText` with attachments.ts
   message.text = text;
   message.formatted = parseMarkdown(text);
   return message;

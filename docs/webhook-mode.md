@@ -10,7 +10,7 @@ Mode connection and no `SLACK_APP_TOKEN`.
   request with `SLACK_SIGNING_SECRET` (HMAC, 300 second clock skew, so keep NTP
   running on the host) and answers `url_verification` itself.
 - Events and `block_actions` are acknowledged immediately and handled in the
-  background of the long-lived process, exactly as Socket Mode did. Modal
+  background of the long-lived process. Modal
   submissions (`view_submission`) are awaited, so their handlers must finish
   within Slack's 3 seconds.
 - Slack retries a delivery it did not get a 200 for. The adapter's in-process
@@ -141,8 +141,7 @@ dev hostname removes that step.
 ## Risks
 
 - If most deliveries fail for a long stretch, Slack disables Event
-  Subscriptions and they must be re-enabled by hand. Socket Mode had no
-  equivalent.
+  Subscriptions and they must be re-enabled by hand.
 - Duplicate markers live in memory. A delivery that timed out, was dispatched,
   and whose retry arrives after a restart can produce a second reply.
 - The host clock must stay within 300 seconds of Slack's, or every request

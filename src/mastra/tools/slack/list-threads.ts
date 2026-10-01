@@ -49,6 +49,7 @@ export const listThreadsTool = createTool({
     }
 
     const chId = chatChannelId(id);
+    // TODO(slopradar): duplication across files : the same chatChannelId, assertReadableChannel, joinChannel gate as read-conversation-history.ts → use the shared openReadableChannel helper proposed there; also rename `chId`
     await assertReadableChannel({
       channelId: chId,
       currentThreadId: ctx.threadId,

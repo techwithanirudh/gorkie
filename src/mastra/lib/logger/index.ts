@@ -2,6 +2,7 @@ import { PinoLogger } from '@mastra/loggers';
 import { env } from '@/env';
 
 export const logger = new PinoLogger({
+  // TODO(slopradar): naming : the app-wide logger (db, server, chat, lib all log through it) is named after one agent → name it 'gorkie'.
   name: 'orchestrator',
   level: env.LOG_LEVEL,
   redact: {
@@ -35,6 +36,7 @@ export const logger = new PinoLogger({
   },
 });
 
+// TODO(slopradar): duplication : the same isRecord guard is copied in chat/tool-display.ts:6 → keep one shared guard (or parse with z.record(z.string(), z.unknown())).
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

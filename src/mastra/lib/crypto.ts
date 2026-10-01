@@ -31,7 +31,7 @@ const previous = env.CREDENTIALS_KEY_PREVIOUS
 export const currentSecretPrefix = `v2.${current.id}.`;
 
 export function isEncryptedSecret(stored: string): boolean {
-  return stored.startsWith('v1.') || stored.startsWith('v2.');
+  return stored.startsWith('v2.');
 }
 
 export function encryptSecret(plaintext: string): string {
@@ -63,27 +63,16 @@ function unseal({ body, key }: { body: string; key: Buffer }): string {
 
 export function decryptSecret(stored: string): string {
   const versioned = /^v2\.([0-9a-f]{8})\.(.*)$/s.exec(stored);
-  if (versioned) {
-    const key = [current, previous].find(
-      (candidate) => candidate?.id === versioned[1]
-    );
-    if (!key) {
-      throw new Error('Stored secret was sealed with a key that is not set.');
-    }
-    return unseal({ body: versioned[2] ?? '', key: key.key });
-  }
-  if (!stored.startsWith('v1.')) {
+  if (!versioned) {
     throw new Error('Stored secret is not encrypted.');
   }
-  const body = stored.slice('v1.'.length);
-  try {
-    return unseal({ body, key: current.key });
-  } catch (error) {
-    if (!previous) {
-      throw error;
-    }
-    return unseal({ body, key: previous.key });
+  const key = [current, previous].find(
+    (candidate) => candidate?.id === versioned[1]
+  );
+  if (!key) {
+    throw new Error('Stored secret was sealed with a key that is not set.');
   }
+  return unseal({ body: versioned[2] ?? '', key: key.key });
 }
 
 // Factory's signer expires a state after 10 minutes.

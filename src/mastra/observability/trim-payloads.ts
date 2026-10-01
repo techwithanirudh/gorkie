@@ -5,9 +5,16 @@ import type { AnySpan, SpanOutputProcessor } from '@mastra/core/observability';
 function trim({ value, depth }: { value: unknown; depth: number }): unknown {
   if (typeof value === 'string') {
     const looksEncoded = value.length > 20_000 && !/\s/.test(value);
-    return looksEncoded
-      ? `${value.slice(0, 200)}… [truncated, ${value.length} characters total]`
-      : value;
+    if (!looksEncoded) {
+      return value;
+    }
+    // Langfuse decodes any `data:...;base64,` run it finds, and a data URI cut
+    // mid-payload fails to decode and logs an error per span, so keep only its
+    // header.
+    const head = value.startsWith('data:')
+      ? value.slice(0, value.indexOf(',') + 1)
+      : value.slice(0, 200);
+    return `${head}… [truncated, ${value.length} characters total]`;
   }
   if (value === null || typeof value !== 'object' || depth >= 8) {
     return value;

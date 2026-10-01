@@ -37,6 +37,7 @@ export const mcpServers = pgTable(
     url: text('url').notNull(),
     token: text('token'),
     permission: text('permission').$type<ToolPermission>(),
+    threads: boolean('threads').notNull().default(true),
     lastError: text('last_error'),
     lastErrorHttpStatus: integer('last_error_http_status'),
     oauthStatus: text('oauth_status').$type<MCPOAuthStatus>(),
@@ -76,7 +77,6 @@ export const userSettings = pgTable('user_settings', {
   instructions: text('instructions'),
   githubPermission: text('github_permission').$type<GitHubPermission>(),
   githubThreads: boolean('github_threads'),
-  mcpThreads: boolean('mcp_threads'),
   toolDisplay: text('tool_display').$type<ToolDisplayMode>(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()

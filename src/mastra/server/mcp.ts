@@ -9,6 +9,7 @@ import { dropClient } from '../mcp/user-servers/client';
 import type { OAuthProviderHandler, OAuthToken } from '../types';
 
 async function ownedServer(token: OAuthToken) {
+  // TODO(slopradar): over-fetch : loads and decrypts every server of the user to pick one → a getMCPServer({ name, userId }) query in db/queries/mcps.ts.
   const server = (await listMCPServers(token.slackUserId)).find(
     (entry) => entry.name === token.target
   );
@@ -64,10 +65,9 @@ export const mcpOAuth: OAuthProviderHandler = {
     if (query.error || !query.code) {
       return {
         page: {
-          title: 'Server not connected',
-          paragraphs: [
-            `${server.name} did not grant access. Nothing was changed.`,
-          ],
+          tone: 'error',
+          title: `${server.name} not connected`,
+          text: `${server.name} did not grant access, so nothing changed.`,
         },
       };
     }
@@ -90,6 +90,7 @@ export const mcpOAuth: OAuthProviderHandler = {
       userId: token.slackUserId,
     });
     await dropClient(token.slackUserId);
+    // TODO(slopradar): duplication : same catch-and-log as server/github.ts:54 → refreshHome(token.slackUserId).
     await publishHome(token.slackUserId).catch((error: unknown) =>
       logger.warn('[mcp] could not refresh the Home tab', {
         error,
@@ -98,10 +99,9 @@ export const mcpOAuth: OAuthProviderHandler = {
     );
     return {
       page: {
+        tone: 'success',
         title: `${server.name} connected`,
-        paragraphs: [
-          `Gorkie can now use ${server.name} for you. You can close this tab and go back to Slack.`,
-        ],
+        text: `Connected to ${server.name}. You can close this tab and go back to Slack.`,
       },
     };
   },

@@ -1,3 +1,4 @@
+// TODO(slopradar): misplaced script : a standalone bun script under src/mastra that imports env (so it needs every bot secret to build a template) → move to scripts/ and read only E2B_API_KEY and PROJECT_ROOT
 import { defaultBuildLogger, Template } from 'e2b';
 import { env } from '@/env';
 import { sandbox as config } from '../config';
@@ -49,6 +50,7 @@ async function main(): Promise<void> {
         'npm config --global set prefix /usr/local',
         'python3 -m pip install --no-cache-dir --break-system-packages --no-user --upgrade pip',
         'python3 -m pip install --no-cache-dir --break-system-packages --no-user pillow matplotlib numpy pandas requests agentmail gTTS SpeechRecognition pydub',
+        // TODO(slopradar): unpinned supply chain : agent-browser, wrangler and the nodesource setup script float to latest on every template build while cloakbrowser is pinned → pin exact versions (agent-browser@x.y.z wrangler@x.y.z) like cloakbrowser==0.5.10
         'npm install -g agent-browser wrangler',
         'bash -lc "yes | agent-browser install --with-deps"',
         'python3 -m pip install --no-cache-dir --break-system-packages --no-user cloakbrowser==0.5.10',

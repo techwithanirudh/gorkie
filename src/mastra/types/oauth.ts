@@ -7,16 +7,20 @@ export type OAuthProvider = z.infer<typeof oauthProviderSchema>;
 export const oauthTokenSchema = z.object({
   nonce: z.string().min(1),
   provider: oauthProviderSchema,
-  purpose: z.enum(['start', 'state']),
+  purpose: z.enum(['install', 'start', 'state']),
   slackUserId: z.string().min(1),
   target: z.string().min(1).optional(),
 });
 
 export type OAuthToken = z.infer<typeof oauthTokenSchema>;
 
-type OAuthOutcome =
-  | { redirect: string }
-  | { page: { paragraphs: string[]; title: string } };
+export interface OAuthPageContent {
+  text: string;
+  title: string;
+  tone: 'connect' | 'error' | 'expired' | 'success';
+}
+
+type OAuthOutcome = { redirect: string } | { page: OAuthPageContent };
 
 export interface OAuthProviderHandler {
   authorizeUrl: (options: {

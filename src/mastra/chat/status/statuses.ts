@@ -52,6 +52,7 @@ function fixed(text: string) {
   return () => text;
 }
 
+// TODO(slopradar): magic strings : ~50 tool names typed as plain `string`, so a renamed tool silently loses its status → key the map by the toolset's tool-name union (`satisfies Partial<Record<ToolName, ...>>`)
 const statuses: Record<string, (args: Args) => string> = {
   call_slack_api: withArg({
     key: 'method',
@@ -108,7 +109,6 @@ const statuses: Record<string, (args: Args) => string> = {
     suffix: '…',
     display: basename,
   }),
-  focus: fixed('is changing who it listens to…'),
   generate_image: withArg({
     key: 'prompt',
     idle: 'is generating an image…',

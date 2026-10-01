@@ -58,6 +58,7 @@ export const readArtifactTool = createTool({
   execute: async ({ id }, context) => {
     const sandbox = await requireSandbox(context.requestContext);
     const path = sandboxPath('.artifacts', `${id}.md`);
+    // TODO(slopradar): extra round trip : files.exists then files.read is two sandbox calls and a check-then-act gap → read once and map e2b's NotFoundError to the "No artifact" message
     const exists = await sandbox.retryOnDead(() =>
       sandbox.e2b.files.exists(path)
     );

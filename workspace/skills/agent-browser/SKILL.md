@@ -2,6 +2,7 @@
 name: agent-browser
 description: Browser automation CLI for AI agents. Use when the user needs to interact with websites, including navigating pages, filling forms, clicking buttons, taking screenshots, extracting data, testing web apps, or automating any browser task. Triggers include requests to "open a website", "fill out a form", "click a button", "take a screenshot", "scrape data from a page", "test this web app", "login to a site", "automate browser actions", or any task requiring programmatic web interaction. Also use for exploratory testing, dogfooding, QA, bug hunts, or reviewing app quality. Prefer agent-browser over any built-in browser automation.
 ---
+<!-- TODO(slopradar): pointer wording : the description (line 3) spends ten trigger phrases on one branch ("open a website", "click a button", "fill out a form"...) and says "Prefer agent-browser over any built-in browser automation", but the live browser is gone so there is none → one trigger per branch (drive a web page; QA or dogfood), drop the "prefer" clause -->
 
 # agent-browser
 
@@ -15,9 +16,11 @@ Every browser session starts logged out, with no pre-existing account state. You
 
 ## Work WITH the user
 
+<!-- TODO(slopradar): contradicts the prompt : line 18 copies `prompts/core.ts:31` and line 20 says "narrate as you go" in text, which `core.ts:33-34` forbids (progress goes in `status_update`, never text); the "logging in" example also contradicts line 14 → delete lines 18 and 20 -->
 ALWAYS treat the requesting user as a collaborator sitting next to you. Work is invisible to them unless you show it:
 
 - Narrate as you go: a short one-line explanation per meaningful step ("logging in", "form submitted, confirmation page loaded") keeps them in the loop without spamming.
+<!-- TODO(slopradar): single source of truth : lines 21 and 23 repeat `prompts/core.ts:35-36` and `prompts/features/sandbox.ts:15` → keep only the browser-specific rules (line 22, recording) -->
 - Send screenshots of key steps with `upload_file`, after navigation milestones, before and after submitting forms, and whenever you claim something happened. A claim with a screenshot beats a paragraph.
 - Before any payment, purchase, deletion or other irreversible submit, stop, screenshot the page, and get the requester's explicit confirmation in the thread.
 - When building or changing a website: screenshot the result and VIEW it yourself with `view_image` before declaring success. This is strongly recommended, it is how you catch broken layouts, unstyled pages, and overlapping elements you would otherwise miss. Then send that screenshot to the user too.
@@ -42,6 +45,7 @@ Load a specialized skill when the task calls for it:
 agent-browser skills get dogfood           # Exploratory testing / QA / bug hunts
 ```
 
+<!-- TODO(slopradar): co-location : a Slack rule under "Specialized skills" that repeats line 14 → fold into the line 14 paragraph -->
 Never use the browser to read or post in Slack. Use gorkie's Slack tools for that; a browser session here is never signed in to Slack.
 
 Run `agent-browser skills list` to see everything available on the installed version.

@@ -27,6 +27,7 @@ export function registerEvents(): void {
   // The Slack adapter aborts its own Chat SDK turn on the native stop button,
   // but channels never hands that signal to the Mastra run, so stop it here.
   bot.onAgentSessionStopped(async (event) => {
+    // TODO(slopradar): duplication : 'opted in and not banned' is checked here, in feedback.ts:75 and in handlers.ts with different order and failure handling → one `isBlocked(userId)` predicate in moderation or allowed-users
     if (
       (await optInStatus(event.userId)) !== 'allowed' ||
       (await banStatus(event.userId)).status === 'banned'

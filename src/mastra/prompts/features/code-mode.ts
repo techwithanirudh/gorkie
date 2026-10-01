@@ -7,6 +7,7 @@ export function codeModePrompt({
   instructions: string;
   files: boolean;
 }): string {
+  // TODO(slopradar): magic strings : line 24 hand-lists the eight external_* functions that workspace/tool-names.ts `codeModeToolNames` already defines, so the prompt drifts when that set changes → interpolate `[...codeModeToolNames].map((name) => `external_${name}`).join(', ')`
   return `\
 <code-mode>
 Slack code mode is for several Slack reads, paging, filtering, joining, deduplication, sorting, counting, aggregation, and MCP tool calls that benefit from code-side orchestration. Use direct tools for single lookups. Only the external_* functions declared below can reach your tools. Return final results, not intermediate pages.

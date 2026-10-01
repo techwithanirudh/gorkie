@@ -18,6 +18,7 @@ const userProfileSchema = z.object({
 
 type UserProfile = z.infer<typeof userProfileSchema>;
 
+// TODO(slopradar): unclear file name : file is `names.ts` but holds only resolveUserProfile → rename the file `user-profile.ts`
 export async function resolveUserProfile(
   id: string
 ): Promise<UserProfile | undefined> {
@@ -45,6 +46,7 @@ export async function resolveUserProfile(
       return;
     }
     profile = {
+      // TODO(slopradar): duplicate of library : re-derives the display_name/real_name precedence the Slack adapter's lookupUser already computes and caches → take displayName/realName from `bot.getUser(userId)` and call users.info only for tz fields
       displayName:
         info?.profile?.display_name ||
         info?.profile?.real_name ||

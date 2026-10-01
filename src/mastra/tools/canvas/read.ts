@@ -38,6 +38,7 @@ export const readCanvasTool = createTool({
         `Could not resolve a content URL for canvas ${canvasId}. It may have been deleted, or the bot may not have access to it.`
       );
     }
+    // TODO(slopradar): unbounded IO : no signal, so a stop or abort does not cancel the download (get-slack-file.ts passes one) → fetchPrivateSlackFile({ url, signal: context.abortSignal })
     const response = await fetchPrivateSlackFile({ url });
     const html = await response.text();
     const truncated = html.length > canvasConfig.maxReadChars;

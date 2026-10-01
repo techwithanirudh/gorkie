@@ -6,12 +6,7 @@ import { isComment } from '../../chat/message';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
-import {
-  assertReadableChannel,
-  focusedMessages,
-  joinChannel,
-  slackThreadId,
-} from './utils';
+import { assertReadableChannel, joinChannel, slackThreadId } from './utils';
 
 export const summarizeThreadTool = createTool({
   id: 'summarize_thread',
@@ -54,17 +49,12 @@ export const summarizeThreadTool = createTool({
 
     spendSlackCall(context.requestContext);
 
+    // TODO(slopradar): tunable inline : 100 is also hard-coded in the description ("up to 100 messages") and can drift → config.slack.summarizeMaxMessages, interpolated into both
     const result = await slack.fetchMessages(target, {
       limit: 100,
       direction: 'backward',
     });
-    const messages = (
-      await focusedMessages({
-        currentThreadId: ctx.threadId,
-        messages: result.messages,
-        threadId: target,
-      })
-    ).filter((message) => !isComment(message));
+    const messages = result.messages.filter((message) => !isComment(message));
     if (messages.length === 0) {
       throw new Error('No messages found in the thread.');
     }

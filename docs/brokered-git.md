@@ -16,7 +16,8 @@ at commit `0d630a2`.
 GitHub tools act as the person who connected the account. They work in a DM
 with that person. In a shared thread they work only if that person enabled
 shared threads in App Home, and approvals follow their App Home approval
-setting in every thread, "never ask" included.
+setting either way, except that in a shared thread "never ask" falls back to
+asking before writing and `github_checkout` asks before any private clone.
 
 ## Code
 
@@ -28,6 +29,7 @@ All paths are under `src/mastra/`.
 | `tools/github/checkout.ts` | `github_checkout`: clones or fetches, then checks out a branch |
 | `tools/github/push.ts` | `github_push_branch`: pushes one local branch |
 | `tools/github/index.ts` | Builds the GitHub toolset per request and sets each tool's approval |
+<!-- TODO(slopradar): stale doc : the row names only `asksBefore()`, but the shared-thread clamp described at line 19 is `levelOutsideDM()` in the same file, applied in `lib/github/access.ts` → list `levelOutsideDM()` and `lib/github/access.ts` -->
 | `lib/approval.ts` | `asksBefore()`: maps the person's approval level and a tool's kind to "ask first" |
 | `lib/github/api.ts` | `repoAccess()`: reads whether a repository is private and whether the person can push |
 | `workspace/network.ts` | `baseRules()`: the sandbox's rules with no GitHub credential, restored when a window closes |
@@ -59,10 +61,11 @@ checkout tool only fetches; gorkie has no bootstrap step, so `github_checkout`
 clones or fetches and is safe to re-run. eve serves one repository from one
 directory; gorkie derives a directory per repository.
 
+<!-- TODO(slopradar): finished history as live doc : a dated test log against template 2.0 that was never re-run on 2.2 → move the log to IMPLEMENTED.md (or re-run it), keep only the two lasting gotchas (Basic, not Bearer; no CA config) -->
 ## Verified
 
-Against `gorkie-workspace:2.0` and a real private repository. The template is
-now `2.2`; these checks have not been re-run on it:
+Against `gorkie-workspace:2.0` and a real private repository, not yet re-run
+on the current template (`2.2`):
 
 - A clone with no `github.com` rule fails (`could not read Username`); with the
   rule it succeeds.

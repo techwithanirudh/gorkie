@@ -10,7 +10,8 @@ const markers = [
   'channelRequesterId',
   'advanceFallbackModel',
   'droppedTaskIds',
-  'shown?.summary',
+  'groupedTask && !planTitleRef.current',
+  'rendersToolsInPlan || toolDisplayFn',
   'stepIsContinued',
 ];
 
@@ -38,6 +39,7 @@ const missing = [
         .map((contract) => `${file}: stock contract ${contract}`),
     ];
   }),
+  // TODO(slopradar): inconsistent error handling : the Mastra bundles get an existsSync check and a readable message, but a missing slack dist throws a raw ENOENT stack → check existsSync(slackDist) and push a "not found" line like the bundles do
   ...(readFileSync(slackDist, 'utf8').includes('STREAM_GONE_ERROR')
     ? []
     : ['@chat-adapter/slack index.js: STREAM_GONE_ERROR']),

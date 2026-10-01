@@ -55,6 +55,7 @@ export const createScheduledTaskTool = createTool({
       .optional()
       .describe('IANA timezone, such as America/New_York.'),
   }),
+  // TODO(slopradar): untyped output : schedule is z.unknown() here, in list.ts and manage.ts (x3), so the model gets the raw row (prompt, wake options, requestContext) and no display summary → a small schema of the fields the model needs (id, name, cron, timezone, status, nextFireAt) plus transform.display
   outputSchema: z.strictObject({ schedule: z.unknown() }),
   execute: async ({ task, cron, name, timezone }, context) => {
     const { resourceId, service } = ownSchedules(context);
@@ -64,6 +65,7 @@ export const createScheduledTaskTool = createTool({
     }
 
     assertMinimumInterval({ cron, timezone });
+    // TODO(slopradar): misleading name, non-atomic cap : `active` also counts paused schedules, and list-then-create lets parallel calls in one step pass the cap together → rename to `existing`; serialize per resourceId (or accept and say so)
     const active = (
       await service.list({ agentId: agentConfig.id, resourceId })
     ).filter(isScheduledTask);

@@ -2,17 +2,20 @@
 name: mermaid-diagrams
 description: Comprehensive guide for creating software diagrams using Mermaid syntax. Use when users need to create, visualize, or document software through diagrams including class diagrams (domain modeling, object-oriented design), sequence diagrams (application flows, API interactions, code execution), flowcharts (processes, algorithms, user journeys), entity relationship diagrams (database schemas), C4 architecture diagrams (system context, containers, components), state diagrams, git graphs, pie charts, gantt charts, or any other diagram type. Triggers include requests to "diagram", "visualize", "model", "map out", "show the flow", or when explaining system architecture, database design, code structure, or user/application flows.
 ---
+<!-- TODO(slopradar): pointer wording : the description (line 3) opens with "Comprehensive guide" and lists about 15 triggers including "model", "map out" and "any other diagram type", so it fires on ordinary explanations → one trigger per branch: a diagram as an image -->
 
 # Mermaid Diagramming
 
 Slack does not render Mermaid code blocks, so a diagram only reaches the user as an image. Write the source to a `.mmd` file in the sandbox, render it, look at it, and upload it:
 
+<!-- TODO(slopradar): sandbox fit : the `npx -y @mermaid-js/mermaid-cli` call below; mermaid-cli is not in the template (`build-template.ts:52` installs only agent-browser and wrangler) and `npx` pulls puppeteer plus its own Chromium on every new sandbox → preinstall it in the template, or point `PUPPETEER_EXECUTABLE_PATH` at the browser already installed -->
 ```bash
 npx -y @mermaid-js/mermaid-cli -i diagram.mmd -o diagram.png -s 2
 ```
 
 Check the PNG with `view_image`, then send it with `upload_file`. If rendering fails, post the Mermaid source in a code block and say it renders at https://mermaid.live or in a GitHub Markdown file.
 
+<!-- TODO(slopradar): no-op : puffery ("professional", "version-controllable, easy to update, and maintainable") → delete the paragraph -->
 Create professional software diagrams using Mermaid's text-based syntax. Mermaid renders diagrams from simple text definitions, making diagrams version-controllable, easy to update, and maintainable alongside code.
 
 ## Core Syntax Structure
@@ -34,6 +37,7 @@ diagramType
 
 **Choose the right diagram type:**
 
+<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash (x34 in this file) → colon -->
 1. **Class Diagrams** - Domain modeling, OOP design, entity relationships
    - Domain-driven design documentation
    - Object-oriented class structures
@@ -141,6 +145,7 @@ erDiagram
     }
 ```
 
+<!-- TODO(slopradar): sprawl : about 2,900 lines of copied upstream Mermaid docs and generic examples (e-commerce, blog, social schemas) the agent can fetch from mermaid.js.org, several with wrong syntax (see annotations in references/) → keep a short gotchas file and link the docs -->
 ## Detailed References
 
 For in-depth guidance on specific diagram types, see:
@@ -153,6 +158,7 @@ For in-depth guidance on specific diagram types, see:
 - **[references/architecture-diagrams.md](references/architecture-diagrams.md)** - Cloud services, infrastructure, CI/CD deployments
 - **[references/advanced-features.md](references/advanced-features.md)** - Themes, styling, configuration, layout options
 
+<!-- TODO(slopradar): no-op : "Comment Extensively", "Version Control: store .mmd files alongside code" and the Exporting section (line 191, GitHub/Notion rendering) do not apply to a PNG posted in Slack → delete -->
 ## Best Practices
 
 1. **Start Simple** - Begin with core entities/components, add details incrementally
@@ -202,6 +208,7 @@ flowchart LR
 - **Overcomplexity** - Split complex diagrams into multiple focused views
 - **Missing relationships** - Document all important connections between entities
 
+<!-- TODO(slopradar): over-trigger : "Always diagram when starting new projects... onboarding new team members" pushes unrequested diagrams into replies → delete the section -->
 ## When to Create Diagrams
 
 **Always diagram when:**

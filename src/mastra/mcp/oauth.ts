@@ -105,6 +105,7 @@ export class MCPServerOAuth extends MCPOAuthClientProvider {
   }
 
   override async invalidateCredentials(
+    // TODO(slopradar): duplicate type : the scope union re-declares the SDK's own parameter type → use Parameters<OAuthClientProvider['invalidateCredentials']>[0]
     scope: 'all' | 'client' | 'discovery' | 'tokens' | 'verifier'
   ): Promise<void> {
     if (scope === 'all' || scope === 'discovery') {

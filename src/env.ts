@@ -30,6 +30,7 @@ export const env = createEnv({
     SLACK_BOT_TOKEN: z.string().min(1),
     SLACK_SIGNING_SECRET: z.string().min(1),
     SLACK_USER_TOKEN: z.string().min(1),
+    // TODO(slopradar): validate at boundaries : OPT_IN_CHANNEL takes any string while LOGS_CHANNEL below checks the channel-id shape inline → add `slackChannelIdSchema` beside slackUserIdSchema in types/user.ts and use it for both
     OPT_IN_CHANNEL: z.string().optional(),
     LOGS_CHANNEL: z
       .string()
@@ -79,6 +80,7 @@ export const env = createEnv({
   emptyStringAsUndefined: true,
 });
 
+// TODO(slopradar): library over hand-rolled : cross-field production rules are checked after createEnv with plain throws, outside the schema and its error formatting → express them in env-core's `createFinalSchema` (available in the installed 0.13.11) with a superRefine
 if (env.NODE_ENV === 'production') {
   if (!env.GORKIE_API_TOKEN) {
     throw new Error('GORKIE_API_TOKEN is required in production.');

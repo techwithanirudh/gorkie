@@ -3,13 +3,13 @@ import { canvasTools } from './canvas';
 import { codeMode } from './code-mode/slack';
 import { submitFeedbackTool } from './feedback';
 import { fetchUrlTool } from './fetch-url';
-import { focusTool } from './focus';
 import { generateImageTool } from './generate-image';
 import { runBackgroundTool } from './run-background';
 import { scheduledTaskTools } from './scheduled-tasks';
 import { searchWebTool } from './search-web';
 import { skipTool } from './skip';
 import { slackTools } from './slack';
+import { statusUpdateTool } from './status-update';
 import { uploadEmojiTool } from './upload-emoji';
 import { viewImageTool } from './view-image';
 import { waitTool } from './wait';
@@ -33,6 +33,7 @@ export async function orchestratorTools() {
     post_message: slackTools.post_message,
     run_background: runBackgroundTool,
     read_artifact: readArtifactTool,
+    status_update: statusUpdateTool,
     skip: skipTool,
     wait: waitTool,
   };
@@ -48,6 +49,5 @@ export const deferredTools = {
   call_slack_api: slackTools.call_slack_api,
   upload_emoji: uploadEmojiTool,
   submit_feedback: submitFeedbackTool,
-  focus: focusTool,
   ...canvasTools,
 };

@@ -5,10 +5,12 @@ description: Cloudflare Workers CLI for deploying and developing Workers and the
 
 # Wrangler CLI
 
+<!-- TODO(slopradar): single source of truth : "retrieval first" is said five times (here, line 30, line 75, `operations.md:3`, `config-and-bindings.md:7`) → keep the Retrieval Sources table, drop the rest -->
 Your knowledge of Wrangler flags and config may be outdated. **Prefer retrieval over pre-training** for any Wrangler task.
 
 ## No Auth
 
+<!-- TODO(slopradar): duplication : line 12 already gives `wrangler deploy --temporary`, then line 14 opens with "Instead use" for the same thing → merge into one paragraph -->
 gorkie has **no Cloudflare account and cannot log in**. Never run `wrangler login` or `wrangler whoami`: they will hang waiting for a browser. For static sites, serve them as a Worker with static assets instead (see [config-and-bindings.md](references/config-and-bindings.md)) and deploy with `wrangler deploy --temporary`.
 
 Instead use **Temporary Accounts for Agents** (`--temporary`), which only works with `wrangler deploy`:
@@ -33,6 +35,7 @@ Fetch the **latest** information before writing or reviewing Wrangler commands a
 |--------|----------------|---------|
 | Wrangler docs | `https://developers.cloudflare.com/workers/wrangler/` | CLI commands, flags, config reference |
 | Wrangler config schema | `/usr/local/lib/node_modules/wrangler/config-schema.json` (wrangler is installed globally) | Config fields, binding shapes, allowed values |
+<!-- TODO(slopradar): unclear name : "Search tool" → name `search_web` / `fetch_url` -->
 | Cloudflare docs | Search tool or `https://developers.cloudflare.com/workers/` | API reference, compatibility dates/flags |
 
 ## Quick Start: New Worker
@@ -79,6 +82,7 @@ For anything past a basic deploy, load the detail files (retrieval-first, confir
 
 ## Best Practices
 
+<!-- TODO(slopradar): no-op : with no account there is no API token, so raw API calls cannot happen → delete the item -->
 1. **Use Wrangler over raw API calls**: it is preinstalled globally (`wrangler --version`, v4.x+); prefer it to hand-built requests.
 2. **Prefer `wrangler.jsonc`** over TOML: newer features are JSON-only.
 3. **Set a recent `compatibility_date`**. Check https://developers.cloudflare.com/workers/configuration/compatibility-dates/

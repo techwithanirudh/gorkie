@@ -61,6 +61,7 @@ export const orchestrator = new Agent({
   instructions: ({ requestContext }) => instructions(requestContext),
   model: models.orchestrator,
   ...agentDefaults,
+  // TODO(slopradar): no large inline closures : defaultOptions (about 40 lines with nested delegation, stopWhen, onAbort) and the async tools resolver below (about 25 lines) sit inline in the Agent literal → move each to a named module-scope function with explicit parameter types
   defaultOptions: ({ requestContext }) => ({
     ...runDefaults(config.maxTokens.output),
     delegation: {
@@ -92,11 +93,7 @@ export const orchestrator = new Agent({
         return;
       }
       try {
-        await Chat.getSingleton()
-          .thread(threadId)
-          .post(
-            '_that turn stopped before I finished. ask again to pick it back up._'
-          );
+        await Chat.getSingleton().thread(threadId).post('_stopped_');
       } catch (error) {
         logger.debug('[orchestrator] failed to post abort notice', { error });
       }

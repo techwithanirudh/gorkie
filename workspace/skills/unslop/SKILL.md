@@ -2,6 +2,7 @@
 name: unslop
 description: Cut AI tells from writing. Use when polishing prose for a human, such as a write-up, announcement, email, doc, or page copy, or when someone asks to make text sound less like AI.
 ---
+<!-- TODO(slopradar): duplication : the body is byte for byte `.agents/skills/unslop/SKILL.md` (only the description differs), so the two copies will drift → keep this runtime copy and symlink the dev one to it -->
 
 # Unslop
 

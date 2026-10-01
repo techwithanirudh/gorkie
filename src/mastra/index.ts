@@ -52,6 +52,7 @@ const isProduction = env.NODE_ENV === 'production';
 
 // DuckDB is single-writer: a second process holding the file lock must not
 // take the bot down with it, it just runs without local traces.
+// TODO(slopradar): index.ts owns everything : the local trace store open, init, prune and interval (lines 56 to 86) is observability wiring inside the entry file → move it to observability/trace-store.ts exporting `traceStore`
 const traceStore = isProduction
   ? undefined
   : await new DuckDBStore({
@@ -80,6 +81,7 @@ if (traceStore) {
         logger.warn('[observability] pruning old traces failed', { error });
       });
   prune();
+  // TODO(slopradar): deployment values in config.ts : the daily prune interval here and the hourly backgroundTasks cleanupIntervalMs (line 179) are inline magic numbers → add `observability.pruneIntervalMs` and a `backgroundTasks.cleanupIntervalMs` to config.ts
   setInterval(prune, 24 * 60 * 60 * 1000).unref();
 }
 
@@ -88,6 +90,7 @@ if (traceStore) {
 // migration is renaming.
 await runMigrations();
 
+// TODO(slopradar): index.ts owns everything : deleteFiredWait and gateScheduledFire (ban check, turn claim, creator parsing with an inline z.object built per fire) are schedule policy, not boot → move them to tools/scheduled-tasks/hooks.ts next to isWaitSchedule and hoist the creator schema
 async function deleteFiredWait({
   mastra: runtime,
   schedule,

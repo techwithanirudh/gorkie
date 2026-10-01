@@ -87,6 +87,7 @@ export async function publishHome(userId: string): Promise<void> {
     settled({
       label: 'installations',
       userId,
+      // TODO(slopradar): feature logic in shared module : GitHub token refresh, installation count and 401 recording live inline in the generic Home assembler → move to `app-home/github/` as `githubInstallations(userId, credential)`
       work: credentialResult.then(async ({ credential }) => {
         const token =
           credential && !credential.lastError
@@ -134,7 +135,6 @@ export async function publishHome(userId: string): Promise<void> {
     }),
     mcpServersBlocks({
       servers: mcpServers ?? [],
-      threads: settings?.mcpThreads === true,
       userId,
     }),
     ...(scheduled ? [scheduled] : []),

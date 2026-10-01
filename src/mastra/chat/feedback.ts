@@ -16,9 +16,9 @@ export const feedbackIds = {
 const directionSchema = z.enum(['up', 'down']);
 
 const metadataSchema = z.object({
-  messageId: z.string().optional(),
+  messageId: z.string(),
   threadId: z.string(),
-  traceId: z.string().optional(),
+  traceId: z.string().min(1),
 });
 
 export function feedbackBlock(traceId: string): Record<string, unknown> {
@@ -64,20 +64,11 @@ async function recordFeedback({
 export async function onFeedbackClick(event: ActionEvent): Promise<void> {
   const [prefix, traceId] = (event.value ?? '').split(':');
   const direction = directionSchema.safeParse(prefix).data;
-  if (!direction) {
-    logger.warn('[feedback] click carried no rating', {
+  if (!(direction && traceId)) {
+    logger.warn('[feedback] click carried no rating or trace', {
+      // TODO(slopradar): secret in logs : the raw block_actions payload carries `response_url` (a 30-minute post credential) and `trigger_id` → log `actionId`, `value` and `userId` only
       raw: event.raw,
       value: event.value,
-    });
-    return;
-  }
-
-  if (!traceId) {
-    logger.warn('[feedback] rating has no trace to attach to', {
-      direction,
-      messageId: event.messageId,
-      threadId: event.threadId,
-      userId: event.user.userId,
     });
     return;
   }

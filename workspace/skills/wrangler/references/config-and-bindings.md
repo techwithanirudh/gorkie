@@ -10,6 +10,8 @@ using.
 
 ### Full Config with Bindings
 
+<!-- TODO(slopradar): wrong path : wrangler is global, so `./node_modules/wrangler/...` in this block (line 15) and line 84 does not exist → use `/usr/local/lib/node_modules/wrangler/config-schema.json` as SKILL.md:45 does -->
+<!-- TODO(slopradar): contradicts SKILL.md:85 : it says omit resource ids and let the deploy create them, this block hardcodes them (lines 28, 33, 38) → drop the `id` fields -->
 ```jsonc
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
@@ -97,6 +99,7 @@ sites (HTML/CSS/JS, no server framework) as a Worker instead, then deploy with
 
 ## KV (Key-Value Store)
 
+<!-- TODO(slopradar): unreachable without an account : `kv namespace create`, `d1 create/execute --remote`, `hyperdrive create`, `queues create` all need a logged-in account; `--temporary` only applies to `wrangler deploy` (SKILL.md:14) and login is banned, so these hang on the browser login → delete the management sections, keep config bindings that deploy provisions -->
 ### Manage Namespaces
 
 ```bash
@@ -223,6 +226,7 @@ wrangler d1 export my-database --remote --output schema.sql --no-data
 
 ## Hyperdrive (Database Accelerator)
 
+<!-- TODO(slopradar): secret in a command : `--origin-password "$DB_PASSWORD"` below; SKILL.md:86 bans secrets in commands, and a user-supplied DB password typed into the sandbox lands in traces → drop the Hyperdrive create example -->
 ### Manage Configs
 
 ```bash

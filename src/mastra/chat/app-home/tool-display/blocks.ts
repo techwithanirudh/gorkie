@@ -3,19 +3,15 @@ import { ids } from './ids';
 
 const options = [
   {
-    value: 'hidden',
-    text: 'Hidden',
+    value: 'default',
+    text: 'Default',
     description: 'Only the typing status while gorkie works.',
-  },
-  {
-    value: 'compact',
-    text: 'Compact',
-    description: 'One live checklist of tool calls per reply.',
   },
   {
     value: 'detailed',
     text: 'Detailed',
-    description: 'Each step as a card with what it found.',
+    description:
+      'Each step as a card with its inputs and what it found; helper agents list their steps in one card.',
   },
 ] satisfies { value: ToolDisplayMode; text: string; description: string }[];
 
@@ -31,7 +27,7 @@ export function toolDisplayBlocks(mode: ToolDisplayMode): HomeSection {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: '*Tool Display*\nhow gorkie shows its work when it answers you. `!display` changes it for a single thread.',
+          text: '*Tool Display*\nhow gorkie shows its work when it answers you.',
         },
       },
       {

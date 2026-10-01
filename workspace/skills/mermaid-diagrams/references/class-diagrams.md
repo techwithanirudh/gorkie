@@ -30,6 +30,7 @@ classDiagram
 - `~` Package/Internal
 
 **Member syntax:**
+<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash (x15 in this file) → colon -->
 - `+type attribute` - Attribute with type
 - `+method(params) ReturnType` - Method with parameters and return type
 

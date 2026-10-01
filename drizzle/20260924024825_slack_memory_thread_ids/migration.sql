@@ -40,6 +40,8 @@ BEGIN
 
   -- (threadId, type) is the primary key: keep a row already under the Slack id.
   IF to_regclass('mastra_thread_state') IS NOT NULL THEN
+    -- TODO(slopradar): orphaned rows : a row whose (new_id, type) already exists is skipped and stays under old_id forever
+    -- → DELETE the leftover old_id rows after this UPDATE (in a new migration, this one may have run).
     UPDATE mastra_thread_state s
     SET "threadId" = m.new_id
     FROM gorkie_thread_id_map m

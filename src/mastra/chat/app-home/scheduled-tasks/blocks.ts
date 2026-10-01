@@ -43,6 +43,7 @@ export async function scheduledTasksBlocks(
         (task.prompt.length > 60
           ? `${task.prompt.slice(0, 60)}\u2026`
           : task.prompt);
+      // TODO(slopradar): duplication : Slack `<!date^...>` token built by hand again (moderation/cards.ts:8 `until`) → one `slackDate(date, fallback)` helper both use
       const nextFire = Math.floor(task.nextFireAt / 1000);
       return [
         {

@@ -10,6 +10,7 @@ flowchart TD
 ```
 
 **Directions:**
+<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash (x15 in this file) → colon -->
 - `TD` or `TB` - Top to Bottom (default)
 - `BT` - Bottom to Top
 - `LR` - Left to Right
@@ -23,6 +24,7 @@ flowchart LR
     A[Process step]
 ```
 
+<!-- TODO(slopradar): wrong syntax doc : labels swapped, `([...])` is the stadium shape and `(...)` the rounded rectangle; line 408 inherits the error → swap the two headings -->
 ### Rounded Rectangle
 ```mermaid
 flowchart LR
@@ -245,6 +247,7 @@ flowchart TD
 
 ## Algorithm Example: Binary Search
 
+<!-- TODO(slopradar): wrong syntax : `[mid = low + (high - low) / 2]` and `{array[mid] == target?}` put brackets inside node labels, which breaks the parser → quote the labels: `["mid = low + (high - low) / 2"]` -->
 ```mermaid
 flowchart TD
     Start([Start Binary Search]) --> Init[Set low = 0, high = array.length - 1]

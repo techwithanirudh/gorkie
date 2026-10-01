@@ -1,9 +1,13 @@
 import type { Message, Thread } from 'chat';
 import { agent as agentConfig } from '../config';
+import { slackErrorSchema } from '../types';
 import { slack } from './client';
 import { getMastra } from './mastra-instance';
 import { memoryThread } from './memory-thread';
+import { rawText, userMention } from './message';
 import { setThreadState, threadStateOrNull } from './state';
+
+const leadingMention = new RegExp(`^\\s*${userMention.source}`);
 
 async function titleFor({
   message,
@@ -42,7 +46,33 @@ async function titleFor({
   return title;
 }
 
-// Agent view and DMs only: Slack has no title for a channel thread.
+async function botMentionRoot({
+  message,
+  thread,
+  threadTs,
+}: {
+  message: Message;
+  thread: Thread;
+  threadTs: string;
+}): Promise<Message | null> {
+  const { botUserId } = slack;
+  if (!botUserId) {
+    return null;
+  }
+  const root =
+    message.id === threadTs
+      ? message
+      : await slack.fetchMessage(thread.id, threadTs);
+  if (!root) {
+    return null;
+  }
+  const leading = rawText(root).match(leadingMention);
+  return leading?.[1] === botUserId ? root : null;
+}
+
+// Slack titles agent sessions, which exist in DMs and in channel threads. A
+// channel thread gets one only when its root message opens with a mention of
+// the bot, so a thread gorkie was pulled into later keeps no title.
 export async function syncTitle({
   message,
   thread,
@@ -51,7 +81,14 @@ export async function syncTitle({
   thread: Thread;
 }): Promise<void> {
   const { channel, threadTs } = slack.decodeThreadId(thread.id);
-  if (!(thread.isDM && threadTs)) {
+  if (!threadTs) {
+    return;
+  }
+  // TODO(slopradar): per-turn work : every channel turn re-fetches the root from Slack, lists memory threads and reads thread state before checking `lastSentSlackTitle` → read state first and cache 'root does not open with a bot mention' in ThreadState so non-qualifying threads stop after one fetch
+  const root = thread.isDM
+    ? message
+    : await botMentionRoot({ message, thread, threadTs });
+  if (!root) {
     return;
   }
   const title = await titleFor({ message, threadId: thread.id });
@@ -59,6 +96,23 @@ export async function syncTitle({
   if (!title || state?.lastSentSlackTitle === title) {
     return;
   }
-  await slack.setAssistantTitle(channel, threadTs, title);
+  try {
+    // Under agentView the adapter sends this as agents.sessions.rename.
+    await slack.setAssistantTitle(channel, threadTs, title);
+  } catch (error) {
+    if (
+      slackErrorSchema.safeParse(error).data?.data?.error !==
+      'session_not_found'
+    ) {
+      throw error;
+    }
+    // setStatus creates the session and only reads `title` on creation.
+    // `active` is the idle state the adapter already leaves at the end of
+    // every reply, so it shows no spinner.
+    await slack.setSessionStatus(channel, threadTs, 'active', {
+      initiatorUserId: root.author.userId,
+      title,
+    });
+  }
   await setThreadState({ thread, patch: { lastSentSlackTitle: title } });
 }

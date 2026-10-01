@@ -56,6 +56,7 @@ const searchResponseSchema = z.looseObject({
                 : undefined,
               channelName: message.channel_name,
               text: (message.content ?? '').slice(0, search.snippetChars),
+              // TODO(slopradar): tunable values inline : context size 3 (x2 here), context snippet 400 (line ~137) and page size `limit: 10` (line ~202) are search knobs → move them into config.search beside snippetChars
               before: (message.context_messages?.before ?? []).slice(-3),
               after: (message.context_messages?.after ?? []).slice(0, 3),
               permalink: message.permalink,
