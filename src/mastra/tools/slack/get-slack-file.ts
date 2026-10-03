@@ -1,19 +1,11 @@
 import type { RequestContext } from '@mastra/core/request-context';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { logger } from '../../lib/logger';
-import { sh } from '../../lib/shell';
-import { spendSlackCall } from '../../lib/slack-budget';
+import { slackFileId } from '../../lib/ids';
+import { formatBytes } from '../../lib/media';
 import { requireSandbox, sandboxPath } from '../../workspace';
+import { spendSlackCall } from './budget';
 import { fetchPrivateSlackFile, readableFile } from './files';
-
-// TODO(slopradar): duplication across files : a private byte formatter while upload-emoji.ts, view-image.ts, upload-file.ts and generate-image/request.ts each inline their own MB math → one shared formatBytes in src/mastra/lib used by all five
-function formatBytes(value: number): string {
-  if (value < 1024 * 1024) {
-    return `${Math.ceil(value / 1024)} KB`;
-  }
-  return `${Math.ceil(value / 1024 / 1024)} MB`;
-}
 
 async function downloadSlackFile({
   abortSignal,
@@ -28,8 +20,7 @@ async function downloadSlackFile({
 }) {
   const sandbox = await requireSandbox(requestContext);
 
-  // TODO(slopradar): duplicate model : three different Slack file id regexes (here, canvas/utils.ts:8 `^F[A-Z0-9]+$`, chat/attachments.ts:22 `\bF[A-Z0-9]{6,}\b`) → one fileIdOf/fileIdSchema in lib/ids.ts beside parseSlackInput
-  const fileId = /(?<![A-Z0-9])(F[A-Z0-9]{6,})/.exec(file)?.[1];
+  const fileId = slackFileId(file);
   if (!fileId) {
     throw new Error(
       `Not a Slack file id: "${file}". Pass a Slack file id like F0123ABCD (or a Slack file permalink that contains one). get_slack_file only downloads Slack files; use fetch_url for arbitrary web URLs.`
@@ -54,99 +45,25 @@ async function downloadSlackFile({
       ? 'slack-file'
       : sanitized;
   const path = sandboxPath('downloads', name);
+  const partPath = `${path}.${fileId}.part`;
   await sandbox.retryOnDead(() =>
     sandbox.e2b.files.makeDir(sandboxPath('downloads'))
   );
-  const partPath = `${path}.${fileId}.part`;
-  const nextPath = `${path}.${fileId}.next`;
-  const mergePath = `${path}.${fileId}.merge`;
-  const formatResult = (size: number) => ({
-    path,
-    filename: name,
-    mimeType: fileInfo.mimetype,
-    size,
-  });
-  // Removing a leftover that does not exist throws; that is the normal case.
-  const commitDownload = async () => {
-    await sandbox.retryOnDead(async () => {
-      await sandbox.e2b.files.remove(path).catch(() => undefined);
-      await sandbox.e2b.files.rename(partPath, path);
-      await sandbox.e2b.files.remove(nextPath).catch(() => undefined);
-      await sandbox.e2b.files.remove(mergePath).catch(() => undefined);
-    });
-  };
-  const expectedSize =
-    fileInfo.size ??
-    (await fetchPrivateSlackFile({
-      init: { method: 'HEAD', signal: abortSignal },
-      url,
-    })
-      .then((response) =>
-        // A missing header is unknown, not zero: Number(null) is 0.
-        Number(response.headers.get('content-length') ?? Number.NaN)
-      )
-      .then((size) => (Number.isFinite(size) && size >= 0 ? size : undefined))
-      .catch((error: unknown) => {
-        logger.debug('[slack] file size probe failed', { error, fileId });
-      }));
 
-  if (expectedSize === 0) {
-    await sandbox.retryOnDead(() =>
-      sandbox.e2b.commands.run(`rm -f ${sh(path)} && : > ${sh(path)}`)
-    );
-    return formatResult(expectedSize);
-  }
-
-  // TODO(slopradar): owner call, deletion test : about 70 lines of resume state (.part, .next, .merge, HEAD probe, Range request, shell cat merge) only pays off when a call is aborted mid-download and re-run with the same id → stream to `${path}.part`, check the size, rename; drop resume unless large Slack files are a real workload
-  // getInfo throws when there is no earlier partial download to resume.
-  const existingPart = await sandbox
-    .retryOnDead(() => sandbox.e2b.files.getInfo(partPath))
-    .catch(() => undefined);
-  const resumeAt = existingPart?.size ?? 0;
-  if (expectedSize !== undefined && resumeAt === expectedSize) {
-    await commitDownload();
-    return formatResult(expectedSize);
-  }
-
-  if (expectedSize !== undefined && resumeAt > expectedSize) {
-    await sandbox.retryOnDead(() =>
-      sandbox.e2b.files.remove(partPath).catch(() => undefined)
-    );
-  }
-
-  await sandbox.retryOnDead(async () => {
-    await sandbox.e2b.files.remove(nextPath).catch(() => undefined);
-    await sandbox.e2b.files.remove(mergePath).catch(() => undefined);
-  });
-
-  const resumeOffset =
-    expectedSize !== undefined && resumeAt < expectedSize ? resumeAt : 0;
-  // fetchPrivateSlackFile throws on any non-2xx, so only a resume the server
-  // answered in full instead of from the offset is left to catch.
   const response = await fetchPrivateSlackFile({
-    init: {
-      ...(resumeOffset > 0
-        ? { headers: { range: `bytes=${resumeOffset}-` } }
-        : {}),
-      signal: abortSignal,
-    },
+    init: { signal: abortSignal },
     url,
   });
-  if (resumeOffset > 0 && response.status !== 206) {
-    throw new Error(`Failed to download Slack file: ${response.status}`);
-  }
   if (!response.body) {
     throw new Error('Slack file response did not include a body.');
   }
-
-  let downloadedSize = 0;
+  let size = 0;
   await sandbox.e2b.files.write(
-    resumeOffset > 0 ? nextPath : partPath,
+    partPath,
     response.body.pipeThrough(
       new TransformStream<Uint8Array, Uint8Array>({
         transform(chunk, controller) {
-          abortSignal?.throwIfAborted();
-          downloadedSize += chunk.byteLength;
+          size += chunk.byteLength;
           controller.enqueue(chunk);
         },
       })
@@ -154,29 +71,18 @@ async function downloadSlackFile({
     { signal: abortSignal, useOctetStream: true }
   );
   abortSignal?.throwIfAborted();
-
-  if (resumeOffset > 0) {
-    const merged = await sandbox.retryOnDead(() =>
-      sandbox.e2b.commands.run(
-        `cat ${sh(partPath)} ${sh(nextPath)} > ${sh(mergePath)} && mv ${sh(mergePath)} ${sh(partPath)} && rm -f ${sh(nextPath)}`
-      )
-    );
-    if (merged.exitCode !== 0) {
-      throw new Error(`Failed to merge resumed download: ${merged.stderr}`);
-    }
-  }
-
-  const finalPart = await sandbox.retryOnDead(() =>
-    sandbox.e2b.files.getInfo(partPath)
-  );
-  if (expectedSize !== undefined && finalPart.size !== expectedSize) {
+  if (fileInfo.size !== undefined && size !== fileInfo.size) {
     throw new Error(
-      `Downloaded ${formatBytes(finalPart.size)} but expected ${formatBytes(expectedSize)}.`
+      `Downloaded ${formatBytes(size)} of Slack file ${fileId} but expected ${formatBytes(fileInfo.size)}. Try again.`
     );
   }
-  await commitDownload();
+  await sandbox.retryOnDead(async () => {
+    // Removing a file that does not exist throws; that is the normal case.
+    await sandbox.e2b.files.remove(path).catch(() => undefined);
+    await sandbox.e2b.files.rename(partPath, path);
+  });
 
-  return formatResult(expectedSize ?? downloadedSize);
+  return { path, filename: name, mimeType: fileInfo.mimetype, size };
 }
 
 export const getSlackFileTool = createTool({

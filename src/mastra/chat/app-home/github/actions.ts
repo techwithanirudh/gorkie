@@ -26,11 +26,18 @@ export function registerGitHub(): void {
   });
 
   bot.onModalSubmit(ids.configureModal, async (event) => {
+    const permission = githubPermissionSchema.safeParse(
+      event.values[ids.permission]
+    );
+    if (!permission.success) {
+      return {
+        action: 'errors',
+        errors: { [ids.permission]: 'Pick when Gorkie should ask.' },
+      };
+    }
     await updateUserSettings({
       set: {
-        githubPermission: githubPermissionSchema.parse(
-          event.values[ids.permission]
-        ),
+        githubPermission: permission.data,
         githubThreads: scopeSchema.parse(event.values[ids.scope]) === 'threads',
       },
       userId: event.user.userId,

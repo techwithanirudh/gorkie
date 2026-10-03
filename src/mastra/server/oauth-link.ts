@@ -24,11 +24,21 @@ export function oauthStartLink({
   return `${env.PUBLIC_BASE_URL}/oauth/${provider}/start?t=${signed}`;
 }
 
+export function oauthCallbackUri({
+  baseUrl,
+  provider,
+}: {
+  baseUrl: string;
+  provider: OAuthProvider;
+}): string {
+  return `${baseUrl}/oauth/${provider}/callback`;
+}
+
 export function oauthRedirectUri(provider: OAuthProvider): string | undefined {
   if (!env.PUBLIC_BASE_URL) {
     return;
   }
-  return `${env.PUBLIC_BASE_URL}/oauth/${provider}/callback`;
+  return oauthCallbackUri({ baseUrl: env.PUBLIC_BASE_URL, provider });
 }
 
 export function githubInstallLink(slackUserId: string): string {

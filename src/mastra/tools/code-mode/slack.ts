@@ -7,7 +7,8 @@ import { channelContext } from '../../lib/context';
 import { logger } from '../../lib/logger';
 import { mcpTools } from '../../mcp';
 import { codeModePrompt } from '../../prompts/features/code-mode';
-import { codeModeToolNames, requireSandbox } from '../../workspace';
+import { requireSandbox } from '../../workspace';
+import { codeModeToolNames } from '../../workspace/tool-names';
 import { workspaceTools } from '../../workspace/tools';
 import { canvasTools } from '../canvas';
 import { slackTools } from '../slack';
@@ -46,14 +47,16 @@ async function createCodeModeInstance({
     read_canvas: canvasTools.read_canvas,
     lookup_canvas_sections: canvasTools.lookup_canvas_sections,
   };
-  // TODO(slopradar): duplication : the same workspaceAccess ternary builds the tool set here and again at line ~70 inside execute → one `toolsFor(requestContext?)` closure used in both places
-  const tools = workspaceAccess
-    ? { ...slackCodeTools, ...(await getSandboxTools()) }
-    : slackCodeTools;
+  const toolsFor = async (
+    requestContext?: RequestContext
+  ): Promise<ToolsInput> =>
+    workspaceAccess
+      ? { ...slackCodeTools, ...(await getSandboxTools(requestContext)) }
+      : slackCodeTools;
   const modeConfig = {
     id: 'slack',
     timeout: sandboxConfig.executionTimeout,
-    tools,
+    tools: await toolsFor(),
   };
   const mode = createCodeMode(modeConfig, transport);
 
@@ -67,12 +70,7 @@ async function createCodeModeInstance({
       {
         ...modeConfig,
         sandbox,
-        tools: workspaceAccess
-          ? {
-              ...slackCodeTools,
-              ...(await getSandboxTools(context.requestContext)),
-            }
-          : slackCodeTools,
+        tools: await toolsFor(context.requestContext),
       },
       transport
     );
@@ -80,8 +78,7 @@ async function createCodeModeInstance({
       throw new Error('Slack code mode is not executable.');
     }
     const outcome = await execute(input, context);
-    // TODO(slopradar): dead fallback : JSON.stringify(null) is the string 'null', so `?.length ?? 0` can never apply → JSON.stringify(outcome ?? null).length
-    const size = JSON.stringify(outcome ?? null)?.length ?? 0;
+    const size = JSON.stringify(outcome ?? null).length;
     const result =
       size <= slackConfig.codeModeMaxResultChars
         ? outcome

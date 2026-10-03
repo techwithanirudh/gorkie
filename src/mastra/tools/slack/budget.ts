@@ -1,5 +1,5 @@
 import type { RequestContext } from '@mastra/core/request-context';
-import { slack as config } from '../config';
+import { slack as config } from '../../config';
 
 const spent = new WeakMap<RequestContext, number>();
 

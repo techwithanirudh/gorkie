@@ -1,19 +1,23 @@
-export const READ_FILE = 'read_file';
-export const WRITE_FILE = 'write_file';
-export const EDIT_FILE = 'edit_file';
-export const LIST_FILES = 'list_files';
-export const GREP = 'grep';
-export const DELETE_FILE = 'delete_file';
-export const FILE_STAT = 'file_stat';
-export const EXECUTE_COMMAND = 'execute_command';
+export const toolNames = {
+  readFile: 'read_file',
+  writeFile: 'write_file',
+  editFile: 'edit_file',
+  listFiles: 'list_files',
+  grep: 'grep',
+  deleteFile: 'delete_file',
+  fileStat: 'file_stat',
+  executeCommand: 'execute_command',
+  getProcessOutput: 'get_process_output',
+  killProcess: 'kill_process',
+} as const;
 
-export const codeModeToolNames = new Set([
-  READ_FILE,
-  WRITE_FILE,
-  EDIT_FILE,
-  LIST_FILES,
-  GREP,
-  DELETE_FILE,
-  FILE_STAT,
-  EXECUTE_COMMAND,
+export const codeModeToolNames = new Set<string>([
+  toolNames.readFile,
+  toolNames.writeFile,
+  toolNames.editFile,
+  toolNames.listFiles,
+  toolNames.grep,
+  toolNames.deleteFile,
+  toolNames.fileStat,
+  toolNames.executeCommand,
 ]);

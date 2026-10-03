@@ -1,10 +1,7 @@
-import type {
-  ProcessOutputResultArgs,
-  ProcessOutputStepArgs,
-  ProcessOutputStreamArgs,
-} from '@mastra/core/processors';
+import type { Processor } from '@mastra/core/processors';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
+import { leakedToolCallReason } from '../prompts/processors';
 
 interface Scan {
   carry: string;
@@ -12,15 +9,16 @@ interface Scan {
   mode: 'text' | 'think' | 'annotation' | 'tool_call';
 }
 
-// TODO(slopradar): duplicate model : the tag names are listed twice, in this regex and in markupTags below → build both from one const tag-name array
-const markupTag = /<(\/?)(think|annotation|tool_call|arg_key|arg_value)>/;
 const markupTags = [
   'think',
   'annotation',
   'tool_call',
   'arg_key',
   'arg_value',
-].flatMap((name) => [`<${name}>`, `</${name}>`]);
+].flatMap((name) => [
+  { closing: false, name, tag: `<${name}>` },
+  { closing: true, name, tag: `</${name}>` },
+]);
 const turns = new WeakMap<object, { scan: Scan; retried: boolean }>();
 
 function freshScan(): Scan {
@@ -30,16 +28,27 @@ function freshScan(): Scan {
 // When an upstream parser misses a GLM tool call it arrives as text, often only
 // a fragment (`<arg_value>C0...</tool_call>`) with no name to rebuild it from,
 // so everything from the first tool tag to `</tool_call>` or the step end goes.
+function nextTag(
+  text: string
+): ((typeof markupTags)[number] & { index: number }) | undefined {
+  for (let at = text.indexOf('<'); at !== -1; at = text.indexOf('<', at + 1)) {
+    const found = markupTags.find(({ tag }) => text.startsWith(tag, at));
+    if (found) {
+      return { ...found, index: at };
+    }
+  }
+}
+
 function scrub({ scan, text }: { scan: Scan; text: string }): string {
   let rest = scan.carry + text;
   let out = '';
   scan.carry = '';
-  for (let match = markupTag.exec(rest); match; match = markupTag.exec(rest)) {
-    const [tag, closing, name] = match;
+  for (let match = nextTag(rest); match; match = nextTag(rest)) {
+    const { closing, index, name, tag } = match;
     if (scan.mode === 'text') {
-      out += rest.slice(0, match.index);
+      out += rest.slice(0, index);
     }
-    rest = rest.slice(match.index + tag.length);
+    rest = rest.slice(index + tag.length);
     if (scan.mode !== 'text') {
       if (closing && name === scan.mode) {
         scan.mode = 'text';
@@ -55,7 +64,7 @@ function scrub({ scan, text }: { scan: Scan; text: string }): string {
   }
   const open = rest.lastIndexOf('<');
   const tail = open === -1 ? '' : rest.slice(open);
-  if (tail && markupTags.some((t) => t.startsWith(tail))) {
+  if (tail && markupTags.some(({ tag }) => tag.startsWith(tail))) {
     scan.carry = tail;
     rest = rest.slice(0, -tail.length);
   }
@@ -77,7 +86,7 @@ export const stepGuard = {
   name: 'Step Guard',
   description:
     'Keeps model-internal markup out of the reply and re-prompts once when a tool call leaks as text.',
-  processOutputStream({ part, state }: ProcessOutputStreamArgs) {
+  processOutputStream({ part, state }) {
     if (part.type !== 'text-delta') {
       return Promise.resolve(part);
     }
@@ -86,13 +95,7 @@ export const stepGuard = {
       text ? { ...part, payload: { ...part.payload, text } } : null
     );
   },
-  processOutputStep({
-    abort,
-    messageList,
-    requestContext,
-    state,
-    text,
-  }: ProcessOutputStepArgs) {
+  processOutputStep({ abort, messageList, requestContext, state, text }) {
     const turn = turnOf(state);
     turn.scan = freshScan();
     if (turn.retried) {
@@ -107,12 +110,9 @@ export const stepGuard = {
     logger.warn('[step-guard] retrying step', {
       threadId: channelContext(requestContext).threadId,
     });
-    return abort(
-      'a tool call came out as plain text markup (<tool_call>, <arg_key>, <arg_value>) instead of a real function call, so it never ran. Make every call through the function-calling interface',
-      { retry: true }
-    );
+    return abort(leakedToolCallReason, { retry: true });
   },
-  processOutputResult({ messages }: ProcessOutputResultArgs) {
+  processOutputResult({ messages }) {
     return messages.map((message) => ({
       ...message,
       content: {
@@ -125,4 +125,4 @@ export const stepGuard = {
       },
     }));
   },
-};
+} satisfies Processor<'step-guard'>;

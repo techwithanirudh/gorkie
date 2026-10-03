@@ -2,9 +2,9 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { emoji as emojiConfig, image } from '../../config';
-import { spendSlackCall } from '../../lib/slack-budget';
+import { viewableImageType } from '../../lib/media';
 import { requireSandbox, sandboxPath, writeSandboxFile } from '../../workspace';
-import { viewableImageType } from '../view-image';
+import { spendSlackCall } from './budget';
 
 let cachedList:
   | { emoji: Record<string, string>; expiresAt: number }

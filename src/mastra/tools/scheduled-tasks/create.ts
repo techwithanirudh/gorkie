@@ -2,7 +2,13 @@ import { createTool } from '@mastra/core/tools';
 import { computeNextFireAt } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { agent as agentConfig, scheduledTasks } from '../../config';
-import { channelWake, isScheduledTask, ownSchedules } from './schedules';
+import {
+  channelWake,
+  isScheduledTask,
+  ownSchedules,
+  scheduleOutput,
+  scheduleOutputSchema,
+} from './schedules';
 
 const minMinutes = scheduledTasks.minInterval / 60_000;
 
@@ -34,8 +40,7 @@ function assertMinimumInterval({
 
 export const createScheduledTaskTool = createTool({
   id: 'create_scheduled_task',
-  description: `Create a recurring schedule for the current Slack conversation. Use a valid cron expression and optional IANA timezone. Minimum interval is ${minMinutes} minutes between fires, each run costs model credits: never request a faster cadence, refuse and offer the nearest ${minMinutes}-minute-or-slower option instead. The person who asked approves the exact prompt and schedule in Slack before it is created.`,
-  requireApproval: true,
+  description: `Create a recurring schedule for the current Slack conversation. Use a valid cron expression and optional IANA timezone. Minimum interval is ${minMinutes} minutes between fires, each run costs model credits: never request a faster cadence, refuse and offer the nearest ${minMinutes}-minute-or-slower option instead.`,
   inputSchema: z.strictObject({
     task: z
       .string()
@@ -60,8 +65,14 @@ export const createScheduledTaskTool = createTool({
       .optional()
       .describe('IANA timezone, such as America/New_York.'),
   }),
-  // TODO(slopradar): untyped output : schedule is z.unknown() here, in list.ts and manage.ts (x3), so the model gets the raw row (prompt, wake options, requestContext) and no display summary → a small schema of the fields the model needs (id, name, cron, timezone, status, nextFireAt) plus transform.display
-  outputSchema: z.strictObject({ schedule: z.unknown() }),
+  outputSchema: z.strictObject({ schedule: scheduleOutputSchema }),
+  transform: {
+    display: {
+      output: ({ output }) => ({
+        summary: `Scheduled ${output?.schedule.name ?? output?.schedule.cron ?? 'task'}`,
+      }),
+    },
+  },
   execute: async ({ task, cron, name, timezone }, context) => {
     const { resourceId, service } = ownSchedules(context);
     const threadId = context.agent?.threadId;
@@ -70,27 +81,28 @@ export const createScheduledTaskTool = createTool({
     }
 
     assertMinimumInterval({ cron, timezone });
-    // TODO(slopradar): misleading name, non-atomic cap : `active` also counts paused schedules, and list-then-create lets parallel calls in one step pass the cap together → rename to `existing`; serialize per resourceId (or accept and say so)
-    const active = (
+    const existing = (
       await service.list({ agentId: agentConfig.id, resourceId })
     ).filter(isScheduledTask);
-    if (active.length >= scheduledTasks.maxActivePerUser) {
+    if (existing.length >= scheduledTasks.maxActivePerUser) {
       throw new Error(
-        `You already have ${active.length} scheduled tasks, the most allowed. Delete one first.`
+        `You already have ${existing.length} scheduled tasks, the most allowed. Delete one first.`
       );
     }
 
     return {
-      schedule: await service.create({
-        agentId: agentConfig.id,
-        cron,
-        prompt: task,
-        threadId,
-        resourceId,
-        ...channelWake(context),
-        ...(name ? { name } : {}),
-        ...(timezone ? { timezone } : {}),
-      }),
+      schedule: scheduleOutput(
+        await service.create({
+          agentId: agentConfig.id,
+          cron,
+          prompt: task,
+          threadId,
+          resourceId,
+          ...channelWake(context),
+          ...(name ? { name } : {}),
+          ...(timezone ? { timezone } : {}),
+        })
+      ),
     };
   },
 });

@@ -8,6 +8,7 @@ import { saveArtifactTool } from '../tools/artifacts';
 import { fetchUrlTool } from '../tools/fetch-url';
 import { searchWebTool } from '../tools/search-web';
 import { workspace } from '../workspace';
+import { toolNames } from '../workspace/tool-names';
 import {
   agentDefaults,
   delegationMemory,
@@ -33,11 +34,10 @@ export const explore = new Agent({
   defaultOptions: {
     ...runDefaults(config.maxTokens.subagentOutput),
     activeTools: [
-      // TODO(slopradar): magic strings : workspace tool names re-typed as literals, so a rename in workspace/tool-names.ts silently drops them from Explore → import READ_FILE, LIST_FILES, GREP, FILE_STAT from '../workspace/tool-names'
-      'read_file',
-      'list_files',
-      'grep',
-      'file_stat',
+      toolNames.readFile,
+      toolNames.listFiles,
+      toolNames.grep,
+      toolNames.fileStat,
       'search_web',
       'fetch_url',
       'save_artifact',

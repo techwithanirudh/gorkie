@@ -6,7 +6,7 @@ import type {
   MCPOAuthStatus,
   StoredMCPServer,
 } from '../../../types';
-import { PRESETS } from '../presets';
+import { presets } from '../presets';
 import { ids } from './ids';
 
 const oauthStatus = {
@@ -64,13 +64,13 @@ function oauthButtons({
 
 function access({ permission, threads }: StoredMCPServer): string {
   if (!threads) {
-    return `${PRESETS[permission].status}  \u00b7  \`DMs only\``;
+    return `${presets[permission].status}  \u00b7  \`DMs only\``;
   }
   const threadLevel = levelOutsideDM({ isDM: false, level: permission });
   if (threadLevel !== permission) {
-    return `${PRESETS[permission].status} in DMs  \u00b7  ${PRESETS[threadLevel].status} in shared threads`;
+    return `${presets[permission].status} in DMs  \u00b7  ${presets[threadLevel].status} in shared threads`;
   }
-  return `${PRESETS[permission].status}  \u00b7  \`runs in shared threads\``;
+  return `${presets[permission].status}  \u00b7  \`runs in shared threads\``;
 }
 
 export function mcpServersBlocks({

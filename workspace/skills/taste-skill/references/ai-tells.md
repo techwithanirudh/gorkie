@@ -25,8 +25,6 @@ Avoid these signatures unless the brief explicitly asks for them.
 ### 9.D Content & Data ("Jane Doe" Effect)
 * **NO generic names.** "John Doe", "Sarah Chan", "Jack Su" → use creative, realistic, locale-appropriate names.
 * **NO generic avatars.** No SVG "egg" or Lucide user icons → use believable photo placeholders or specific styling.
-<!-- TODO(slopradar): self-contradiction : "use organic, messy data (47.2%, a fake phone number)" invents precise figures that `assets-content.md:70-73` bans → delete this bullet -->
-* **NO fake-perfect numbers.** Avoid `99.99%`, `50%`, `1234567`. Use organic, messy data (`47.2%`, `+1 (312) 847-1928`).
 * **NO startup-slop brand names.** "Acme", "Nexus", "SmartFlow", "Cloudly" → invent contextual, premium names that sound real.
 * **NO filler verbs.** "Elevate", "Seamless", "Unleash", "Next-Gen", "Revolutionize" → concrete verbs only.
 
@@ -34,7 +32,7 @@ Avoid these signatures unless the brief explicitly asks for them.
 * **NO hand-rolled SVG icons.** Use Phosphor / HugeIcons / Radix / Tabler. Lucide on explicit request only.
 * **Hand-rolled decorative SVGs strongly discouraged** as default (see Section 4.8).
 * **NO div-based fake screenshots.** Never build a fake product UI out of `<div>` rectangles to simulate a screenshot. Use real images, generated images, or skip the preview.
-* **NO broken Unsplash links.** Use `https://picsum.photos/seed/{descriptive-string}/{w}/{h}`, or generated photo placeholders, or actual assets.
+* **NO hotlinked images.** Download real or generated images and ship them with the page (see Section 4.8).
 * **shadcn/ui customization:** Allowed, but NEVER in default state. Customize radii, colors, shadows, typography to the project aesthetic.
 * **Production-Ready Cleanliness:** Code visually clean, memorable, meticulously refined.
 
@@ -43,31 +41,24 @@ Avoid these signatures unless the brief explicitly asks for them.
 These patterns came out of real LLM-generated landing-page tests. They are the signatures the model defaults to when it tries to "look designed." Treat them as hard bans unless the brief explicitly calls for one.
 
 **Hero & top-of-page**
-<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash (x6 in this file) → comma or new sentence -->
-* **NO version labels in the hero.** `V0.6`, `v2.0`, `BETA`, `INVITE-ONLY PREVIEW`, `EARLY ACCESS`, `ALPHA` - banned as default eyebrows. Only acceptable when the brief is explicitly about a product launch / preview status.
+* **NO version labels in the hero.** `V0.6`, `v2.0`, `BETA`, `INVITE-ONLY PREVIEW`, `EARLY ACCESS`, `ALPHA` are banned as default eyebrows. Only acceptable when the brief is explicitly about a product launch / preview status.
 * **NO "Brand · No. 01"-style sub-eyebrows.** "Marrow · No. 01 · The 6-quart" type micro-meta lines. Skip them.
 
 **Section numbering & micro-labels**
-* **NO section-number eyebrows.** `00 / INDEX`, `001 · Capabilities`, `002 · Featured commission`, `06 · how it works`, `05 · The honest table` - banned. Eyebrows should name the topic in plain language, not enumerate.
+* **NO section-number eyebrows.** `00 / INDEX`, `001 · Capabilities`, `002 · Featured commission`, `06 · how it works`, `05 · The honest table` are banned. Eyebrows should name the topic in plain language, not enumerate.
 * **NO `01 / 4`-style pagination on images or bento tiles.** If the user can count, they don't need the label.
-<!-- TODO(slopradar): self-contradiction : allows "a simple arrow or Scroll" while line 92 bans scroll cues outright → keep line 92 only -->
-* **NO `Scroll · 001 Capabilities`-style scroll cues.** A simple arrow or "Scroll" is enough; no section-number prefix.
 * **NO "Index of Work, 2018 - 2026"-style range labels** as eyebrows. Just say what the section is.
 
 **Separators & dots**
 * **The middle-dot (`·`) is rationed.** Maximum 1 per line in metadata strips. Do NOT use it as the default separator for everything ("foo · bar · baz · qux · quux"). If you need a separator family, prefer line breaks, hairlines, or columns.
-<!-- TODO(slopradar): duplication : same rule as line 93 → keep one -->
-* **NO decorative colored status dots on every list/nav/badge.** A colored dot before "ONE Q4 SLOT OPEN" or before every nav link, or every task row - banned by default. Acceptable only when the dot conveys actual semantic state (a server status, an availability flag) and is used sparingly.
 
-**Em-dashes & typography flourishes**
-<!-- TODO(slopradar): duplication : the em dash ban is restated here, in 9.G, `assets-content.md:80` and SKILL.md:145 → keep 9.G and the pre-flight line -->
-* **NO em-dash (`—`) as a design element OR anywhere else.** See Section 9.G below for the complete, non-negotiable ban. The em-dash character is forbidden in headlines, eyebrows, pills, body copy, quotes, attribution, captions, button text, and alt text. Use a comma or period.
+**Typography flourishes**
 * **NO `<br>`-broken-and-italicized headlines** as a default "design move." "for thirty\<br\>*years.*" type splits. Headlines should read naturally first, get clever only when the brief demands it.
 * **NO vertical rotated text** ("INDEX OF WORK, 2018 - 2026" rotated 90°). Agency-portfolio cliché. Use it only when the brief is explicitly agency / Awwwards / experimental AND it serves a real composition purpose.
-* **NO crosshair / hairline grid lines as decoration.** Vertical and horizontal lines drawn just to make the page "feel designed" - banned. Use them only when they organize real content.
+* **NO crosshair / hairline grid lines as decoration.** Vertical and horizontal lines drawn just to make the page "feel designed" are banned. Use them only when they organize real content.
 
 **Fake product previews**
-* **NO div-based fake product UI in the hero** (fake task list, fake terminal, fake dashboard built from styled divs). It is the #1 LLM-design Tell. Use a real screenshot, a generated image, a real component preview, or none at all.
+* **NO div-based fake product UI in the hero** (fake task list, fake terminal, fake dashboard built from styled divs). Use a real screenshot, a generated image, a real component preview, or none at all.
 * **NO fake version footers** ("v0.6.2-rc.1", "last sync 4s ago · main") inside fake screenshots. Adds nothing, screams AI.
 
 **Marketing-copy Tells**
@@ -89,7 +80,7 @@ These patterns came out of real LLM-generated landing-page tests. They are the s
 * **NO floating top-right sub-text in section headings.** Pattern: section has a giant left-aligned headline; in the top-right corner of the same section header there is a small explainer paragraph floating with no clear alignment to anything else. That floater is the Tell. Either put the sub-text directly under the headline, or build a clean 2-column header (left: headline, right: aligned body), but not a tiny corner paragraph.
 
 **Lists, dividers and scoring**
-* **NO `border-t` + `border-b` on every row of a long list / spec table.** Pick one (bottom-border between rows OR top-border above the group) and use it sparsely. A 10-row spec table with hairlines under each row is the laziest layout - see Section 4.9 for alternative UI components.
+* **NO `border-t` + `border-b` on every row of a long list / spec table.** Pick one (bottom-border between rows OR top-border above the group) and use it sparsely. A 10-row spec table with hairlines under each row is the laziest layout. See Section 4.9 for alternative UI components.
 * **NO scoring/progress bars with filled background tracks** as comparison visuals. If you need to show "X out of Y" comparisons, prefer a number + small icon, or a tiny inline bar WITHOUT a background track. Big filled `bg-zinc-200` tracks with a partial fill on top are dashboard-UI clutter on a landing page.
 
 **Locale, time, scroll cues**
@@ -97,9 +88,9 @@ These patterns came out of real LLM-generated landing-page tests. They are the s
 * **Scroll cues are banned.** `Scroll`, `↓ scroll`, `Scroll to explore`, `Scroll to walk through it`, animated mouse-wheel icons. If the user has not scrolled yet, they are looking at the hero. They know what scroll is. The bottom of the viewport does not need a label.
 * **ZERO decorative status dots by default.** A coloured dot before nav items, before list rows, before badges, before status labels is a Tell. Only acceptable when conveying real semantic state (a live indicator on actual server status, a live availability flag) and limited to one per page section.
 
-### 9.G EM-DASH BAN (the single most-violated Tell)
+### 9.G EM-DASH BAN
 
-**Em-dash (`—`) is COMPLETELY banned.** It is the LLM's signature stylistic crutch and it is the #1 visual Tell in production tests. There is no "limited use" allowance, no "natural language frequency" allowance, no "in body copy is fine" allowance. None.
+**Em-dash (`—`) is COMPLETELY banned.** It is the LLM's signature stylistic crutch. There is no "limited use" allowance, no "natural language frequency" allowance, no "in body copy is fine" allowance. None.
 
 * **Banned in headlines.** Use a period or a comma.
 * **Banned in eyebrows / labels / pills / button text / image captions / nav items.** Replace with line breaks, columns, or hairlines.

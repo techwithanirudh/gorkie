@@ -7,7 +7,7 @@ export function channelContext(
 ): ChannelContext {
   const raw = requestContext?.get('channel');
   if (!raw) {
-    return {};
+    return { isDM: false };
   }
   let value: unknown = raw;
   // Studio's request-context presets reach the server with nested objects JSON-stringified.
@@ -16,7 +16,7 @@ export function channelContext(
       value = JSON.parse(value);
     } catch (error) {
       logger.warn('[context] channel context was not valid JSON', { error });
-      return {};
+      return { isDM: false };
     }
   }
   const parsed = channelSchema.safeParse(value);
@@ -24,7 +24,7 @@ export function channelContext(
     logger.warn('[context] channel context did not match its shape', {
       issues: parsed.error.issues,
     });
-    return {};
+    return { isDM: false };
   }
   return parsed.data;
 }

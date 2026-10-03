@@ -3,6 +3,7 @@ import { env } from '@/env';
 import type { ToolDisplayMode } from './types';
 export const sandbox = {
   template: 'gorkie-workspace:2.2',
+  gitAuthorName: 'gorkie-agent',
   executionTimeout: 15 * 60 * 1000,
   timeout: 16 * 60 * 1000,
   extendThrottleMs: 2 * 60 * 1000,
@@ -66,7 +67,8 @@ export const agent = {
   // smallest on models.dev is 1,000,000 (opencode-go glm-5.3-flash and
   // deepseek-v4-flash-vision-exp): 850,000 + 65,536 leaves about 84,000 for
   // tool schemas, which the limiter does not count, and for the gap between
-  // its tokenizer and the provider's.
+  // its tokenizer and the provider's. Output must stay under the smallest
+  // output cap on the ladder, 131,072 (glm-5.3-flash).
   maxTokens: {
     input: 850_000,
     output: 65_536,
@@ -75,15 +77,34 @@ export const agent = {
   },
   maxSteps: 1000,
   modelTimeout: { firstChunkMs: 2 * 60 * 1000, stepMs: 5 * 60 * 1000 },
+  modelRetries: 3,
+  quotaCooldownMs: 30 * 60 * 1000,
+  topP: 0.95,
+  reasoning: 'medium' as const,
+  toolCallConcurrency: 10,
+  maxProcessorRetries: 2,
 };
 
+// Slack rejects a task_update chunk over 256 characters (msg_too_long) and the
+// adapter then drops to text-only streaming for the rest of the turn.
 export const toolDisplay: {
   default: ToolDisplayMode;
+  maxChunkChars: number;
   maxInline: number;
   maxDetails: number;
   maxOutput: number;
-} = { default: 'default', maxInline: 200, maxDetails: 1200, maxOutput: 4000 };
+} = {
+  default: 'default',
+  maxChunkChars: 256,
+  maxInline: 120,
+  maxDetails: 200,
+  maxOutput: 200,
+};
 
+// Output caps per summarizer rung: gemini-3.5-flash-lite 65,536; mimo-v2.5
+// unverified, check models.dev before raising. Observational Memory defaults
+// observer and reflector to 100,000 output tokens, over the gemini cap, so
+// orchestrator.ts overrides it with this budget.
 export const summarizer = {
   maxTokens: { output: 32_768, previousObserver: 1000 },
 };
@@ -98,6 +119,7 @@ export const workingModel = {
 };
 
 export const github = {
+  requestTimeoutMs: 10_000,
   installUrl: `https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`,
   refreshBeforeExpiryMs: 5 * 60 * 1000,
 };
@@ -110,6 +132,7 @@ export const mcp = {
 };
 
 export const emoji = {
+  requestTimeoutMs: 60_000,
   listTtl: 5 * 60 * 1000,
   maxUploadBytes: 10 * 1024 * 1024,
   proxyUrl: 'https://hackclub-slack-emoji-proxy.vercel.app/api/emoji',
@@ -129,6 +152,10 @@ export const exa = {
 
 export const search = {
   snippetChars: 1200,
+  webResults: 8,
+  contextMessages: 3,
+  contextSnippetChars: 400,
+  slackPageSize: 10,
 };
 
 export const slack = {
@@ -142,6 +169,15 @@ export const slack = {
   callsPerTurn: 200,
   apiPreviewChars: 16_384,
   codeModeMaxResultChars: 60_000,
+  summarizeMaxMessages: 100,
+  membersPageSize: 200,
+  askAnswerLockMs: 24 * 60 * 60 * 1000,
+  webClient: { retry: { factor: 3.86, retries: 5 }, timeoutMs: 15_000 },
+};
+
+export const oauth = {
+  // Factory's state signer expires every signed link after 10 minutes.
+  linkTtlMs: 10 * 60 * 1000,
 };
 
 export const history = {
@@ -157,6 +193,18 @@ export const shutdown = {
   abortLeadMs: 10_000,
 };
 
-export const observability: { traceRetention: Duration } = {
+export const observability: {
+  traceRetention: Duration;
+  pruneIntervalMs: number;
+} = {
   traceRetention: '7d',
+  pruneIntervalMs: 24 * 60 * 60 * 1000,
+};
+
+export const backgroundTasks = {
+  cleanupIntervalMs: 60 * 60 * 1000,
+};
+
+export const database = {
+  connectAttemptTimeoutMs: 2000,
 };

@@ -35,11 +35,12 @@ export function serverConnection({
 interface UserClient {
   client: MCPClient;
   rejected: Map<string, string>;
+  unlabelled: Set<string>;
 }
 
 const clients = new Map<
   string,
-  { key: string; promise: Promise<UserClient> }
+  { key: string; promise: Promise<UserClient>; unlabelled: Set<string> }
 >();
 
 // Re-check at connect: DNS can be re-pointed at an internal address after add.
@@ -101,7 +102,7 @@ async function buildClient({
 }: {
   userId: string;
   servers: StoredMCPServer[];
-}): Promise<UserClient> {
+}): Promise<Omit<UserClient, 'unlabelled'>> {
   const checked = await Promise.all(
     servers.map((server) =>
       checkServer({ server, userId }).catch(
@@ -192,15 +193,18 @@ export function resolveClient({
         server.credentialError ? 'stopped' : '',
       ].join(' ')
     )
-    // TODO(slopradar): redundant code : this comparator is the default string sort → use .sort() (or .toSorted())
-    .sort((a, b) => (a < b ? -1 : 1))
+    .sort((a, b) => a.localeCompare(b))
     .join('\n');
   const cached = clients.get(userId);
   if (cached && cached.key === key) {
     return cached.promise;
   }
-  const promise = buildClient({ servers, userId });
-  const entry = { key, promise };
+  const unlabelled = new Set<string>();
+  const promise = buildClient({ servers, userId }).then((built) => ({
+    ...built,
+    unlabelled,
+  }));
+  const entry = { key, promise, unlabelled };
   clients.set(userId, entry);
 
   promise.catch(() => {
@@ -210,4 +214,14 @@ export function resolveClient({
   });
 
   return promise;
+}
+
+export function knownUnlabelled({
+  serverName,
+  userId,
+}: {
+  serverName: string;
+  userId: string;
+}): boolean {
+  return clients.get(userId)?.unlabelled.has(serverName) ?? false;
 }

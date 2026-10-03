@@ -1,5 +1,6 @@
 import type { Message, Thread } from 'chat';
 import { logger } from '../../lib/logger';
+import type { CommandName } from '../../prompts/commands';
 import type { CommandHandler, ThreadState } from '../../types';
 import { rawText, withoutLeadingMentions } from '../message';
 import { sentBeforeStop } from '../state';
@@ -8,12 +9,14 @@ import { connections } from './connections';
 import { help } from './help';
 import { stop } from './stop';
 
-const commands = new Map<string, CommandHandler>([
-  ['compact', compact],
-  ['connections', connections],
-  ['help', help],
-  ['stop', stop],
-]);
+const commands = new Map<string, CommandHandler>(
+  Object.entries({
+    compact,
+    connections,
+    help,
+    stop,
+  } satisfies Record<CommandName, CommandHandler>)
+);
 
 export async function handleCommand({
   message,

@@ -8,8 +8,7 @@ description: Anti-slop frontend skill for landing pages, portfolios, and redesig
 > Landing pages, portfolios, and redesigns. Not dashboards, not data tables, not multi-step product UI.
 > Every rule below is **contextual**. None of it fires automatically. First read the brief, then pull only what fits.
 
-<!-- TODO(slopradar): contradicts the prompt : `prompts/features/sandbox.ts:15` makes the screenshot the default deliverable and deploys only when a live link is wanted → say "deliver a screenshot; deploy with `web-page`/`wrangler` when they want a link" -->
-The user sees the page only once it is deployed: ship a single page with the `web-page` skill, and anything with its own build with the `wrangler` skill (`wrangler deploy --temporary`). Screenshot the live URL with agent-browser and check it with `view_image` before sharing it.
+Deliver the page as a screenshot: open it with agent-browser (a sandbox `localhost` URL is fine), check the screenshot with `view_image`, then post it with `upload_file`. Deploy only when they want a live link: a single page with the `web-page` skill, anything with its own build with the `wrangler` skill (`wrangler deploy --temporary`).
 
 This file holds the brief inference, the dials, the scope and the pre-flight check. The detailed rules live in `references/`; read a file with `skill_read` (skillName `taste-skill`, path `references/<file>`) when the work touches it. Section numbers cited anywhere in this skill resolve through this index:
 
@@ -35,13 +34,12 @@ For a typical build, read `type-color-layout.md`, `assets-content.md` and `ai-te
 Before touching code or tweaking dials, **infer what the user actually wants**. Most LLM design output is bad because the model jumps to a default aesthetic instead of reading the room.
 
 ### 0.A Read these signals first
-<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash, against owner decision 16 and CODING_STANDARDS.md:160 (x20 in this file) → comma, colon before a list, or a new sentence -->
-1. **Page kind** - landing (SaaS / consumer / agency / event), portfolio (dev / designer / creative studio), redesign (preserve vs overhaul), editorial / blog.
-2. **Vibe words** the user used - "minimalist", "calm", "Linear-style", "Awwwards", "brutalist", "premium consumer", "Apple-y", "playful", "serious B2B", "editorial", "agency-y", "glassy", "dark tech".
-3. **Reference signals** - URLs they linked, screenshots they pasted, products they named, brands they're competing with.
-4. **Audience** - B2B procurement panel vs. design-conscious consumer vs. recruiter scanning a portfolio. The audience picks the aesthetic, not your taste.
-5. **Brand assets that already exist** - logo, color, type, photography. For redesigns, these are starting material, not optional input (see Section 11).
-6. **Quiet constraints** - accessibility-first audiences, public-sector, regulated industries, trust-first commerce, kids' products. These constraints OVERRIDE aesthetic preference.
+1. **Page kind.** Landing (SaaS / consumer / agency / event), portfolio (dev / designer / creative studio), redesign (preserve vs overhaul), editorial / blog.
+2. **Vibe words** the user used: "minimalist", "calm", "Linear-style", "Awwwards", "brutalist", "premium consumer", "Apple-y", "playful", "serious B2B", "editorial", "agency-y", "glassy", "dark tech".
+3. **Reference signals.** URLs they linked, screenshots they pasted, products they named, brands they're competing with.
+4. **Audience.** B2B procurement panel vs. design-conscious consumer vs. recruiter scanning a portfolio. The audience picks the aesthetic, not your taste.
+5. **Brand assets that already exist.** Logo, color, type, photography. For redesigns, these are starting material, not optional input (see Section 11).
+6. **Quiet constraints.** Accessibility-first audiences, public-sector, regulated industries, trust-first commerce, kids' products. These constraints OVERRIDE aesthetic preference.
 
 ### 0.B Output a one-line "Design Read" before generating
 Before any code, state in one line: **"Reading this as: \<page kind> for \<audience>, with a \<vibe> language, leaning toward \<design system or aesthetic family>."**
@@ -52,7 +50,7 @@ Example reads:
 - *"Reading this as: redesign of a public-sector service site, with a trust-first language, leaning toward GOV.UK Frontend or USWDS."*
 
 ### 0.C If the brief is ambiguous, ask one question, do not guess
-Ask exactly **one** clarifying question - never a multi-question dump - and only when the design read genuinely diverges. Example: *"Should this feel closer to Linear-clean or Awwwards-experimental?"*
+Ask exactly **one** clarifying question, never a multi-question dump, and only when the design read genuinely diverges. Example: *"Should this feel closer to Linear-clean or Awwwards-experimental?"*
 
 If you can confidently infer from context, **do not ask**. Just declare the design read and proceed.
 
@@ -65,11 +63,11 @@ Do not default to: AI-purple gradients, centered hero over dark mesh, three equa
 
 After the design read, set three dials. Every layout, motion, and density decision below is gated by these.
 
-* **`DESIGN_VARIANCE: 8`** - 1 = Perfect Symmetry, 10 = Artsy Chaos
-* **`MOTION_INTENSITY: 6`** - 1 = Static, 10 = Cinematic / Physics
-* **`VISUAL_DENSITY: 4`** - 1 = Art Gallery / Airy, 10 = Cockpit / Packed Data
+* **`DESIGN_VARIANCE: 8`.** 1 = Perfect Symmetry, 10 = Artsy Chaos
+* **`MOTION_INTENSITY: 6`.** 1 = Static, 10 = Cinematic / Physics
+* **`VISUAL_DENSITY: 4`.** 1 = Art Gallery / Airy, 10 = Cockpit / Packed Data
 
-**Baseline:** `8 / 6 / 4`. Use these unless the design read overrides them. Do not ask the user to edit this file - overrides happen conversationally.
+**Baseline:** `8 / 6 / 4`. Use these unless the design read overrides them. Do not ask the user to edit this file. Overrides happen conversationally.
 
 ### 1.A Dial Inference (design read → dial values)
 | Signal | VARIANCE | MOTION | DENSITY |
@@ -79,8 +77,8 @@ After the design read, set three dials. Every layout, motion, and density decisi
 | "playful / wild / Dribbble / Awwwards / experimental / agency" | 9-10 | 8-10 | 3-4 |
 | "landing page / portfolio / marketing site (default)" | 7-9 | 6-8 | 3-5 |
 | "trust-first / public-sector / regulated / accessibility-critical" | 3-4 | 2-3 | 4-5 |
-| "redesign - preserve" | match existing | +1 | match existing |
-| "redesign - overhaul" | +2 | +2 | match existing |
+| "preserving redesign" | match existing | +1 | match existing |
+| "overhaul redesign" | +2 | +2 | match existing |
 
 ### 1.B Use-Case Presets
 | Use case | VARIANCE | MOTION | DENSITY |
@@ -92,11 +90,11 @@ After the design read, set three dials. Every layout, motion, and density decisi
 | Portfolio (Developer) | 6 | 5 | 4 |
 | Editorial / Blog | 6 | 4 | 3 |
 | Public-sector service | 3 | 2 | 5 |
-| Redesign - preserve | match | match+1 | match |
-| Redesign - overhaul | +2 | +2 | match |
+| Preserving redesign | match | match+1 | match |
+| Overhaul redesign | +2 | +2 | match |
 
 ### 1.C How the Dials Drive Output
-Use these (or user-overridden values) as global variables. Cross-references throughout this document refer to these exact variable names - never invent aliases like `LAYOUT_VARIANCE` or `ANIM_LEVEL`.
+Use these (or user-overridden values) as global variables. Cross-references throughout this document refer to these exact variable names. Never invent aliases like `LAYOUT_VARIANCE` or `ANIM_LEVEL`.
 
 ---
 
@@ -111,7 +109,7 @@ Use these (or user-overridden values) as global variables. Cross-references thro
 ### MOTION_INTENSITY (Level 1-10)
 * **1-3 (Static):** No automatic animations. CSS `:hover` and `:active` states only. `prefers-reduced-motion` is the default mode anyway.
 * **4-7 (Fluid CSS):** `transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1)`. `animation-delay` cascades for load-ins. Focus on `transform` and `opacity`.
-* **8-10 (Advanced Choreography):** Complex scroll-triggered reveals, parallax, scroll-driven animation (CSS `animation-timeline` or GSAP ScrollTrigger). Use Motion hooks. **NEVER use `window.addEventListener('scroll')`** - it is a hard ban, not a "prefer-not." See Section 5.D for the allowed alternatives.
+* **8-10 (Advanced Choreography):** Complex scroll-triggered reveals, parallax, scroll-driven animation (CSS `animation-timeline` or GSAP ScrollTrigger). Use Motion hooks. **NEVER use `window.addEventListener('scroll')`.** It is a hard ban, not a "prefer-not." See Section 5.D for the allowed alternatives.
 
 ### VISUAL_DENSITY (Level 1-10)
 * **1-3 (Art Gallery):** Lots of white space. Huge section gaps (`py-32` to `py-48`). Expensive, clean.
@@ -128,7 +126,7 @@ This skill is NOT for:
 * Multi-step forms / wizards (use Form-specific patterns; this skill won't make them better).
 * Code editors (use Monaco / CodeMirror with their official skinning).
 * Native mobile (use Apple HIG / Material directly).
-* Realtime collab UIs (presence, cursors, OT-aware - different problem class).
+* Realtime collab UIs (presence, cursors, OT-aware; a different problem class).
 
 If the brief is one of the above, **say so explicitly**, point to the right tool, and only apply this skill's marketing-page / about-page / landing-page parts to the surfaces where they apply.
 
@@ -144,16 +142,15 @@ Run this matrix before outputting code. This is the last filter.
 - [ ] **Dial values** explicit and reasoned from the brief, not silently using baseline?
 - [ ] **Design system** chosen from Section 2 if applicable, or aesthetic labeled honestly?
 - [ ] **Redesign mode** detected and audit performed (if applicable, Section 11)?
-- [ ] **ZERO em-dashes (`—`) anywhere on the page.** Headlines, eyebrows, pills, body, quotes, attribution, captions, buttons, alt text. Zero. (Section 9.G - non-negotiable.)
+- [ ] **ZERO em-dashes (`—`) anywhere on the page.** Headlines, eyebrows, pills, body, quotes, attribution, captions, buttons, alt text. Zero (Section 9.G).
 - [ ] **Page Theme Lock**: ONE theme (light, dark, or auto) for the whole page. No section flips to inverted mode mid-page (Section 4.11)?
 - [ ] **Color Consistency Lock**: one accent color used identically across all sections (Section 4.2)?
 - [ ] **Shape Consistency Lock**: one corner-radius system applied consistently (Section 4.4)?
 - [ ] **Button Contrast Check**: every CTA text is readable against its background (no white-on-white, WCAG AA 4.5:1)?
 - [ ] **CTA Button Wrap**: no CTA label wraps to 2+ lines at desktop?
 - [ ] **Form Contrast Check**: form inputs, placeholders, focus rings, labels all pass WCAG AA against the section background?
-<!-- TODO(slopradar): unverifiable rule : "different from your previous project" assumes cross-thread memory gorkie does not have (recall off, README:236); same at line 153, `type-color-layout.md:25,50` → delete the "previous project" clauses -->
-- [ ] **Serif discipline**: if a serif is used, it is NOT Fraunces or Instrument_Serif (or it is, with explicit brand justification)? Different serif from your previous project?
-- [ ] **Premium-consumer palette check**: if the brief is premium-consumer (cookware / wellness / artisan / luxury), the palette is NOT the AI-default beige+brass+oxblood+espresso family? Different family from your previous premium-consumer project?
+- [ ] **Serif discipline**: if a serif is used, it is NOT Fraunces or Instrument_Serif (or it is, with explicit brand justification)?
+- [ ] **Premium-consumer palette check**: if the brief is premium-consumer (cookware / wellness / artisan / luxury), the palette is NOT the AI-default beige+brass+oxblood+espresso family?
 - [ ] **Italic descender clearance**: every italic word with `y g j p q` has `leading-[1.1]` min + `pb-1` reserve?
 - [ ] **Hero fits the viewport**: headline ≤ 2 lines, subtext ≤ 20 words AND ≤ 4 lines, CTA visible without scroll, font scale planned around image?
 - [ ] **Hero top padding**: max `pt-24` at desktop, hero content does not float halfway down the viewport?
@@ -171,8 +168,8 @@ Run this matrix before outputting code. This is the last filter.
 - [ ] **Navigation on ONE line** at desktop, height ≤ 80px?
 - [ ] **Section-Layout-Repetition** check: no two sections share the same layout family (at least 4 different families across 8 sections)?
 - [ ] **Bento has rhythm AND exact cell count** (N items → N cells, no empty cells in middle or at end)?
-- [ ] **Long lists use the right UI component** (not default `<ul>` with `divide-y` for > 5 items - see Section 4.9 alternatives)?
-- [ ] **Real images used** (gen-tool first, then Picsum-seed, then explicit placeholder slots) - NO div-based fake screenshots, NO hand-rolled decorative SVGs, NO pure-text minimalism?
+- [ ] **Long lists use the right UI component** (not default `<ul>` with `divide-y` for > 5 items; see the Section 4.9 alternatives)?
+- [ ] **Real images used** (gen-tool first, then downloaded real photos, then explicit placeholder slots), shipped with the page, never hotlinked? NO div-based fake screenshots, NO hand-rolled decorative SVGs beyond one simple brand mark, NO pure-text minimalism?
 - [ ] **No pills/labels overlaid on images** (no `Plate · Brand`, no `Field notes - journal`)?
 - [ ] **No photo-credit captions as decoration** (`Field study no. 12 · Ines Caetano`)?
 - [ ] **No version footers** (`v1.4.2`, `Build 0048`) on marketing pages?
@@ -190,7 +187,7 @@ Run this matrix before outputting code. This is the last filter.
 - [ ] **Quotes ≤ 3 lines** of body, attribution clean (no em-dash)?
 - [ ] **Motion claimed = motion shown**: if `MOTION_INTENSITY > 4`, page actually animates, not just claimed?
 - [ ] **GSAP sticky-stack / horizontal-pan** implemented per Section 5.A / 5.B canonical skeleton (`start: "top top"`, `pin: true`, correct scrub)?
-- [ ] **No `window.addEventListener('scroll')`** - using Motion `useScroll()` / ScrollTrigger / IntersectionObserver / CSS scroll-driven animations only?
+- [ ] **No `window.addEventListener('scroll')`.** Using Motion `useScroll()` / ScrollTrigger / IntersectionObserver / CSS scroll-driven animations only?
 - [ ] **Reduced motion** wrapped for everything `MOTION_INTENSITY > 3`?
 - [ ] **Dark mode** tokens defined and tested in both modes?
 - [ ] **Mobile collapse** explicit (`w-full`, `px-4`, `max-w-7xl mx-auto`) for high-variance layouts?
@@ -199,7 +196,7 @@ Run this matrix before outputting code. This is the last filter.
 - [ ] **Empty / loading / error** states provided?
 - [ ] **Cards omitted** in favor of spacing where possible?
 - [ ] **Icons** from an allowed library only (Phosphor / HugeIcons / Radix / Tabler), no hand-rolled SVG paths?
-- [ ] **Motion** isolated in client-leaf components with `'use client'` at the top, memoized?
+- [ ] **Motion** isolated in leaf components (`'use client'` at the top under Next.js), memoized?
 - [ ] **No AI Tells** from Section 9 (Inter as default, AI-purple, three-equal cards, Jane Doe, Acme, "Quietly in use at")?
 - [ ] **Core Web Vitals** plausibly hit (LCP < 2.5s, INP < 200ms, CLS < 0.1)?
 - [ ] **One design system** per project (no Material + shadcn mixed)?

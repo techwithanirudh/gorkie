@@ -35,8 +35,7 @@ export const searchWebTool = createTool({
     const { results } = await withExaTimeout({
       request: exa.search(query, {
         type: 'auto',
-        // TODO(slopradar): tunable inline : result count is a per-deployment knob → search.webResults in config.ts next to search.snippetChars
-        numResults: 8,
+        numResults: search.webResults,
         contents: { text: { maxCharacters: search.snippetChars } },
       }),
       signal: abortSignal,

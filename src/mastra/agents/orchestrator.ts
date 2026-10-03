@@ -1,4 +1,9 @@
-import { Agent, type AgentExecutionOptions } from '@mastra/core/agent';
+import {
+  Agent,
+  type AgentExecutionOptions,
+  type ToolsInput,
+} from '@mastra/core/agent';
+import type { RequestContext } from '@mastra/core/request-context';
 import { Memory } from '@mastra/memory';
 import { skillResultRedactor } from '@mastra/memory/hooks';
 import { Chat } from 'chat';
@@ -54,14 +59,12 @@ type StopCondition = Exclude<
   unknown[]
 >;
 
-export const orchestrator = new Agent({
-  id: config.id,
-  name: 'Orchestrator',
-  instructions: ({ requestContext }) => instructions(requestContext),
-  model: models.orchestrator,
-  ...agentDefaults,
-  // TODO(slopradar): no large inline closures : defaultOptions (about 40 lines with nested delegation, stopWhen, onAbort) and the async tools resolver below (about 25 lines) sit inline in the Agent literal → move each to a named module-scope function with explicit parameter types
-  defaultOptions: ({ requestContext }) => ({
+function runOptions({
+  requestContext,
+}: {
+  requestContext: RequestContext;
+}): AgentExecutionOptions {
+  return {
     ...runDefaults(config.maxTokens.output),
     delegation: {
       messageFilter: ({ messages }) =>
@@ -83,7 +86,10 @@ export const orchestrator = new Agent({
       steps
         .at(-1)
         ?.toolResults?.some(
-          ({ toolName }) => toolName === 'skip' || toolName === 'wait'
+          ({ toolName }) =>
+            toolName === 'skip' ||
+            toolName === 'wait' ||
+            toolName === 'ask_user'
         ) ?? false,
     onAbort: async () => {
       await endSandboxTurn(requestContext);
@@ -100,7 +106,45 @@ export const orchestrator = new Agent({
     onError: async () => {
       await endSandboxTurn(requestContext);
     },
-  }),
+  };
+}
+
+async function turnTools({
+  requestContext,
+}: {
+  requestContext: RequestContext;
+}): Promise<ToolsInput> {
+  const { channelId, isDM, threadId, userId } = channelContext(requestContext);
+  const base = await orchestratorTools();
+  if (!userId) {
+    return base;
+  }
+  const [userTools, github] = await Promise.all([
+    userMCPTools({ isDM, requestContext, userId }),
+    githubTools({
+      channelId,
+      isDM,
+      requestContext,
+      threadId,
+      userId,
+    }),
+  ]);
+  searchOnly({
+    names: Object.keys({ ...userTools, ...github }).filter(
+      (name) => !(name in base)
+    ),
+    requestContext,
+  });
+  return { ...userTools, ...github, ...base };
+}
+
+export const orchestrator = new Agent({
+  id: config.id,
+  name: 'Orchestrator',
+  instructions: ({ requestContext }) => instructions(requestContext),
+  model: models.orchestrator,
+  ...agentDefaults,
+  defaultOptions: runOptions,
   workspace,
   inputProcessors: [
     staleMessages,
@@ -116,32 +160,7 @@ export const orchestrator = new Agent({
     turnFooter,
     workingModel(config.id),
   ],
-  tools: async ({ requestContext }) => {
-    const ctx = channelContext(requestContext);
-    const { channelId, threadId, userId } = ctx;
-    const isDM = ctx.isDM === true;
-    const base = await orchestratorTools();
-    if (!userId) {
-      return base;
-    }
-    const [userTools, github] = await Promise.all([
-      userMCPTools({ isDM, userId }),
-      githubTools({
-        channelId,
-        isDM,
-        requestContext,
-        threadId,
-        userId,
-      }),
-    ]);
-    searchOnly({
-      names: Object.keys({ ...userTools, ...github }).filter(
-        (name) => !(name in base)
-      ),
-      requestContext,
-    });
-    return { ...userTools, ...github, ...base };
-  },
+  tools: turnTools,
   agents: { research, explore },
   memory: new Memory({
     options: {

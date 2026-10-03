@@ -17,10 +17,9 @@ export function createSandbox(threadId: string): E2BSandbox {
     env: {
       SSL_CERT_FILE: '/usr/lib/ssl/cert.pem',
       GIT_TERMINAL_PROMPT: '0',
-      // TODO(slopradar): magic string : the git identity 'gorkie-agent' is written twice inline → one value in config.ts (sandbox.gitAuthorName) next to agentmail.inbox
-      GIT_AUTHOR_NAME: 'gorkie-agent',
+      GIT_AUTHOR_NAME: config.gitAuthorName,
       GIT_AUTHOR_EMAIL: agentmail.inbox,
-      GIT_COMMITTER_NAME: 'gorkie-agent',
+      GIT_COMMITTER_NAME: config.gitAuthorName,
       GIT_COMMITTER_EMAIL: agentmail.inbox,
     },
     metadata: { 'thread-id': threadId },

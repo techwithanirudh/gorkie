@@ -1,6 +1,10 @@
 import type { Message } from 'chat';
+import type { z } from 'zod';
+import type { slackMessageSchema } from '../../types/tools/index';
 
-export function formatMessage(message: Message) {
+export function formatMessage(
+  message: Message
+): z.infer<typeof slackMessageSchema> {
   return {
     id: message.id,
     threadId: message.threadId,

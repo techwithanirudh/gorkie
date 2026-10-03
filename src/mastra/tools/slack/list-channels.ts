@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
-import { spendSlackCall } from '../../lib/slack-budget';
+import { spendSlackCall } from './budget';
 
 export const listChannelsTool = createTool({
   id: 'list_channels',

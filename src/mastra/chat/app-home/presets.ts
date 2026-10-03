@@ -1,8 +1,8 @@
+import { RadioSelect } from 'chat';
 import { z } from 'zod';
 import type { ApprovalLevel } from '../../types';
 
-// TODO(slopradar): naming : SCREAMING_CASE (PRESETS, SCOPE_LABELS, moderation/index.ts DURATION) while every other module constant is camelCase → `presets`, `scopeLabels`, `banDurations`
-export const PRESETS = {
+export const presets = {
   all: {
     description: 'Even reading waits.',
     label: 'Ask for everything',
@@ -30,7 +30,32 @@ export const PRESETS = {
 
 export const scopeSchema = z.enum(['dm', 'threads']).catch('dm');
 
-export const SCOPE_LABELS = {
+type Scope = z.infer<typeof scopeSchema>;
+
+const scopeLabels = {
   dm: 'Only in a DM with you',
   threads: 'Anywhere, including shared threads',
-} satisfies Record<z.infer<typeof scopeSchema>, string>;
+} satisfies Record<Scope, string>;
+
+export function scopeSelect({
+  descriptions,
+  id,
+  label,
+  threads,
+}: {
+  descriptions: Record<Scope, string>;
+  id: string;
+  label: string;
+  threads: boolean;
+}) {
+  return RadioSelect({
+    id,
+    label,
+    initialOption: threads ? 'threads' : 'dm',
+    options: scopeSchema.unwrap().options.map((value) => ({
+      label: scopeLabels[value],
+      description: descriptions[value],
+      value,
+    })),
+  });
+}

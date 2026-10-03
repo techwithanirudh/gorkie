@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { canvas as canvasConfig } from '../../config';
-import { spendSlackCall } from '../../lib/slack-budget';
+import { spendSlackCall } from '../slack/budget';
 import { fetchPrivateSlackFile, readableFile } from '../slack/files';
 import { canvasIdSchema } from './utils';
 

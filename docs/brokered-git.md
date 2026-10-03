@@ -25,12 +25,13 @@ All paths are under `src/mastra/`.
 
 | File | What it does |
 | --- | --- |
-| `tools/github/git.ts` | `git()` runs a command in the sandbox; `withCredential()` opens and closes the credential window; `checkoutPath()` maps `owner/repo` to `/home/user/owner__repo` |
+| `tools/github/git.ts` | `git()` runs a command in the sandbox; `withCredential()` opens and closes the credential window and requires the Slack `threadId`, which the background-job check is keyed on; `checkoutPath()` maps `owner/repo` to `/home/user/owner__repo` |
 | `tools/github/checkout.ts` | `github_checkout`: clones or fetches, then checks out a branch |
 | `tools/github/push.ts` | `github_push_branch`: pushes one local branch |
 | `tools/github/index.ts` | Builds the GitHub toolset per request and sets each tool's approval |
-<!-- TODO(slopradar): stale doc : the row names only `asksBefore()`, but the shared-thread clamp described at line 19 is `levelOutsideDM()` in the same file, applied in `lib/github/access.ts` → list `levelOutsideDM()` and `lib/github/access.ts` -->
-| `lib/approval.ts` | `asksBefore()`: maps the person's approval level and a tool's kind to "ask first" |
+| `lib/approval.ts` | `asksBefore()`: maps the person's approval level and a tool's kind to "ask first"; `levelOutsideDM()`: turns "never ask" into "ask before writing" in a shared thread |
+| `lib/github/access.ts` | Applies `levelOutsideDM()` to the person's GitHub approval setting |
+| `workspace/jobs.ts` | Tracks background commands per thread; `openCredentialWindow()` and `startJob()` refuse each other |
 | `lib/github/api.ts` | `repoAccess()`: reads whether a repository is private and whether the person can push |
 
 ## The credential window
@@ -60,34 +61,38 @@ checkout tool only fetches; gorkie has no bootstrap step, so `github_checkout`
 clones or fetches and is safe to re-run. eve serves one repository from one
 directory; gorkie derives a directory per repository.
 
-<!-- TODO(slopradar): finished history as live doc : a dated test log against template 2.0 that was never re-run on 2.2 → move the log to IMPLEMENTED.md (or re-run it), keep only the two lasting gotchas (Basic, not Bearer; no CA config) -->
-## Verified
+## Background commands
 
-Against `gorkie-workspace:2.0` and a real private repository, not yet re-run
-on the current template (`2.2`):
+The `github.com` rule covers the whole sandbox, so a background command running
+while the window is open could push with the person's token and no approval.
+The two refuse each other, per thread (`workspace/jobs.ts`):
 
-- A clone with no `github.com` rule fails (`could not read Username`); with the
-  rule it succeeds.
-- `git push` authenticates, and `.git/config` and the sandbox environment hold
-  no credential.
-- Clearing the rule mid-run revokes access immediately. (The sandbox also had
-  an `api.agentmail.to` rule then, which survived the reset; that rule was
-  removed on 2026-10-01 when email moved to host-side tools.)
-- Re-running checkout reuses the existing clone and fetches a branch that exists
-  only on the remote.
+- `withCredential()` calls `openCredentialWindow(threadId)`, which throws while
+  `hasLiveJob(threadId)` is true, so `github_checkout` and `github_push_branch`
+  fail before attaching the token. A job is a `run_background` call or an
+  `execute_command` with `background` (registered in `beforeToolCall`,
+  `workspace/index.ts`). It counts as live until it exits, is killed with
+  `!stop`, or its deadline passes.
+- `startJob()` throws while the thread's window is open, so a background
+  command cannot start during a checkout or push. The window is marked open
+  only for the length of `runWithToken()`, inside the per-sandbox queue.
 
-Git never sees the header the firewall adds: a failing clone, a
-`GIT_TRACE_CURL=1` run producing 3.7MB of trace, and `curl -v` all come back
-with nothing credential-shaped, so git output needs no scrubbing before it is
-quoted back.
+Gaps that remain:
 
-`Bearer` returns 401 from GitHub's git endpoint, so the header must be `Basic`.
-Git trusts E2B's interception CA with no extra configuration, so
-`GIT_SSL_CAINFO` is unnecessary.
+- A foreground `execute_command` (or any other sandbox tool) running in
+  parallel in the same step is not blocked, and runs with the token attached.
+- A process the agent backgrounds through the shell itself (`&`, `nohup`) is
+  not a tracked job, so it does not block the window.
+- The job registry lives in process memory, so after a restart the bot does
+  not know about commands still running in a sandbox it reconnects to.
 
-Tested with a `gho_` token from the `gh` CLI rather than a `ghu_` user token
-from the GitHub App sign-in. Both are user access tokens presented the same
-way, but worth reconfirming on the first real push.
+## Gotchas
+
+- The header must be `Basic`. `Bearer` returns 401 from GitHub's git endpoint.
+- Git trusts E2B's interception CA with no extra configuration, so
+  `GIT_SSL_CAINFO` is unnecessary.
+- Git never sees the header the firewall adds, so git output needs no
+  scrubbing before it is quoted back.
 
 ## Residual risk
 

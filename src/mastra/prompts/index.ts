@@ -17,9 +17,7 @@ import { toolsPrompt } from './tools';
 export async function instructions(
   requestContext: RequestContext
 ): Promise<CoreSystemMessage[]> {
-  const ctx = channelContext(requestContext);
-  const isDM = ctx.isDM === true;
-  const { userId } = ctx;
+  const { isDM, userId } = channelContext(requestContext);
   const [codeMode, github, userInstructions, mcps] = await Promise.all([
     codeModeInstructions({ workspaceAccess: true }),
     userId ? githubPrompt({ isDM, requestContext, userId }) : undefined,
@@ -33,7 +31,7 @@ export async function instructions(
             });
           })
       : undefined,
-    userId ? mcpPrompt({ isDM, userId }) : undefined,
+    userId ? mcpPrompt({ isDM, requestContext, userId }) : undefined,
   ]);
   return [
     [

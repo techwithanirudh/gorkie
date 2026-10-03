@@ -12,10 +12,11 @@ export async function claimTurn(userId: string): Promise<TurnClaim> {
     return { status: 'claimed' };
   }
   try {
-    const { recorded, usage } = await recordTurnWithinLimit(userId);
-    if (recorded) {
+    const turn = await recordTurnWithinLimit(userId);
+    if (turn.recorded) {
       return { status: 'claimed' };
     }
+    const { usage } = turn;
     const spent =
       usage.day.remaining === 0
         ? { window: usage.day, span: 'today' }

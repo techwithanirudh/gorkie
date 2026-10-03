@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { parseSlackInput } from '../../lib/ids';
-import { spendSlackCall } from '../../lib/slack-budget';
 import { assertCanRead, readableChannels } from '../slack/access';
+import { spendSlackCall } from '../slack/budget';
 
 const canvasFile = z
   .looseObject({

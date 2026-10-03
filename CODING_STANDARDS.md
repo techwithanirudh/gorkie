@@ -36,8 +36,9 @@ the rest is judgment applied consistently.
   external boundary (e.g. a library return type you've confirmed matches).
 - Parse all external input with Zod: Slack `private_metadata`, tool
   arguments, webhook payloads, env vars. Never `JSON.parse(...) as T`.
-- Shared or exported types live in `src/mastra/types/`. A private shape
-  used by one file stays inline in that file.
+- Shared or exported types live in `src/mastra/types/`, tool-owned ones
+  under `types/tools/<tool>.ts`. A private shape used by one file stays
+  inline in that file.
 - When an SDK type carries more fields than a function needs, define a
   smaller internal type and convert at the boundary rather than threading
   the full SDK type through your own code.
@@ -51,9 +52,10 @@ the rest is judgment applied consistently.
 
 ## Function design
 
-<!-- TODO(slopradar): rule gap : no exemption for library-shaped signatures (`guardedFetch(input, init)` mirrors `fetch`, `MastraFilesystem` methods are positional), open since slopradar Q8 → add "except where the signature implements a library contract" -->
 - **Dict params.** Any function with more than one parameter takes a
-  single options object, not positional args.
+  single options object, not positional args, except where a library
+  dictates the signature (`guardedFetch(input, init)` mirrors `fetch`,
+  `MastraFilesystem` methods are positional).
 
   ```ts
   // bad
@@ -87,6 +89,9 @@ the rest is judgment applied consistently.
   tools[name] = { execute: wrapMCPToolExecute({ ctxId, server, stream }) };
   ```
 
+- **No classes** except subclasses a framework requires (a Mastra base
+  class, a Chat SDK adapter) and `Error` subclasses. Use functions and
+  plain objects otherwise.
 - **Nested metadata over flat parallel fields.** Fields that always move
   together should be nested, not spread flat.
 
@@ -107,6 +112,8 @@ the rest is judgment applied consistently.
 - Names should describe current purpose, not implementation history. Prefer
   `reply`, `turns`, `buildPrompt`, `annotateMentions` over names that trace
   how the code evolved to get here.
+- Module-scope constants are camelCase like any other binding
+  (`presets`, `scopeLabels`), never `SCREAMING_CASE`.
 - Keep factory naming consistent within a family (e.g. most tool factories
   use `*Tool`). Fix outliers, but never change model-facing tool keys just
   to satisfy a local naming convention.
@@ -123,10 +130,6 @@ before renaming or splitting anything, never from vibes.
   factories, task rendering), not just because a file got long.
 - Keep schemas terse. Add `.describe()` only for fields whose contract
   isn't obvious from the name.
-<!-- TODO(slopradar): single source of truth : type ownership is stated three times (lines 39-40, here, and the smells at 143-145) → keep the Types section, delete this bullet and the two smells -->
-- Type ownership: a private, single-file shape stays inline. A shared or
-  exported shape lives in `src/mastra/types/`. Tool-owned shared shapes live
-  under `types/tools/<tool>.ts`.
 - After a rename or file move, search for the old name across source,
   prompts, and docs and update every reference before handoff. Stale
   references in prompts are easy to miss and silently wrong at runtime.
@@ -142,9 +145,6 @@ before renaming or splitting anything, never from vibes.
   [Function design](#function-design)).
 - User-facing task or status names that describe internal implementation
   state instead of the action the user took.
-- Exported interfaces living in implementation files instead of an owned
-  `types/` folder.
-- Tool-owned shared types living outside `types/tools/`.
 
 ## Comments
 
@@ -154,11 +154,12 @@ before renaming or splitting anything, never from vibes.
   a library quirk, an API limit, a workaround for a specific external bug.
   The two other allowed comments are the short why on a fire-and-forget
   promise and on an intentionally ignored catch (see
-  [Async & error handling](#async--error-handling)).
+  [Async & error handling](#async--error-handling)). Comments that restate
+  intent or narrate the code go.
 - Don't reference the current task, PR, or issue number in a comment. That
   belongs in the commit message and rots as the code evolves.
-- No em dashes anywhere: code, comments, docs, chat replies. Use a comma,
-  colon, or period.
+- No em dashes anywhere: code, comments, docs, chat replies. Use a comma
+  or a period, never a colon joining the two halves.
 - Runtime skills under `workspace/skills/` follow the `unslop` skill on
   dashes: no hyphen or parenthesis standing in for a dash either.
 
@@ -175,37 +176,31 @@ before renaming or splitting anything, never from vibes.
 
 ## Config & secrets
 
-- Never read `process.env` outside `src/env.ts`. Every environment
-  variable is declared once there with a Zod schema (see the `createEnv`
-  block) and imported as `env.WHATEVER` everywhere else. One exception:
-  `drizzle.config.ts` reads `process.env.DATABASE_URL` directly, because
-  importing `env` would make `drizzle-kit` require every bot secret just to
-  generate or run a migration.
+- Every environment variable is declared once in `src/env.ts` with a Zod
+  schema (the `createEnv` block) and imported as `env.WHATEVER`.
 - Magic numbers or strings that could plausibly change per deployment
   belong in `src/mastra/config.ts`, not inlined at the call site. This wins
   over "no one-use constants".
-- Model keys, Slack tokens, and DB credentials never enter the E2B
-  sandbox. They live on the host only.
 
 ## Architecture boundaries
 
-<!-- TODO(slopradar): single source of truth : this section and the `process.env`/secrets bullets at 176-186 restate AGENTS.md "Boundaries" and will drift → replace with one line pointing at AGENTS.md -->
-These come from [AGENTS.md](./AGENTS.md); repeated here because violating
-them is a correctness bug, not a style nit.
+The boundaries (no host execution, no secrets in the sandbox, `process.env`
+only in `src/env.ts`, no hand-rolling what channels does, what to ask
+before) live in [AGENTS.md](./AGENTS.md#boundaries). Breaking one is a
+correctness bug, not a style nit.
 
-- Never run user- or agent-generated code on the host. All execution goes
-  through the E2B sandbox.
-- Never hand-roll what Mastra `channels` already provides: streaming,
-  multi-user prefixing, typing status. Shape it through `handlers`,
-  `threadContext`, and subscription state instead of reimplementing it. One
-  exception: thread-history backfill. Channels backfills only on the first
-  mention, so `threadContext.maxMessages` is `0` and `chat/history.ts`
-  fetches the messages the agent has not seen yet on every turn.
-- Ask before: dependency changes, schema-shape changes, destructive git
-  operations.
+## Tools
 
-## Slack modal conventions
+Every tool declares a `transform.display` summary, so its Slack widget shows
+what happened instead of a generic label, and an `outputSchema` whenever we own
+the result shape. Tools that pass through another service's result (the
+`agentmail_*` tools proxy AgentMail's MCP server) skip the schema rather than
+guess one.
 
+## Slack UI conventions
+
+Messages and modals go through Chat SDK Cards. Raw Block Kit is allowed only
+where a Card cannot express the element (confirm dialogs, link buttons).
 Modals go through the Chat SDK, not raw Bolt: `event.openModal(...)` from an
 action, `bot.onModalSubmit(id, ...)` and `bot.onModalClose(id, ...)` to
 handle them, `event.privateMetadata` and `event.values` to read them.

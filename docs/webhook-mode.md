@@ -147,9 +147,10 @@ Two things they must get right:
   own shutdown. Set the unit's `TimeoutStopSec` above twice that plus 5 s,
   for example `TimeoutStopSec=250`, or systemd kills in-flight turns.
 
-Never run two processes side by side, including for a handover. Both would
-run the Mastra scheduler and workers against the same Postgres, and scheduled
-tasks could fire twice.
+Never run two processes side by side, including for a handover, dev against
+prod, or two dev copies. Both would run the Mastra scheduler and workers
+against the same Postgres, so scheduled tasks could fire twice, and one would
+lose the DuckDB lock and its local traces.
 
 ## Development
 

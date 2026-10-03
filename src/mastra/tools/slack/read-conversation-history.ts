@@ -4,9 +4,9 @@ import { slack } from '../../chat/client';
 import { isComment } from '../../chat/message';
 import { channelContext } from '../../lib/context';
 import { parseSlackInput } from '../../lib/ids';
-import { spendSlackCall } from '../../lib/slack-budget';
 import { slackMessageSchema } from '../../types/tools/index';
 import { openReadableChannel } from './access';
+import { spendSlackCall } from './budget';
 import { formatMessage } from './message';
 
 export const readConversationHistoryTool = createTool({

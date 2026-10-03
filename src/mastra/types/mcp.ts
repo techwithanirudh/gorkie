@@ -1,16 +1,15 @@
 import { z } from 'zod';
 import type { ApprovalLevel } from './approval';
 
-const TOOL_PERMISSIONS = [
+const toolPermissions = [
   'all',
   'write',
   'delete',
 ] as const satisfies readonly ApprovalLevel[];
 
-export type ToolPermission = (typeof TOOL_PERMISSIONS)[number];
+export type ToolPermission = (typeof toolPermissions)[number];
 
-// TODO(slopradar): weak fallback : `.catch('write')` also parses modal input (chat/app-home/mcp/actions.ts:207), turning an invalid submit into 'write' silently → plain enum for input, default only at the DB read (db/queries/mcps.ts:26)
-export const toolPermissionSchema = z.enum(TOOL_PERMISSIONS).catch('write');
+export const toolPermissionSchema = z.enum(toolPermissions);
 
 export const mcpServerSchema = z.object({
   name: z

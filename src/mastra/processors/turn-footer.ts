@@ -1,7 +1,4 @@
-import type {
-  ProcessOutputResultArgs,
-  ProcessOutputStreamArgs,
-} from '@mastra/core/processors';
+import type { Processor } from '@mastra/core/processors';
 import { formatDuration, intervalToDuration } from 'date-fns';
 import { slack } from '../chat/client';
 import { feedbackBlock } from '../chat/feedback';
@@ -14,17 +11,17 @@ export const turnFooter = {
   name: 'Turn Footer',
   description:
     'Closes a turn with how long it took and a thumbs rating for the response.',
-  processOutputStream(args: ProcessOutputStreamArgs) {
+  processOutputStream(args) {
     args.state.startTime ??= Date.now();
-    if (args.part.type !== 'tool-call') {
-      return args.part;
-    }
-    if (args.part.payload.toolName === runBackgroundTool.id) {
+    if (
+      args.part.type === 'tool-call' &&
+      args.part.payload.toolName === runBackgroundTool.id
+    ) {
       args.state.background = true;
     }
-    return args.part;
+    return Promise.resolve(args.part);
   },
-  async processOutputResult(args: ProcessOutputResultArgs) {
+  async processOutputResult(args) {
     const { threadId } = channelContext(args.requestContext);
     const { startTime } = args.state;
 
@@ -68,4 +65,4 @@ export const turnFooter = {
     }
     return args.messages;
   },
-};
+} satisfies Processor<'turn-footer'>;

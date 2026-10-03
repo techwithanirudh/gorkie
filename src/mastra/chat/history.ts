@@ -1,11 +1,12 @@
 import type { Message, Thread } from 'chat';
-import { parseMarkdown, stringifyMarkdown } from 'chat';
+import { stringifyMarkdown } from 'chat';
 import { history as config } from '../config';
+import { turnContext } from '../prompts/turn-context';
 import type { ThreadState } from '../types';
 import { attachmentLabel } from './attachments';
-import { isComment } from './message';
+import { isComment, setMessageText } from './message';
 
-export async function withHistory({
+export async function prependHistory({
   message,
   state,
   thread,
@@ -13,9 +14,9 @@ export async function withHistory({
   message: Message;
   state: ThreadState | null;
   thread: Thread;
-}): Promise<Message> {
+}): Promise<void> {
   if (thread.isDM) {
-    return message;
+    return;
   }
 
   const lines: string[] = [];
@@ -45,12 +46,13 @@ export async function withHistory({
       ? stringifyMarkdown(previous.formatted).trim()
       : previous.text;
     const count = previous.attachments.length;
+    const noun = count === 1 ? 'attachment' : 'attachments';
     const files = previous.attachments
       .map((attachment, index) => attachmentLabel({ attachment, index }))
       .join(', ');
-    // TODO(slopradar): nested ternary in template : plural and attachment suffix ternaries nested inside one template literal → build `files` suffix in a named const before the push
+    const suffix = count > 0 ? ` [${count} ${noun}: ${files}]` : '';
     lines.push(
-      `[${author} (${mention})${bot}] (msg:${previous.id}): ${text}${count > 0 ? ` [${count} attachment${count === 1 ? '' : 's'}: ${files}]` : ''}`
+      `[${author} (${mention})${bot}] (msg:${previous.id}): ${text}${suffix}`
     );
     if (lines.length >= config.maxUnseenMessages) {
       truncated = true;
@@ -59,30 +61,19 @@ export async function withHistory({
   }
 
   if (lines.length === 0 && comments === 0) {
-    return message;
+    return;
   }
 
   const header: string[] = [];
   if (lines.length > 0) {
-    header.push(
-      // TODO(slopradar): prompt copy outside prompts/ : model-facing instructions (x3 in this file, also attachments.ts:57) live in chat code → move the strings to `src/mastra/prompts/` and import them
-      '[Recent messages in this thread, oldest first, that you have not seen yet]'
-    );
+    header.push(turnContext.unseen);
     if (truncated) {
-      header.push(
-        '[Older unseen messages were left out. Read them with read_conversation_history if they matter.]'
-      );
+      header.push(turnContext.unseenTruncated);
     }
     header.push(...lines.reverse());
   }
   if (comments > 0) {
-    header.push(
-      `[${comments} ${comments === 1 ? 'message' : 'messages'} starting with ## were left out. They are side comments nobody addressed to you, so act on them only if asked. Read them with read_conversation_history and includeComments if you need them.]`
-    );
+    header.push(turnContext.comments(comments));
   }
-  const text = [...header, '', message.text].join('\n');
-  // TODO(slopradar): mutated argument : overwrites the caller's Message (attachments.ts:61 does the same) so the `return message` hides a side effect → either name it `prependHistory(message): void` or return a copied Message; share one `setMessageText` with attachments.ts
-  message.text = text;
-  message.formatted = parseMarkdown(text);
-  return message;
+  setMessageText({ message, text: [...header, '', message.text].join('\n') });
 }

@@ -32,6 +32,8 @@ const client = env.AGENTMAIL_API_KEY
   ? connect(env.AGENTMAIL_API_KEY)
   : undefined;
 
+export const agentmailEnabled = client !== undefined;
+
 let listed: ReturnType<MCPClient['listToolsWithErrors']> | undefined;
 
 // The inbox is pinned here, after the model's input, so no tool can reach

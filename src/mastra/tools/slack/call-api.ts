@@ -5,9 +5,9 @@ import { slack as slackConfig } from '../../config';
 import { channelContext } from '../../lib/context';
 import { parseSlackInput } from '../../lib/ids';
 import { logger } from '../../lib/logger';
-import { spendSlackCall } from '../../lib/slack-budget';
 import { requireSandbox, sandboxPath, writeSandboxFile } from '../../workspace';
 import { openReadableChannel } from './access';
+import { spendSlackCall } from './budget';
 
 const slackId = z
   .string()

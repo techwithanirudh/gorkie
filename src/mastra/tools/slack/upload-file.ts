@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { upload } from '../../config';
 import { channelContext } from '../../lib/context';
+import { formatBytes } from '../../lib/media';
 import { type Target, targetSchema } from '../../types/tools/index';
 import { requireSandbox } from '../../workspace';
 import { confinePath } from '../../workspace/filesystem';
@@ -32,7 +33,7 @@ async function uploadToSlack({
   );
   if (stat.size > upload.maxBytes) {
     throw new Error(
-      `${path} is ${Math.round(stat.size / 1_000_000)}MB, over the ${upload.maxBytes / 1_000_000}MB upload limit.`
+      `${path} is ${formatBytes(stat.size)}, over the ${formatBytes(upload.maxBytes)} upload limit.`
     );
   }
   const name = filename ?? (posix.basename(path) || 'file');
@@ -129,8 +130,7 @@ export const uploadFileTool = createTool({
   outputSchema: z.strictObject({
     filename: z.string(),
     path: z.string(),
-    // TODO(slopradar): loosened type : fileId is always returned (line 53 throws without it) → z.string()
-    fileId: z.string().optional(),
+    fileId: z.string(),
   }),
   transform: {
     display: {

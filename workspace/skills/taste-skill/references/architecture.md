@@ -7,30 +7,27 @@ Part of the `taste-skill` skill. Section numbers match the index in SKILL.md.
 Unless the design read picks a real design system (Section 2.A), these are the defaults:
 
 ### 3.A Stack
-<!-- TODO(slopradar): wrong default for this sandbox : React Server Components need a server runtime, but deploys go through `wrangler deploy --temporary` static assets or the single-file `web-page` skill → default to a static build (Vite) or one HTML file -->
-* **Framework:** React or Next.js. Default to Server Components (RSC).
-  * **RSC SAFETY:** Global state works ONLY in Client Components. In Next.js, wrap providers in a `"use client"` component.
-  * **INTERACTIVITY ISOLATION:** Any component using Motion, scroll listeners, or pointer physics MUST be an isolated leaf with `'use client'` at the top. Server Components render static layouts only.
+* **Framework:** a static build. Deploys go out as `wrangler deploy --temporary` static assets or a single file through the `web-page` skill, neither of which runs a server. Default to one HTML file for a simple page and React with Vite for anything bigger. Use Next.js only with `output: 'export'`, so no Server Components or server routes.
+  * **INTERACTIVITY ISOLATION (Next.js):** Any component using Motion, scroll listeners, or pointer physics MUST be an isolated leaf with `'use client'` at the top.
 * **Styling:** **Tailwind v4** (default). Tailwind v3 only if the existing project demands it.
   * For v4: do NOT use `tailwindcss` plugin in `postcss.config.js`. Use `@tailwindcss/postcss` or the Vite plugin.
-<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash (x10 in this file) → comma or new sentence -->
-* **Animation:** **Motion** (the library formerly known as Framer Motion). Import from `motion/react` (`import { motion } from "motion/react"`). The `framer-motion` package still works as a legacy alias - prefer `motion/react` in new code.
+* **Animation:** **Motion** (the library formerly known as Framer Motion). Import from `motion/react` (`import { motion } from "motion/react"`). The `framer-motion` package still works as a legacy alias; prefer `motion/react` in new code.
 * **Fonts:** Always use `next/font` (Next.js) or self-host with `@font-face` + `font-display: swap`. Never link Google Fonts via `<link>` in production.
 
 ### 3.B State
 * Local `useState` / `useReducer` for isolated UI.
-* Global state ONLY for deep prop-drilling avoidance - Zustand, Jotai, or React context.
+* Global state ONLY for deep prop-drilling avoidance: Zustand, Jotai, or React context.
 * **NEVER** use `useState` to track continuous values driven by user input (mouse position, scroll progress, pointer physics, magnetic hover). Use Motion's `useMotionValue` / `useTransform` / `useScroll`. `useState` re-renders the React tree on every change and collapses on mobile.
 
 ### 3.C Icons
 * **Allowed libraries (priority order):** `@phosphor-icons/react`, `hugeicons-react`, `@radix-ui/react-icons`, `@tabler/icons-react`.
 * **Discouraged:** `lucide-react`. Acceptable only when the user explicitly asks for it or the project already depends on it.
-* **NEVER hand-roll SVG icons.** If a glyph is missing, install a second library or compose from primitives - do not draw icon paths from scratch.
+* **NEVER hand-roll SVG icons.** If a glyph is missing, install a second library or compose from primitives. Do not draw icon paths from scratch.
 * **One family per project.** Do not mix Phosphor with Lucide in the same component tree.
 * **Standardize `strokeWidth` globally** (e.g. `1.5` or `2.0`).
 
 ### 3.D Emoji Policy
-Discouraged by default in code, markup, and visible text. Replace symbols with icon-library glyphs. **Override:** allow emojis only when the user explicitly asks for a playful / chat-style / social-native vibe - and even then use them sparingly with intent.
+Discouraged by default in code, markup, and visible text. Replace symbols with icon-library glyphs. **Override:** allow emojis only when the user explicitly asks for a playful / chat-style / social-native vibe, and even then use them sparingly with intent.
 
 ### 3.E Responsiveness & Layout Mechanics
 * Standardize breakpoints (`sm 640`, `md 768`, `lg 1024`, `xl 1280`, `2xl 1536`).
@@ -47,7 +44,7 @@ Before importing ANY 3rd-party library, check `package.json`. If the package is 
 
 ### 6.A Hardware Acceleration
 * Animate ONLY `transform` and `opacity`. Never animate `top`, `left`, `width`, `height`.
-* Use `will-change: transform` sparingly - only on elements that will actually animate.
+* Use `will-change: transform` sparingly, only on elements that will actually animate.
 
 ### 6.B Reduced Motion (mandatory)
 * **Any motion above `MOTION_INTENSITY > 3` MUST honor `prefers-reduced-motion`.** This is non-negotiable.
@@ -68,7 +65,7 @@ Before importing ANY 3rd-party library, check `package.json`. If the package is 
 * Run Lighthouse before declaring a page done.
 
 ### 6.E DOM Cost
-* Apply grain / noise filters EXCLUSIVELY to fixed, `pointer-events-none` pseudo-elements (e.g., `fixed inset-0 z-[60] pointer-events-none`). NEVER on scrolling containers - continuous GPU repaints destroy mobile FPS.
+* Apply grain / noise filters EXCLUSIVELY to fixed, `pointer-events-none` pseudo-elements (e.g., `fixed inset-0 z-[60] pointer-events-none`). NEVER on scrolling containers: continuous GPU repaints destroy mobile FPS.
 * Be aware of bundle size. Motion is not tiny. Three.js is large. Lazy-load anything that's not above-the-fold.
 
 ### 6.F Z-Index Restraint
@@ -86,10 +83,10 @@ Dual-mode by default. Never assume light-only unless the brief is print-emulatin
 
 ### 8.B Do Not Prescribe Specific Colors Here
 The brief and brand decide. This skill enforces only:
-* **Contrast** - WCAG AA minimum for body text, AAA target for hero copy.
-* **Hierarchy parity** - visual hierarchy that works in light must work in dark. If a CTA pops in light, it pops in dark.
-* **Brand fidelity** - primary brand color stays recognisable. Don't desaturate the brand into a dark mode.
-* **No pure `#000000` and no pure `#ffffff`** - use off-black (zinc-950, near-black warm gray) and off-white. Pure values kill depth.
+* **Contrast.** WCAG AA minimum for body text, AAA target for hero copy.
+* **Hierarchy parity.** Visual hierarchy that works in light must work in dark. If a CTA pops in light, it pops in dark.
+* **Brand fidelity.** Primary brand color stays recognisable. Don't desaturate the brand into a dark mode.
+* **No pure `#000000` and no pure `#ffffff`.** Use off-black (zinc-950, near-black warm gray) and off-white. Pure values kill depth.
 
 ### 8.C Default Mode
 Respect `prefers-color-scheme` unless the brand insists. Add a manual toggle if either mode would lose key brand expression.

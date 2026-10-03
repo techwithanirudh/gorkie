@@ -57,11 +57,9 @@ export const reactTool = createTool({
     assertCanPostTo({ target: { type: 'channel', id: channel }, ctx });
 
     const emoji = emojiInput.replaceAll(':', '');
-    const request = {
-      channel,
-      name: emoji,
-      timestamp: message.threadTs,
-    };
+    // Not slack.addReaction: its emoji resolver renames Slack names such as
+    // cry and cool to other emoji, and custom emoji with those names.
+    const request = { channel, name: emoji, timestamp: message.threadTs };
     if (action === 'remove') {
       await slack.webClient.reactions.remove(request);
     } else {

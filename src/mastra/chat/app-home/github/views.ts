@@ -1,6 +1,6 @@
 import { CardText, Modal, RadioSelect } from 'chat';
 import { type GitHubSettings, githubPermissionSchema } from '../../../types';
-import { PRESETS, SCOPE_LABELS, scopeSchema } from '../presets';
+import { presets, scopeSelect } from '../presets';
 import { ids } from './ids';
 
 export function configureModal({ permission, threads }: GitHubSettings) {
@@ -9,27 +9,23 @@ export function configureModal({ permission, threads }: GitHubSettings) {
     title: 'Configure GitHub',
     submitLabel: 'Save',
     children: [
-      RadioSelect({
+      scopeSelect({
+        descriptions: {
+          dm: 'In a shared thread Gorkie writes up the task and DMs it to you instead.',
+          threads:
+            'Anyone in the thread can steer it, and checked-out code stays readable.',
+        },
         id: ids.scope,
         label: 'Where can Gorkie use GitHub?',
-        initialOption: threads ? 'threads' : 'dm',
-        options: scopeSchema.unwrap().options.map((value) => ({
-          label: SCOPE_LABELS[value],
-          description: {
-            dm: 'In a shared thread Gorkie writes up the task and DMs it to you instead.',
-            threads:
-              'Anyone in the thread can steer it, and checked-out code stays readable.',
-          }[value],
-          value,
-        })),
+        threads,
       }),
       RadioSelect({
         id: ids.permission,
         label: 'When should Gorkie stop and ask?',
         initialOption: permission,
-        options: githubPermissionSchema.unwrap().options.map((value) => ({
-          label: PRESETS[value].label,
-          description: PRESETS[value].description,
+        options: githubPermissionSchema.options.map((value) => ({
+          label: presets[value].label,
+          description: presets[value].description,
           value,
         })),
       }),

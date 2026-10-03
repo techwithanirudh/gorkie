@@ -1,4 +1,5 @@
 import type { Message } from 'chat';
+import { parseMarkdown } from 'chat';
 import { z } from 'zod';
 
 const slackRawText = z.looseObject({ text: z.string() });
@@ -24,4 +25,15 @@ export function isComment(message: Message): boolean {
     first !== undefined &&
     withoutLeadingMentions(first).trimStart().startsWith('##')
   );
+}
+
+export function setMessageText({
+  message,
+  text,
+}: {
+  message: Message;
+  text: string;
+}): void {
+  message.text = text;
+  message.formatted = parseMarkdown(text);
 }

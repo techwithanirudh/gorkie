@@ -1,13 +1,12 @@
+import { isRecord } from '@ai-sdk/provider-utils';
 import type { ToolDisplayEvent, ToolDisplayFn } from '@mastra/core/channels';
-import type { CardElement } from 'chat';
 import { toolDisplay as config } from '../config';
+import {
+  parentToolCallId,
+  parseAgentTool,
+} from '../processors/delegated-tools';
 import { statusUpdateInputSchema } from '../types';
 import { label } from './status/label';
-
-// TODO(slopradar): duplication : byte-for-byte copy of isRecord in lib/logger/index.ts:38 → export one from lib, or use `z.record(z.string(), z.unknown()).safeParse`
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function text(value: unknown): string {
   if (value === null || value === undefined) {
@@ -64,9 +63,7 @@ function blockFields({ value, max }: { value: unknown; max: number }): string {
   if (output.length <= max) {
     return output ? codeBlock(output) : '';
   }
-  return codeBlock(
-    `${output.slice(0, max).trimEnd()}...\n\n(truncated ${output.length - max} chars)`
-  );
+  return codeBlock(`${output.slice(0, max).trimEnd()}...`);
 }
 
 function resultBody(result: unknown): string {
@@ -105,12 +102,23 @@ function task({
   details?: string;
   id: string;
   output?: string;
-  status: 'complete' | 'error' | 'in_progress';
+  status: 'complete' | 'in_progress';
   title: string;
 }): ReturnType<ToolDisplayFn> {
+  const fit = (value: string) =>
+    value.length > config.maxChunkChars
+      ? `${value.slice(0, config.maxChunkChars - 3).trimEnd()}...`
+      : value;
   return {
     kind: 'stream',
-    chunk: { type: 'task_update', id, title, status, details, output },
+    chunk: {
+      type: 'task_update',
+      id,
+      title: fit(title),
+      status,
+      details: details === undefined ? undefined : fit(details),
+      output: output === undefined ? undefined : fit(output),
+    },
   };
 }
 
@@ -124,10 +132,7 @@ function delegatedStep({
   tool: string;
 }): ReturnType<ToolDisplayFn> {
   const name = label(tool);
-  // TODO(slopradar): duplication across files : the `::` toolCallId and `<agent>_<tool>` toolName encoding is written in processors/delegated-tools.ts:30 and decoded here by string literals → export one encode/decode pair from delegated-tools.ts and use it in both places
-  const separator = event.toolCallId.indexOf('::');
-  const id =
-    separator === -1 ? event.toolCallId : event.toolCallId.slice(0, separator);
+  const id = parentToolCallId(event.toolCallId);
   if (event.kind === 'running') {
     const input = inlineFields(event.args) || event.argsSummary;
     return task({
@@ -138,7 +143,7 @@ function delegatedStep({
     });
   }
   return task({
-    details: `\n\n**${failed(event) ? 'Failed' : 'Done'}:** ${name}`,
+    details: `\n\n**Done:** ${name}`,
     id,
     status: 'in_progress',
     title: `${label(agent)}: ${name}`,
@@ -147,11 +152,11 @@ function delegatedStep({
 
 function runningDetails(event: ToolDisplayEvent): string {
   if (
-    /^agent-[a-z0-9-]+$/.test(event.toolName) &&
+    parseAgentTool(event.toolName) &&
     isRecord(event.args) &&
     typeof event.args.prompt === 'string'
   ) {
-    return `Task:\n${codeBlock(event.args.prompt)}`;
+    return `Task:\n${blockFields({ value: event.args.prompt, max: config.maxDetails })}`;
   }
   return (
     blockFields({ value: event.args, max: config.maxDetails }) ||
@@ -159,34 +164,13 @@ function runningDetails(event: ToolDisplayEvent): string {
   );
 }
 
-// Undefined keeps Mastra's built-in approval card for every other tool.
-export function approvalPost({
-  approvals,
-  event,
-}: {
-  approvals: Map<string, CardElement>;
-  event: ToolDisplayEvent;
-}): ReturnType<ToolDisplayFn> {
-  const card = event.kind === 'approval' && approvals.get(event.toolCallId);
-  if (!card) {
-    return;
-  }
-  approvals.delete(event.toolCallId);
-  return { kind: 'post', message: card };
-}
-
 export function detailedToolDisplay({
-  approvals,
   summaries,
 }: {
-  approvals: Map<string, CardElement>;
   summaries: Map<string, string>;
 }): ToolDisplayFn {
   return (event) => {
-    if (event.kind === 'approval') {
-      return approvalPost({ approvals, event });
-    }
-    if (event.toolName === 'skip') {
+    if (event.toolName === 'skip' || event.kind === 'approval') {
       return;
     }
     if (event.toolName === 'status_update') {
@@ -203,11 +187,13 @@ export function detailedToolDisplay({
         },
       };
     }
-    // TODO(slopradar): duplication : the `agent-` subagent tool-name shape is parsed three ways (here, runningDetails, status/index.ts) → one exported `parseAgentTool(toolName)` returning { agent, tool? }
-    const step = /^agent-([a-z0-9-]+?)_(.+)$/.exec(event.toolName);
-    if (step) {
-      const [, agent, tool] = step;
-      return delegatedStep({ agent, event, tool });
+    const agentTool = parseAgentTool(event.toolName);
+    if (agentTool?.tool) {
+      return delegatedStep({
+        agent: agentTool.agent,
+        event,
+        tool: agentTool.tool,
+      });
     }
     const id = event.toolCallId;
     const title = label(event.displayName || event.toolName);
@@ -221,15 +207,10 @@ export function detailedToolDisplay({
     }
     const summary = summaries.get(id);
     summaries.delete(id);
-    // Raw errors carry API codes and internals that mean nothing in Slack;
-    // the model still sees the full error.
+    // A failed call shows as a plain finished card; the model still sees the
+    // full error and decides what to tell the person.
     if (failed(event)) {
-      return task({
-        id,
-        output: 'Oops, something went wrong.',
-        status: 'error',
-        title,
-      });
+      return task({ id, status: 'complete', title });
     }
     const output = event.kind === 'result' ? resultBody(event.result) : '';
     return task({

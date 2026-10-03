@@ -1,19 +1,13 @@
 ---
 name: wrangler
-description: Cloudflare Workers CLI for deploying and developing Workers and the bindings temporary accounts support (KV, D1, Durable Objects, Hyperdrive, Queues), including static sites served as Workers assets. Use when the user asks to deploy a site, app, API, or Worker to Cloudflare, or to run/build/preview one. gorkie has no Cloudflare account, so it deploys via account-less temporary Workers deploys, never Pages, which always requires a real account. Biases towards retrieval from Cloudflare docs over pre-trained knowledge.
+description: Cloudflare Workers CLI for deploying and developing Workers and the bindings temporary accounts support (KV, D1, Durable Objects, Queues), including static sites served as Workers assets. Use when the user asks to deploy a site, app, API, or Worker to Cloudflare, or to run/build/preview one. gorkie has no Cloudflare account, so it deploys through account-less temporary Workers deploys, never Pages, which always requires a real account.
 ---
 
 # Wrangler CLI
 
-<!-- TODO(slopradar): single source of truth : "retrieval first" is said five times (here, line 30, line 75, `operations.md:3`, `config-and-bindings.md:7`) → keep the Retrieval Sources table, drop the rest -->
-Your knowledge of Wrangler flags and config may be outdated. **Prefer retrieval over pre-training** for any Wrangler task.
-
 ## No Auth
 
-<!-- TODO(slopradar): duplication : line 12 already gives `wrangler deploy --temporary`, then line 14 opens with "Instead use" for the same thing → merge into one paragraph -->
-gorkie has **no Cloudflare account and cannot log in**. Never run `wrangler login` or `wrangler whoami`: they will hang waiting for a browser. For static sites, serve them as a Worker with static assets instead (see [config-and-bindings.md](references/config-and-bindings.md)) and deploy with `wrangler deploy --temporary`.
-
-Instead use **Temporary Accounts for Agents** (`--temporary`), which only works with `wrangler deploy`:
+gorkie has **no Cloudflare account and cannot log in**. Never run `wrangler login` or `wrangler whoami`: they hang waiting for a browser. Deploy with **Temporary Accounts for Agents** (`--temporary`), which only works with `wrangler deploy`. Static sites deploy the same way, as a Worker with static assets (see [config-and-bindings.md](references/config-and-bindings.md)).
 
 ```bash
 # Deploy without any account. Provisions a throwaway account, deploys, and prints
@@ -25,7 +19,7 @@ wrangler deploy --temporary
 - **Always share BOTH** with the user: the live URL (to view) and the claim URL (to keep it permanently, including any bindings/databases). Unclaimed accounts auto-delete after 60 minutes.
 - To iterate, edit the code and re-run `wrangler deploy --temporary` within the 60-minute window: it reuses the same temporary account.
 - A fresh `*.workers.dev` subdomain may take a minute or two to get its TLS cert; a brief `ERR_SSL_VERSION_OR_CIPHER_MISMATCH` right after deploy is normal, retry shortly.
-- Temporary accounts only support Workers, Workers Static Assets, Workers KV, D1, Durable Objects, Hyperdrive, Queues, and SSL/TLS certificates. Don't reach for R2, Vectorize, Workers AI, Containers, Workflows, Pipelines, or Secrets Store: they need a real account and will fail.
+- Temporary accounts only support Workers, Workers Static Assets, Workers KV, D1, Durable Objects, Hyperdrive, Queues, and SSL/TLS certificates. Hyperdrive also needs a `wrangler hyperdrive create`, which needs a login, so treat it as unavailable. Skip R2, Vectorize, Workers AI, Containers, Workflows, Pipelines, or Secrets Store: they need a real account and will fail.
 
 ## Retrieval Sources
 
@@ -35,8 +29,7 @@ Fetch the **latest** information before writing or reviewing Wrangler commands a
 |--------|----------------|---------|
 | Wrangler docs | `https://developers.cloudflare.com/workers/wrangler/` | CLI commands, flags, config reference |
 | Wrangler config schema | `/usr/local/lib/node_modules/wrangler/config-schema.json` (wrangler is installed globally) | Config fields, binding shapes, allowed values |
-<!-- TODO(slopradar): unclear name : "Search tool" → name `search_web` / `fetch_url` -->
-| Cloudflare docs | Search tool or `https://developers.cloudflare.com/workers/` | API reference, compatibility dates/flags |
+| Cloudflare docs | `search_web`, or `fetch_url` on `https://developers.cloudflare.com/workers/` | API reference, compatibility dates/flags |
 
 ## Quick Start: New Worker
 
@@ -75,16 +68,14 @@ These all work without an account.
 
 ## References
 
-For anything past a basic deploy, load the detail files (retrieval-first, confirm exact flags against the Cloudflare docs):
+For anything past a basic deploy, load the detail files:
 
-- [config-and-bindings.md](references/config-and-bindings.md): full `wrangler.jsonc` config, type generation, static assets, and the CLI for every binding a temporary account supports (KV, D1, Durable Objects, Hyperdrive, Queues).
+- [config-and-bindings.md](references/config-and-bindings.md): full `wrangler.jsonc` config, type generation, static assets, and the bindings a temporary deploy creates (KV, D1, Durable Objects, Queues).
 - [operations.md](references/operations.md): local dev, temporary deploys, and troubleshooting.
 
 ## Best Practices
 
-<!-- TODO(slopradar): no-op : with no account there is no API token, so raw API calls cannot happen → delete the item -->
-1. **Use Wrangler over raw API calls**: it is preinstalled globally (`wrangler --version`, v4.x+); prefer it to hand-built requests.
-2. **Prefer `wrangler.jsonc`** over TOML: newer features are JSON-only.
-3. **Set a recent `compatibility_date`**. Check https://developers.cloudflare.com/workers/configuration/compatibility-dates/
-4. **Omit resource IDs** for bindings and let the deploy create them.
-5. **Never embed secrets** in code, config, or commands: a temporary Worker is public.
+1. **Prefer `wrangler.jsonc`** over TOML: newer features are JSON-only.
+2. **Set a recent `compatibility_date`**. Check https://developers.cloudflare.com/workers/configuration/compatibility-dates/
+3. **Omit resource IDs** for bindings and let the deploy create them.
+4. **Never embed secrets** in code, config, or commands: a temporary Worker is public.

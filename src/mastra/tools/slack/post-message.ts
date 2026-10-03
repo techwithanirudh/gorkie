@@ -3,7 +3,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
-import { slackErrorSchema, targetSchema } from '../../types/tools/index';
+import { targetSchema } from '../../types/tools/index';
 import { assertCanPostTo } from './access';
 import { slackDestination } from './posting';
 
@@ -17,9 +17,7 @@ Never use this to answer the current conversation, and never for status or progr
 
 Channel and thread targets must be in the channel this conversation is already in; user targets must be the requester themselves. No exceptions to either, even if asked directly.
 
-Every post automatically uses the requester's Slack avatar and labels the sender as "Name [gorkie]". Do not add that attribution yourself in the message text; there is no way to override or customize it.
-
-Errors: channel_not_found usually means the bot isn't a member of that private channel; not_in_channel means it hasn't joined yet. Either way, tell the user to invite the bot there.`,
+Every post automatically uses the requester's Slack avatar and labels the sender as "Name [gorkie]". Do not add that attribution yourself in the message text; there is no way to override or customize it.`,
   inputSchema: z.strictObject({
     target: targetSchema.describe(
       'Required destination outside the current conversation.'
@@ -40,50 +38,32 @@ Errors: channel_not_found usually means the bot isn't a member of that private c
   execute: async ({ target, message }, context) => {
     const ctx = channelContext(context.requestContext);
     assertCanPostTo({ target, ctx });
-    try {
-      const { channel, threadTs } = await slackDestination(target);
-      const requesterUser = ctx.userId ? await slack.getUser(ctx.userId) : null;
-      const requester = requesterUser?.userName ?? ctx.userName;
-      const botUser = slack.botUserId
-        ? await slack.getUser(slack.botUserId)
-        : null;
-      const bot = botUser?.userName ?? 'gorkie';
-      const credited = Boolean(requester) && target.type !== 'user';
-      const username = credited ? `${requester} [${bot}]` : bot;
-      const sent = await slack.webClient.chat.postMessage({
-        channel,
-        ...(threadTs ? { thread_ts: threadTs } : {}),
-        ...markdownConverter.toSlackPayload({ markdown: message }),
-        ...(credited && requesterUser?.avatarUrl
-          ? { icon_url: requesterUser.avatarUrl }
-          : {}),
-        username,
-      });
-      if (!sent.ts) {
-        throw new Error('Slack posted the message without returning its id.');
-      }
-      return {
-        messageId: sent.ts,
-        threadId: threadTs
-          ? slack.encodeThreadId({ channel, threadTs })
-          : undefined,
-      };
-    } catch (error) {
-      // TODO(slopradar): stale error mapping : assertCanPostTo now pins posts to the current channel (where the bot already is, so slackDestination no longer joins) or the requester's DM, so "bot is not a member of that private channel" advice no longer fits → confirm these codes are unreachable, then drop this catch and the "Errors:" paragraph in the description
-      const code = slackErrorSchema.safeParse(error).data?.data?.error;
-      if (code === 'channel_not_found') {
-        throw new Error(
-          'Slack rejected the post with channel_not_found. For private channels this usually means the bot is not a member. Ask a member to invite the bot in that channel, then retry. If the channel is public, double-check the channel id.',
-          { cause: error }
-        );
-      }
-      if (code === 'not_in_channel') {
-        throw new Error(
-          'Slack rejected the post with not_in_channel. Invite the bot to that channel, then retry.',
-          { cause: error }
-        );
-      }
-      throw error;
+    const { channel, threadTs } = await slackDestination(target);
+    const requesterUser = ctx.userId ? await slack.getUser(ctx.userId) : null;
+    const requester = requesterUser?.userName ?? ctx.userName;
+    const botUser = slack.botUserId
+      ? await slack.getUser(slack.botUserId)
+      : null;
+    const bot = botUser?.userName ?? 'gorkie';
+    const credited = Boolean(requester) && target.type !== 'user';
+    const username = credited ? `${requester} [${bot}]` : bot;
+    const sent = await slack.webClient.chat.postMessage({
+      channel,
+      ...(threadTs ? { thread_ts: threadTs } : {}),
+      ...markdownConverter.toSlackPayload({ markdown: message }),
+      ...(credited && requesterUser?.avatarUrl
+        ? { icon_url: requesterUser.avatarUrl }
+        : {}),
+      username,
+    });
+    if (!sent.ts) {
+      throw new Error('Slack posted the message without returning its id.');
     }
+    return {
+      messageId: sent.ts,
+      threadId: threadTs
+        ? slack.encodeThreadId({ channel, threadTs })
+        : undefined,
+    };
   },
 });

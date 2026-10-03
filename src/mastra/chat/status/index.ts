@@ -2,6 +2,7 @@ import {
   defaultTypingStatus,
   type TypingStatusFn,
 } from '@mastra/core/channels';
+import { parseAgentTool } from '../../processors/delegated-tools';
 import { statusUpdateInputSchema } from '../../types';
 import { fit, truncate } from './format';
 import { label } from './label';
@@ -44,9 +45,10 @@ export const status: TypingStatusFn = (chunk, context) => {
     return false;
   }
 
-  if (toolName.startsWith('agent-')) {
+  const agentTool = parseAgentTool(toolName);
+  if (agentTool) {
     return truncate(
-      `is spawning a ${label(toolName.slice('agent-'.length)).toLowerCase()} agent…`
+      `is spawning a ${label(agentTool.agent).toLowerCase()} agent…`
     );
   }
 

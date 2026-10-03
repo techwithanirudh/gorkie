@@ -6,7 +6,7 @@ import { channelSchema } from '../../types';
 export function approvalFor(permission: ToolPermission): RequireToolApprovalFn {
   return ({ annotations, requestContext, toolName }) => {
     const isDM =
-      channelSchema.safeParse(requestContext?.channel).data?.isDM === true;
+      channelSchema.safeParse(requestContext?.channel).data?.isDM ?? false;
     let kind: ToolKind = 'write';
     if (
       annotations?.destructiveHint === true ||

@@ -9,6 +9,30 @@ import { agent as agentConfig } from '../../config';
 import { channelContext } from '../../lib/context';
 import { parseSlackInput } from '../../lib/ids';
 
+export const scheduleOutputSchema = z.strictObject({
+  id: z.string(),
+  name: z.string().optional(),
+  task: z.string(),
+  cron: z.string(),
+  timezone: z.string().optional(),
+  status: z.enum(['active', 'paused']),
+  nextFireAt: z.string(),
+});
+
+export function scheduleOutput(
+  schedule: AgentSchedule
+): z.infer<typeof scheduleOutputSchema> {
+  return {
+    id: schedule.id,
+    name: schedule.name,
+    task: schedule.prompt,
+    cron: schedule.cron,
+    timezone: schedule.timezone,
+    status: schedule.status,
+    nextFireAt: new Date(schedule.nextFireAt).toISOString(),
+  };
+}
+
 export const waitMetadata = { kind: 'wait' } as const;
 
 // Schedule hooks get the row as an untyped `ScheduleRef`, hence the parse.

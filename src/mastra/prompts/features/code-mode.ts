@@ -1,4 +1,5 @@
 import { sandbox } from '../../config';
+import { codeModeToolNames } from '../../workspace/tool-names';
 
 export function codeModePrompt({
   instructions,
@@ -7,7 +8,6 @@ export function codeModePrompt({
   instructions: string;
   files: boolean;
 }): string {
-  // TODO(slopradar): magic strings : line 24 hand-lists the eight external_* functions that workspace/tool-names.ts `codeModeToolNames` already defines, so the prompt drifts when that set changes → interpolate `[...codeModeToolNames].map((name) => `external_${name}`).join(', ')`
   return `\
 <code-mode>
 Slack code mode is for several Slack reads, paging, filtering, joining, deduplication, sorting, counting, aggregation, and MCP tool calls that benefit from code-side orchestration. Use direct tools for single lookups. Only the external_* functions declared below can reach your tools. Return final results, not intermediate pages.
@@ -21,7 +21,7 @@ ${
   files
     ? `
 <files>
-Ignore the rule above about having no filesystem access. Your program runs as Node inside this thread's E2B sandbox, the same one the direct file tools and execute_command act on, and external_read_file, external_write_file, external_edit_file, external_list_files, external_file_stat, external_delete_file, external_grep, and external_execute_command take the same arguments there as their direct counterparts.
+Ignore the rule above about having no filesystem access. Your program runs as Node inside this thread's E2B sandbox, the same one the direct file tools and execute_command act on, and ${new Intl.ListFormat('en').format([...codeModeToolNames].map((name) => `external_${name}`))} take the same arguments there as their direct counterparts.
 
 Anything you read in bulk goes to a file, not into your return value: full channel or thread exports, every page of a paginated read, the per-message records behind a count. Write the file, then return the path with a count and a couple of sample rows. This is the normal shape of a program that reads a lot, not a fallback for when the result gets too big, and a return value over the size limit is rejected outright, so the rows would be lost anyway.
 

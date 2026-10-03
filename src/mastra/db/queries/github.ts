@@ -25,6 +25,17 @@ export async function getGitHubCredential(
   };
 }
 
+function sealCredential(credential: GitHubAccount) {
+  return {
+    expiresAt: credential.expiresAt ?? null,
+    lastError: null,
+    refreshToken: credential.refreshToken
+      ? encryptSecret(credential.refreshToken)
+      : null,
+    token: encryptSecret(credential.token),
+  };
+}
+
 export async function setGitHubCredential({
   credential,
   userId,
@@ -32,15 +43,7 @@ export async function setGitHubCredential({
   credential: GitHubAccount & { login: string };
   userId: string;
 }): Promise<void> {
-  const set = {
-    expiresAt: credential.expiresAt ?? null,
-    lastError: null,
-    login: credential.login,
-    refreshToken: credential.refreshToken
-      ? encryptSecret(credential.refreshToken)
-      : null,
-    token: encryptSecret(credential.token),
-  };
+  const set = { ...sealCredential(credential), login: credential.login };
   await db
     .insert(githubCredentials)
     .values({ ...set, userId })
@@ -54,18 +57,9 @@ export async function updateRefreshedGitHubCredential({
   credential: GitHubAccount;
   userId: string;
 }): Promise<boolean> {
-  // TODO(slopradar): duplication : the sealed column set (expiresAt, lastError null, encrypted refreshToken and token) is built again from setGitHubCredential
-  // → one sealCredential(credential) mapping used by both.
   const updated = await db
     .update(githubCredentials)
-    .set({
-      expiresAt: credential.expiresAt ?? null,
-      lastError: null,
-      refreshToken: credential.refreshToken
-        ? encryptSecret(credential.refreshToken)
-        : null,
-      token: encryptSecret(credential.token),
-    })
+    .set(sealCredential(credential))
     .where(eq(githubCredentials.userId, userId))
     .returning({ userId: githubCredentials.userId });
   return updated.length > 0;

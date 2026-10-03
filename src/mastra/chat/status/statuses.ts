@@ -52,8 +52,8 @@ function fixed(text: string) {
   return () => text;
 }
 
-// TODO(slopradar): magic strings : ~50 tool names typed as plain `string`, so a renamed tool silently loses its status → key the map by the toolset's tool-name union (`satisfies Partial<Record<ToolName, ...>>`)
 const statuses: Record<string, (args: Args) => string> = {
+  ask_user: fixed('is asking a question…'),
   call_slack_api: withArg({
     key: 'method',
     idle: 'is reading from Slack…',
@@ -167,6 +167,12 @@ const statuses: Record<string, (args: Args) => string> = {
   load_tool: fixed('is loading a tool…'),
   lookup_canvas_sections: fixed('is inspecting a canvas…'),
   pause_scheduled_task: fixed('is pausing a scheduled task…'),
+  post_card: withArg({
+    key: 'title',
+    idle: 'is posting a card…',
+    prefix: 'is posting ',
+    suffix: '…',
+  }),
   post_message: ({ target }) => {
     if (target?.type === 'user') {
       return 'is sending a DM…';

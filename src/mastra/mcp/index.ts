@@ -1,15 +1,20 @@
 import { MCPClient } from '@mastra/mcp';
 import { logger } from '../lib/logger';
+import { agentmailEnabled } from './agentmail';
 
-const client = new MCPClient({
-  id: 'mcp',
-  servers: {
-    context7: {
-      url: new URL('https://mcp.context7.com/mcp'),
-      allowedHosts: ['mcp.context7.com'],
-    },
+const servers = {
+  context7: {
+    url: new URL('https://mcp.context7.com/mcp'),
+    allowedHosts: ['mcp.context7.com'],
   },
-});
+};
+
+export const builtInMCPServers = [
+  ...Object.keys(servers),
+  ...(agentmailEnabled ? ['agentmail'] : []),
+];
+
+const client = new MCPClient({ id: 'mcp', servers });
 client.__setLogger(logger);
 
 type MCPTools = Awaited<ReturnType<MCPClient['listTools']>>;

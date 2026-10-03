@@ -84,7 +84,6 @@ export async function syncTitle({
   if (!threadTs) {
     return;
   }
-  // TODO(slopradar): per-turn work : every channel turn re-fetches the root from Slack, lists memory threads and reads thread state before checking `lastSentSlackTitle` → read state first and cache 'root does not open with a bot mention' in ThreadState so non-qualifying threads stop after one fetch
   const root = thread.isDM
     ? message
     : await botMentionRoot({ message, thread, threadTs });

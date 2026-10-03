@@ -1,7 +1,8 @@
+import { isValidGitRef } from '@mastra/factory/sandbox/git-ref';
 import { z } from 'zod';
 import type { ApprovalLevel } from './approval';
 
-const GITHUB_PERMISSIONS = [
+const githubPermissions = [
   'all',
   'write',
   'never',
@@ -17,15 +18,14 @@ export interface GitHubCredential {
 
 export type GitHubAccount = Omit<GitHubCredential, 'lastError' | 'login'>;
 
-export type GitHubPermission = (typeof GITHUB_PERMISSIONS)[number];
+export type GitHubPermission = (typeof githubPermissions)[number];
 
 export interface GitHubSettings {
   permission: GitHubPermission;
   threads: boolean;
 }
 
-// TODO(slopradar): weak fallback : `.catch('all')` also runs on modal input (chat/app-home/github/actions.ts:31), so a bad or tampered submit silently becomes 'all' instead of a field error; view.ts:130 re-parses an already parsed value → keep a plain enum for input, apply the default only where the DB row is read (db/queries/settings.ts:15)
-export const githubPermissionSchema = z.enum(GITHUB_PERMISSIONS).catch('all');
+export const githubPermissionSchema = z.enum(githubPermissions);
 
 export const repositorySchema = z
   .string()
@@ -40,14 +40,7 @@ export const repositorySchema = z
 
 export const branchSchema = z
   .string()
-  .regex(
-    /^[A-Za-z0-9](?:[A-Za-z0-9._/-]*[A-Za-z0-9])?$/,
-    'Not a valid branch name.'
-  )
-  .refine(
-    (value) => !(value.includes('..') || value.includes('//')),
-    'Not a valid branch name.'
-  )
+  .refine(isValidGitRef, 'Not a valid branch name.')
   .refine(
     (value) => !(value.startsWith('refs/') || value === 'HEAD'),
     'Pass the branch name without a refs/ prefix.'

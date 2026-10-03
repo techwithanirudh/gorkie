@@ -1,7 +1,7 @@
 import { Chat } from 'chat';
 import { logger } from '../lib/logger';
-import { optInStatus } from './allowed-users';
 import { registerAppHome } from './app-home';
+import { askActionIds, onAskClick } from './ask-user';
 import { slack } from './client';
 import { stopThread } from './commands/stop';
 import { content } from './content';
@@ -10,7 +10,7 @@ import {
   onFeedbackClick,
   recordFeedbackDetails,
 } from './feedback';
-import { banStatus, registerModeration } from './moderation';
+import { isBlocked, registerModeration } from './moderation';
 import { acceptOptIn, optInIds } from './onboarding';
 
 export function registerEvents(): void {
@@ -27,11 +27,7 @@ export function registerEvents(): void {
   // The Slack adapter aborts its own Chat SDK turn on the native stop button,
   // but channels never hands that signal to the Mastra run, so stop it here.
   bot.onAgentSessionStopped(async (event) => {
-    // TODO(slopradar): duplication : 'opted in and not banned' is checked here, in feedback.ts:75 and in handlers.ts with different order and failure handling → one `isBlocked(userId)` predicate in moderation or allowed-users
-    if (
-      (await optInStatus(event.userId)) !== 'allowed' ||
-      (await banStatus(event.userId)).status === 'banned'
-    ) {
+    if (await isBlocked(event.userId)) {
       return;
     }
     const outcome = await stopThread(event.threadId);
@@ -42,6 +38,8 @@ export function registerEvents(): void {
   registerModeration();
 
   bot.onAction(optInIds.accept, acceptOptIn);
+
+  bot.onAction(askActionIds, onAskClick);
 
   bot.onAction(feedbackIds.action, onFeedbackClick);
   bot.onModalSubmit(feedbackIds.modal, (event) =>

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createTool } from '@mastra/core/tools';
+import { FileNotFoundError } from 'e2b';
 import { z } from 'zod';
 import { artifacts as config } from '../config';
 import { requireSandbox, sandboxPath, writeSandboxFile } from '../workspace';
@@ -58,16 +59,16 @@ export const readArtifactTool = createTool({
   execute: async ({ id }, context) => {
     const sandbox = await requireSandbox(context.requestContext);
     const path = sandboxPath('.artifacts', `${id}.md`);
-    // TODO(slopradar): extra round trip : files.exists then files.read is two sandbox calls and a check-then-act gap → read once and map e2b's NotFoundError to the "No artifact" message
-    const exists = await sandbox.retryOnDead(() =>
-      sandbox.e2b.files.exists(path)
-    );
-    if (!exists) {
-      throw new Error(`No artifact ${id} in this thread's sandbox.`);
-    }
-    const body = await sandbox.retryOnDead(() =>
-      sandbox.e2b.files.read(path, { format: 'text' })
-    );
+    const body = await sandbox
+      .retryOnDead(() => sandbox.e2b.files.read(path, { format: 'text' }))
+      .catch((error: unknown) => {
+        if (error instanceof FileNotFoundError) {
+          throw new Error(`No artifact ${id} in this thread's sandbox.`, {
+            cause: error,
+          });
+        }
+        throw error;
+      });
     return { id, body };
   },
 });

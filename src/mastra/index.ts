@@ -1,169 +1,42 @@
-import { join } from 'node:path';
 import { Mastra } from '@mastra/core/mastra';
 import { SpanType } from '@mastra/core/observability';
-import type { SchedulePrepareContext } from '@mastra/core/schedules';
 import { SimpleAuth } from '@mastra/core/server';
 import { MastraCompositeStore } from '@mastra/core/storage';
-import { DuckDBStore } from '@mastra/duckdb';
 import { LangfuseExporter } from '@mastra/langfuse';
 import { MastraStorageExporter, Observability } from '@mastra/observability';
-import { z } from 'zod';
 import { env } from '@/env';
 import { explore } from './agents/explore';
 import { orchestrator } from './agents/orchestrator';
 import { research } from './agents/research';
 import { summarizer } from './agents/summarizer';
-import { buildAllowlist, optInStatus } from './chat/allowed-users';
+import { buildAllowlist } from './chat/allowed-users';
 import { registerEvents } from './chat/events';
 import { setMastra } from './chat/mastra-instance';
-import { banStatus } from './chat/moderation';
 import { TurnDrainWorker } from './chat/turn-drain';
-import { claimTurn } from './chat/usage';
-import { observability as observabilityConfig, shutdown } from './config';
+import { backgroundTasks, shutdown } from './config';
 import { runMigrations } from './db';
 import { postgresStore } from './db/client';
-import { parseSlackInput } from './lib/ids';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
 import { trimPayloads } from './observability/trim-payloads';
+import { deleteFiredWait, gateScheduledFire } from './schedule-hooks';
 import { oauthRoutes } from './server/oauth';
-import { isWaitSchedule } from './tools/scheduled-tasks/schedules';
-import { channelSchema } from './types';
+import { traceStore } from './trace-store';
 
 process.on('unhandledRejection', (err: unknown) => {
   logger.error('[process] unhandled rejection', { err });
 });
-// Node does not support resuming after an uncaught exception. Drain the turns
-// in flight, then exit non-zero so systemd restarts the process.
-process.once('uncaughtException', (err: Error) => {
-  logger.error('[process] uncaught exception, shutting down', { err });
-  mastra
-    .shutdown({ drainTimeout: shutdown.drainTimeoutMs })
-    .catch((error: unknown) => {
-      logger.error('[process] shutdown after an uncaught exception failed', {
-        error,
-      });
-    })
-    .finally(() => process.exit(1));
-});
-
-const isProduction = env.NODE_ENV === 'production';
-
-// DuckDB is single-writer: a second process holding the file lock must not
-// take the bot down with it, it just runs without local traces.
-// TODO(slopradar): index.ts owns everything : the local trace store open, init, prune and interval (lines 56 to 86) is observability wiring inside the entry file → move it to observability/trace-store.ts exporting `traceStore`
-const traceStore = isProduction
-  ? undefined
-  : await new DuckDBStore({
-      path: join(env.PROJECT_ROOT, 'observability.duckdb'),
-    })
-      .getStore('observability')
-      .then(async (store) => {
-        await store?.init();
-        return store;
-      })
-      .catch((error: unknown) => {
-        logger.error('[observability] local trace store failed to open', {
-          error,
-        });
-      });
-if (traceStore) {
-  const prune = () =>
-    traceStore
-      .prune({
-        logs: { maxAge: observabilityConfig.traceRetention },
-        metrics: { maxAge: observabilityConfig.traceRetention },
-        scores: { maxAge: observabilityConfig.traceRetention },
-        spans: { maxAge: observabilityConfig.traceRetention },
-      })
-      .catch((error: unknown) => {
-        logger.warn('[observability] pruning old traces failed', { error });
-      });
-  prune();
-  // TODO(slopradar): deployment values in config.ts : the daily prune interval here and the hourly backgroundTasks cleanupIntervalMs (line 179) are inline magic numbers → add `observability.pruneIntervalMs` and a `backgroundTasks.cleanupIntervalMs` to config.ts
-  setInterval(prune, 24 * 60 * 60 * 1000).unref();
-}
-
 // Before the Mastra constructor, which starts channels without awaiting them:
 // a Slack message handled mid-migration would read and write threads the
 // migration is renaming.
 await runMigrations();
 
-// TODO(slopradar): index.ts owns everything : deleteFiredWait and gateScheduledFire (ban check, turn claim, creator parsing with an inline z.object built per fire) are schedule policy, not boot → move them to tools/scheduled-tasks/hooks.ts next to isWaitSchedule and hoist the creator schema
-async function deleteFiredWait({
-  mastra: runtime,
-  schedule,
-}: {
-  mastra: Mastra;
-  schedule: { id: string; metadata?: unknown };
-}): Promise<void> {
-  if (isWaitSchedule(schedule)) {
-    await runtime.schedules.delete(schedule.id);
-  }
-}
-
-// Only `null` skips a fire; `undefined` fires it with the row's defaults.
-async function gateScheduledFire({
-  mastra: runtime,
-  schedule,
-}: SchedulePrepareContext<Mastra>): Promise<null | undefined> {
-  const current = await runtime.schedules.get(schedule.id);
-  if (!current) {
-    return null;
-  }
-  const creator =
-    z
-      .object({ channel: channelSchema })
-      .safeParse(
-        'ifIdle' in current
-          ? current.ifIdle?.streamOptions?.requestContext
-          : undefined
-      ).data?.channel.userId ?? parseSlackInput(current.resourceId).channel;
-  if (!creator) {
-    logger.warn('[schedules] skipped a fire with no resolvable creator', {
-      scheduleId: schedule.id,
-    });
-    return null;
-  }
-  if ((await banStatus(creator)).status === 'banned') {
-    logger.info("[schedules] skipped a banned user's fire", {
-      scheduleId: schedule.id,
-    });
-    return null;
-  }
-  // Only a confirmed opt-out skips. The allowlist is built after channels
-  // start, so fires due at boot would otherwise be dropped, and a skipped
-  // wait never comes back.
-  const optIn = await optInStatus(creator);
-  if (optIn === 'not-allowed') {
-    logger.info("[schedules] skipped an opted-out user's fire", {
-      scheduleId: schedule.id,
-      userId: creator,
-    });
-    return null;
-  }
-  if (optIn !== 'allowed') {
-    logger.warn('[schedules] fired without a confirmed opt-in', {
-      optIn,
-      scheduleId: schedule.id,
-      userId: creator,
-    });
-  }
-  if ((await claimTurn(creator)).status === 'over-limit') {
-    logger.info('[schedules] skipped a fire over the turn limit', {
-      scheduleId: schedule.id,
-      userId: creator,
-    });
-    return null;
-  }
-}
-
 const langfuse = new LangfuseExporter({
   baseUrl: env.LANGFUSE_BASE_URL,
   environment: env.NODE_ENV,
   publicKey: env.LANGFUSE_PUBLIC_KEY,
-  realtime: !isProduction,
+  realtime: env.NODE_ENV !== 'production',
   secretKey: env.LANGFUSE_SECRET_KEY,
 });
 
@@ -190,7 +63,7 @@ export const mastra = new Mastra({
   },
   backgroundTasks: {
     enabled: true,
-    cleanup: { cleanupIntervalMs: 60 * 60 * 1000 },
+    cleanup: { cleanupIntervalMs: backgroundTasks.cleanupIntervalMs },
   },
   workers: [new TurnDrainWorker()],
   storage: traceStore
@@ -222,6 +95,22 @@ export const mastra = new Mastra({
     },
   }),
   logger,
+});
+
+// Registered once `mastra` exists: a failure during migrations above is a
+// top-level rejection and already exits. Node does not support resuming after
+// an uncaught exception, so drain the turns in flight, then exit non-zero so
+// systemd restarts the process.
+process.once('uncaughtException', (err: Error) => {
+  logger.error('[process] uncaught exception, shutting down', { err });
+  mastra
+    .shutdown({ drainTimeout: shutdown.drainTimeoutMs })
+    .catch((error: unknown) => {
+      logger.error('[process] shutdown after an uncaught exception failed', {
+        error,
+      });
+    })
+    .finally(() => process.exit(1));
 });
 
 // Operator routes are for the host, never for anything that arrived through the

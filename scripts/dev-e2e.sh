@@ -20,11 +20,7 @@ trap cleanup EXIT INT TERM
 
 cd "$ROOT_DIR"
 
-token="${GORKIE_API_TOKEN:-}"
-if [[ -z "$token" ]]; then
-  # TODO(slopradar): library over hand-rolled : a sed regex re-parses .env (misses export prefixes, inline comments, escapes) and re-implements env.ts's min(32) rule → read it through Bun's own .env loading, e.g. token="$(bun -e 'process.stdout.write(process.env.GORKIE_API_TOKEN ?? "")')"
-  token="$(sed -nE 's/^GORKIE_API_TOKEN=["'"'"']?([^"'"'"']*)["'"'"']?$/\1/p' .env 2>/dev/null | tail -n 1 || true)"
-fi
+token="$(bun -e 'process.stdout.write(process.env.GORKIE_API_TOKEN ?? "")')"
 if (( ${#token} < 32 )); then
   echo "!! set GORKIE_API_TOKEN (32+ chars) in .env or the shell before tunnelling: openssl rand -hex 32" >&2
   exit 1

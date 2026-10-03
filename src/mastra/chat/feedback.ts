@@ -1,12 +1,12 @@
 import { buildFeedbackButtonsBlock } from '@chat-adapter/slack';
+import type { SlackBlock } from '@chat-adapter/slack/blocks';
 import type { ActionEvent, ModalCloseEvent, ModalSubmitEvent } from 'chat';
 import { Modal, TextInput } from 'chat';
 import { z } from 'zod';
 import { logger } from '../lib/logger';
 import { storedJson } from '../types';
-import { optInStatus } from './allowed-users';
 import { getMastra } from './mastra-instance';
-import { banStatus } from './moderation';
+import { isBlocked } from './moderation';
 
 export const feedbackIds = {
   action: 'message_feedback',
@@ -21,12 +21,15 @@ const metadataSchema = z.object({
   traceId: z.string().min(1),
 });
 
-export function feedbackBlock(traceId: string): Record<string, unknown> {
-  return buildFeedbackButtonsBlock({
-    actionId: feedbackIds.action,
-    positiveValue: `up:${traceId}`,
-    negativeValue: `down:${traceId}`,
-  });
+export function feedbackBlock(traceId: string): SlackBlock {
+  return {
+    ...buildFeedbackButtonsBlock({
+      actionId: feedbackIds.action,
+      positiveValue: `up:${traceId}`,
+      negativeValue: `down:${traceId}`,
+    }),
+    type: 'context_actions',
+  };
 }
 
 async function recordFeedback({
@@ -66,16 +69,13 @@ export async function onFeedbackClick(event: ActionEvent): Promise<void> {
   const direction = directionSchema.safeParse(prefix).data;
   if (!(direction && traceId)) {
     logger.warn('[feedback] click carried no rating or trace', {
-      // TODO(slopradar): secret in logs : the raw block_actions payload carries `response_url` (a 30-minute post credential) and `trigger_id` → log `actionId`, `value` and `userId` only
-      raw: event.raw,
+      actionId: event.actionId,
+      userId: event.user.userId,
       value: event.value,
     });
     return;
   }
-  if (
-    (await banStatus(event.user.userId)).status === 'banned' ||
-    (await optInStatus(event.user.userId)) !== 'allowed'
-  ) {
+  if (await isBlocked(event.user.userId)) {
     logger.info('[feedback] ignored a rating from a blocked user', {
       threadId: event.threadId,
       userId: event.user.userId,

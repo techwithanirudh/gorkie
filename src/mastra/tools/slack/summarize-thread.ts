@@ -3,15 +3,15 @@ import { z } from 'zod';
 import { summarizer } from '../../agents/summarizer';
 import { slack } from '../../chat/client';
 import { isComment } from '../../chat/message';
+import { slack as slackConfig } from '../../config';
 import { channelContext } from '../../lib/context';
 import { parseSlackInput } from '../../lib/ids';
-import { spendSlackCall } from '../../lib/slack-budget';
 import { openReadableChannel } from './access';
+import { spendSlackCall } from './budget';
 
 export const summarizeThreadTool = createTool({
   id: 'summarize_thread',
-  description:
-    'Summarize up to 100 messages from one Slack thread without returning its full transcript to the caller. Defaults to the current thread. The current conversation is always readable; other threads must be in a public channel, which is joined automatically. Messages starting with ## are side comments and are left out. Use read_conversation_history when exact wording or message metadata matters, and Slack code mode for exhaustive or cross-thread analysis.',
+  description: `Summarize up to ${slackConfig.summarizeMaxMessages} messages from one Slack thread without returning its full transcript to the caller. Defaults to the current thread. The current conversation is always readable; other threads must be in a public channel, which is joined automatically. Messages starting with ## are side comments and are left out. Use read_conversation_history when exact wording or message metadata matters, and Slack code mode for exhaustive or cross-thread analysis.`,
   inputSchema: z.strictObject({
     threadId: z
       .string()
@@ -48,9 +48,8 @@ export const summarizeThreadTool = createTool({
 
     spendSlackCall(context.requestContext);
 
-    // TODO(slopradar): tunable inline : 100 is also hard-coded in the description ("up to 100 messages") and can drift → config.slack.summarizeMaxMessages, interpolated into both
     const result = await slack.fetchMessages(target, {
-      limit: 100,
+      limit: slackConfig.summarizeMaxMessages,
       direction: 'backward',
     });
     const messages = result.messages.filter((message) => !isComment(message));

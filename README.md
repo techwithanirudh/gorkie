@@ -20,8 +20,7 @@ runs commands and inspects files without touching the host machine.
 
 - Slack-native replies for mentions, DMs, and subscribed thread follow-ups,
   streamed into the thread as they generate, with a typing indicator.
-<!-- TODO(slopradar): stale doc : the per-thread override is gone (no `!display`, no `toolDisplay` in `threadStateSchema`; `processors/tool-display.ts:50` reads only `user_settings.tool_display`) → say "Tool display per person, set from the Home tab" -->
-- Tool display per person or per thread: Default (typing status only) or
+- Tool display per person: Default (typing status only) or
   Detailed (a card per call with its inputs and result, helper agents' steps
   inside their card), set from the Home tab.
 - Thread commands: `!help`, `!stop`, `!compact` and
@@ -110,9 +109,9 @@ See [TODO.md](./TODO.md) for open work and known issues.
 Create a new [Slack app](https://api.slack.com/apps) from a manifest using
 [`slack-manifest.json`](./slack-manifest.json), which sets the webhook request
 URLs, the App Home, scopes, and event subscriptions. Replace `<your-host>` with
-<!-- TODO(slopradar): stale prerequisites : omits Node, but `package.json` engines requires `node >=24` and `bun run check:spelling` fails on Node 22.17 → add Node 24+ to the list -->
-the public hostname in front of the bot (see [docs/webhook-mode.md](docs/webhook-mode.md)). You also need [Bun][bun], a
-[PostgreSQL][postgres] database, an [E2B][e2b] API key, an [Exa][exa] API key,
+the public hostname in front of the bot (see [docs/webhook-mode.md](docs/webhook-mode.md)). You also need [Bun][bun],
+Node 24+ (`package.json` engines; `bun run check:spelling` fails on older
+Node), a [PostgreSQL][postgres] database, an [E2B][e2b] API key, an [Exa][exa] API key,
 and model keys for both [Hack Club][hackclub] and [OpenCode][opencode].
 
 ```bash
@@ -157,10 +156,8 @@ other route returns 404, and the rest of `/api` needs
 `Authorization: Bearer $GORKIE_API_TOKEN` even on the host. The bot logs
 `[agent] online` once channels are ready.
 
-<!-- TODO(slopradar): single source of truth : the same two-instance warning is in `AGENTS.md:72` and `docs/webhook-mode.md:127` → keep it in webhook-mode.md (the operator doc) and link to it here -->
-Never run two instances at once, dev against prod or two dev copies: they share
-the Mastra scheduler, workers and the DuckDB lock, so scheduled tasks can fire
-twice and one process loses local traces.
+Never run two instances at once, including dev against prod (see
+[Process supervision](docs/webhook-mode.md#process-supervision)).
 
 For a production-style run: `bun run build` then `bun run start`.
 
@@ -260,10 +257,9 @@ Needs `PUBLIC_BASE_URL`; without it OAuth servers show as not set up.
 A person's servers load for their own messages in a DM with gorkie. Each server
 also has a "Where can Gorkie use this server?" choice in its Add and Configure
 modals (`mcp_servers.threads`, default on): a server left on loads in shared
-<!-- TODO(slopradar): stale doc : incomplete. `levelOutsideDM` (`lib/approval.ts`) turns "never ask" into ask-before-writing too, not only "ask before deleting" → say "in a shared thread a server set to never ask or to ask only before deleting asks before writing" -->
 threads too, a server set to DMs only does not. In a shared thread a server set
-to ask only before deleting still asks before writing
-(`mcp/user-servers/approval.ts`).
+to never ask or to ask only before deleting asks before writing
+(`levelOutsideDM` in `lib/approval.ts`).
 
 ## The Mastra patch
 

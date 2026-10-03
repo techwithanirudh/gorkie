@@ -9,10 +9,11 @@ const markers = [
   'stashed?.requesterId ?? persistedRequesterId',
   'channelRequesterId',
   'advanceFallbackModel',
-  'droppedTaskIds',
+  'rolloverPlan',
   'groupedTask && !planTitleRef.current',
   'rendersToolsInPlan || toolDisplayFn',
   'stepIsContinued',
+  'id: "continued"',
 ];
 
 const stockContracts = ['"__mastra_chat_channel_render"'];
@@ -46,10 +47,12 @@ const missing = [
         .map((contract) => `${file}: stock contract ${contract}`),
     ];
   }),
-  // TODO(slopradar): inconsistent error handling : the Mastra bundles get an existsSync check and a readable message, but a missing slack dist throws a raw ENOENT stack → check existsSync(slackDist) and push a "not found" line like the bundles do
-  ...(readFileSync(slackDist, 'utf8').includes('STREAM_GONE_ERROR')
-    ? []
-    : ['@chat-adapter/slack index.js: STREAM_GONE_ERROR']),
+  ...(existsSync(slackDist) ? [] : ['@chat-adapter/slack index.js: not found']),
+  ...(existsSync(slackDist)
+    ? ['STREAM_GONE_ERROR', 'STREAM_SEGMENT_MAX_CHARS']
+        .filter((marker) => !readFileSync(slackDist, 'utf8').includes(marker))
+        .map((marker) => `@chat-adapter/slack index.js: ${marker}`)
+    : []),
   ...(deployerServer &&
   readFileSync(deployerServer, 'utf8').includes('preContextIsPublic')
     ? []

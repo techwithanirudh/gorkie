@@ -1,40 +1,81 @@
 --- a/dist/agent-DwtTO5Px.js
 +++ b/dist/agent-DwtTO5Px.js
-@@ -20789,6 +20789,10 @@
+@@ -20789,6 +20789,12 @@
  	const pendingOmTasks = /* @__PURE__ */ new Map();
  	const aggregatedRecallRef = { current: null };
  	const planTitleRef = { current: false };
 +	// Slack caps a plan block at 50 tasks and an over-cap append kills the
-+	// stream, so tasks past the cap are dropped and long turns roll over.
++	// stream, so a full plan rolls over into a new message instead.
 +	const sessionTaskIds = /* @__PURE__ */ new Set();
-+	const droppedTaskIds = /* @__PURE__ */ new Set();
++	const openTaskPieces = /* @__PURE__ */ new Map();
++	const retiredSessions = [];
++	let currentPlanTitle;
  	const openSession = () => {
  		let buffer = [];
  		let closed = false;
-@@ -20867,6 +20871,7 @@
+@@ -20853,6 +20859,7 @@
+ 		};
+ 	};
+ 	const closeSession = async () => {
++		await Promise.all(retiredSessions.splice(0));
+ 		const s = sessionRef.current;
+ 		if (!s) {
+ 			pendingInitialText.length = 0;
+@@ -20867,6 +20874,9 @@
  		pendingOmTasks.clear();
  		aggregatedRecallRef.current = null;
  		planTitleRef.current = false;
 +		sessionTaskIds.clear();
++		openTaskPieces.clear();
++		currentPlanTitle = void 0;
  		sessionRef.current = null;
  		s.close();
  		await s.done;
-@@ -20880,6 +20885,14 @@
+@@ -20879,7 +20889,43 @@
+ 	* `if (!session) session = openSession(); session.push(...)` pattern out
  	* of the handlers.
  	*/
++	// Tasks still running when a plan fills move into the next plan, so their
++	// updates land somewhere visible; the old plan shows them finished. The old
++	// stream finishes posting in the background and is awaited on close.
++	const rolloverPlan = () => {
++		const s = sessionRef.current;
++		if (!s) return;
++		for (const piece of openTaskPieces.values()) s.push({
++			...piece,
++			status: "complete"
++		});
++		s.push({
++			type: "task_update",
++			id: "continued",
++			title: "Continued in the next message",
++			status: "complete"
++		});
++		s.close();
++		retiredSessions.push(s.done);
++		sessionTaskIds.clear();
++		sessionRef.current = openSession();
++		if (currentPlanTitle) sessionRef.current.push({
++			type: "plan_update",
++			title: currentPlanTitle
++		});
++		for (const piece of openTaskPieces.values()) {
++			sessionTaskIds.add(piece.id);
++			sessionRef.current.push(piece);
++		}
++	};
  	const pushToSession = (piece) => {
 +		if (rendersToolsInPlan && piece.type === "task_update") {
-+			if (droppedTaskIds.has(piece.id)) return;
-+			if (!sessionTaskIds.has(piece.id) && sessionTaskIds.size >= 50) {
-+				droppedTaskIds.add(piece.id);
-+				return;
-+			}
++			if (!sessionTaskIds.has(piece.id) && sessionTaskIds.size >= 49) rolloverPlan();
 +			sessionTaskIds.add(piece.id);
++			if (piece.status === "in_progress") openTaskPieces.set(piece.id, piece);
++			else openTaskPieces.delete(piece.id);
 +		}
++		if (rendersToolsInPlan && piece.type === "plan_update") currentPlanTitle = piece.title;
  		if (!sessionRef.current) sessionRef.current = openSession();
  		for (const pendingPiece of pendingInitialText) sessionRef.current.push(pendingPiece);
  		pendingInitialText.length = 0;
-@@ -20888,6 +20901,16 @@
+@@ -20888,6 +20934,16 @@
  	const pushToolDisplayResult = (result) => {
  		if (result.openIfEmpty === false && !sessionRef.current) return;
  		pushToSession(result.chunk);
@@ -44,14 +85,14 @@
 +		// until the session closes.
 +		if (result.chunk.type === "plan_update") planTitleRef.current = true;
 +		const groupedTask = toolDisplay === "grouped" && result.chunk.type === "task_update";
-+		if (groupedTask && !planTitleRef.current && !droppedTaskIds.has(result.chunk.id)) pushToSession({
++		if (groupedTask && !planTitleRef.current) pushToSession({
 +			type: "plan_update",
 +			title: result.chunk.title
 +		});
  	};
  	const lookupTaskTitle = (toolCallId, fallback) => {
  		const stash = getPendingApproval(toolCallId);
-@@ -20978,7 +21001,8 @@
+@@ -20978,7 +21034,8 @@
  			}
  			const om = asOmChunk(chunk);
  			if (om) {
@@ -61,7 +102,7 @@
  				if (om.data.cycleId) {
  					if (!planTitleRef.current) {
  						pushToSession({
-@@ -21028,7 +21052,10 @@
+@@ -21028,7 +21085,22 @@
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -69,11 +110,23 @@
 +			// A continued step (retry, in-place or fallback-model escalation) means the
 +			// run is still alive: closing here would finalize the message early.
 +			const stepIsContinued = chunk.payload?.stepResult?.isContinued === true;
-+			if (!stepIsContinued && (toolDisplay !== "grouped" || sessionTaskIds.size >= 40)) await closeSession();
++			// A grouped plan stays open across steps, so it rolls over only after a
++			// tool-call step that filled it, before Slack's 50-task cap.
++			if (toolDisplay === "grouped") {
++				if (chunk.payload?.stepResult?.reason === "tool-calls" && sessionTaskIds.size >= 45 && sessionRef.current) {
++					sessionRef.current.push({
++						type: "task_update",
++						id: "continued",
++						title: "Continued in the next message",
++						status: "complete"
++					});
++					await closeSession();
++				}
++			} else if (!stepIsContinued) await closeSession();
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -22227,12 +22254,16 @@
+@@ -22227,12 +22299,16 @@
  						let runId;
  						let toolName;
  						let toolArgs;
@@ -91,7 +144,7 @@
  							const storage = mastra.getStorage();
  							const memoryStore = storage ? await storage.getStore("memory") : void 0;
  							if (!memoryStore) throw new Error("Storage is required for tool approval lookups");
-@@ -22248,12 +22279,13 @@
+@@ -22248,12 +22324,13 @@
  								const pending = msg.content?.metadata?.pendingToolApprovals;
  								if (pending) {
  									for (const toolData of Object.values(pending)) if (toolData.toolCallId === toolCallId) {
@@ -109,7 +162,7 @@
  								}
  							}
  						}
-@@ -22261,6 +22293,16 @@
+@@ -22261,6 +22338,16 @@
  							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
  							return;
  						}
@@ -126,7 +179,7 @@
  						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
  						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
  						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -22281,7 +22323,7 @@
+@@ -22281,7 +22368,7 @@
  							});
  							const { requestContext } = handlerContext;
  							requestContext.set("channel", channelContext);
@@ -135,7 +188,7 @@
  							requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  							try {
  								await this.dispatchDecline({
-@@ -22318,7 +22360,7 @@
+@@ -22318,7 +22405,7 @@
  						const renderContext = this._buildRenderContext(chatThread, platform, {
  							toolCallId,
  							messageId
@@ -144,7 +197,7 @@
  						requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  						await this.dispatchApproval({
  							runId,
-@@ -22754,7 +22796,7 @@
+@@ -22754,7 +22841,7 @@
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -153,7 +206,7 @@
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -22816,14 +22858,17 @@
+@@ -22816,14 +22903,17 @@
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -173,7 +226,7 @@
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -27353,6 +27398,16 @@
+@@ -27353,6 +27443,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -190,7 +243,7 @@
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -27373,7 +27428,11 @@
+@@ -27373,7 +27473,11 @@
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -203,7 +256,7 @@
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -27401,7 +27460,7 @@
+@@ -27401,7 +27505,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -212,7 +265,7 @@
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
-@@ -28331,10 +28390,12 @@
+@@ -28331,10 +28435,12 @@
  				const suspendTransform = getTransformedToolPayload(toolStateTransformMetadata, "transcript", "suspend");
  				const transformedArgs = type === "approval" ? hasTransformedToolPayload(approvalTransform) ? approvalTransform.transformed : hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : args : hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : args;
  				const transformedSuspendPayload = type === "suspension" ? hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : suspendPayload : void 0;
@@ -227,41 +280,82 @@
  						parentArgs
 --- a/dist/agent-DVnXHd4C.cjs
 +++ b/dist/agent-DVnXHd4C.cjs
-@@ -20791,6 +20791,10 @@
+@@ -20791,6 +20791,12 @@
  	const pendingOmTasks = /* @__PURE__ */ new Map();
  	const aggregatedRecallRef = { current: null };
  	const planTitleRef = { current: false };
 +	// Slack caps a plan block at 50 tasks and an over-cap append kills the
-+	// stream, so tasks past the cap are dropped and long turns roll over.
++	// stream, so a full plan rolls over into a new message instead.
 +	const sessionTaskIds = /* @__PURE__ */ new Set();
-+	const droppedTaskIds = /* @__PURE__ */ new Set();
++	const openTaskPieces = /* @__PURE__ */ new Map();
++	const retiredSessions = [];
++	let currentPlanTitle;
  	const openSession = () => {
  		let buffer = [];
  		let closed = false;
-@@ -20869,6 +20873,7 @@
+@@ -20855,6 +20861,7 @@
+ 		};
+ 	};
+ 	const closeSession = async () => {
++		await Promise.all(retiredSessions.splice(0));
+ 		const s = sessionRef.current;
+ 		if (!s) {
+ 			pendingInitialText.length = 0;
+@@ -20869,6 +20876,9 @@
  		pendingOmTasks.clear();
  		aggregatedRecallRef.current = null;
  		planTitleRef.current = false;
 +		sessionTaskIds.clear();
++		openTaskPieces.clear();
++		currentPlanTitle = void 0;
  		sessionRef.current = null;
  		s.close();
  		await s.done;
-@@ -20882,6 +20887,14 @@
+@@ -20881,7 +20891,43 @@
+ 	* `if (!session) session = openSession(); session.push(...)` pattern out
  	* of the handlers.
  	*/
++	// Tasks still running when a plan fills move into the next plan, so their
++	// updates land somewhere visible; the old plan shows them finished. The old
++	// stream finishes posting in the background and is awaited on close.
++	const rolloverPlan = () => {
++		const s = sessionRef.current;
++		if (!s) return;
++		for (const piece of openTaskPieces.values()) s.push({
++			...piece,
++			status: "complete"
++		});
++		s.push({
++			type: "task_update",
++			id: "continued",
++			title: "Continued in the next message",
++			status: "complete"
++		});
++		s.close();
++		retiredSessions.push(s.done);
++		sessionTaskIds.clear();
++		sessionRef.current = openSession();
++		if (currentPlanTitle) sessionRef.current.push({
++			type: "plan_update",
++			title: currentPlanTitle
++		});
++		for (const piece of openTaskPieces.values()) {
++			sessionTaskIds.add(piece.id);
++			sessionRef.current.push(piece);
++		}
++	};
  	const pushToSession = (piece) => {
 +		if (rendersToolsInPlan && piece.type === "task_update") {
-+			if (droppedTaskIds.has(piece.id)) return;
-+			if (!sessionTaskIds.has(piece.id) && sessionTaskIds.size >= 50) {
-+				droppedTaskIds.add(piece.id);
-+				return;
-+			}
++			if (!sessionTaskIds.has(piece.id) && sessionTaskIds.size >= 49) rolloverPlan();
 +			sessionTaskIds.add(piece.id);
++			if (piece.status === "in_progress") openTaskPieces.set(piece.id, piece);
++			else openTaskPieces.delete(piece.id);
 +		}
++		if (rendersToolsInPlan && piece.type === "plan_update") currentPlanTitle = piece.title;
  		if (!sessionRef.current) sessionRef.current = openSession();
  		for (const pendingPiece of pendingInitialText) sessionRef.current.push(pendingPiece);
  		pendingInitialText.length = 0;
-@@ -20890,6 +20903,16 @@
+@@ -20890,6 +20936,16 @@
  	const pushToolDisplayResult = (result) => {
  		if (result.openIfEmpty === false && !sessionRef.current) return;
  		pushToSession(result.chunk);
@@ -271,14 +365,14 @@
 +		// until the session closes.
 +		if (result.chunk.type === "plan_update") planTitleRef.current = true;
 +		const groupedTask = toolDisplay === "grouped" && result.chunk.type === "task_update";
-+		if (groupedTask && !planTitleRef.current && !droppedTaskIds.has(result.chunk.id)) pushToSession({
++		if (groupedTask && !planTitleRef.current) pushToSession({
 +			type: "plan_update",
 +			title: result.chunk.title
 +		});
  	};
  	const lookupTaskTitle = (toolCallId, fallback) => {
  		const stash = getPendingApproval(toolCallId);
-@@ -20980,7 +21003,8 @@
+@@ -20980,7 +21036,8 @@
  			}
  			const om = asOmChunk(chunk);
  			if (om) {
@@ -288,7 +382,7 @@
  				if (om.data.cycleId) {
  					if (!planTitleRef.current) {
  						pushToSession({
-@@ -21030,7 +21054,10 @@
+@@ -21030,7 +21087,22 @@
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -296,11 +390,23 @@
 +			// A continued step (retry, in-place or fallback-model escalation) means the
 +			// run is still alive: closing here would finalize the message early.
 +			const stepIsContinued = chunk.payload?.stepResult?.isContinued === true;
-+			if (!stepIsContinued && (toolDisplay !== "grouped" || sessionTaskIds.size >= 40)) await closeSession();
++			// A grouped plan stays open across steps, so it rolls over only after a
++			// tool-call step that filled it, before Slack's 50-task cap.
++			if (toolDisplay === "grouped") {
++				if (chunk.payload?.stepResult?.reason === "tool-calls" && sessionTaskIds.size >= 45 && sessionRef.current) {
++					sessionRef.current.push({
++						type: "task_update",
++						id: "continued",
++						title: "Continued in the next message",
++						status: "complete"
++					});
++					await closeSession();
++				}
++			} else if (!stepIsContinued) await closeSession();
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -22229,12 +22256,16 @@
+@@ -22229,12 +22301,16 @@
  						let runId;
  						let toolName;
  						let toolArgs;
@@ -318,7 +424,7 @@
  							const storage = mastra.getStorage();
  							const memoryStore = storage ? await storage.getStore("memory") : void 0;
  							if (!memoryStore) throw new Error("Storage is required for tool approval lookups");
-@@ -22250,12 +22281,13 @@
+@@ -22250,12 +22326,13 @@
  								const pending = msg.content?.metadata?.pendingToolApprovals;
  								if (pending) {
  									for (const toolData of Object.values(pending)) if (toolData.toolCallId === toolCallId) {
@@ -336,7 +442,7 @@
  								}
  							}
  						}
-@@ -22263,6 +22295,16 @@
+@@ -22263,6 +22340,16 @@
  							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
  							return;
  						}
@@ -353,7 +459,7 @@
  						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
  						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
  						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -22283,7 +22325,7 @@
+@@ -22283,7 +22370,7 @@
  							});
  							const { requestContext } = handlerContext;
  							requestContext.set("channel", channelContext);
@@ -362,7 +468,7 @@
  							requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  							try {
  								await this.dispatchDecline({
-@@ -22320,7 +22362,7 @@
+@@ -22320,7 +22407,7 @@
  						const renderContext = this._buildRenderContext(chatThread, platform, {
  							toolCallId,
  							messageId
@@ -371,7 +477,7 @@
  						requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  						await this.dispatchApproval({
  							runId,
-@@ -22756,7 +22798,7 @@
+@@ -22756,7 +22843,7 @@
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
@@ -380,7 +486,7 @@
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  		chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -22818,14 +22860,17 @@
+@@ -22818,14 +22905,17 @@
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -400,7 +506,7 @@
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -27355,6 +27400,16 @@
+@@ -27355,6 +27445,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -417,7 +523,7 @@
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -27375,7 +27430,11 @@
+@@ -27375,7 +27475,11 @@
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -430,7 +536,7 @@
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -27403,7 +27462,7 @@
+@@ -27403,7 +27507,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -439,7 +545,7 @@
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
-@@ -28333,10 +28392,12 @@
+@@ -28333,10 +28437,12 @@
  				const suspendTransform = require_payload_transform.getTransformedToolPayload(toolStateTransformMetadata, "transcript", "suspend");
  				const transformedArgs = type === "approval" ? require_payload_transform.hasTransformedToolPayload(approvalTransform) ? approvalTransform.transformed : require_payload_transform.hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : args : require_payload_transform.hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : require_payload_transform.hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : args;
  				const transformedSuspendPayload = type === "suspension" ? require_payload_transform.hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : suspendPayload : void 0;

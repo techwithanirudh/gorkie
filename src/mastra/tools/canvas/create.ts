@@ -40,18 +40,20 @@ export const createCanvasTool = createTool({
   },
   execute: async ({ mode, title, channelId, markdown }, context) => {
     const ctx = channelContext(context.requestContext);
+    const content = {
+      ...(title ? { title } : {}),
+      ...(markdown
+        ? { document_content: { type: 'markdown' as const, markdown } }
+        : {}),
+    };
     if (mode === 'standalone') {
       const current = channelId
         ? assertCanManageChannel({ channelIds: [channelId], ctx })
         : undefined;
-      // TODO(slopradar): duplication : the title and document_content spreads are built twice (here and the channel branch below) → build `const content = { ...title, ...document_content }` once before branching
       const response = await slack.webClient.canvases.create({
-        ...(title ? { title } : {}),
+        ...content,
         ...(current
           ? { channel_id: slack.decodeThreadId(current).channel }
-          : {}),
-        ...(markdown
-          ? { document_content: { type: 'markdown' as const, markdown } }
           : {}),
       });
       if (!response.canvas_id) {
@@ -75,10 +77,7 @@ export const createCanvasTool = createTool({
     try {
       const response = await slack.webClient.conversations.canvases.create({
         channel_id: slack.decodeThreadId(current).channel,
-        ...(title ? { title } : {}),
-        ...(markdown
-          ? { document_content: { type: 'markdown' as const, markdown } }
-          : {}),
+        ...content,
       });
       if (!response.canvas_id) {
         throw new Error(

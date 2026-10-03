@@ -42,12 +42,11 @@ For these directions, there is **no single official package**. Build with native
 
 ---
 
-<!-- TODO(slopradar): puffery : "Real Source-Backed", "production reality, not training-data fiction" (line 47) and `liquid-glass.md:98` "reality anchors" say nothing the content does not → cut; the heading also uses a hyphen as a dash (x3 in this file) -->
-# APPENDICES - Real Source-Backed Reference Material
+# APPENDICES
 
-The sections below are vendored reference content. They give the agent real install commands, real canonical doc links, and real working starter snippets for each design system named in Section 2. Use them to ground decisions in production reality, not training-data fiction.
+Install commands, doc links and starter snippets for each design system named in Section 2.
 
-## Appendix A - Install Commands per Design System
+## Appendix A. Install Commands per Design System
 
 ```bash
 # Material Web (Material 3)
@@ -95,7 +94,7 @@ npm install bootstrap
 
 ---
 
-## Appendix B - Canonical Sources (read these before reinventing)
+## Appendix B. Canonical Sources (read these before reinventing)
 
 ### Material Web
 - https://github.com/material-components/material-web

@@ -1,3 +1,4 @@
+import { env } from '@/env';
 import { agentmailTools } from './agentmail';
 import { readArtifactTool } from './artifacts';
 import { canvasTools } from './canvas';
@@ -32,6 +33,7 @@ export async function orchestratorTools() {
     view_image: viewImageTool,
     upload_file: slackTools.upload_file,
     post_message: slackTools.post_message,
+    ask_user: slackTools.ask_user,
     run_background: runBackgroundTool,
     read_artifact: readArtifactTool,
     status_update: statusUpdateTool,
@@ -49,7 +51,10 @@ export const deferredTools = {
   generate_image: generateImageTool,
   get_slack_emoji: slackTools.get_slack_emoji,
   call_slack_api: slackTools.call_slack_api,
-  upload_emoji: uploadEmojiTool,
+  post_card: slackTools.post_card,
+  ...(env.EMOJI_PROXY_TOKEN
+    ? { upload_emoji: uploadEmojiTool(env.EMOJI_PROXY_TOKEN) }
+    : {}),
   submit_feedback: submitFeedbackTool,
   ...canvasTools,
 };

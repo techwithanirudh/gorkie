@@ -6,36 +6,42 @@ import {
 import { InMemoryStore } from '@mastra/core/storage';
 import { Memory } from '@mastra/memory';
 import { agent as config } from '../config';
-import { defaultErrorProcessors } from '../lib/error-handling';
+import { errorProcessors } from '../lib/error-handling';
 import { moveToolImages } from '../processors/tool-media';
 
 export const agentDefaults = {
-  errorProcessors: defaultErrorProcessors(),
-  maxProcessorRetries: 2,
+  errorProcessors,
+  maxProcessorRetries: config.maxProcessorRetries,
 };
+
+export const providerCompat = new ProviderHistoryCompat({
+  additionalRules: [moveToolImages],
+});
 
 export const historyProcessors = [
   new TokenLimiterProcessor({
     limit: config.maxTokens.input,
     trimMode: 'contiguous',
   }),
-  new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
+  providerCompat,
 ];
 
 export function runDefaults(maxOutputTokens: number): AgentExecutionOptions {
   return {
     modelSettings: {
       maxOutputTokens,
-      // TODO(slopradar): deployment values in config.ts : topP 0.95, reasoning 'medium', toolCallConcurrency limit 10 and maxProcessorRetries 2 (line 14) are per-deployment model tuning inlined here → move them under `agent` in config.ts
-      topP: 0.95,
-      reasoning: 'medium',
+      topP: config.topP,
+      reasoning: config.reasoning,
       timeout: config.modelTimeout,
     },
     maxSteps: config.maxSteps,
     autoResumeSuspendedTools: true,
     // The default strategy serialises every step once any approval tool (the
     // GitHub push) is registered; 'called' serialises only a step that calls one.
-    toolCallConcurrency: { limit: 10, strategy: 'called' },
+    toolCallConcurrency: {
+      limit: config.toolCallConcurrency,
+      strategy: 'called',
+    },
   };
 }
 

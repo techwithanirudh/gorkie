@@ -4,23 +4,14 @@ import { listMCPServers } from '../../db/queries/mcps';
 import { activeBan } from '../../db/queries/moderation';
 import { getUserSettings } from '../../db/queries/settings';
 import { turnUsage } from '../../db/queries/usage';
-import {
-  countInstallations,
-  githubAccessToken,
-  recordGitHubUnauthorized,
-} from '../../lib/github';
 import { logger } from '../../lib/logger';
-import {
-  type GitHubCredential,
-  githubPermissionSchema,
-  type HomeSection,
-  type TurnUsage,
-} from '../../types';
+import type { GitHubCredential, HomeSection, TurnUsage } from '../../types';
 import { slack } from '../client';
 import { content } from '../content';
 import { banNotice } from '../moderation/cards';
 import { isModerator } from '../moderation/moderators';
 import { githubBlocks } from './github/blocks';
+import { githubInstallations } from './github/installations';
 import { customInstructionsBlocks } from './instructions/blocks';
 import { fitHome } from './limit';
 import { mcpServersBlocks } from './mcp/blocks';
@@ -87,24 +78,9 @@ export async function publishHome(userId: string): Promise<void> {
     settled({
       label: 'installations',
       userId,
-      // TODO(slopradar): feature logic in shared module : GitHub token refresh, installation count and 401 recording live inline in the generic Home assembler → move to `app-home/github/` as `githubInstallations(userId, credential)`
-      work: credentialResult.then(async ({ credential }) => {
-        const token =
-          credential && !credential.lastError
-            ? await githubAccessToken(userId)
-            : undefined;
-        if (!token) {
-          return 0;
-        }
-        const installations = await countInstallations(token);
-        if ('count' in installations) {
-          return installations.count;
-        }
-        if (installations.status === 401) {
-          await recordGitHubUnauthorized(userId);
-        }
-        return 0;
-      }),
+      work: credentialResult.then(({ credential }) =>
+        githubInstallations({ credential, userId })
+      ),
     }),
     settled({
       label: 'scheduled',
@@ -128,7 +104,7 @@ export async function publishHome(userId: string): Promise<void> {
     githubBlocks({
       credential,
       installations: installations ?? 0,
-      permission: githubPermissionSchema.parse(settings?.github.permission),
+      permission: settings?.github.permission ?? 'all',
       threads: settings?.github.threads === true,
       unreadable,
       userId,

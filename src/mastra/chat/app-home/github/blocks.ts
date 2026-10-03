@@ -5,7 +5,7 @@ import type {
   GitHubPermission,
   HomeSection,
 } from '../../../types';
-import { PRESETS } from '../presets';
+import { presets } from '../presets';
 import { ids } from './ids';
 
 export function githubBlocks({
@@ -26,9 +26,9 @@ export function githubBlocks({
   const signIn = oauthStartLink({ provider: 'github', slackUserId: userId });
   const scope = threads ? '  ·  `runs in shared threads`' : '';
   const threadLevel = levelOutsideDM({ isDM: false, level: permission });
-  let access = `${PRESETS[permission].status}  ·  Gorkie uses your GitHub account${threads ? '' : ', in DMs only'}${scope}`;
+  let access = `${presets[permission].status}  ·  Gorkie uses your GitHub account${threads ? '' : ', in DMs only'}${scope}`;
   if (threads && threadLevel !== permission) {
-    access = `${PRESETS[permission].status} in DMs  ·  ${PRESETS[threadLevel].status} in shared threads  ·  Gorkie uses your GitHub account`;
+    access = `${presets[permission].status} in DMs  ·  ${presets[threadLevel].status} in shared threads  ·  Gorkie uses your GitHub account`;
   }
 
   let status = 'Not connected';

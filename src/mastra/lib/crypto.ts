@@ -12,8 +12,8 @@ import {
 import { env } from '@/env';
 import { type OAuthToken, oauthTokenSchema } from '../types';
 
-const IV_BYTES = 12;
-const TAG_BYTES = 16;
+const ivBytes = 12;
+const tagBytes = 16;
 
 function keyWithId(base64: string) {
   const key = Buffer.from(base64, 'base64');
@@ -28,14 +28,15 @@ const previous = env.CREDENTIALS_KEY_PREVIOUS
   ? keyWithId(env.CREDENTIALS_KEY_PREVIOUS)
   : undefined;
 
-export const currentSecretPrefix = `v2.${current.id}.`;
+const currentSecretPrefix = `v2.${current.id}.`;
+export const sealedUnderCurrentKeyPattern = `${currentSecretPrefix}%`;
 
 export function isEncryptedSecret(stored: string): boolean {
   return stored.startsWith('v2.');
 }
 
 export function encryptSecret(plaintext: string): string {
-  const iv = randomBytes(IV_BYTES);
+  const iv = randomBytes(ivBytes);
   const cipher = createCipheriv('aes-256-gcm', current.key, iv);
   const body = Buffer.concat([
     cipher.update(plaintext, 'utf8'),
@@ -52,11 +53,11 @@ function unseal({ body, key }: { body: string; key: Buffer }): string {
   const decipher = createDecipheriv(
     'aes-256-gcm',
     key,
-    raw.subarray(0, IV_BYTES)
+    raw.subarray(0, ivBytes)
   );
-  decipher.setAuthTag(raw.subarray(IV_BYTES, IV_BYTES + TAG_BYTES));
+  decipher.setAuthTag(raw.subarray(ivBytes, ivBytes + tagBytes));
   return (
-    decipher.update(raw.subarray(IV_BYTES + TAG_BYTES)).toString('utf8') +
+    decipher.update(raw.subarray(ivBytes + tagBytes)).toString('utf8') +
     decipher.final('utf8')
   );
 }

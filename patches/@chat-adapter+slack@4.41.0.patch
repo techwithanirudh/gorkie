@@ -1,14 +1,20 @@
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -1002,6 +1002,7 @@
+@@ -1001,7 +1001,13 @@
+ var HTTP_URL_PREFIX_PATTERN = /^https?:\/\//;
  var DEFAULT_STREAM_SEGMENT_MAX_AGE_MS = 24e4;
  var STREAM_SEGMENT_ROTATION_GRACE_MS = 3e4;
++// Slack rejects a streamed message that grows too long (msg_too_long), so a
++// long reply also rolls into a new message by size, at a paragraph break when
++// it can.
++var STREAM_SEGMENT_MAX_CHARS = 8e3;
++var STREAM_SEGMENT_HARD_MAX_CHARS = 1e4;
  var STREAM_EXPIRED_ERROR = "message_not_in_streaming_state";
 +var STREAM_GONE_ERROR = "message_not_found";
  var FENCE_LINE_PATTERN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
  var TABLE_ROW_PATTERN = /^\|.*\|$/;
  var TABLE_SEPARATOR_PATTERN = /^\|[\s:]*-+[\s:]*(?:\|[\s:]*-+[\s:]*)*\|$/;
-@@ -4989,6 +4990,19 @@
+@@ -4989,6 +4995,19 @@
        );
      };
      const isStreamExpired = (error) => slackPlatformErrorCode(error) === STREAM_EXPIRED_ERROR;
@@ -28,7 +34,18 @@
      const markSegmentStarted = () => {
        segment.startedAt ??= Date.now();
        segment.flushNextAppend = false;
-@@ -5028,6 +5042,8 @@
+@@ -4999,6 +5018,10 @@
+       if (segment.startedAt === void 0) {
+         return false;
+       }
++      const size = lastAppended.length - segmentBase.length;
++      if (size >= STREAM_SEGMENT_MAX_CHARS) {
++        return atBlockBoundary || size >= STREAM_SEGMENT_HARD_MAX_CHARS;
++      }
+       const age = segmentAgeMs();
+       if (age < this.streamSegmentMaxAgeMs) {
+         return false;
+@@ -5028,6 +5051,8 @@
      };
      const startNextSegment = async (sent) => {
        segment.streamer = createStreamer();
@@ -37,7 +54,7 @@
        segment.startedAt = void 0;
        segment.flushNextAppend = true;
        const fence = openFenceIn(sent);
-@@ -5092,15 +5108,16 @@
+@@ -5092,15 +5117,16 @@
            ageMs
          });
        } catch (error) {
@@ -59,7 +76,7 @@
        }
        await startNextSegment(sent);
        return tail;
-@@ -5134,7 +5151,18 @@
+@@ -5134,7 +5160,18 @@
          await sendDelta(delta, false);
        } catch (error) {
          if (fallback.nativeRendered) {
@@ -79,7 +96,7 @@
          }
          switchToFallback(error);
          await flushFallback(force);
-@@ -5159,7 +5187,20 @@
+@@ -5159,7 +5196,20 @@
          lastFlushed = lastAppended;
          rememberStructuredChunk(chunk);
        } catch (error) {
@@ -101,7 +118,7 @@
        }
      };
      for await (const chunk of textStream) {
-@@ -5213,10 +5254,11 @@
+@@ -5213,10 +5263,11 @@
          await this.endTyping(threadId, options?.sessionStatus ?? "active");
          return fallback.message;
        }
@@ -115,7 +132,7 @@
        if (unconfirmed.length === 0) {
          const expiredTs = segment.streamer.ts;
          if (!expiredTs) {
-@@ -5226,6 +5268,7 @@
+@@ -5226,6 +5277,7 @@
            "Slack: stream expired before stop, stream-end blocks skipped",
            {
              channel,
@@ -123,7 +140,7 @@
              messageId: expiredTs,
              skippedBlocks: stopBlocks.length
            }
-@@ -5236,10 +5279,11 @@
+@@ -5236,10 +5288,11 @@
        this.logger.warn(
          "Slack: stream expired before stop, delivering the rest in a new message",
          {

@@ -2,9 +2,12 @@ import { slack } from '../../chat/client';
 import { slack as slackConfig } from '../../config';
 import { parseSlackInput } from '../../lib/ids';
 import { logger } from '../../lib/logger';
-import { ALREADY_IN_CHANNEL } from '../../lib/logger/slack';
 import type { ChannelContext } from '../../types';
-import { slackErrorSchema, type Target } from '../../types/tools/index';
+import {
+  alreadyInChannel,
+  slackErrorSchema,
+  type Target,
+} from '../../types/tools/index';
 
 function isCurrent({
   channelId,
@@ -16,7 +19,7 @@ function isCurrent({
   return parseSlackInput(ctx.threadId).channel === channelId;
 }
 
-export async function canRead({
+async function canRead({
   channelId,
   ctx,
 }: {
@@ -63,7 +66,7 @@ export async function openReadableChannel({
     await slack.webClient.conversations.join({ channel: channelId });
   } catch (error) {
     if (
-      slackErrorSchema.safeParse(error).data?.data?.error !== ALREADY_IN_CHANNEL
+      slackErrorSchema.safeParse(error).data?.data?.error !== alreadyInChannel
     ) {
       logger.warn('[slack] could not join the channel', { channelId, error });
     }

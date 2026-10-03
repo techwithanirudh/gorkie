@@ -4,9 +4,9 @@ import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { search } from '../../config';
 import { channelContext } from '../../lib/context';
-import { spendSlackCall } from '../../lib/slack-budget';
 import type { ChannelContext } from '../../types';
 import { readableChannels } from './access';
+import { spendSlackCall } from './budget';
 
 const contextMessageSchema = z
   .looseObject({
@@ -52,9 +52,13 @@ const searchResponseSchema = z.looseObject({
               channelId: message.channel_id,
               channelName: message.channel_name,
               text: (message.content ?? '').slice(0, search.snippetChars),
-              // TODO(slopradar): tunable values inline : context size 3 (x2 here), context snippet 400 (line ~137) and page size `limit: 10` (line ~202) are search knobs → move them into config.search beside snippetChars
-              before: (message.context_messages?.before ?? []).slice(-3),
-              after: (message.context_messages?.after ?? []).slice(0, 3),
+              before: (message.context_messages?.before ?? []).slice(
+                -search.contextMessages
+              ),
+              after: (message.context_messages?.after ?? []).slice(
+                0,
+                search.contextMessages
+              ),
               permalink: message.permalink,
             }))
         )
@@ -131,7 +135,7 @@ async function toOutput({
       const contextText = (items: typeof message.before) =>
         items
           .filter((item) => readable.has(item.channelId ?? channelId))
-          .map((item) => item.text.slice(0, 400));
+          .map((item) => item.text.slice(0, search.contextSnippetChars));
       return [
         {
           ...message,
@@ -199,7 +203,7 @@ export const searchSlackTool = createTool({
           content_types: 'messages',
           cursor,
           include_context_messages: true,
-          limit: 10,
+          limit: search.slackPageSize,
           query,
           token,
         })

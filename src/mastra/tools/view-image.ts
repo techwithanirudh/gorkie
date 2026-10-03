@@ -1,21 +1,9 @@
-import { detectMediaType } from '@ai-sdk/provider-utils';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { image } from '../config';
+import { formatBytes, viewableImageType } from '../lib/media';
 import { requireSandbox } from '../workspace';
 import { confinePath } from '../workspace/filesystem';
-
-// TODO(slopradar): structure : a shared media helper exported from a tool file and imported by slack/get-slack-emoji.ts and generate-image/request.ts → move viewableImageType to src/mastra/lib (e.g. lib/media.ts) so tools import a lib, not each other
-export function viewableImageType(bytes: Uint8Array): string | undefined {
-  // Type by the actual bytes, never the extension: a mislabeled file (e.g. a
-  // non-image renamed .png) sent as image/png makes the model gateway reject
-  // the whole turn, and the malformed part poisons the thread's history.
-  const mediaType = detectMediaType({ data: bytes, topLevelType: 'image' });
-  return mediaType &&
-    ['image/gif', 'image/jpeg', 'image/png', 'image/webp'].includes(mediaType)
-    ? mediaType
-    : undefined;
-}
 
 export const viewImageTool = createTool({
   id: 'view_image',
@@ -51,7 +39,7 @@ export const viewImageTool = createTool({
     );
     if (stat.size > image.maxViewBytes) {
       throw new Error(
-        `${path} is ${Math.round(stat.size / 1_000_000)}MB, too large to view inline.`
+        `${path} is ${formatBytes(stat.size)}, too large to view inline (limit ${formatBytes(image.maxViewBytes)}).`
       );
     }
     const bytes = Buffer.from(

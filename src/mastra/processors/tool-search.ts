@@ -1,7 +1,4 @@
-import {
-  type ProcessInputStepArgs,
-  ToolSearchProcessor,
-} from '@mastra/core/processors';
+import { type Processor, ToolSearchProcessor } from '@mastra/core/processors';
 import type { RequestContext } from '@mastra/core/request-context';
 import { z } from 'zod';
 import { deferredTools } from '../tools/toolsets';
@@ -58,7 +55,7 @@ export const toolSearch = {
   id: search.id,
   name: search.name,
   description: search.description,
-  async processInputStep(args: ProcessInputStepArgs) {
+  async processInputStep(args) {
     const { resident, searchable } = split({
       requestContext: args.requestContext,
       tools: args.tools,
@@ -70,9 +67,7 @@ export const toolSearch = {
     return { tools: { ...resident, ...tools } };
   },
   // Duck-typed by the agent to rebuild loaded executors on an approval resume.
-  getLoadedToolsForRequestContext(
-    args: Parameters<ToolSearchProcessor['getLoadedToolsForRequestContext']>[0]
-  ) {
+  getLoadedToolsForRequestContext(args) {
     return search.getLoadedToolsForRequestContext({
       ...args,
       stepArgs: args?.stepArgs && {
@@ -88,4 +83,5 @@ export const toolSearch = {
       }).searchable,
     });
   },
-};
+} satisfies Processor<'tool-search'> &
+  Pick<ToolSearchProcessor, 'getLoadedToolsForRequestContext'>;

@@ -1,13 +1,13 @@
 import { listMCPServers } from '../../db/queries/mcps';
 import { githubAccess } from '../../lib/github';
 import { logger } from '../../lib/logger';
+import { builtInMCPServers } from '../../mcp';
 import type { CommandHandler } from '../../types';
 import { notify } from '../notify';
 
 export const connections: CommandHandler = async ({ message, thread }) => {
   const { userId } = message.author;
-  // TODO(slopradar): magic string : hard-codes the built-in MCP server that mcp/index.ts:7 configures → list the configured built-in server names from that config
-  const items = ['• context7 (built in)'];
+  const items = builtInMCPServers.map((name) => `• ${name} (built in)`);
 
   try {
     const github = await githubAccess({ isDM: thread.isDM, userId });

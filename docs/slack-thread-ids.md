@@ -40,9 +40,11 @@ When several threads share one Slack id, it renames the one Mastra's
 `findThreadMapping` would pick. The others were already unreachable and stay as
 they are.
 
-<!-- TODO(slopradar): stale doc : this branch no longer reads Chat SDK `thread-state:` keys (`MastraStateAdapter` is in-memory; gorkie state lives in Mastra `threadState`, already keyed by the Slack id, `chat/state.ts:8`) → say that, and that any rows main left behind are dead -->
-Chat SDK state (subscriptions, `thread-state:` keys) is keyed by the Chat SDK id
-already, so it does not change.
+Gorkie's own thread state lives in Mastra's `threadState` domain
+(`chat/state.ts`), which the rename above covers. Chat SDK state
+(subscriptions) sits in `MastraStateAdapter`, in process memory, so nothing
+persistent needs renaming. Any Chat SDK `thread-state:` rows an older build
+left in the database are dead: nothing reads them.
 
 ## Deploying
 

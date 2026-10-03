@@ -2,7 +2,7 @@
 
 Part of the `taste-skill` skill. Section numbers match the index in SKILL.md.
 
-## Appendix C - Apple Liquid Glass: Honest Web Approximation
+## Appendix C. Apple Liquid Glass, an honest web approximation
 
 Do **not** treat random CSS snippets as official Apple Liquid Glass.
 
@@ -95,4 +95,4 @@ But that is **web glassmorphism / frosted-glass approximation**, not official Ap
 
 ---
 
-**End of appendices.** Install commands in `references/design-systems.md` are reality anchors. The Apple Liquid Glass skeleton above is a labeled approximation, not an Apple-issued package. For canonical docs per design system, consult the system's official docs (links in Section 2 plus Appendix B, both in `references/design-systems.md`).
+**End of appendices.** The Apple Liquid Glass skeleton above is a labeled approximation, not an Apple-issued package. For canonical docs per design system, consult the system's official docs (links in Section 2 plus Appendix B, both in `references/design-systems.md`).

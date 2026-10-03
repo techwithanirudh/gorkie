@@ -37,6 +37,7 @@ import {
 } from 'e2b';
 import { lookup } from 'mime-types';
 import { file as fileLimits, sandbox as sandboxConfig } from '../config';
+import { formatBytes } from '../lib/media';
 import { sh } from '../lib/shell';
 import { parseRipgrepJson, ripgrepCommand } from './ripgrep';
 
@@ -103,7 +104,7 @@ export class E2BFilesystem extends MastraFilesystem {
         }
         if (info.size > fileLimits.maxReadBytes) {
           throw new Error(
-            `${inputPath} is ${Math.round(info.size / 1_000_000)}MB, over the ${Math.round(fileLimits.maxReadBytes / 1_000_000)}MB read limit. Read a slice with execute_command (head, sed, tail) instead.`
+            `${inputPath} is ${formatBytes(info.size)}, over the ${formatBytes(fileLimits.maxReadBytes)} read limit. Read a slice with execute_command (head, sed, tail) instead.`
           );
         }
 
@@ -327,8 +328,7 @@ export class E2BFilesystem extends MastraFilesystem {
   ): Promise<FileEntry[]> {
     const entries = await this.walk(inputPath, {
       includeHidden: true,
-      // TODO(slopradar): magic number : the 100 depth default is repeated in walk() → one value in config.ts (file.maxListDepth), or let walk own the default
-      maxDepth: options?.recursive ? (options.maxDepth ?? 100) : 1,
+      maxDepth: options?.recursive ? options.maxDepth : 1,
     });
     let extensions: string[] | undefined;
     if (Array.isArray(options?.extension)) {

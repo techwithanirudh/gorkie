@@ -23,11 +23,10 @@ Optional:
 ## Workflow
 
 1. Get the image into the sandbox (see Inputs).
-2. Call the API with `curl` (see below), writing the GIF next to the input.
-3. Confirm the output file exists and is non-empty.
-4. Send the GIF with `upload_file`.
-<!-- TODO(slopradar): step order : the privacy check comes after step 2 already uploaded the image → move "ask before sending a private or sensitive image" before step 2 -->
-5. Mention that the image was sent to 67ify, a public third-party service, because it leaves the sandbox. Ask before sending an image that looks private or sensitive.
+2. If the image looks private or sensitive, ask before sending it on. 67ify is a public third-party service, so the image leaves the sandbox.
+3. Call the API with `curl` (see below), writing the GIF next to the input.
+4. Confirm the output file exists and is non-empty.
+5. Send the GIF with `upload_file`, and mention that the image went through 67ify.
 
 ## Call the API
 

@@ -2,6 +2,7 @@ import { SpanType } from '@mastra/core/observability';
 import type { ErrorProcessor } from '@mastra/core/processors';
 import { APICallError } from 'ai';
 import { logger } from '../lib/logger';
+import { benchProvider } from '../providers';
 
 // Mastra never exports a provider error that a retry or the fallback ladder
 // recovers from.
@@ -15,6 +16,9 @@ export const modelErrors: ErrorProcessor = {
           statusCode: error.statusCode,
         }
       : {};
+    if (provider.host && /usage limit exceeded/i.test(String(error))) {
+      benchProvider(provider.host);
+    }
     const metadata = { ...provider, retryCount, stepNumber };
     logger.warn('[model] provider call failed', { error, ...metadata });
     tracingContext?.currentSpan

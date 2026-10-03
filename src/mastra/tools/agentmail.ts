@@ -2,10 +2,10 @@ import { posix } from 'node:path';
 import type { RequestContext } from '@mastra/core/request-context';
 import { createTool, type ToolExecutionContext } from '@mastra/core/tools';
 import { z } from 'zod';
-import { env } from '@/env';
 import { agentmail as config } from '../config';
 import { channelContext } from '../lib/context';
-import { callAgentMail } from '../mcp/agentmail';
+import { formatBytes } from '../lib/media';
+import { agentmailEnabled, callAgentMail } from '../mcp/agentmail';
 import { requireSandbox } from '../workspace';
 import { confinePath } from '../workspace/filesystem';
 
@@ -126,7 +126,7 @@ async function readAttachments({
   const total = sizes.reduce((sum, { size }) => sum + size, 0);
   if (total > config.maxAttachmentBytes) {
     throw new Error(
-      `Attachments add up to ${Math.ceil(total / 1024 / 1024)}MB, over the ${config.maxAttachmentBytes / 1024 / 1024}MB limit, so nothing was sent. Share a link instead.`
+      `Attachments add up to ${formatBytes(total)}, over the ${formatBytes(config.maxAttachmentBytes)} limit, so nothing was sent. Share a link instead.`
     );
   }
   return {
@@ -145,6 +145,9 @@ async function readAttachments({
 
 const listThreadsTool = createTool({
   id: 'agentmail_list_threads',
+  transform: {
+    display: { output: () => ({ summary: 'Listed email threads' }) },
+  },
   description: `List the requester's email threads in gorkie's inbox, newest first: mail they had gorkie send and the replies to it. Previews only; read one with agentmail_get_thread. ${untrusted}`,
   inputSchema: z.strictObject({
     limit: z.number().int().min(1).max(100).optional(),
@@ -165,6 +168,9 @@ const listThreadsTool = createTool({
 
 const getThreadTool = createTool({
   id: 'agentmail_get_thread',
+  transform: {
+    display: { output: () => ({ summary: 'Read an email thread' }) },
+  },
   description: `Read one of the requester's email threads with its messages. The first page holds the newest messages; pass nextPageToken as pageToken for older ones. ${untrusted}`,
   inputSchema: z.strictObject({
     threadId: z.string().min(1),
@@ -177,6 +183,7 @@ const getThreadTool = createTool({
 
 const listMessagesTool = createTool({
   id: 'agentmail_list_messages',
+  transform: { display: { output: () => ({ summary: 'Listed sent emails' }) } },
   description: `List messages gorkie sent for the requester. Replies from outside senders are not listed here; find those with agentmail_list_threads. ${untrusted}`,
   inputSchema: z.strictObject({
     limit: z.number().int().min(1).max(100).optional(),
@@ -196,6 +203,7 @@ const listMessagesTool = createTool({
 
 const getMessageTool = createTool({
   id: 'agentmail_get_message',
+  transform: { display: { output: () => ({ summary: 'Read an email' }) } },
   description: `Read one message in the requester's email threads with its full body. ${untrusted}`,
   inputSchema: z.strictObject({ messageId: z.string().min(1) }),
   execute: async ({ messageId }, context) =>
@@ -204,6 +212,9 @@ const getMessageTool = createTool({
 
 const getAttachmentTool = createTool({
   id: 'agentmail_get_attachment',
+  transform: {
+    display: { output: () => ({ summary: 'Fetched an email attachment' }) },
+  },
   description: `Get an attachment from one of the requester's email threads: metadata, a short-lived download URL, and extracted text for PDF and DOCX. Download it in the sandbox with curl if you need the file. ${untrusted}`,
   inputSchema: z.strictObject({
     threadId: z.string().min(1),
@@ -225,8 +236,14 @@ const getAttachmentTool = createTool({
 
 const sendMessageTool = createTool({
   id: 'agentmail_send_message',
-  description: `Send a new email from ${config.inbox} for the requester. Only when the requester asked for this send in this turn; the requester approves it before it goes out. Attachments are sandbox file paths.`,
-  requireApproval: true,
+  transform: {
+    display: {
+      output: ({ input }) => ({
+        summary: `Emailed ${input?.to.join(', ') ?? 'someone'}`,
+      }),
+    },
+  },
+  description: `Send a new email from ${config.inbox} for the requester. Only when the requester asked for this send in this turn. Attachments are sandbox file paths.`,
   inputSchema: z.strictObject({
     to: z.array(z.string().min(1)).min(1),
     cc: z.array(z.string()).optional(),
@@ -255,8 +272,10 @@ const sendMessageTool = createTool({
 
 const replyToMessageTool = createTool({
   id: 'agentmail_reply_to_message',
-  description: `Reply to a message in one of the requester's email threads. Replies to the sender unless replyAll or to is set. Only when the requester asked for this reply in this turn; the requester approves it before it goes out. Attachments are sandbox file paths.`,
-  requireApproval: true,
+  transform: {
+    display: { output: () => ({ summary: 'Replied to an email' }) },
+  },
+  description: `Reply to a message in one of the requester's email threads. Replies to the sender unless replyAll or to is set. Only when the requester asked for this reply in this turn. Attachments are sandbox file paths.`,
   inputSchema: z.strictObject({
     messageId: z.string().min(1),
     text: z.string().min(1),
@@ -301,4 +320,4 @@ const tools = {
 export const agentmailTools: Record<
   string,
   (typeof tools)[keyof typeof tools]
-> = env.AGENTMAIL_API_KEY ? tools : {};
+> = agentmailEnabled ? tools : {};

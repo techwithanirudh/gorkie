@@ -3,9 +3,9 @@ import type { E2BSandbox } from '@mastra/e2b';
 import { z } from 'zod';
 import { env } from '@/env';
 import { image } from '../../config';
+import { formatBytes, viewableImageType } from '../../lib/media';
 import { images } from '../../providers';
 import { confinePath } from '../../workspace/filesystem';
-import { viewableImageType } from '../view-image';
 
 const completionSchema = z.looseObject({
   choices: z
@@ -50,7 +50,7 @@ export async function requestImages({
       );
       if (size > image.maxEditBytes) {
         throw new Error(
-          `"${path}" is ${Math.round(size / 1024 / 1024)}MB, too large to send for editing. Resize it below ${image.maxEditBytes / 1024 / 1024}MB first.`
+          `"${path}" is ${formatBytes(size)}, too large to send for editing. Resize it below ${formatBytes(image.maxEditBytes)} first.`
         );
       }
       const data = Buffer.from(

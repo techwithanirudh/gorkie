@@ -1,4 +1,4 @@
-import type { ProcessInputArgs } from '@mastra/core/processors';
+import type { Processor } from '@mastra/core/processors';
 import { z } from 'zod';
 import { threadStateOrNull } from '../chat/state';
 import { channelContext } from '../lib/context';
@@ -21,7 +21,7 @@ export const staleMessages = {
   id: 'stale-messages',
   name: 'Stale Message Filter',
   description: 'Drops queued Slack messages sent before a stop or leave.',
-  async processInput({ abort, messageList, requestContext }: ProcessInputArgs) {
+  async processInput({ abort, messageList, requestContext }) {
     const { threadId } = channelContext(requestContext);
     if (!threadId) {
       return messageList;
@@ -56,4 +56,4 @@ export const staleMessages = {
     messageList.removeByIds(stale);
     return messageList;
   },
-};
+} satisfies Processor<'stale-messages'>;

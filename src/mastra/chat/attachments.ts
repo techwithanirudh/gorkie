@@ -1,5 +1,8 @@
 import type { Attachment, Message } from 'chat';
-import { parseMarkdown } from 'chat';
+import { slackFileId } from '../lib/ids';
+import { formatBytes } from '../lib/media';
+import { turnContext } from '../prompts/turn-context';
+import { setMessageText } from './message';
 
 // Channels' default inlineMedia list (DEFAULT_INLINE_MEDIA_TYPES in
 // @mastra/core, not exported). Those files already reach the model as file
@@ -19,7 +22,7 @@ export function attachmentLabel({
   attachment: Attachment;
   index: number;
 }): string {
-  const id = attachment.url?.match(/\bF[A-Z0-9]{6,}\b/)?.[0];
+  const id = attachment.url ? slackFileId(attachment.url) : undefined;
   return [
     attachment.name ?? `file-${index + 1}`,
     id ? `file id ${id}` : attachment.url,
@@ -28,38 +31,33 @@ export function attachmentLabel({
     .join(' ');
 }
 
-export function attachments(message: Message): Message {
+export function appendAttachments(message: Message): void {
   if (message.attachments.length === 0) {
-    return message;
+    return;
   }
 
   const text = [
     message.text,
-    'Slack attachments:',
+    turnContext.attachments,
     ...message.attachments.map((attachment, index) => {
-      const size = attachment.size
-        ? `${Math.ceil(attachment.size / 1024 / 1024)} MB`
-        : undefined;
+      const size = attachment.size ? formatBytes(attachment.size) : undefined;
       const mimeType =
         attachment.mimeType ||
-        // TODO(slopradar): fabricated data : invents `image/png` for an image with no MIME type, so the model is told it can see a file channels may not have inlined → treat a missing mimeType as not inlined, or read the real type channels used
+        // Channels inlines an untyped image as image/png the same way.
         (attachment.type === 'image' ? 'image/png' : undefined);
       const details = [
         attachmentLabel({ attachment, index }),
         attachment.mimeType,
         size,
         mimeType && inlinedTypes.has(mimeType)
-          ? 'attached to this message, so you can already see it'
-          : 'not downloaded',
+          ? turnContext.attachmentInlined
+          : turnContext.attachmentNotDownloaded,
       ].filter(Boolean);
       return `- ${details.join(', ')}`;
     }),
-    // TODO(slopradar): prompt copy outside prompts/ : tool-usage instruction to the model built in chat code → move to `src/mastra/prompts/` beside the get_slack_file guidance
-    'Call get_slack_file with a Slack file id to download a file into the workspace, which you only need for an attached file if you want to work on it there.',
+    turnContext.getSlackFile,
   ]
     .filter(Boolean)
     .join('\n\n');
-  message.text = text;
-  message.formatted = parseMarkdown(text);
-  return message;
+  setMessageText({ message, text });
 }

@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { parseSlackInput } from '../../lib/ids';
-import { spendSlackCall } from '../../lib/slack-budget';
 import { assertCanRead } from './access';
+import { spendSlackCall } from './budget';
 
 export const getChannelInfoTool = createTool({
   id: 'get_channel_info',

@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { createEnv } from '@t3-oss/env-core';
 import { z } from 'zod';
-import { slackUserIdSchema } from './mastra/types/user';
+import { slackChannelIdSchema, slackUserIdSchema } from './mastra/types/user';
 
 const aesKey = z
   .base64()
@@ -30,12 +30,8 @@ export const env = createEnv({
     SLACK_BOT_TOKEN: z.string().min(1),
     SLACK_SIGNING_SECRET: z.string().min(1),
     SLACK_USER_TOKEN: z.string().min(1),
-    // TODO(slopradar): validate at boundaries : OPT_IN_CHANNEL takes any string while LOGS_CHANNEL below checks the channel-id shape inline → add `slackChannelIdSchema` beside slackUserIdSchema in types/user.ts and use it for both
-    OPT_IN_CHANNEL: z.string().optional(),
-    LOGS_CHANNEL: z
-      .string()
-      .regex(/^[CG][A-Z0-9]+$/, 'must be a Slack channel id')
-      .optional(),
+    OPT_IN_CHANNEL: slackChannelIdSchema.optional(),
+    LOGS_CHANNEL: slackChannelIdSchema.optional(),
     MODERATORS: z
       .string()
       .optional()
@@ -76,15 +72,20 @@ export const env = createEnv({
     AGENTMAIL_API_KEY: z.string().min(1).optional(),
     EMOJI_PROXY_TOKEN: z.string().min(1).optional(),
   },
+  createFinalSchema: (shape) =>
+    z.object(shape).superRefine((value, ctx) => {
+      if (
+        value.NODE_ENV === 'production' &&
+        value.PUBLIC_BASE_URL &&
+        !value.PUBLIC_BASE_URL.startsWith('https://')
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'must be https in production',
+          path: ['PUBLIC_BASE_URL'],
+        });
+      }
+    }),
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
 });
-
-// TODO(slopradar): library over hand-rolled : cross-field production rules are checked after createEnv with plain throws, outside the schema and its error formatting → express them in env-core's `createFinalSchema` (available in the installed 0.13.11) with a superRefine
-if (
-  env.NODE_ENV === 'production' &&
-  env.PUBLIC_BASE_URL &&
-  !env.PUBLIC_BASE_URL.startsWith('https://')
-) {
-  throw new Error('PUBLIC_BASE_URL must be https in production.');
-}

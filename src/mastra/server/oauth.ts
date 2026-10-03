@@ -5,8 +5,9 @@ import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { env } from '@/env';
 import { optInStatus } from '../chat/allowed-users';
-import { publishHome } from '../chat/app-home/view';
+import { refreshHome } from '../chat/app-home/view';
 import { slack } from '../chat/client';
+import { oauth } from '../config';
 import { signOAuthToken, verifyOAuthToken } from '../lib/crypto';
 import { logger } from '../lib/logger';
 import {
@@ -16,12 +17,11 @@ import {
 } from '../types';
 import { githubOAuth } from './github';
 import { mcpOAuth } from './mcp';
-import { oauthRedirectUri } from './oauth-link';
+import { oauthCallbackUri } from './oauth-link';
 import { oauthPage, privateHeaders } from './page';
 
-const publicOrigin = env.PUBLIC_BASE_URL
-  ? new URL(env.PUBLIC_BASE_URL).origin
-  : undefined;
+const publicBaseUrl = env.PUBLIC_BASE_URL;
+const publicOrigin = publicBaseUrl ? new URL(publicBaseUrl).origin : undefined;
 
 const providers: Record<OAuthProvider, OAuthProviderHandler> = {
   github: githubOAuth,
@@ -32,9 +32,7 @@ const cookie = {
   name: (provider: OAuthProvider) => `gorkie_oauth_${provider}`,
   options: {
     httpOnly: true,
-    // TODO(slopradar): duplicated tunable : the link lifetime is 600 s here, 600_000 ms at the nonce TTL below and Factory's fixed 10 minutes
-    // → one config.oauth.linkTtlMs feeding both.
-    maxAge: 600,
+    maxAge: oauth.linkTtlMs / 1000,
     path: '/oauth',
     sameSite: 'Lax',
     secure: true,
@@ -51,6 +49,16 @@ function providerNotFound(c: Context): Promise<Response> {
   });
 }
 
+function linkExpired(c: Context): Promise<Response> {
+  return oauthPage({
+    c,
+    status: 400,
+    tone: 'expired',
+    title: 'Link expired',
+    text: 'This sign-in link expired or was already used. Start again from the Gorkie Home tab in Slack.',
+  });
+}
+
 async function verifiedStart({
   c,
   consume,
@@ -61,42 +69,28 @@ async function verifiedStart({
   ticket?: string;
 }) {
   const provider = oauthProviderSchema.safeParse(c.req.param('provider')).data;
-  const handler = provider ? providers[provider] : undefined;
-  const token = verifyOAuthToken({ purpose: 'start', signed: ticket });
-  if (!(provider && handler)) {
+  if (!provider) {
     return { response: await providerNotFound(c) };
   }
-  // TODO(slopradar): security S9 : the Chat state adapter is in-process memory (chat/state.ts:9), so a used start link replays after a restart
-  // → record the nonce in Postgres (Mastra threadState domain or a small table).
-  const state = Chat.getSingleton().getState();
-  // TODO(slopradar): readability : one condition mixes four checks, two awaits and a consume/peek ternary
-  // → early returns per check, then a named `fresh` boolean for the nonce step.
-  if (
-    !token ||
-    token.provider !== provider ||
-    (await optInStatus(token.slackUserId)) !== 'allowed' ||
-    (consume
-      ? !(await state.setIfNotExists(
-          `oauth-start:${token.nonce}`,
-          true,
-          600_000
-        ))
-      : (await state.get(`oauth-start:${token.nonce}`)) !== null)
-  ) {
-    return {
-      response: await oauthPage({
-        c,
-        status: 400,
-        tone: 'expired',
-        title: 'Link expired',
-        text: 'This sign-in link expired or was already used. Start again from the Gorkie Home tab in Slack.',
-      }),
-    };
+  const token = verifyOAuthToken({ purpose: 'start', signed: ticket });
+  if (!token || token.provider !== provider) {
+    return { response: await linkExpired(c) };
   }
-  return { handler, provider, token };
+  if ((await optInStatus(token.slackUserId)) !== 'allowed') {
+    return { response: await linkExpired(c) };
+  }
+  const state = Chat.getSingleton().getState();
+  const key = `oauth-start:${token.nonce}`;
+  const fresh = consume
+    ? await state.setIfNotExists(key, true, oauth.linkTtlMs)
+    : (await state.get(key)) === null;
+  if (!fresh) {
+    return { response: await linkExpired(c) };
+  }
+  return { handler: providers[provider], provider, token };
 }
 
-export const oauthRoutes = env.PUBLIC_BASE_URL
+export const oauthRoutes = publicBaseUrl
   ? [
       registerApiRoute('/oauth/:provider/start', {
         method: 'GET',
@@ -161,12 +155,10 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
           if ('response' in started) {
             return started.response;
           }
-          const redirectUri = oauthRedirectUri(started.provider);
-          // TODO(slopradar): dead check : oauthRoutes exist only when PUBLIC_BASE_URL is set, so oauthRedirectUri cannot be undefined here (also the callback route)
-          // → build the URI from env.PUBLIC_BASE_URL inside the routes and drop the branch.
-          if (!redirectUri) {
-            return providerNotFound(c);
-          }
+          const redirectUri = oauthCallbackUri({
+            baseUrl: publicBaseUrl,
+            provider: started.provider,
+          });
           const { nonce, signed: state } = signOAuthToken({
             ...started.token,
             purpose: 'state',
@@ -203,11 +195,14 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
           const provider = oauthProviderSchema.safeParse(
             c.req.param('provider')
           ).data;
-          const handler = provider ? providers[provider] : undefined;
-          const redirectUri = provider ? oauthRedirectUri(provider) : undefined;
-          if (!(provider && handler && redirectUri)) {
+          if (!provider) {
             return providerNotFound(c);
           }
+          const handler = providers[provider];
+          const redirectUri = oauthCallbackUri({
+            baseUrl: publicBaseUrl,
+            provider,
+          });
           const token = verifyOAuthToken({
             purpose: 'state',
             signed: c.req.query('state'),
@@ -262,7 +257,7 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
       registerApiRoute('/oauth/github/installed', {
         method: 'GET',
         requiresAuth: false,
-        handler: async (c) => {
+        handler: (c) => {
           // GitHub hands back the state put on the install link, the only way
           // to know whose Home tab to refresh. A stale or missing one still
           // gets the page; the Home tab then updates on its next open.
@@ -271,12 +266,7 @@ export const oauthRoutes = env.PUBLIC_BASE_URL
             signed: c.req.query('state'),
           });
           if (token?.provider === 'github') {
-            await publishHome(token.slackUserId).catch((error: unknown) =>
-              logger.warn('[github] could not refresh the Home tab', {
-                error,
-                userId: token.slackUserId,
-              })
-            );
+            refreshHome(token.slackUserId);
           }
           return oauthPage({
             c,

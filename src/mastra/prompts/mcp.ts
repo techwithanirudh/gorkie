@@ -1,21 +1,25 @@
-import { listMCPServers } from '../db/queries/mcps';
+import type { RequestContext } from '@mastra/core/request-context';
 import { logger } from '../lib/logger';
+import { requestServers } from '../mcp/user-servers/tools';
 
 export async function mcpPrompt({
   isDM,
+  requestContext,
   userId,
 }: {
   isDM: boolean;
+  requestContext: RequestContext;
   userId: string;
 }): Promise<string | undefined> {
-  // TODO(slopradar): repeated per-turn read : every turn runs listMCPServers twice for the same user, here and in mcp/user-servers/tools.ts:25 via the orchestrator tools resolver, and both split servers by `isDM || server.threads` → load once per request (cache on requestContext like githubAccess) and share the partition
-  const servers = await listMCPServers(userId).catch((error: unknown) => {
-    logger.warn('[prompts] failed to load mcp server status', {
-      error,
-      userId,
-    });
-    return [];
-  });
+  const servers = await requestServers({ requestContext, userId }).catch(
+    (error: unknown) => {
+      logger.warn('[prompts] failed to load mcp server status', {
+        error,
+        userId,
+      });
+      return [];
+    }
+  );
   const failed = servers
     .filter((server) => server.lastError)
     .map((server) => server.name);
@@ -29,7 +33,7 @@ export async function mcpPrompt({
   const lines: string[] = [];
   if (here.length > 0) {
     lines.push(
-      `The user connected MCP server(s) ${here.join(', ')}. Their tools are named after the server (\`<server>_<tool>\`) and load through search_tools, like the github_ tools: search by the server name or the task before the first call, and again if one drops out of your tool list.`
+      `The user connected MCP server(s) ${here.join(', ')}. Their tools are named after the server (\`<server>_<tool>\`) and load through search_tools: search by the server name or the task before the first call.`
     );
     if (!isDM) {
       lines.push(

@@ -3,9 +3,9 @@ import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { parseSlackInput } from '../../lib/ids';
-import { spendSlackCall } from '../../lib/slack-budget';
 import { slackMessageSchema } from '../../types/tools/index';
 import { openReadableChannel } from './access';
+import { spendSlackCall } from './budget';
 import { formatMessage } from './message';
 
 export const listThreadsTool = createTool({

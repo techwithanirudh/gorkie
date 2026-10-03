@@ -1,15 +1,30 @@
 import type { ModelWithRetries } from '@mastra/core/agent';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { env } from '@/env';
+import { agent as config } from './config';
 import { channelContext } from './lib/context';
-import { recallModel, slugOf } from './lib/working-model';
+import { recallModel } from './processors/working-model';
 
 const hackclubBaseURL = 'https://ai.hackclub.com/proxy/v1';
 
-const hackclub = createOpenRouter({
+const hackclubProvider = createOpenRouter({
   apiKey: env.HACKCLUB_API_KEY,
   baseURL: hackclubBaseURL,
 });
+
+interface Rung {
+  host: string;
+  model: ModelWithRetries;
+  slug: string;
+}
+
+// A provider that reports its quota spent keeps failing until it resets, and
+// opencode takes about two minutes to return that 429, so its rungs sit out.
+const benchedUntil = new Map<string, number>();
+
+export function benchProvider(host: string): void {
+  benchedUntil.set(host, Date.now() + config.quotaCooldownMs);
+}
 
 function opencode({
   modelId,
@@ -17,76 +32,64 @@ function opencode({
 }: {
   modelId: string;
   fallbackSession: string;
-}): ModelWithRetries {
+}): Rung {
   return {
-    model: { id: `opencode-go/${modelId}`, apiKey: env.OPENCODE_API_KEY },
-    headers: ({ requestContext }) => ({
-      'user-agent': 'gorkie/1.0',
-      'x-opencode-session':
-        channelContext(requestContext).threadId ?? `gorkie:${fallbackSession}`,
-    }),
+    host: 'opencode.ai',
+    slug: `opencode-go/${modelId}`,
+    model: {
+      model: { id: `opencode-go/${modelId}`, apiKey: env.OPENCODE_API_KEY },
+      headers: ({ requestContext }) => ({
+        'user-agent': 'gorkie/1.0',
+        'x-opencode-session':
+          channelContext(requestContext).threadId ??
+          `gorkie:${fallbackSession}`,
+      }),
+      maxRetries: config.modelRetries,
+    },
   };
 }
 
-// TODO(slopradar): unclear invariant : modelSlug probes three model shapes (the string branch never occurs, every entry comes from opencode() or hackclub()) and preferLastWorking then matches slugs by suffix in both directions → record each ladder entry's slug when building it and compare exactly
-function modelSlug(entry: ModelWithRetries): string | undefined {
-  const { model } = entry;
-  if (typeof model === 'string') {
-    return slugOf(model);
-  }
-  if (typeof model === 'object' && 'id' in model) {
-    return slugOf(model.id);
-  }
-  if (
-    typeof model === 'object' &&
-    model !== null &&
-    'modelId' in model &&
-    typeof model.modelId === 'string'
-  ) {
-    return slugOf(model.modelId);
-  }
+function hackclub(modelId: string): Rung {
+  return {
+    host: URL.parse(hackclubBaseURL)?.host ?? hackclubBaseURL,
+    slug: modelId,
+    model: {
+      model: hackclubProvider(modelId),
+      maxRetries: config.modelRetries,
+    },
+  };
 }
 
-async function preferLastWorking(
-  models: ModelWithRetries[]
-): Promise<ModelWithRetries[]> {
+async function preferLastWorking(rungs: Rung[]): Promise<ModelWithRetries[]> {
+  const now = Date.now();
+  const available = rungs.filter(
+    ({ host }) => (benchedUntil.get(host) ?? 0) <= now
+  );
+  const usable = available.length > 0 ? available : rungs;
   const lastGoodSlug = await recallModel();
-  if (!lastGoodSlug) {
-    return models;
-  }
-  const matches: ModelWithRetries[] = [];
-  const rest: ModelWithRetries[] = [];
-  for (const entry of models) {
-    const slug = modelSlug(entry);
-    const same =
-      slug === lastGoodSlug ||
-      slug?.endsWith(`/${lastGoodSlug}`) ||
-      lastGoodSlug.endsWith(`/${slug}`);
-    (slug && same ? matches : rest).push(entry);
-  }
-  return [...matches, ...rest];
+  const same = ({ slug }: Rung) =>
+    lastGoodSlug !== undefined &&
+    (slug === lastGoodSlug ||
+      slug.endsWith(`/${lastGoodSlug}`) ||
+      lastGoodSlug.endsWith(`/${slug}`));
+  return [...usable.filter(same), ...usable.filter((rung) => !same(rung))].map(
+    ({ model }) => model
+  );
 }
 
 function ladder(agentKey: string): () => Promise<ModelWithRetries[]> {
-  const models: ModelWithRetries[] = [
-    // TODO(slopradar): deployment values in config.ts : `maxRetries: 3` is repeated on all five ladder and summarizer entries → one `agent.modelRetries` in config.ts, applied in opencode() and a hackclub wrapper
-    {
-      ...opencode({ modelId: 'glm-5.3-flash', fallbackSession: agentKey }),
-      maxRetries: 3,
-    },
-    { model: hackclub('z-ai/glm-5.3-flash'), maxRetries: 3 },
+  const rungs = [
+    opencode({ modelId: 'glm-5.3-flash', fallbackSession: agentKey }),
+    hackclub('z-ai/glm-5.3-flash'),
     // Last resort only: opencode-go drops deepseek's reasoning_content on the
     // round trip, so it 400s on tool-calling turns and reliably serves only
     // single-shot replies.
-    {
-      ...opencode({
-        modelId: 'deepseek-v4-flash-vision-exp',
-        fallbackSession: agentKey,
-      }),
-      maxRetries: 3,
-    },
+    opencode({
+      modelId: 'deepseek-v4-flash-vision-exp',
+      fallbackSession: agentKey,
+    }),
   ];
-  return () => preferLastWorking(models);
+  return () => preferLastWorking(rungs);
 }
 
 export const models = {
@@ -96,11 +99,8 @@ export const models = {
 };
 
 export const summarizer: ModelWithRetries[] = [
-  { model: hackclub('google/gemini-3.5-flash-lite'), maxRetries: 3 },
-  {
-    ...opencode({ modelId: 'mimo-v2.5', fallbackSession: 'summarizer' }),
-    maxRetries: 3,
-  },
+  hackclub('google/gemini-3.5-flash-lite').model,
+  opencode({ modelId: 'mimo-v2.5', fallbackSession: 'summarizer' }).model,
 ];
 
 export const images = {

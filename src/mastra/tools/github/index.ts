@@ -1,4 +1,5 @@
 import { createGithubTools, GITHUB_WRITE_TOOLS } from '@github-tools/sdk';
+import type { ToolsInput } from '@mastra/core/agent';
 import type { RequestContext } from '@mastra/core/request-context';
 import { z } from 'zod';
 import { asksBefore } from '../../lib/approval';
@@ -13,7 +14,6 @@ import { checkoutTool } from './checkout';
 import { handoff } from './handoff';
 import { pushTool } from './push';
 
-// TODO(slopradar): erased types : Record<string, unknown> drops every tool type, so orchestrator.ts spreads unchecked values into its tool map → return ToolsInput from @mastra/core/agent (the type code-mode/slack.ts already uses)
 export async function githubTools({
   channelId,
   isDM,
@@ -26,7 +26,7 @@ export async function githubTools({
   requestContext?: RequestContext;
   threadId: string | undefined;
   userId: string;
-}): Promise<Record<string, unknown>> {
+}): Promise<ToolsInput> {
   try {
     const access = await githubAccess({ isDM, requestContext, userId });
     if (access.state !== 'connected') {
@@ -46,9 +46,22 @@ export async function githubTools({
       },
     });
 
-    const tools: Record<string, unknown> = {};
+    const tools: ToolsInput = {};
     for (const name of ALLOWLIST) {
-      const { toModelOutput: format, execute, ...tool } = built[name];
+      const {
+        toModelOutput: format,
+        execute,
+        description,
+        ...tool
+      } = built[name];
+      // AI SDK tools may take a description function, Mastra tools only a
+      // string; every tool the SDK ships uses a string.
+      if (typeof description !== 'string') {
+        logger.warn('[github] skipped a tool with a non-string description', {
+          name,
+        });
+        continue;
+      }
       // An explicit id: Mastra otherwise ids an AI SDK tool as
       // `tool-<hash of description>`, and tool search returns and loads it
       // under that id instead of this key.
@@ -60,6 +73,7 @@ export async function githubTools({
         // throws instead of reaching the model.
         tools[id] = {
           ...tool,
+          description,
           id,
           needsApproval: false,
           execute: () => handoff({ channelId, threadId, userId }),
@@ -68,6 +82,7 @@ export async function githubTools({
       }
       tools[id] = {
         ...tool,
+        description,
         id,
         needsApproval: asksBefore({
           kind: name in GITHUB_WRITE_TOOLS ? 'write' : 'read',
@@ -96,10 +111,12 @@ export async function githubTools({
     if (direct && threadId) {
       tools.github_checkout = checkoutTool({
         approval: !isDM || asksBefore({ kind: 'read', level }),
+        threadId,
         userId,
       });
       tools.github_push_branch = pushTool({
         approval: asksBefore({ kind: 'write', level }),
+        threadId,
         userId,
       });
     }

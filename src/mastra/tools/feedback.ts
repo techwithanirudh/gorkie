@@ -1,6 +1,5 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { getMastra } from '../chat/mastra-instance';
 import { channelContext } from '../lib/context';
 import { parseSlackInput } from '../lib/ids';
 import { logger } from '../lib/logger';
@@ -42,8 +41,8 @@ export const submitFeedbackTool = createTool({
       throw new Error('No active trace to attach this feedback to.');
     }
 
-    const { observability } = getMastra();
-    if (!observability.addFeedback) {
+    const observability = context.mastra?.observability;
+    if (!observability?.addFeedback) {
       throw new Error('Feedback is not supported by this observability setup.');
     }
 

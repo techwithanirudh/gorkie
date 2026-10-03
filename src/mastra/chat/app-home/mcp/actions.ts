@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { mcp } from '../../../config';
 import { setMCPOAuthStatus } from '../../../db/queries/mcp-oauth';
 import {
+  getMCPServer,
   insertMCPServer,
   listMCPServers,
   removeMCPServer,
@@ -15,13 +16,59 @@ import { revokeMCPOAuth } from '../../../mcp/oauth';
 import { checkMCPUrl } from '../../../mcp/security';
 import { dropClient } from '../../../mcp/user-servers/client';
 import { probeMCPConnection } from '../../../mcp/user-servers/probe';
-import { mcpServerSchema, toolPermissionSchema } from '../../../types';
+import {
+  type MCPServerConfig,
+  mcpServerSchema,
+  toolPermissionSchema,
+} from '../../../types';
 import { scopeSchema } from '../presets';
 import { publishHome, refreshHome } from '../view';
 import { ids } from './ids';
-import { configureModal, scopeSelect } from './views';
+import { configureModal, serverScopeSelect } from './views';
 
-// TODO(slopradar): long function : ~90 lines mixing validation, GitHub refusal, DB insert and a background probe chain → split out `probeAndPublish({ userId, server })` for the code after the limit checks
+// Both publishes and the connection probe can outlast Slack's 3 second
+// modal-submit ack window.
+function probeAndPublish({
+  server,
+  userId,
+}: {
+  server: MCPServerConfig;
+  userId: string;
+}): void {
+  const probe = async () => {
+    if (!server.token && (await advertisesOAuth(server.url))) {
+      await setMCPOAuthStatus({
+        error: null,
+        name: server.name,
+        status: 'disconnected',
+        userId,
+      });
+      return;
+    }
+    await setMCPServerError({
+      userId,
+      name: server.name,
+      ...(await probeMCPConnection({ userId, server })),
+    });
+  };
+  publishHome(userId)
+    .catch((error: unknown) => {
+      logger.warn('[app-home] could not refresh the Home tab', {
+        error,
+        userId,
+      });
+    })
+    .then(probe)
+    .then(() => publishHome(userId))
+    .catch((error: unknown) => {
+      logger.warn('[mcp] background connection probe failed', {
+        error,
+        name: server.name,
+        userId,
+      });
+    });
+}
+
 async function addServer({
   userId,
   values,
@@ -33,7 +80,7 @@ async function addServer({
     name: values.name?.trim(),
     url: values.url?.trim(),
     token: values.token?.trim() || undefined,
-    threads: scopeSchema.parse(values.scope) === 'threads',
+    threads: scopeSchema.parse(values[ids.scope]) === 'threads',
   });
   if (!parsed.success) {
     const errors: Record<string, string> = {};
@@ -79,42 +126,7 @@ async function addServer({
       errors: { name: `You can connect at most ${mcp.maxServers} servers.` },
     };
   }
-  // Both publishes and the connection probe can outlast Slack's 3 second
-  // modal-submit ack window. They run in order so the probe's result lands last.
-  const server = parsed.data;
-  const probe = async () => {
-    if (!server.token && (await advertisesOAuth(server.url))) {
-      await setMCPOAuthStatus({
-        error: null,
-        name: server.name,
-        status: 'disconnected',
-        userId,
-      });
-      return;
-    }
-    await setMCPServerError({
-      userId,
-      name: server.name,
-      ...(await probeMCPConnection({ userId, server })),
-    });
-  };
-  publishHome(userId)
-    .catch((error: unknown) => {
-      logger.warn('[app-home] could not refresh the Home tab', {
-        error,
-        userId,
-      });
-    })
-    .then(probe)
-    .then(() => publishHome(userId))
-    // TODO(slopradar): hidden error : a failed probe or second publishHome is logged at debug, so the server shows no error and nobody sees why → log at warn
-    .catch((error: unknown) => {
-      logger.debug('[mcp] background connection probe failed', {
-        error,
-        name: server.name,
-        userId,
-      });
-    });
+  probeAndPublish({ server: parsed.data, userId });
 }
 
 export function registerMCPServers(): void {
@@ -122,8 +134,8 @@ export function registerMCPServers(): void {
 
   bot.onAction(ids.add, async (event) => {
     const servers = await listMCPServers(event.user.userId);
-    // TODO(slopradar): silent no-op : at the limit the Add click does nothing (stale Home tab shows the button) → refreshHome and notify the user, or open the modal and let insertMCPServer's limit-reached error show
     if (servers.length >= mcp.maxServers) {
+      refreshHome(event.user.userId);
       return;
     }
     await event.openModal(
@@ -150,7 +162,7 @@ export function registerMCPServers(): void {
             optional: true,
             maxLength: 2000,
           }),
-          scopeSelect(true),
+          serverScopeSelect(true),
         ],
       })
     );
@@ -190,9 +202,7 @@ export function registerMCPServers(): void {
     if (!name) {
       return;
     }
-    const server = (await listMCPServers(event.user.userId)).find(
-      (entry) => entry.name === name
-    );
+    const server = await getMCPServer({ name, userId: event.user.userId });
     if (server) {
       await event.openModal(
         configureModal({ server, userId: event.user.userId })
@@ -204,11 +214,18 @@ export function registerMCPServers(): void {
     const name = mcpServerSchema.shape.name.safeParse(
       event.privateMetadata
     ).data;
+    const permission = toolPermissionSchema.safeParse(event.values.permission);
+    if (!permission.success) {
+      return {
+        action: 'errors',
+        errors: { permission: 'Pick when Gorkie should ask.' },
+      };
+    }
     if (name) {
       await setMCPServerAccess({
         name,
-        permission: toolPermissionSchema.parse(event.values.permission),
-        threads: scopeSchema.parse(event.values.scope) === 'threads',
+        permission: permission.data,
+        threads: scopeSchema.parse(event.values[ids.scope]) === 'threads',
         userId: event.user.userId,
       });
     }

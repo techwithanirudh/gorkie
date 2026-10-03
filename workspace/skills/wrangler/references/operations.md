@@ -1,6 +1,6 @@
 # Wrangler: local dev, temporary deploys, troubleshooting
 
-Everything here works without a Cloudflare account. Retrieval-first: confirm exact flags against the Cloudflare docs.
+Everything here works without a Cloudflare account.
 
 ## Local Development
 
@@ -43,8 +43,7 @@ Share both the `*.workers.dev` URL and the claim URL. Re-running `wrangler deplo
 
 | Issue | Solution |
 |-------|----------|
-<!-- TODO(slopradar): circular fix : if `wrangler` is not found, `wrangler --version` fails too → say it lives under `/usr/local/bin` (npm prefix in `build-template.ts`) and check `PATH` -->
-| `command not found: wrangler` | Run `wrangler --version`; it is installed globally. Do not install it into the project. |
+| `command not found: wrangler` | It is installed globally at `/usr/local/bin/wrangler`; check that `/usr/local/bin` is on `PATH`. Do not install it into the project. |
 | Auth errors | gorkie has no account; deploy with `wrangler deploy --temporary`, never `wrangler login` |
 | Startup time limit exceeded | Run `wrangler check startup` to profile startup and generate CPU profiles |
 | Type errors after config change | Run `wrangler types` |

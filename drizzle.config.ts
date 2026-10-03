@@ -1,5 +1,10 @@
+import { setDefaultAutoSelectFamilyAttemptTimeout } from 'node:net';
 import { defineConfig } from 'drizzle-kit';
 import { z } from 'zod';
+
+// Same per-address connect window as src/mastra/db/client.ts: Neon can take
+// over Node's 250 ms default to accept a connection.
+setDefaultAutoSelectFamilyAttemptTimeout(2000);
 
 export default defineConfig({
   dialect: 'postgresql',

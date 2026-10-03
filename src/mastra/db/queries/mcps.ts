@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { decryptSecret, encryptSecret } from '../../lib/crypto';
 import { logger } from '../../lib/logger';
 import {
@@ -8,8 +8,47 @@ import {
   type ToolPermission,
   toolPermissionSchema,
 } from '../../types';
-import { db } from '../client';
+import { db, lockUser } from '../client';
 import { mcpServers } from '../schema';
+
+function toStoredServer(row: typeof mcpServers.$inferSelect): StoredMCPServer {
+  const server = {
+    name: row.name,
+    permission: toolPermissionSchema.catch('write').parse(row.permission),
+    threads: row.threads,
+    url: row.url,
+    lastError: row.lastError ?? undefined,
+    credentialError:
+      row.lastErrorHttpStatus === 401
+        ? (row.lastError ?? undefined)
+        : undefined,
+    ...(row.oauthStatus
+      ? {
+          oauth: {
+            status: mcpOAuthStatusSchema
+              .catch('needs-auth')
+              .parse(row.oauthStatus),
+            connectedAt: row.oauthConnectedAt ?? undefined,
+          },
+        }
+      : {}),
+  };
+  if (!row.token) {
+    return server;
+  }
+  try {
+    return { ...server, token: decryptSecret(row.token) };
+  } catch (error) {
+    logger.warn('[mcp] could not decrypt stored server token', {
+      error,
+      name: row.name,
+      userId: row.userId,
+    });
+    const unreadable =
+      'Gorkie can no longer read the saved token. Remove this server and add it again with its token.';
+    return { ...server, credentialError: unreadable, lastError: unreadable };
+  }
+}
 
 export async function listMCPServers(
   userId: string
@@ -19,44 +58,21 @@ export async function listMCPServers(
     .from(mcpServers)
     .where(eq(mcpServers.userId, userId))
     .orderBy(asc(mcpServers.createdAt));
-  return rows.map((row) => {
-    const server = {
-      name: row.name,
-      permission: toolPermissionSchema.parse(row.permission),
-      threads: row.threads,
-      url: row.url,
-      lastError: row.lastError ?? undefined,
-      credentialError:
-        row.lastErrorHttpStatus === 401
-          ? (row.lastError ?? undefined)
-          : undefined,
-      ...(row.oauthStatus
-        ? {
-            oauth: {
-              status: mcpOAuthStatusSchema
-                .catch('needs-auth')
-                .parse(row.oauthStatus),
-              connectedAt: row.oauthConnectedAt ?? undefined,
-            },
-          }
-        : {}),
-    };
-    if (!row.token) {
-      return server;
-    }
-    try {
-      return { ...server, token: decryptSecret(row.token) };
-    } catch (error) {
-      logger.warn('[mcp] could not decrypt stored server token', {
-        error,
-        name: row.name,
-        userId,
-      });
-      const unreadable =
-        'Gorkie can no longer read the saved token. Remove this server and add it again with its token.';
-      return { ...server, credentialError: unreadable, lastError: unreadable };
-    }
-  });
+  return rows.map(toStoredServer);
+}
+
+export async function getMCPServer({
+  name,
+  userId,
+}: {
+  name: string;
+  userId: string;
+}): Promise<StoredMCPServer | undefined> {
+  const [row] = await db
+    .select()
+    .from(mcpServers)
+    .where(and(eq(mcpServers.userId, userId), eq(mcpServers.name, name)));
+  return row ? toStoredServer(row) : undefined;
 }
 
 export async function setMCPServerError({
@@ -86,8 +102,7 @@ export async function insertMCPServer({
   maxServers: number;
 }): Promise<'ok' | 'limit-reached' | 'name-taken'> {
   return await db.transaction(async (tx) => {
-    // TODO(slopradar): lock key collision : same advisory key as recordTurnWithinLimit (usage.ts:66) → scope the key, see the note there.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
+    await lockUser({ scope: 'mcp-servers', tx, userId });
     const existing = await tx
       .select({ name: mcpServers.name })
       .from(mcpServers)

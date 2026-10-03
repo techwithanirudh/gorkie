@@ -1,15 +1,19 @@
 import { Chat } from 'chat';
+import { z } from 'zod';
 import { env } from '@/env';
+import { slack as slackConfig } from '../config';
 import { logger } from '../lib/logger';
 import { slack } from './client';
 
 type OptInStatus = 'allowed' | 'not-allowed' | 'unknown' | 'list-not-loaded';
 
+const storedUsers = z.array(z.string()).nullish();
+const membersPage = z.object({ members: z.array(z.string()).optional() });
+
 function allowlistKey(channel: string): string {
   return `slack:allowed-users:${channel}`;
 }
 
-// TODO(slopradar): duplication : second hand-rolled promise-chain mutex (state.ts:56 is the other) → one keyed `serialize(key, fn)` helper in lib, or `async-mutex` (dependency change: ask owner)
 let writes: Promise<void> = Promise.resolve();
 const changesWhileBuilding = new Map<string, boolean>();
 let building = false;
@@ -23,14 +27,14 @@ function updateAllowlist({
 }): Promise<void> {
   const write = writes.then(async () => {
     const state = Chat.getSingleton().getState();
-    // TODO(slopradar): unchecked cast : `get<string[]>` trusts whatever the state store holds (x2 in this file, also in optInStatus) → parse with `z.array(z.string())`
-    const stored = await state.get<string[]>(allowlistKey(channel));
+    const stored = storedUsers.parse(await state.get(allowlistKey(channel)));
     const users = change(stored ? new Set(stored) : undefined);
     if (users) {
       await state.set(allowlistKey(channel), [...users]);
     }
   });
-  // TODO(slopradar): swallowed catch without why : CODING_STANDARDS requires a reason on an intentionally ignored catch → add the one-line why (the caller gets the rejection through `write`)
+  // Ignored here because the caller gets the rejection through `write`; the
+  // chain only has to keep running for the next write.
   writes = write.catch(() => undefined);
   return write;
 }
@@ -41,9 +45,9 @@ export async function optInStatus(userId: string): Promise<OptInStatus> {
     return 'allowed';
   }
   try {
-    const allowedUsers = await Chat.getSingleton()
-      .getState()
-      .get<string[]>(allowlistKey(channel));
+    const allowedUsers = storedUsers.parse(
+      await Chat.getSingleton().getState().get(allowlistKey(channel))
+    );
     if (allowedUsers) {
       return allowedUsers.includes(userId) ? 'allowed' : 'not-allowed';
     }
@@ -103,20 +107,14 @@ export async function rebuildAllowlist(): Promise<void> {
   changesWhileBuilding.clear();
   try {
     const members = new Set<string>();
-    let cursor: string | undefined;
-    // TODO(slopradar): hand-rolled library : manual cursor loop plus a biome-ignore where @slack/web-api ships `webClient.paginate('conversations.members', ...)` → iterate the paginator and drop the ignore
-    do {
-      // biome-ignore lint/performance/noAwaitInLoops: each page's cursor comes from the previous response, so this can't be parallelized.
-      const response = await slack.webClient.conversations.members({
-        channel,
-        cursor,
-        limit: 200,
-      });
-      for (const member of response.members ?? []) {
+    for await (const page of slack.webClient.paginate('conversations.members', {
+      channel,
+      limit: slackConfig.membersPageSize,
+    })) {
+      for (const member of membersPage.parse(page).members ?? []) {
         members.add(member);
       }
-      cursor = response.response_metadata?.next_cursor || undefined;
-    } while (cursor);
+    }
     await updateAllowlist({
       channel,
       change: () => {

@@ -1,6 +1,5 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { channelContext } from '../../lib/context';
 import { sh } from '../../lib/shell';
 import { branchSchema, repositorySchema } from '../../types';
 import { requireSandbox } from '../../workspace';
@@ -32,9 +31,11 @@ async function refuseDefaultBranch({
 
 export const pushTool = ({
   approval,
+  threadId,
   userId,
 }: {
   approval: boolean;
+  threadId: string;
   userId: string;
 }) =>
   createTool({
@@ -58,7 +59,14 @@ export const pushTool = ({
         )
         .describe('Local branch to push.'),
     }),
-    // TODO(slopradar): inconsistent tool shape : no outputSchema or transform.display, unlike every non-GitHub tool → add outputSchema { branch, sha } and a "Pushed <branch>" summary
+    outputSchema: z.strictObject({ branch: z.string(), sha: z.string() }),
+    transform: {
+      display: {
+        output: ({ output }) => ({
+          summary: `Pushed ${output?.branch ?? 'branch'}`,
+        }),
+      },
+    },
     execute: async ({ repository, branch, checkout }, context) => {
       const sandbox = await requireSandbox(context.requestContext);
       const path = checkoutPath(checkout ?? repository);
@@ -104,7 +112,7 @@ This GitHub App connection cannot push to ${repository}, because an app only rea
           };
         },
         sandbox,
-        threadId: channelContext(context.requestContext).threadId,
+        threadId,
         userId,
       });
     },

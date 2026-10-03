@@ -8,6 +8,7 @@ import {
 } from '../../db/queries/moderation';
 import { logger } from '../../lib/logger';
 import type { ActiveBan, BanDuration, ModerationEvent } from '../../types';
+import { optInStatus } from '../allowed-users';
 import { refreshHome } from '../app-home/view';
 import { slack } from '../client';
 import { notify } from '../notify';
@@ -19,7 +20,7 @@ type BanStatus =
   | { status: 'banned'; ban: ActiveBan }
   | { status: 'clear' | 'lookup-failed' };
 
-const DURATION: Record<Exclude<BanDuration, 'perm'>, Duration> = {
+const banDurations: Record<Exclude<BanDuration, 'perm'>, Duration> = {
   '1h': { hours: 1 },
   '1d': { days: 1 },
   '7d': { days: 7 },
@@ -34,6 +35,13 @@ export async function banStatus(userId: string): Promise<BanStatus> {
     logger.error('[moderation] ban lookup failed', { error, userId });
     return { status: 'lookup-failed' };
   }
+}
+
+export async function isBlocked(userId: string): Promise<boolean> {
+  return (
+    (await banStatus(userId)).status === 'banned' ||
+    (await optInStatus(userId)) !== 'allowed'
+  );
 }
 
 export async function decide({
@@ -56,7 +64,7 @@ export async function decide({
     reason,
     expiresAt:
       action === 'ban' && duration && duration !== 'perm'
-        ? add(new Date(), DURATION[duration])
+        ? add(new Date(), banDurations[duration])
         : undefined,
   });
   logger.info(`[moderation] ${action}`, { actorId, duration, userId });

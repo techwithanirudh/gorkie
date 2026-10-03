@@ -2,12 +2,12 @@ import type { BackgroundTask } from '@mastra/core/background-tasks';
 import { RequestContext } from '@mastra/core/request-context';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { slack } from '../chat/client';
 import { getMastra } from '../chat/mastra-instance';
 import { claimTurn } from '../chat/usage';
 import { agent as agentConfig, sandbox as sandboxConfig } from '../config';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
+import { wakes } from '../prompts/wakes';
 import type { ChannelContext } from '../types';
 import { requireSandbox } from '../workspace';
 import { startJob } from '../workspace/jobs';
@@ -19,33 +19,17 @@ import { startJob } from '../workspace/jobs';
 const wakeChannels = new Map<string, ChannelContext>();
 
 async function wakeThread(task: BackgroundTask): Promise<void> {
-  const saved = wakeChannels.get(task.id);
+  const channel = wakeChannels.get(task.id);
   wakeChannels.delete(task.id);
   const { threadId, resourceId } = task;
-  if (!(threadId && resourceId)) {
-    return;
-  }
-  let channel: ChannelContext;
-  try {
-    // TODO(slopradar): weak fallback : the rebuilt context has no userId, so the claimTurn limit below is silently skipped; per the comment above a restart loses the job anyway, so this branch is either dead or a limit bypass → when `saved` is missing, log and return instead of rebuilding
-    channel = saved ?? {
-      platform: 'slack',
-      threadId,
-      channelId: slack.channelIdFromThreadId(threadId),
-      isDM: slack.isDM(threadId),
-    };
-  } catch (error) {
-    logger.warn('[run_background] no Slack thread to wake', {
-      error,
+  if (!(channel?.userId && threadId && resourceId)) {
+    logger.warn('[run_background] no Slack thread or user to wake', {
       taskId: task.id,
       threadId,
     });
     return;
   }
-  if (
-    channel.userId &&
-    (await claimTurn(channel.userId)).status === 'over-limit'
-  ) {
+  if ((await claimTurn(channel.userId)).status === 'over-limit') {
     logger.info('[run_background] wake skipped, over the turn limit', {
       taskId: task.id,
     });
@@ -65,7 +49,7 @@ async function wakeThread(task: BackgroundTask): Promise<void> {
       .sendSignal(
         {
           type: 'notification',
-          contents: `Your background job${reason ? ` (${reason})` : ''} ${outcome}. Its result is in the run_background tool output. Report it to the person in this thread.`,
+          contents: wakes.backgroundJobDone({ outcome, reason }),
         },
         {
           threadId,
@@ -136,14 +120,14 @@ export const runBackgroundTool = createTool({
     if (!(id && channel.threadId)) {
       throw new Error('No Slack thread bound for this run.');
     }
-    if (context.background) {
-      wakeChannels.set(context.background.taskId, channel);
-    }
     const job = startJob({
       id,
       threadId: channel.threadId,
       timeoutMs: timeout * 1000,
     });
+    if (context.background) {
+      wakeChannels.set(context.background.taskId, channel);
+    }
     try {
       const sandbox = await requireSandbox(requestContext);
       job.attachSandbox(sandbox);

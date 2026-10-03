@@ -11,11 +11,11 @@ export async function getUserSettings(userId: string) {
   return {
     instructions: row?.instructions ?? undefined,
     github: {
-      permission: githubPermissionSchema.parse(row?.githubPermission),
+      permission: githubPermissionSchema
+        .catch('all')
+        .parse(row?.githubPermission),
       threads: row?.githubThreads === true,
     } satisfies GitHubSettings,
-    // TODO(slopradar): unvalidated read : toolDisplay trusts the schema's $type cast while githubPermission above is Zod-parsed
-    // → parse with toolDisplayModeSchema (optional, catch undefined).
     toolDisplay: row?.toolDisplay ?? undefined,
   };
 }

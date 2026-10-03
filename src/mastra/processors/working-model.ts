@@ -1,6 +1,49 @@
-import type { ProcessOutputResultArgs } from '@mastra/core/processors';
+import type { Processor } from '@mastra/core/processors';
+import { Chat } from 'chat';
 import { z } from 'zod';
-import { pinModelOnce } from '../lib/working-model';
+import { workingModel as config } from '../config';
+import { logger } from '../lib/logger';
+
+const stateKey = 'working-model';
+
+function slugOf(modelId: string): string {
+  return modelId.startsWith('openrouter/')
+    ? modelId.slice('openrouter/'.length)
+    : modelId;
+}
+
+export async function recallModel(): Promise<string | undefined> {
+  try {
+    return (
+      z
+        .string()
+        .nullish()
+        .parse(await Chat.getSingleton().getState().get(stateKey)) ?? undefined
+    );
+  } catch (err) {
+    logger.warn('[working-model] failed to read', { err });
+  }
+}
+
+async function pinModelOnce({
+  modelId,
+  modelProvider,
+}: {
+  modelId: string;
+  modelProvider?: string;
+}): Promise<void> {
+  const slug =
+    modelProvider && !modelId.startsWith(`${modelProvider}/`)
+      ? slugOf(`${modelProvider}/${modelId}`)
+      : slugOf(modelId);
+  try {
+    await Chat.getSingleton()
+      .getState()
+      .setIfNotExists(stateKey, slug, config.ttl);
+  } catch (err) {
+    logger.warn('[working-model] failed to persist', { err, slug });
+  }
+}
 
 const responseSchema = z.object({
   modelMetadata: z.object({ modelProvider: z.string() }).optional(),
@@ -12,7 +55,7 @@ export function workingModel(agentKey: string) {
     name: 'Working Model',
     description:
       'Remembers the model that just answered so the next run tries it first.',
-    async processOutputResult(args: ProcessOutputResultArgs) {
+    async processOutputResult(args) {
       if (args.result.finishReason === 'error') {
         return args.messages;
       }
@@ -28,5 +71,5 @@ export function workingModel(agentKey: string) {
       }
       return args.messages;
     },
-  };
+  } satisfies Processor;
 }

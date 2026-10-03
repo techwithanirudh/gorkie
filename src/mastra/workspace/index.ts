@@ -17,20 +17,13 @@ import { logger } from '../lib/logger';
 import { E2BFilesystem } from './filesystem';
 import { findJob, hasLiveJob, startJob } from './jobs';
 import { createSandbox } from './sandbox';
-import {
-  DELETE_FILE,
-  EDIT_FILE,
-  EXECUTE_COMMAND,
-  FILE_STAT,
-  GREP,
-  LIST_FILES,
-  READ_FILE,
-  WRITE_FILE,
-} from './tool-names';
+import { toolNames } from './tool-names';
 
 const threadsUsingSandbox = new Set<string>();
 const extendedAt = new WeakMap<E2BSandbox, number>();
 const unscopedSandboxKey = '__unscoped__';
+const noThreadRefusal =
+  'No Slack thread bound for this run, so a sandbox tool cannot run here.';
 
 const toolCallContext = z.object({
   agent: z.object({ toolCallId: z.string() }).optional(),
@@ -68,10 +61,7 @@ export async function requireSandbox(
   requestContext: RequestContext
 ): Promise<E2BSandbox> {
   if (sandboxKey(requestContext) === unscopedSandboxKey) {
-    // TODO(slopradar): duplicated literal : this refusal text is repeated verbatim in beforeToolCall's output below → one const shared by both
-    throw new Error(
-      'No Slack thread bound for this run, so a sandbox tool cannot run here.'
-    );
+    throw new Error(noThreadRefusal);
   }
   const sandbox = await getSandbox(requestContext);
   if (!sandbox) {
@@ -147,11 +137,7 @@ async function beforeToolCall({
 > {
   const call = toolCallContext.safeParse(context).data;
   if (!call || sandboxKey(call.requestContext) === unscopedSandboxKey) {
-    return {
-      proceed: false,
-      output:
-        'No Slack thread bound for this run, so a sandbox tool cannot run here.',
-    };
+    return { proceed: false, output: noThreadRefusal };
   }
   const background =
     workspaceToolName === WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND &&
@@ -206,9 +192,6 @@ function afterToolCall({
   }
 }
 
-// TODO(slopradar): pass-through re-export : tool-names.ts is already its own module → have tools/code-mode/slack.ts import from '../../workspace/tool-names' and drop this line
-export { codeModeToolNames } from './tool-names';
-
 export const workspace: Workspace = new Workspace({
   id: 'main-workspace',
   name: 'Workspace',
@@ -239,28 +222,28 @@ export const workspace: Workspace = new Workspace({
       afterToolCall,
     },
     [WORKSPACE_TOOLS.FILESYSTEM.READ_FILE]: {
-      name: READ_FILE,
+      name: toolNames.readFile,
       // Images go through view_image (which types by magic bytes), not read_file:
       // read_file trusts the extension, which is how a mislabeled file becomes a
       // bad image part. Keep PDFs, which view_image does not handle.
       mediaTypes: ['application/pdf'],
     },
     [WORKSPACE_TOOLS.FILESYSTEM.WRITE_FILE]: {
-      name: WRITE_FILE,
+      name: toolNames.writeFile,
       requireReadBeforeWrite: true,
     },
     // No read-before-write here: Mastra clears the read record after every
     // successful write, so a second edit to the same file was rejected as
     // unread. The exact-match old_string already fails on stale content.
-    [WORKSPACE_TOOLS.FILESYSTEM.EDIT_FILE]: { name: EDIT_FILE },
-    [WORKSPACE_TOOLS.FILESYSTEM.LIST_FILES]: { name: LIST_FILES },
-    [WORKSPACE_TOOLS.FILESYSTEM.DELETE]: { name: DELETE_FILE },
-    [WORKSPACE_TOOLS.FILESYSTEM.FILE_STAT]: { name: FILE_STAT },
+    [WORKSPACE_TOOLS.FILESYSTEM.EDIT_FILE]: { name: toolNames.editFile },
+    [WORKSPACE_TOOLS.FILESYSTEM.LIST_FILES]: { name: toolNames.listFiles },
+    [WORKSPACE_TOOLS.FILESYSTEM.DELETE]: { name: toolNames.deleteFile },
+    [WORKSPACE_TOOLS.FILESYSTEM.FILE_STAT]: { name: toolNames.fileStat },
     [WORKSPACE_TOOLS.FILESYSTEM.MKDIR]: { enabled: false },
-    [WORKSPACE_TOOLS.FILESYSTEM.GREP]: { name: GREP },
+    [WORKSPACE_TOOLS.FILESYSTEM.GREP]: { name: toolNames.grep },
     [WORKSPACE_TOOLS.FILESYSTEM.AST_EDIT]: { enabled: false },
     [WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND]: {
-      name: EXECUTE_COMMAND,
+      name: toolNames.executeCommand,
       // Without this the default is the agent's own abort signal, so every
       // `background: true` process is killed the moment the turn ends. Mastra
       // documents `false` as the setting for cloud sandboxes like E2B, where
@@ -275,10 +258,9 @@ export const workspace: Workspace = new Workspace({
       },
     },
     [WORKSPACE_TOOLS.SANDBOX.GET_PROCESS_OUTPUT]: {
-      // TODO(slopradar): inconsistent source : get_process_output and kill_process are inline while every other model-facing name comes from tool-names.ts → add them there or inline all names
-      name: 'get_process_output',
+      name: toolNames.getProcessOutput,
     },
-    [WORKSPACE_TOOLS.SANDBOX.KILL_PROCESS]: { name: 'kill_process' },
+    [WORKSPACE_TOOLS.SANDBOX.KILL_PROCESS]: { name: toolNames.killProcess },
     [WORKSPACE_TOOLS.LSP.LSP_INSPECT]: { enabled: false },
   },
 });

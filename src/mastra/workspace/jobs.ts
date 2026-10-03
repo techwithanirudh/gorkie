@@ -13,12 +13,32 @@ const jobs = new Map<
   { threadId: string; deadline: number; sandbox?: E2BSandbox; pid?: string }
 >();
 const keepalives = new Map<string, ReturnType<typeof setInterval>>();
+// The github.com credential rule covers the whole sandbox, so a background job
+// running while it is attached could push with the token unapproved.
+const credentialWindows = new Map<string, number>();
 
 export function hasLiveJob(threadId: string): boolean {
   const now = Date.now();
   return [...jobs.values()].some(
     (job) => job.threadId === threadId && job.deadline > now
   );
+}
+
+export function openCredentialWindow(threadId: string): () => void {
+  if (hasLiveJob(threadId)) {
+    throw new Error(
+      'A background command is still running in this sandbox, and GitHub credentials cannot be attached while it runs. Wait for it to finish or kill it, then try again.'
+    );
+  }
+  credentialWindows.set(threadId, (credentialWindows.get(threadId) ?? 0) + 1);
+  return () => {
+    const open = (credentialWindows.get(threadId) ?? 1) - 1;
+    if (open > 0) {
+      credentialWindows.set(threadId, open);
+    } else {
+      credentialWindows.delete(threadId);
+    }
+  };
 }
 
 function jobHandle(id: string): BackgroundJob {
@@ -55,6 +75,11 @@ export function startJob({
   sandbox?: E2BSandbox;
   timeoutMs: number;
 }): BackgroundJob {
+  if (credentialWindows.has(threadId)) {
+    throw new Error(
+      'GitHub credentials are attached to this sandbox for a checkout or push right now, so a background command cannot start. Try again once it finishes.'
+    );
+  }
   jobs.set(id, { threadId, deadline: Date.now() + timeoutMs, sandbox });
   if (!keepalives.has(threadId)) {
     const timer = setInterval(() => {

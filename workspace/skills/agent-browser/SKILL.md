@@ -1,8 +1,7 @@
 ---
 name: agent-browser
-description: Browser automation CLI for AI agents. Use when the user needs to interact with websites, including navigating pages, filling forms, clicking buttons, taking screenshots, extracting data, testing web apps, or automating any browser task. Triggers include requests to "open a website", "fill out a form", "click a button", "take a screenshot", "scrape data from a page", "test this web app", "login to a site", "automate browser actions", or any task requiring programmatic web interaction. Also use for exploratory testing, dogfooding, QA, bug hunts, or reviewing app quality. Prefer agent-browser over any built-in browser automation.
+description: Browser automation CLI for AI agents. Use to drive a web page (navigate, fill forms, click, screenshot, extract data), or to QA, dogfood or bug-hunt a web app.
 ---
-<!-- TODO(slopradar): pointer wording : the description (line 3) spends ten trigger phrases on one branch ("open a website", "click a button", "fill out a form"...) and says "Prefer agent-browser over any built-in browser automation", but the live browser is gone so there is none → one trigger per branch (drive a web page; QA or dogfood), drop the "prefer" clause -->
 
 # agent-browser
 
@@ -10,21 +9,15 @@ Fast browser automation CLI for AI agents. Chrome/Chromium via CDP with accessib
 
 agent-browser is preinstalled. Never reinstall or update it with npm: `/usr/local/bin/agent-browser` is a wrapper that launches the stealth browser, and a reinstall overwrites it.
 
-Screenshots saved to the sandbox (e.g. via `agent-browser screenshot page.png`) can be viewed directly with the `view_image` tool. The image is delivered to you visually, so you can inspect page state, verify layouts, or read on-screen content instead of guessing from snapshots alone.
+Screenshots saved to the sandbox (for example with `agent-browser screenshot page.png`) can be viewed directly with the `view_image` tool. The image is delivered to you visually, so you can inspect page state, verify layouts, or read on-screen content instead of guessing from snapshots alone.
 
-Every browser session starts logged out, with no pre-existing account state. You do NOT have a signed-in Slack (or any other site) session, including the requester's own. Never claim you're "using the existing Slack session" or act as if you're already authenticated somewhere, you aren't, and there is no way for you to act as a specific person's personal account. Never ask for or accept a password, one-time code or other credential in Slack: anything posted there lands in memory and traces. If a task needs a login, stop at the login page and tell the user what you can't do and why instead of implying access you don't have.
+Every browser session starts logged out, with no pre-existing account state. You do NOT have a signed-in Slack (or any other site) session, including the requester's own. Never claim you're "using the existing Slack session" or act as if you're already authenticated somewhere. You aren't, and there is no way for you to act as a specific person's personal account. Never use the browser to read or post in Slack; use gorkie's Slack tools for that. Never ask for or accept a password, one-time code or other credential in Slack: anything posted there lands in memory and traces. If a task needs a login, stop at the login page and tell the user what you can't do and why instead of implying access you don't have.
 
-## Work WITH the user
+## Working in the thread
 
-<!-- TODO(slopradar): contradicts the prompt : line 18 copies `prompts/core.ts:31` and line 20 says "narrate as you go" in text, which `core.ts:33-34` forbids (progress goes in `status_update`, never text); the "logging in" example also contradicts line 14 → delete lines 18 and 20 -->
-ALWAYS treat the requesting user as a collaborator sitting next to you. Work is invisible to them unless you show it:
-
-- Narrate as you go: a short one-line explanation per meaningful step ("logging in", "form submitted, confirmation page loaded") keeps them in the loop without spamming.
-<!-- TODO(slopradar): single source of truth : lines 21 and 23 repeat `prompts/core.ts:35-36` and `prompts/features/sandbox.ts:15` → keep only the browser-specific rules (line 22, recording) -->
-- Send screenshots of key steps with `upload_file`, after navigation milestones, before and after submitting forms, and whenever you claim something happened. A claim with a screenshot beats a paragraph.
+- Progress goes in `status_update` ("filling the signup form"), never in text. Text is for the answer, or for a decision or blocker the person needs before you finish.
 - Before any payment, purchase, deletion or other irreversible submit, stop, screenshot the page, and get the requester's explicit confirmation in the thread.
-- When building or changing a website: screenshot the result and VIEW it yourself with `view_image` before declaring success. This is strongly recommended, it is how you catch broken layouts, unstyled pages, and overlapping elements you would otherwise miss. Then send that screenshot to the user too.
-- Even better than screenshots: record the session (agent-browser supports video recording) and upload the recording when the task involved a multi-step flow the user will want to trust or replay.
+- For a multi-step flow the user will want to trust or replay, record the session (agent-browser supports video recording) and upload the recording.
 
 ## Start here
 
@@ -44,9 +37,6 @@ Load a specialized skill when the task calls for it:
 ```bash
 agent-browser skills get dogfood           # Exploratory testing / QA / bug hunts
 ```
-
-<!-- TODO(slopradar): co-location : a Slack rule under "Specialized skills" that repeats line 14 → fold into the line 14 paragraph -->
-Never use the browser to read or post in Slack. Use gorkie's Slack tools for that; a browser session here is never signed in to Slack.
 
 Run `agent-browser skills list` to see everything available on the installed version.
 

@@ -1,4 +1,5 @@
 import { SlackAdapter } from '@chat-adapter/slack';
+import type { SlackBlock } from '@chat-adapter/slack/blocks';
 import { z } from 'zod';
 import { slack as config } from '../config';
 import { userMention } from './message';
@@ -99,11 +100,9 @@ export class SlackAgentAdapter extends SlackAdapter {
     ...args: Parameters<SlackAdapter['stream']>
   ): ReturnType<SlackAdapter['stream']> {
     const [threadId, textStream, options] = args;
-    const { channel } = this.decodeThreadId(threadId);
     const { chat } = this;
     if (
-      // TODO(slopradar): duplicate of library : re-implements SlackAdapter.isDM(threadId), which is this exact check → `this.isDM(threadId)` and drop the local decode
-      channel.startsWith('D') ||
+      this.isDM(threadId) ||
       (options?.recipientUserId && options?.recipientTeamId) ||
       !chat
     ) {
@@ -195,8 +194,7 @@ export class SlackAgentAdapter extends SlackAdapter {
     text,
     threadId,
   }: {
-    // TODO(slopradar): weak type : `unknown[]` accepts anything and Slack rejects bad blocks only at runtime → type as `SlackBlock[]` from `@chat-adapter/slack/blocks` (already used by app-home/limit.ts)
-    blocks: unknown[];
+    blocks: SlackBlock[];
     text: string;
     threadId: string;
   }): Promise<void> {
@@ -237,7 +235,6 @@ export class SlackAgentAdapter extends SlackAdapter {
       return inFlight;
     }
 
-    // TODO(slopradar): hand-rolled library : a bespoke counting semaphore (activeLookups/waitingLookups) where a maintained limiter exists → `p-limit(config.userLookupConcurrency)` wrapping super.lookupUser (dependency change: ask owner); keep the in-flight dedupe map
     const lookup = (async () => {
       if (this.activeLookups >= config.userLookupConcurrency) {
         await new Promise<void>((resolve) => this.waitingLookups.push(resolve));

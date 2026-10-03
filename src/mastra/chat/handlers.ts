@@ -6,10 +6,10 @@ import type { Message, Thread } from 'chat';
 import { logger } from '../lib/logger';
 import type { ThreadState } from '../types';
 import { optInStatus, rebuildAllowlist } from './allowed-users';
-import { attachments } from './attachments';
+import { appendAttachments } from './attachments';
 import { slack } from './client';
 import { handleCommand } from './commands';
-import { withHistory } from './history';
+import { prependHistory } from './history';
 import { isComment } from './message';
 import { banStatus } from './moderation';
 import { banNotice } from './moderation/cards';
@@ -23,41 +23,32 @@ function isFromBot(message: Message): boolean {
   return message.author.isBot === true || message.author.userId === 'USLACKBOT';
 }
 
-async function turnAwayBanned({
+async function admit({
   message,
+  notice,
   thread,
 }: {
   message: Message;
+  notice: 'send' | 'silent';
   thread: Thread;
 }): Promise<boolean> {
-  const check = await banStatus(message.author.userId);
-  if (check.status !== 'banned') {
+  const ban = await banStatus(message.author.userId);
+  if (ban.status === 'banned') {
+    declined({ message, reason: 'banned', thread });
+    if (notice === 'send') {
+      await notify({
+        text: banNotice(ban.ban.expiresAt),
+        thread,
+        user: message.author,
+      });
+    }
     return false;
   }
-  declined({ message, reason: 'banned', thread });
-  await notify({
-    text: banNotice(check.ban.expiresAt),
-    thread,
-    user: message.author,
-  });
-  return true;
-}
-
-async function turnAwayNotOptedIn({
-  message,
-  offer,
-  thread,
-}: {
-  message: Message;
-  // TODO(slopradar): boolean parameter : `offer` switches between two behaviours, and onSubscribedMessage re-implements a silent ban check for the same reason → one gate `admit({ message, thread, notice: 'offer' | 'silent' })` returning the decline reason, used by all three handlers
-  offer: boolean;
-  thread: Thread;
-}): Promise<boolean> {
-  const status = await optInStatus(message.author.userId);
-  if (status === 'allowed') {
-    return false;
+  const optIn = await optInStatus(message.author.userId);
+  if (optIn === 'allowed') {
+    return true;
   }
-  if (status === 'list-not-loaded') {
+  if (optIn === 'list-not-loaded') {
     // Not awaited: paging a large channel's members would hold this reply.
     rebuildAllowlist().catch((error: unknown) =>
       logger.error('[allowlist] failed to rebuild opt-in cache', { error })
@@ -66,24 +57,24 @@ async function turnAwayNotOptedIn({
   declined({
     message,
     reason:
-      status === 'not-allowed'
+      optIn === 'not-allowed'
         ? 'not on the allow-list'
         : 'could not check the allow-list',
     thread,
   });
-  if (!offer) {
-    return true;
+  if (notice === 'silent') {
+    return false;
   }
-  if (status === 'not-allowed') {
+  if (optIn === 'not-allowed') {
     await offerOptIn({ thread, user: message.author });
-    return true;
+    return false;
   }
   await notify({
     text: "i couldn't check whether you've opted in just now. try again in a minute.",
     thread,
     user: message.author,
   });
-  return true;
+  return false;
 }
 
 function declined({
@@ -142,15 +133,12 @@ async function runTurn({
     });
     return;
   }
-  const prompt = await withHistory({
-    message: attachments(message),
-    state,
-    thread,
-  });
+  appendAttachments(message);
+  await prependHistory({ message, state, thread });
   if (follow) {
     await setThreadState({ thread, patch: { respondOnThreadMessages: true } });
   }
-  await defaultHandler(thread, prompt);
+  await defaultHandler(thread, message);
   if (!thread.isDM) {
     await setThreadState({ thread, patch: { lastSeenMessage: message.id } });
   }
@@ -164,33 +152,44 @@ async function runTurn({
   });
 }
 
-export const onMention: ChannelHandler = async (
-  thread,
+async function answer({
+  defaultHandler,
+  follow,
   message,
-  defaultHandler
-) => {
+  thread,
+}: {
+  defaultHandler: Parameters<ChannelHandler>[2];
+  follow: boolean;
+  message: Message;
+  thread: Thread;
+}): Promise<void> {
   if (isFromBot(message)) {
     declined({ message, reason: 'from a bot', thread });
     return;
   }
-  if (await turnAwayBanned({ message, thread })) {
-    return;
-  }
-  if (await turnAwayNotOptedIn({ message, offer: true, thread })) {
+  if (!(await admit({ message, notice: 'send', thread }))) {
     return;
   }
   const state = await threadStateOrNull(thread);
   if (await handleCommand({ message, state, thread })) {
     return;
   }
-  await runTurn({
+  await runTurn({ defaultHandler, follow, message, state, thread });
+}
+
+export const onMention: ChannelHandler = (thread, message, defaultHandler) =>
+  answer({
     defaultHandler,
     follow: slack.decodeThreadId(message.threadId).threadTs === message.id,
     message,
-    state,
     thread,
   });
-};
+
+export const onDirectMessage: ChannelHandler = (
+  thread,
+  message,
+  defaultHandler
+) => answer({ defaultHandler, follow: false, message, thread });
 
 export const onSubscribedMessage: ChannelHandler = async (
   thread,
@@ -215,47 +214,15 @@ export const onSubscribedMessage: ChannelHandler = async (
     });
     return;
   }
-  // TODO(slopradar): duplication : the else branch below is an inline copy of turnAwayBanned minus the notice → fold into the shared gate proposed above turnAwayNotOptedIn
-  if (message.isMention) {
-    if (await turnAwayBanned({ message, thread })) {
-      return;
-    }
-  } else if ((await banStatus(message.author.userId)).status === 'banned') {
-    declined({ message, reason: 'banned', thread });
-    return;
-  }
   if (
-    await turnAwayNotOptedIn({
+    !(await admit({
       message,
-      offer: message.isMention === true,
+      notice: message.isMention ? 'send' : 'silent',
       thread,
-    })
+    }))
   ) {
     return;
   }
-  if (await handleCommand({ message, state, thread })) {
-    return;
-  }
-  await runTurn({ defaultHandler, message, state, thread });
-};
-
-// TODO(slopradar): duplication : body is onMention line for line except `follow` (and DMs never need it) → one `answer({ follow })` function both handlers call
-export const onDirectMessage: ChannelHandler = async (
-  thread,
-  message,
-  defaultHandler
-) => {
-  if (isFromBot(message)) {
-    declined({ message, reason: 'from a bot', thread });
-    return;
-  }
-  if (await turnAwayBanned({ message, thread })) {
-    return;
-  }
-  if (await turnAwayNotOptedIn({ message, offer: true, thread })) {
-    return;
-  }
-  const state = await threadStateOrNull(thread);
   if (await handleCommand({ message, state, thread })) {
     return;
   }

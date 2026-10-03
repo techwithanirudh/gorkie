@@ -28,3 +28,7 @@ export function parseSlackInput(input: string | undefined): {
   const threadTs = timestamp(input);
   return threadTs ? { threadTs } : { channel: input };
 }
+
+export function slackFileId(input: string): string | undefined {
+  return /(?<![A-Z0-9])F[A-Z0-9]{6,}/.exec(input)?.[0];
+}

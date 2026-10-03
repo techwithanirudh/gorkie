@@ -1,5 +1,10 @@
 import type { CompatRule } from '@mastra/core/processors';
 import { image as imageLimits } from '../config';
+import {
+  attachedMediaNote,
+  imageAttachedNote,
+  imageOmittedNote,
+} from '../prompts/processors';
 
 type Prompt = Parameters<NonNullable<CompatRule['applyToPrompt']>>[0]['prompt'];
 type FilePart = Extract<
@@ -17,9 +22,6 @@ type MediaPart = Extract<
   { type: 'media' }
 >;
 
-const omittedNote =
-  "Image omitted to stay within the model's image limit. View it again (view_image, or get_slack_file then view_image for a Slack upload) if you still need it.";
-
 function decodedBytes(data: FilePart['data']): number {
   if (data instanceof Uint8Array) {
     return data.byteLength;
@@ -32,28 +34,22 @@ function decodedBytes(data: FilePart['data']): number {
   return Math.ceil((text.slice(text.indexOf(',') + 1).length * 3) / 4);
 }
 
-// Every gateway gorkie routes through is OpenAI-compatible, and none of them
-// understand `media` parts inside tool-result content: they JSON-stringify the
-// whole part as text, so the model never sees the image. Relocating it into a
-// synthetic user message works everywhere, because user-message `file` parts
-// are handled by every provider.
-//
-// Scoped to `image/*` on purpose. The OpenAI-compatible user-message converter
-// branches on `image/*`, `audio/*` and `application/pdf` and throws
-// `UnsupportedFunctionalityError` for anything else, which crashes the turn
-// rather than merely not working.
-// TODO(slopradar): long function : ~125 lines with a scan pass, a budget pass and a rewrite pass nested four deep → split into collectImages, keepWithinBudget and rewritePrompt helpers called from here
-function relocateToolImages({
-  prompt,
-}: {
-  prompt: Prompt;
-}): Prompt | undefined {
-  const found: { part: MediaPart | FilePart; size: number }[] = [];
+type Image = MediaPart | FilePart;
+type ToolMessage = Extract<Prompt[number], { role: 'tool' }>;
+
+const isImage = (part: { mediaType: string }) =>
+  part.mediaType.startsWith('image/');
+
+function collectImages(prompt: Prompt): {
+  found: { part: Image; size: number }[];
+  toolImages: number;
+} {
+  const found: { part: Image; size: number }[] = [];
   let toolImages = 0;
   for (const message of prompt) {
     if (message.role === 'user') {
       for (const part of message.content) {
-        if (part.type === 'file' && part.mediaType.startsWith('image/')) {
+        if (part.type === 'file' && isImage(part)) {
           found.push({ part, size: decodedBytes(part.data) });
         }
       }
@@ -67,19 +63,22 @@ function relocateToolImages({
         continue;
       }
       for (const item of part.output.value) {
-        if (item.type === 'media' && item.mediaType.startsWith('image/')) {
+        if (item.type === 'media' && isImage(item)) {
           found.push({ part: item, size: decodedBytes(item.data) });
           toolImages++;
         }
       }
     }
   }
+  return { found, toolImages };
+}
 
-  // Relocation concentrates every tool image into one request, next to the
-  // Slack uploads already inline, and vision models cap inline images (GLM:
-  // 8 / 64 MiB, a non-retryable 400), so keep only the most recent images
-  // within budget, whichever route they came in by.
-  const keep = new Set<MediaPart | FilePart>();
+// Relocation concentrates every tool image into one request, next to the
+// Slack uploads already inline, and vision models cap inline images (GLM:
+// 8 / 64 MiB, a non-retryable 400), so keep only the most recent images
+// within budget, whichever route they came in by.
+function keepWithinBudget(found: { part: Image; size: number }[]): Set<Image> {
+  const keep = new Set<Image>();
   let bytes = 0;
   for (let i = found.length - 1; i >= 0; i--) {
     const { part, size } = found[i];
@@ -92,82 +91,117 @@ function relocateToolImages({
     keep.add(part);
     bytes += size;
   }
+  return keep;
+}
+
+function rewriteToolMessage({
+  keep,
+  message,
+}: {
+  keep: Set<Image>;
+  message: ToolMessage;
+}): Prompt {
+  const relocated: MediaPart[] = [];
+  const content = message.content.map((part) => {
+    if (part.type !== 'tool-result' || part.output.type !== 'content') {
+      return part;
+    }
+    let keptImage = false;
+    let droppedImage = false;
+    const kept = part.output.value.filter((item) => {
+      if (item.type === 'media' && isImage(item)) {
+        if (keep.has(item)) {
+          relocated.push(item);
+          keptImage = true;
+        } else {
+          droppedImage = true;
+        }
+        return false;
+      }
+      return true;
+    });
+    if (kept.length === part.output.value.length) {
+      return part;
+    }
+    if (keptImage) {
+      kept.push({
+        type: 'text',
+        text: imageAttachedNote,
+      });
+    }
+    if (droppedImage) {
+      kept.push({ type: 'text', text: imageOmittedNote });
+    }
+    return { ...part, output: { ...part.output, value: kept } };
+  });
+  if (relocated.length === 0) {
+    return [{ ...message, content }];
+  }
+  return [
+    { ...message, content },
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: attachedMediaNote },
+        ...relocated.map(
+          (media): FilePart => ({
+            type: 'file',
+            data: media.data,
+            mediaType: media.mediaType,
+          })
+        ),
+      ],
+    },
+  ];
+}
+
+function rewritePrompt({
+  keep,
+  prompt,
+}: {
+  keep: Set<Image>;
+  prompt: Prompt;
+}): Prompt {
+  return prompt.flatMap((message): Prompt => {
+    if (message.role === 'user') {
+      return [
+        {
+          ...message,
+          content: message.content.map((part) =>
+            part.type === 'file' && isImage(part) && !keep.has(part)
+              ? { type: 'text', text: imageOmittedNote }
+              : part
+          ),
+        },
+      ];
+    }
+    return message.role === 'tool'
+      ? rewriteToolMessage({ keep, message })
+      : [message];
+  });
+}
+
+// Every gateway gorkie routes through is OpenAI-compatible, and none of them
+// understand `media` parts inside tool-result content: they JSON-stringify the
+// whole part as text, so the model never sees the image. Relocating it into a
+// synthetic user message works everywhere, because user-message `file` parts
+// are handled by every provider.
+//
+// Scoped to `image/*` on purpose. The OpenAI-compatible user-message converter
+// branches on `image/*`, `audio/*` and `application/pdf` and throws
+// `UnsupportedFunctionalityError` for anything else, which crashes the turn
+// rather than merely not working.
+function relocateToolImages({
+  prompt,
+}: {
+  prompt: Prompt;
+}): Prompt | undefined {
+  const { found, toolImages } = collectImages(prompt);
+  const keep = keepWithinBudget(found);
   if (toolImages === 0 && keep.size === found.length) {
     return;
   }
-
-  const next: Prompt = [];
-  for (const message of prompt) {
-    if (message.role === 'user') {
-      next.push({
-        ...message,
-        content: message.content.map((part) =>
-          part.type === 'file' &&
-          part.mediaType.startsWith('image/') &&
-          !keep.has(part)
-            ? { type: 'text', text: omittedNote }
-            : part
-        ),
-      });
-      continue;
-    }
-    if (message.role !== 'tool') {
-      next.push(message);
-      continue;
-    }
-    const relocated: MediaPart[] = [];
-    const content = message.content.map((part) => {
-      if (part.type !== 'tool-result' || part.output.type !== 'content') {
-        return part;
-      }
-      let keptImage = false;
-      let droppedImage = false;
-      const kept = part.output.value.filter((item) => {
-        if (item.type === 'media' && item.mediaType.startsWith('image/')) {
-          if (keep.has(item)) {
-            relocated.push(item);
-            keptImage = true;
-          } else {
-            droppedImage = true;
-          }
-          return false;
-        }
-        return true;
-      });
-      if (kept.length === part.output.value.length) {
-        return part;
-      }
-      if (keptImage) {
-        kept.push({
-          type: 'text',
-          text: 'Image attached in the following message.',
-        });
-      }
-      if (droppedImage) {
-        kept.push({ type: 'text', text: omittedNote });
-      }
-      return { ...part, output: { ...part.output, value: kept } };
-    });
-
-    next.push({ ...message, content });
-    if (relocated.length > 0) {
-      next.push({
-        role: 'user',
-        content: [
-          { type: 'text', text: 'Attached media from tool result:' },
-          ...relocated.map(
-            (media): FilePart => ({
-              type: 'file',
-              data: media.data,
-              mediaType: media.mediaType,
-            })
-          ),
-        ],
-      });
-    }
-  }
-
-  return next;
+  return rewritePrompt({ keep, prompt });
 }
 
 export const moveToolImages: CompatRule = {

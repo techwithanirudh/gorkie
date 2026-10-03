@@ -28,6 +28,10 @@ export const slackErrorSchema = z.looseObject({
   data: z.looseObject({ error: z.string().optional() }).optional(),
 });
 
+// Slack's error when the bot is already a member, the state every caller
+// wants. The WebClient logs it at warn anyway.
+export const alreadyInChannel = 'already_in_channel';
+
 export const targetSchema = z.object({
   type: z.enum(['thread', 'channel', 'user']).describe('Target kind.'),
   id: z

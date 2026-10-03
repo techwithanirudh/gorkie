@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
-import { spendSlackCall } from '../../lib/slack-budget';
+import { spendSlackCall } from '../slack/budget';
 import { readableFile } from '../slack/files';
 import { canvasIdSchema } from './utils';
 
@@ -32,7 +32,6 @@ export const lookupCanvasSectionsTool = createTool({
     },
   },
   execute: async ({ canvasId, sectionTypes, containsText }, context) => {
-    // TODO(slopradar): validation outside the boundary : "one of sectionTypes or containsText" is checked in execute with a ternary-and-&& chain → .refine on inputSchema (as upload-emoji.ts and list.ts do), then build criteria with plain spreads
     const criteria = sectionTypes
       ? { section_types: sectionTypes, contains_text: containsText }
       : containsText && { contains_text: containsText };

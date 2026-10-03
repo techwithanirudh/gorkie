@@ -1,18 +1,16 @@
 import { auth } from '@mastra/mcp';
-import { publishHome } from '../chat/app-home/view';
+import { refreshHome } from '../chat/app-home/view';
 import { setMCPOAuthStatus } from '../db/queries/mcp-oauth';
-import { listMCPServers } from '../db/queries/mcps';
-import { logger } from '../lib/logger';
+import { getMCPServer } from '../db/queries/mcps';
 import { MCPServerOAuth, registeredRedirects } from '../mcp/oauth';
 import { guardedFetch } from '../mcp/security';
 import { dropClient } from '../mcp/user-servers/client';
 import type { OAuthProviderHandler, OAuthToken } from '../types';
 
 async function ownedServer(token: OAuthToken) {
-  // TODO(slopradar): over-fetch : loads and decrypts every server of the user to pick one → a getMCPServer({ name, userId }) query in db/queries/mcps.ts.
-  const server = (await listMCPServers(token.slackUserId)).find(
-    (entry) => entry.name === token.target
-  );
+  const server = token.target
+    ? await getMCPServer({ name: token.target, userId: token.slackUserId })
+    : undefined;
   if (!server) {
     throw new Error('MCP server not found for this sign-in');
   }
@@ -90,13 +88,7 @@ export const mcpOAuth: OAuthProviderHandler = {
       userId: token.slackUserId,
     });
     await dropClient(token.slackUserId);
-    // TODO(slopradar): duplication : same catch-and-log as server/github.ts:54 → refreshHome(token.slackUserId).
-    await publishHome(token.slackUserId).catch((error: unknown) =>
-      logger.warn('[mcp] could not refresh the Home tab', {
-        error,
-        userId: token.slackUserId,
-      })
-    );
+    refreshHome(token.slackUserId);
     return {
       page: {
         tone: 'success',

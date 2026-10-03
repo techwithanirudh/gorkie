@@ -1,227 +1,53 @@
 ---
 name: mermaid-diagrams
-description: Comprehensive guide for creating software diagrams using Mermaid syntax. Use when users need to create, visualize, or document software through diagrams including class diagrams (domain modeling, object-oriented design), sequence diagrams (application flows, API interactions, code execution), flowcharts (processes, algorithms, user journeys), entity relationship diagrams (database schemas), C4 architecture diagrams (system context, containers, components), state diagrams, git graphs, pie charts, gantt charts, or any other diagram type. Triggers include requests to "diagram", "visualize", "model", "map out", "show the flow", or when explaining system architecture, database design, code structure, or user/application flows.
+description: Render a Mermaid diagram (flowchart, sequence, class, ER, C4, state, architecture, gantt) to a PNG for Slack. Use when someone asks for a diagram or chart drawn as an image.
 ---
-<!-- TODO(slopradar): pointer wording : the description (line 3) opens with "Comprehensive guide" and lists about 15 triggers including "model", "map out" and "any other diagram type", so it fires on ordinary explanations → one trigger per branch: a diagram as an image -->
 
 # Mermaid Diagramming
 
-Slack does not render Mermaid code blocks, so a diagram only reaches the user as an image. Write the source to a `.mmd` file in the sandbox, render it, look at it, and upload it:
+Slack does not render Mermaid code blocks, so a diagram only reaches the user as an image. Write the source to a `.mmd` file in the sandbox, render it, look at it, and upload it.
 
-<!-- TODO(slopradar): sandbox fit : the `npx -y @mermaid-js/mermaid-cli` call below; mermaid-cli is not in the template (`build-template.ts:52` installs only agent-browser and wrangler) and `npx` pulls puppeteer plus its own Chromium on every new sandbox → preinstall it in the template, or point `PUPPETEER_EXECUTABLE_PATH` at the browser already installed -->
+mermaid-cli is not preinstalled. Point it at the Chromium already in the sandbox so `npx` does not download its own:
+
 ```bash
-npx -y @mermaid-js/mermaid-cli -i diagram.mmd -o diagram.png -s 2
+export PUPPETEER_SKIP_DOWNLOAD=1
+export PUPPETEER_EXECUTABLE_PATH="$(python3 -c 'from cloakbrowser.download import ensure_binary; print(ensure_binary())')"
+npx -y @mermaid-js/mermaid-cli -i diagram.mmd -o diagram.png -s 2 -b white
 ```
 
-Check the PNG with `view_image`, then send it with `upload_file`. If rendering fails, post the Mermaid source in a code block and say it renders at https://mermaid.live or in a GitHub Markdown file.
+If Chromium refuses to start with a sandbox error, write `{"args": ["--no-sandbox"]}` to `puppeteer.json` and add `-p puppeteer.json`.
 
-<!-- TODO(slopradar): no-op : puffery ("professional", "version-controllable, easy to update, and maintainable") → delete the paragraph -->
-Create professional software diagrams using Mermaid's text-based syntax. Mermaid renders diagrams from simple text definitions, making diagrams version-controllable, easy to update, and maintainable alongside code.
+Check the PNG with `view_image`, then send it with `upload_file`. If rendering fails, read the parse error, fix the source, and render again. If it still fails, post the Mermaid source in a code block and say it renders at https://mermaid.live.
 
-## Core Syntax Structure
+## Picking a type
 
-All Mermaid diagrams follow this pattern:
+| Need | Diagram |
+|---|---|
+| A process, algorithm or decision tree | `flowchart` |
+| Messages between services over time | `sequenceDiagram` |
+| Classes and their relationships | `classDiagram` |
+| Tables, keys and cardinality | `erDiagram` |
+| System context, containers, components | `C4Context`, `C4Container`, `C4Component` |
+| A lifecycle or state machine | `stateDiagram-v2` |
+| Cloud services and infrastructure | `architecture-beta` |
+| A timeline | `gantt` |
 
-```mermaid
-diagramType
-  definition content
-```
+Keep one concept per diagram. Split anything that does not read at a glance into several focused views.
 
-**Key principles:**
-- First line declares diagram type (e.g., `classDiagram`, `sequenceDiagram`, `flowchart`)
-- Use `%%` for comments
-- Line breaks and indentation improve readability but aren't required
-- Unknown words break diagrams; parameters fail silently
+## Syntax
 
-## Diagram Type Selection Guide
+The syntax for each type is at https://mermaid.js.org/intro/syntax-reference.html; fetch the page for the type you need with `fetch_url` rather than writing from memory. Read [references/gotchas.md](references/gotchas.md) before writing any diagram: it lists the mistakes that break a render.
 
-**Choose the right diagram type:**
-
-<!-- TODO(slopradar): unslop dash : hyphen standing in for a dash (x34 in this file) → colon -->
-1. **Class Diagrams** - Domain modeling, OOP design, entity relationships
-   - Domain-driven design documentation
-   - Object-oriented class structures
-   - Entity relationships and dependencies
-
-2. **Sequence Diagrams** - Temporal interactions, message flows
-   - API request/response flows
-   - User authentication flows
-   - System component interactions
-   - Method call sequences
-
-3. **Flowcharts** - Processes, algorithms, decision trees
-   - User journeys and workflows
-   - Business processes
-   - Algorithm logic
-   - Deployment pipelines
-
-4. **Entity Relationship Diagrams (ERD)** - Database schemas
-   - Table relationships
-   - Data modeling
-   - Schema design
-
-5. **C4 Diagrams** - Software architecture at multiple levels
-   - System Context (systems and users)
-   - Container (applications, databases, services)
-   - Component (internal structure)
-   - Code (class/interface level)
-
-6. **State Diagrams** - State machines, lifecycle states
-7. **Git Graphs** - Version control branching strategies
-8. **Gantt Charts** - Project timelines, scheduling
-9. **Pie/Bar Charts** - Data visualization
-
-## Quick Start Examples
-
-### Class Diagram (Domain Model)
-```mermaid
-classDiagram
-    Title -- Genre
-    Title *-- Season
-    Title *-- Review
-    User --> Review : creates
-
-    class Title {
-        +string name
-        +int releaseYear
-        +play()
-    }
-
-    class Genre {
-        +string name
-        +getTopTitles()
-    }
-```
-
-### Sequence Diagram (API Flow)
-```mermaid
-sequenceDiagram
-    participant User
-    participant API
-    participant Database
-
-    User->>API: POST /login
-    API->>Database: Query credentials
-    Database-->>API: Return user data
-    alt Valid credentials
-        API-->>User: 200 OK + JWT token
-    else Invalid credentials
-        API-->>User: 401 Unauthorized
-    end
-```
-
-### Flowchart (User Journey)
-```mermaid
-flowchart TD
-    Start([User visits site]) --> Auth{Authenticated?}
-    Auth -->|No| Login[Show login page]
-    Auth -->|Yes| Dashboard[Show dashboard]
-    Login --> Creds[Enter credentials]
-    Creds --> Validate{Valid?}
-    Validate -->|Yes| Dashboard
-    Validate -->|No| Error[Show error]
-    Error --> Login
-```
-
-### ERD (Database Schema)
-```mermaid
-erDiagram
-    USER ||--o{ ORDER : places
-    ORDER ||--|{ LINE_ITEM : contains
-    PRODUCT ||--o{ LINE_ITEM : includes
-
-    USER {
-        int id PK
-        string email UK
-        string name
-        datetime created_at
-    }
-
-    ORDER {
-        int id PK
-        int user_id FK
-        decimal total
-        datetime created_at
-    }
-```
-
-<!-- TODO(slopradar): sprawl : about 2,900 lines of copied upstream Mermaid docs and generic examples (e-commerce, blog, social schemas) the agent can fetch from mermaid.js.org, several with wrong syntax (see annotations in references/) → keep a short gotchas file and link the docs -->
-## Detailed References
-
-For in-depth guidance on specific diagram types, see:
-
-- **[references/class-diagrams.md](references/class-diagrams.md)** - Domain modeling, relationships (association, composition, aggregation, inheritance), multiplicity, methods/properties
-- **[references/sequence-diagrams.md](references/sequence-diagrams.md)** - Actors, participants, messages (sync/async), activations, loops, alt/opt/par blocks, notes
-- **[references/flowcharts.md](references/flowcharts.md)** - Node shapes, connections, decision logic, subgraphs, styling
-- **[references/erd-diagrams.md](references/erd-diagrams.md)** - Entities, relationships, cardinality, keys, attributes
-- **[references/c4-diagrams.md](references/c4-diagrams.md)** - System context, container, component diagrams, boundaries
-- **[references/architecture-diagrams.md](references/architecture-diagrams.md)** - Cloud services, infrastructure, CI/CD deployments
-- **[references/advanced-features.md](references/advanced-features.md)** - Themes, styling, configuration, layout options
-
-<!-- TODO(slopradar): no-op : "Comment Extensively", "Version Control: store .mmd files alongside code" and the Exporting section (line 191, GitHub/Notion rendering) do not apply to a PNG posted in Slack → delete -->
-## Best Practices
-
-1. **Start Simple** - Begin with core entities/components, add details incrementally
-2. **Use Meaningful Names** - Clear labels make diagrams self-documenting
-3. **Comment Extensively** - Use `%%` comments to explain complex relationships
-4. **Keep Focused** - One diagram per concept; split large diagrams into multiple focused views
-5. **Version Control** - Store `.mmd` files alongside code for easy updates
-6. **Add Context** - Include titles and notes to explain diagram purpose
-7. **Iterate** - Refine diagrams as understanding evolves
-
-## Configuration and Theming
-
-Configure diagrams using frontmatter:
+Configure a diagram with frontmatter at the very top of the file:
 
 ```mermaid
 ---
 config:
-  theme: base
-  themeVariables:
-    primaryColor: "#ff6b6b"
+  theme: neutral
+  look: handDrawn
 ---
 flowchart LR
     A --> B
 ```
 
-**Available themes:** default, forest, dark, neutral, base
-
-**Layout options:**
-- `layout: dagre` (default) - Classic balanced layout
-- `layout: elk` - Advanced layout for complex diagrams (requires integration)
-
-**Look options:**
-- `look: classic` - Traditional Mermaid style
-- `look: handDrawn` - Sketch-like appearance
-
-## Exporting and Rendering
-
-**Native support in:**
-- GitHub/GitLab - Automatically renders in Markdown
-- VS Code - With Markdown Mermaid extension
-- Notion, Obsidian, Confluence - Built-in support
-
-## Common Pitfalls
-
-- **Breaking characters** - Avoid `{}` in comments, use proper escape sequences for special characters
-- **Syntax errors** - Misspellings break diagrams; validate syntax in Mermaid Live
-- **Overcomplexity** - Split complex diagrams into multiple focused views
-- **Missing relationships** - Document all important connections between entities
-
-<!-- TODO(slopradar): over-trigger : "Always diagram when starting new projects... onboarding new team members" pushes unrequested diagrams into replies → delete the section -->
-## When to Create Diagrams
-
-**Always diagram when:**
-- Starting new projects or features
-- Documenting complex systems
-- Explaining architecture decisions
-- Designing database schemas
-- Planning refactoring efforts
-- Onboarding new team members
-
-**Use diagrams to:**
-- Align stakeholders on technical decisions
-- Document domain models collaboratively
-- Visualize data flows and system interactions
-- Plan before coding
-- Create living documentation that evolves with code
+Themes are `default`, `neutral`, `dark`, `forest` and `base` (`base` is the only one `themeVariables` can recolor). `look` is `classic` or `handDrawn`.
