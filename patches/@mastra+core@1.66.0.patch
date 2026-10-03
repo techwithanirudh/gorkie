@@ -188,3 +188,47 @@
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
+--- a/dist/stream--7NrsmVY.js
++++ b/dist/stream--7NrsmVY.js
+@@ -21,13 +21,14 @@
+ 	runId;
+ 	writeFn;
+ 	constructor({ prefix, callId, name, runId }, writeFn) {
++		// Hold the instance weakly. Bun never collects a WritableStream whose
++		// underlying sink strongly references the stream itself, so the original
++		// `const self = this` closure leaked one ToolStream per step/tool call.
++		let ref;
+ 		super({ async write(chunk) {
+-			await getInstance()._write(chunk);
++			await ref.deref()?._write(chunk);
+ 		} });
+-		const self = this;
+-		function getInstance() {
+-			return self;
+-		}
++		ref = new WeakRef(this);
+ 		this.prefix = prefix;
+ 		this.callId = callId;
+ 		this.name = name;
+--- a/dist/stream-CoAc1N8E.cjs
++++ b/dist/stream-CoAc1N8E.cjs
+@@ -21,13 +21,14 @@
+ 	runId;
+ 	writeFn;
+ 	constructor({ prefix, callId, name, runId }, writeFn) {
++		// Hold the instance weakly. Bun never collects a WritableStream whose
++		// underlying sink strongly references the stream itself, so the original
++		// `const self = this` closure leaked one ToolStream per step/tool call.
++		let ref;
+ 		super({ async write(chunk) {
+-			await getInstance()._write(chunk);
++			await ref.deref()?._write(chunk);
+ 		} });
+-		const self = this;
+-		function getInstance() {
+-			return self;
+-		}
++		ref = new WeakRef(this);
+ 		this.prefix = prefix;
+ 		this.callId = callId;
+ 		this.name = name;
