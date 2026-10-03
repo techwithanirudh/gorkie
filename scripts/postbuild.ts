@@ -29,6 +29,13 @@ if (!existsSync(outputDir)) {
 
 cpSync(join(root, 'patches'), join(outputDir, 'patches'), { recursive: true });
 cpSync(join(root, 'drizzle'), join(outputDir, 'drizzle'), { recursive: true });
+// `mastra build` writes our caret ranges into its package.json but no lockfile,
+// so the `bun install` after this script resolved every range to the newest
+// release. On 2026-10-03 that pulled @mastra/memory 1.35.0 against the pinned
+// @mastra/core 1.66.0 and the server crash-looped on a missing
+// `loadMessageHistory` export. Seeding the root lockfile makes the output
+// install exactly the versions that dev runs.
+cpSync(join(root, 'bun.lock'), join(outputDir, 'bun.lock'));
 
 const outputPkgPath = join(outputDir, 'package.json');
 const outputPkg = packageJsonSchema.parse(
@@ -38,5 +45,5 @@ outputPkg.patchedDependencies = rootPkg.patchedDependencies;
 writeFileSync(outputPkgPath, `${JSON.stringify(outputPkg, null, 2)}\n`);
 
 console.log(
-  '[postbuild] Copied patches/, drizzle/ and patchedDependencies into .mastra/output.'
+  '[postbuild] Copied patches/, drizzle/, bun.lock and patchedDependencies into .mastra/output.'
 );
