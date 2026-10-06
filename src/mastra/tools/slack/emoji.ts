@@ -53,9 +53,13 @@ export async function downloadEmoji({
     throw new Error(`:${name}: has a circular emoji alias.`);
   }
   const parsed = new URL(url);
+  const allowedHost =
+    parsed.hostname === 'emoji.slack-edge.com' ||
+    (parsed.hostname === 'my.slack.com' &&
+      /^\/emoji\/[^/]+\/[^/]+$/.test(parsed.pathname));
   if (
     parsed.protocol !== 'https:' ||
-    parsed.hostname !== 'emoji.slack-edge.com' ||
+    !allowedHost ||
     parsed.username ||
     parsed.password ||
     parsed.port
