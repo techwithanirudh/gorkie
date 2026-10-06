@@ -16,7 +16,6 @@ export async function getUserSettings(userId: string) {
         .parse(row?.githubPermission),
       threads: row?.githubThreads === true,
     } satisfies GitHubSettings,
-    toolDisplay: row?.toolDisplay ?? undefined,
   };
 }
 

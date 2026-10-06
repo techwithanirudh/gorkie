@@ -79,13 +79,10 @@ async function preferLastWorking(rungs: Rung[]): Promise<ModelWithRetries[]> {
 
 function ladder(agentKey: string): () => Promise<ModelWithRetries[]> {
   const rungs = [
-    opencode({ modelId: 'glm-5.3-flash', fallbackSession: agentKey }),
-    hackclub('z-ai/glm-5.3-flash'),
-    // Last resort only: opencode-go drops deepseek's reasoning_content on the
-    // round trip, so it 400s on tool-calling turns and reliably serves only
-    // single-shot replies.
+    opencode({ modelId: 'deepseek-v4.1-flash', fallbackSession: agentKey }),
+    hackclub('deepseek/deepseek-v4.1-flash'),
     opencode({
-      modelId: 'deepseek-v4-flash-vision-exp',
+      modelId: 'glm-5.3-flash',
       fallbackSession: agentKey,
     }),
   ];
@@ -99,8 +96,8 @@ export const models = {
 };
 
 export const summarizer: ModelWithRetries[] = [
+  opencode({ modelId: 'mimo-v2.6-flash', fallbackSession: 'summarizer' }).model,
   hackclub('google/gemini-3.5-flash-lite').model,
-  opencode({ modelId: 'mimo-v2.5', fallbackSession: 'summarizer' }).model,
 ];
 
 export const images = {

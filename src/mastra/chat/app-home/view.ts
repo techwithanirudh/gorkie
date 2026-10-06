@@ -1,4 +1,3 @@
-import { toolDisplay as toolDisplayConfig } from '../../config';
 import { getGitHubCredential } from '../../db/queries/github';
 import { listMCPServers } from '../../db/queries/mcps';
 import { activeBan } from '../../db/queries/moderation';
@@ -16,7 +15,6 @@ import { customInstructionsBlocks } from './instructions/blocks';
 import { fitHome } from './limit';
 import { mcpServersBlocks } from './mcp/blocks';
 import { scheduledTasksBlocks } from './scheduled-tasks/blocks';
-import { toolDisplayBlocks } from './tool-display/blocks';
 import { usageBlocks } from './usage';
 
 async function settled<T>({
@@ -99,7 +97,6 @@ export async function publishHome(userId: string): Promise<void> {
   const sections: HomeSection[] = [
     { fixed: [...content.home, { type: 'divider' }] },
     customInstructionsBlocks(settings?.instructions),
-    toolDisplayBlocks(settings?.toolDisplay ?? toolDisplayConfig.default),
     ...(usage ? [usageBlocks(usage)] : []),
     githubBlocks({
       credential,

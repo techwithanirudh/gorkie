@@ -1,6 +1,5 @@
 import type { Duration } from '@mastra/core/storage';
 import { env } from '@/env';
-import type { ToolDisplayMode } from './types';
 export const sandbox = {
   template: 'gorkie-workspace:2.2',
   gitAuthorName: 'gorkie-agent',
@@ -64,11 +63,11 @@ export const image = {
 export const agent = {
   id: 'orchestrator',
   // Every ladder rung must fit input plus output in its context window. The
-  // smallest on models.dev is 1,000,000 (opencode-go glm-5.3-flash and
+  // smallest on models.dev is 1,000,000 (opencode-go deepseek-v4.1-flash and
   // deepseek-v4-flash-vision-exp): 850,000 + 65,536 leaves about 84,000 for
   // tool schemas, which the limiter does not count, and for the gap between
   // its tokenizer and the provider's. Output must stay under the smallest
-  // output cap on the ladder, 131,072 (glm-5.3-flash).
+  // output cap on the ladder, 384,000 (opencode-go DeepSeek).
   maxTokens: {
     input: 850_000,
     output: 65_536,
@@ -87,22 +86,15 @@ export const agent = {
 
 // Slack rejects a task_update chunk over 256 characters (msg_too_long) and the
 // adapter then drops to text-only streaming for the rest of the turn.
-export const toolDisplay: {
-  default: ToolDisplayMode;
-  maxChunkChars: number;
-  maxInline: number;
-  maxDetails: number;
-  maxOutput: number;
-} = {
-  default: 'default',
+export const toolDisplay = {
   maxChunkChars: 256,
   maxInline: 120,
   maxDetails: 200,
   maxOutput: 200,
 };
 
-// Output caps per summarizer rung: gemini-3.5-flash-lite 65,536; mimo-v2.5
-// unverified, check models.dev before raising. Observational Memory defaults
+// Output caps on models.dev: mimo-v2.6-flash 131,072; gemini-3.5-flash-lite
+// 65,536. Observational Memory defaults
 // observer and reflector to 100,000 output tokens, over the gemini cap, so
 // orchestrator.ts overrides it with this budget.
 export const summarizer = {

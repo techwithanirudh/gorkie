@@ -10,6 +10,8 @@ const markers = [
   'channelRequesterId',
   'advanceFallbackModel',
   'rolloverPlan',
+  'carriedPlanTitle',
+  'title: "Completed"',
   'groupedTask && !planTitleRef.current',
   'rendersToolsInPlan || toolDisplayFn',
   'stepIsContinued',

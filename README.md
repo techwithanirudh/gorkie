@@ -20,9 +20,9 @@ runs commands and inspects files without touching the host machine.
 
 - Slack-native replies for mentions, DMs, and subscribed thread follow-ups,
   streamed into the thread as they generate, with a typing indicator.
-- Tool display per person: Default (typing status only) or
-  Detailed (a card per call with its inputs and result, helper agents' steps
-  inside their card), set from the Home tab.
+- Tool calls render as a card per call with its inputs and result, helper
+  agents' steps inside their card, in one grouped plan per reply. Scheduled
+  runs show only the typing status.
 - Thread commands: `!help`, `!stop`, `!compact` and
   `!connections`, handled before the agent runs
   (`chat/commands/`).
@@ -285,10 +285,10 @@ carries six fixes:
   background wake) stash no requester in memory, so the check falls back to the
   stored one, the run's creator. It fails closed: a card with no recorded
   requester is refused.
-- **Plan widgets stay under Slack's cap.** A Detailed (grouped) turn rolls into
+- **Plan widgets stay under Slack's cap.** A grouped turn rolls into
   a new message at a step boundary once it has 40 tasks, and never sends more
   than Slack's 50, so long turns do not crash the stream.
-- **Grouped plans work with a custom renderer.** Detailed renders through
+- **Grouped plans work with a custom renderer.** Tool calls render through
   gorkie's own function (`chat/tool-display.ts`) inside one grouped plan per
   turn; the patch sets the plan header from the latest task, as Mastra's
   built-in grouped renderer does, since function-form results carry no header.

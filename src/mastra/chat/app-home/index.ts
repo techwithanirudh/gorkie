@@ -4,7 +4,6 @@ import { registerGitHub } from './github/actions';
 import { registerCustomInstructions } from './instructions/actions';
 import { registerMCPServers } from './mcp/actions';
 import { registerScheduledTasks } from './scheduled-tasks/actions';
-import { registerToolDisplay } from './tool-display/actions';
 import { publishHome } from './view';
 
 export function registerAppHome(): void {
@@ -17,5 +16,4 @@ export function registerAppHome(): void {
   registerGitHub();
   registerMCPServers();
   registerScheduledTasks();
-  registerToolDisplay();
 }

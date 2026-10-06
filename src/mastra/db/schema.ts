@@ -13,7 +13,6 @@ import type {
   GitHubPermission,
   MCPOAuthStatus,
   ModerationAction,
-  ToolDisplayMode,
   ToolPermission,
 } from '../types';
 
@@ -77,7 +76,9 @@ export const userSettings = pgTable('user_settings', {
   instructions: text('instructions'),
   githubPermission: text('github_permission').$type<GitHubPermission>(),
   githubThreads: boolean('github_threads'),
-  toolDisplay: text('tool_display').$type<ToolDisplayMode>(),
+  // Unused since 2026-10-03 (Detailed is the only tool display); drop it with
+  // a migration once the owner agrees.
+  toolDisplay: text('tool_display'),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

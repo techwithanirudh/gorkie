@@ -21,11 +21,13 @@ Spawn one `general-purpose` agent per scope below, in parallel. Each gets the re
 | `src/mastra/{agents,prompts,types}/**`, `src/mastra/index.ts`, `src/env.ts`, `src/mastra/config.ts`, `src/mastra/providers.ts`, `scripts/**` | `mastra`, `writing-for-agents` | `.env.example` |
 | `workspace/**` (runtime skills), `docs/**`, `README.md`, `AGENTS.md`, `CODING_STANDARDS.md`, `.env.example`, `slack-manifest*.json` | `writing-for-agents`, `unslop` | `TODO.md` (only to avoid re-reporting known items) |
 
-Every reviewer also reads `AGENTS.md`, `CODING_STANDARDS.md`, `biome.jsonc` (its comments explain which rules are off and why) and the security table in `SLOPRADAR.md`.
+Every reviewer also loads `codebase-design` and reads `AGENTS.md`, `CODING_STANDARDS.md`, `biome.jsonc` (its comments explain which rules are off and why), the security table in `SLOPRADAR.md`, `GLOSSARY.md` if present (otherwise `CONTEXT.md`), and relevant decisions in `docs/adr/`. Load `mastra` before inspecting Mastra code. Architecture candidates are reported separately from rule violations; reviewers do not run nested architecture scans or edit domain documents.
 
 ## Phase 2: compile
 
 Merge the reports into `/SLOPRADAR.md`, replacing the previous pass: a score table per scope (slop 0 to 10, 10 worst, with the count of annotations), the cross-scope patterns, any contradictions inside the rulebook (these go to the owner as questions before cleanup, since every band would otherwise re-argue them), and per scope the systemic patterns, structural verdict, ordered cleanup bands, orphans, and what to keep. Verify every security finding in code before recording it in the security table.
+
+The coordinator then invokes `improve-codebase-architecture` once, using the reviewers' architecture candidates as evidence and recent git history to choose the hot spots. Its exploration agent verifies cross-scope callers and deletion-test claims without editing source or adding annotations. Deduplicate candidates and respect the glossary and ADRs. Produce the skill's before/after HTML report in the OS temp directory and link its absolute path from `SLOPRADAR.md`. Ask the owner which candidate to explore; do not start the grilling loop, propose concrete interfaces, or fold an optional deepening into cleanup until selected. Keep these candidates out of annotation counts and slop scores.
 
 ## Phase 3: resolve
 

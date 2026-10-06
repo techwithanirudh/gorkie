@@ -16,11 +16,7 @@ import {
 } from '../chat/handlers';
 import { onSlashCommand } from '../chat/moderation/commands';
 import { status } from '../chat/status';
-import {
-  agent as config,
-  summarizer as summarizerConfig,
-  toolDisplay as toolDisplayConfig,
-} from '../config';
+import { agent as config, summarizer as summarizerConfig } from '../config';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
 import { chatLogger } from '../lib/logger/chat';
@@ -29,6 +25,7 @@ import { delegatedTools } from '../processors/delegated-tools';
 import { outputBudget } from '../processors/output-budget';
 import { sandbox } from '../processors/sandbox';
 import { staleMessages } from '../processors/stale-messages';
+import { stepBreaks } from '../processors/step-breaks';
 import { stepGuard } from '../processors/step-guard';
 import { toolDisplay } from '../processors/tool-display';
 import { searchOnly, toolSearch } from '../processors/tool-search';
@@ -43,7 +40,6 @@ import {
 import { models, summarizer as summarizerModel } from '../providers';
 import { githubTools } from '../tools/github';
 import { orchestratorTools } from '../tools/toolsets';
-import { mastraToolDisplay } from '../types';
 import { endSandboxTurn, workspace } from '../workspace';
 import { explore } from './explore';
 import { research } from './research';
@@ -155,6 +151,7 @@ export const orchestrator = new Agent({
   outputProcessors: [
     toolDisplay,
     stepGuard,
+    stepBreaks,
     delegatedTools,
     sandbox,
     turnFooter,
@@ -200,7 +197,12 @@ export const orchestrator = new Agent({
       slack: {
         adapter: slack,
         streaming: true,
-        toolDisplay: mastraToolDisplay[toolDisplayConfig.default],
+        // User turns and approval clicks carry a render object that the
+        // tool-display processor switches to 'grouped' with gorkie's renderer.
+        // Scheduled and wake runs rebuild theirs from this default, which the
+        // processor never sees: 'grouped' would show Mastra's own plan (bare
+        // titles, memory tasks), so they keep the typing status instead.
+        toolDisplay: 'hidden',
         typingStatus: status,
         formatError: (error) =>
           `*Oops, something went wrong.*\n\n> ${error.message}`,

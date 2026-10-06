@@ -97,6 +97,11 @@ export async function requestImages({
   });
   if (!response.ok) {
     const body = await response.text().catch(() => '');
+    if (response.status === 429 && body.includes('spending limit')) {
+      throw new Error(
+        'Hack Club image generation is blocked by its upstream spending limit. Do not retry or wait and retry. Tell the user the provider needs its spending limit restored before image generation can work.'
+      );
+    }
     if (response.status === 404 || body.includes('not a valid model ID')) {
       throw new Error(
         `Image model unavailable (${response.status} for "${images.model}"). Do not retry, and do not wait and retry. Tell the user image generation is currently down.`
