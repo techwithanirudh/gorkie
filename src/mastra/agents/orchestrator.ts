@@ -107,7 +107,11 @@ const orchestrator = new Agent({
       messageFilter: ({ messages }) =>
         messages.filter(({ role }) => role === 'user').slice(-1),
     },
-    stopWhen: [toolCall('wait'), stepCountIs(config.maxSteps)],
+    stopWhen: [
+      toolCall('skip'),
+      toolCall('wait'),
+      stepCountIs(config.maxSteps),
+    ],
     autoResumeSuspendedTools: true,
     onAbort: async () => {
       await pauseSandbox(requestContext);

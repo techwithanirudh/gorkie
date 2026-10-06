@@ -20,6 +20,8 @@ export const file = {
 };
 
 export const image = {
+  maxEditBytes: 8 * 1024 * 1024,
+  requestTimeoutMs: 5 * 60 * 1000,
   // Cap on an image inlined into the model context, matching Mastra read_file's
   // 10MB media default; a larger file is refused rather than blowing up context.
   maxViewBytes: 10 * 1024 * 1024,
@@ -48,3 +50,5 @@ export const scheduledTasks = {
 export const workingModel = {
   ttl: 30 * 60 * 1000,
 };
+
+export const emoji = { listTtl: 5 * 60 * 1000 };

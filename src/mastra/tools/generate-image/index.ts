@@ -1,16 +1,13 @@
 import { createTool } from '@mastra/core/tools';
-import { generateImage } from 'ai';
 import { z } from 'zod';
-import { hackclub, images } from '../../providers';
-import { input, output } from '../../types/tools/index';
-import { sandboxPath as p, requireSandbox } from '../../workspace';
-import { editImages } from './edit';
+import { requireSandbox, sandboxPath } from '../../workspace';
+import { requestImages } from './request';
 
 export const generateImageTool = createTool({
   id: 'generate_image',
   description:
     'Generate or edit AI images. With just a prompt it generates from scratch. Pass referenceImages (sandbox file paths to existing images) to edit them instead: change something, add something, restyle, or combine several. Write results into the sandbox downloads/ directory. Use upload_file afterward to send them to Slack (defaults to the current thread; pass target for elsewhere) or process them first (resize, composite, edit) with other sandbox tools.',
-  inputSchema: input({
+  inputSchema: z.strictObject({
     prompt: z
       .string()
       .min(1)
@@ -33,7 +30,7 @@ export const generateImageTool = createTool({
         'Sandbox paths of existing images to edit or combine instead of generating from scratch.'
       ),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     prompt: z.string(),
     paths: z.array(z.string()),
   }),
@@ -45,27 +42,32 @@ export const generateImageTool = createTool({
     },
   },
   execute: async ({ prompt, n, referenceImages }, context) => {
-    if (!context?.requestContext) {
-      throw new Error('No workspace context.');
-    }
     const sandbox = await requireSandbox(context.requestContext);
 
     const generated =
       referenceImages && referenceImages.length > 0
-        ? await editImages({ prompt, referenceImages, sandbox })
+        ? await requestImages({
+            abortSignal: context.abortSignal,
+            prompt,
+            referenceImages,
+            sandbox,
+          })
         : (
-            await generateImage({
-              model: hackclub.imageModel(images.model),
-              prompt,
-              n,
-            })
-          ).images.map((image) => ({
-            data: Buffer.from(image.uint8Array),
-            mediaType: image.mediaType,
-          }));
+            await Promise.all(
+              Array.from({ length: n }, () =>
+                requestImages({
+                  abortSignal: context.abortSignal,
+                  prompt,
+                  referenceImages: [],
+                  sandbox,
+                })
+              )
+            )
+          ).flat();
 
-    const dir = p('downloads');
-    await sandbox.retryOnDead(() => sandbox.e2b.files.makeDir(dir));
+    await sandbox.retryOnDead(() =>
+      sandbox.e2b.files.makeDir(sandboxPath('downloads'))
+    );
 
     const batch =
       context.agent?.toolCallId.replace(/[^\w-]/g, '').slice(-8) ||
@@ -73,7 +75,7 @@ export const generateImageTool = createTool({
     const paths = await Promise.all(
       generated.map(async ({ data, mediaType }, index) => {
         const ext = mediaType.split('/').at(1) ?? 'png';
-        const path = p(
+        const path = sandboxPath(
           'downloads',
           `gorkie-image-${batch}-${index + 1}.${ext}`
         );

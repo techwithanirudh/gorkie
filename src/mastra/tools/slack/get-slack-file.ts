@@ -3,11 +3,14 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
+import { image } from '../../config';
 import { channelContext } from '../../lib/context';
+import { viewableImageType } from '../../lib/media';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { sh } from '../../lib/utils';
 import { input, output } from '../../types/tools/index';
 import { sandboxPath as p, requireSandbox } from '../../workspace';
+import { downloadEmoji } from './emoji';
 import { assertReadableResource } from './utils';
 
 function formatBytes(value: number): string {
@@ -26,13 +29,13 @@ function throwIfAborted(signal?: AbortSignal): void {
 export const getSlackFileTool = createTool({
   id: 'get_slack_file',
   description:
-    'Download one Slack upload, snippet, or image into the thread sandbox for reading or processing. Pass a Slack file id such as F0123ABCD, or a Slack file permalink containing one. Use fetch_url for web URLs and read_canvas for canvases. Preserve a useful image extension so read_file can infer its MIME type.',
+    'Download a Slack file or custom emoji into the thread sandbox and show supported images directly. Pass :emoji-name: for a custom emoji. Pass a Slack file id such as F0123ABCD, or a Slack file permalink containing one. Use fetch_url for web URLs and read_canvas for canvases. Non-images and images over the inline limit return their saved path.',
   inputSchema: input({
     file: z
       .string()
       .min(1)
       .describe(
-        'A Slack file id (e.g. F0123ABCD). A Slack file permalink containing the id also works; the id is extracted from it.'
+        'Slack file id, file permalink, or custom emoji shortcode such as :party-parrot:.'
       ),
     filename: z.string().optional().describe('Optional name to save it as.'),
   }),
@@ -41,6 +44,7 @@ export const getSlackFileTool = createTool({
     filename: z.string(),
     mimeType: z.string().optional(),
     size: z.number(),
+    data: z.string().optional(),
   }),
   transform: {
     display: {
@@ -49,11 +53,31 @@ export const getSlackFileTool = createTool({
       }),
     },
   },
+  toModelOutput: (out) =>
+    out.data && out.mimeType
+      ? {
+          type: 'content',
+          value: [
+            { type: 'text', text: `${out.filename} saved to ${out.path}` },
+            { type: 'media', data: out.data, mediaType: out.mimeType },
+          ],
+        }
+      : { type: 'text', value: JSON.stringify(out) },
   execute: async ({ file, filename }, context) => {
     if (!context?.requestContext) {
       throw new Error('No workspace context.');
     }
     const sandbox = await requireSandbox(context.requestContext);
+
+    if (/^:[^:]+:(?::skin-tone-[2-6]:)?$/.test(file.trim())) {
+      return downloadEmoji({
+        shortcode: file,
+        filename,
+        sandbox,
+        requestContext: context.requestContext,
+        signal: context.abortSignal,
+      });
+    }
 
     const fileId = /(F[A-Z0-9]{6,})/.exec(file)?.[1];
     if (!fileId) {
@@ -90,12 +114,26 @@ export const getSlackFileTool = createTool({
     const partPath = `${path}.part`;
     const nextPath = `${path}.next`;
     const mergePath = `${path}.merge`;
-    const formatResult = (size: number) => ({
-      path,
-      filename: name,
-      mimeType: fileInfo?.mimetype,
-      size,
-    });
+    const formatResult = async (size: number) => {
+      const result = {
+        path,
+        filename: name,
+        mimeType: fileInfo?.mimetype,
+        size,
+      };
+      if (size === 0 || size > image.maxViewBytes) {
+        return result;
+      }
+      const bytes = Buffer.from(
+        await sandbox.retryOnDead(() =>
+          sandbox.e2b.files.read(path, { format: 'bytes' })
+        )
+      );
+      const mimeType = viewableImageType(bytes);
+      return mimeType && bytes.byteLength <= image.maxViewBytes
+        ? { ...result, mimeType, data: bytes.toString('base64') }
+        : result;
+    };
     const writeResponseBody = async (
       body: ReadableStream<Uint8Array>,
       targetPath: string
