@@ -67,11 +67,11 @@ export async function downloadEmoji({
     throw new Error(`Failed to download :${name}: (${response.status}).`);
   }
   if (Number(response.headers.get('content-length')) > image.maxViewBytes) {
-    throw new Error(`:${name}: is too large to view inline.`);
+    throw new Error(`:${name}: is too large to download.`);
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.byteLength > image.maxViewBytes) {
-    throw new Error(`:${name}: is too large to view inline.`);
+    throw new Error(`:${name}: is too large to download.`);
   }
   const mimeType = viewableImageType(bytes);
   if (!mimeType) {
@@ -97,6 +97,5 @@ export async function downloadEmoji({
     filename: savedName,
     mimeType,
     size: bytes.byteLength,
-    data: Buffer.from(bytes).toString('base64'),
   };
 }

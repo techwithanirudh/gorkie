@@ -85,6 +85,7 @@ const explorerModels = ladder('explore');
 export const explorer = () => preferLastWorking(explorerModels);
 
 export const images = {
-  model: 'google/gemini-3.1-flash-image',
-  baseURL: 'https://ai.hackclub.com/proxy/v1',
+  model: hackclub('google/gemini-3.1-flash-image', {
+    extraBody: { modalities: ['image', 'text'] },
+  }),
 };
