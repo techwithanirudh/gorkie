@@ -1,3 +1,4 @@
+import { readResponseWithSizeLimit } from '@ai-sdk/provider-utils';
 import type { RequestContext } from '@mastra/core/request-context';
 import type { E2BSandbox } from '@mastra/e2b';
 import { slack } from '../../chat/client';
@@ -70,13 +71,11 @@ export async function downloadEmoji({
   if (!response.ok) {
     throw new Error(`Failed to download :${name}: (${response.status}).`);
   }
-  if (Number(response.headers.get('content-length')) > image.maxViewBytes) {
-    throw new Error(`:${name}: is too large to download.`);
-  }
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > image.maxViewBytes) {
-    throw new Error(`:${name}: is too large to download.`);
-  }
+  const bytes = await readResponseWithSizeLimit({
+    response,
+    url: parsed.href,
+    maxBytes: image.maxViewBytes,
+  });
   const mimeType = viewableImageType(bytes);
   if (!mimeType) {
     throw new Error(
@@ -94,7 +93,9 @@ export async function downloadEmoji({
   const path = sandboxPath('downloads', savedName);
   await sandbox.retryOnDead(async () => {
     await sandbox.e2b.files.makeDir(sandboxPath('downloads'));
-    await sandbox.e2b.files.write(path, bytes.buffer, { signal });
+    await sandbox.e2b.files.write(path, new Uint8Array(bytes).buffer, {
+      signal,
+    });
   });
   return {
     path,

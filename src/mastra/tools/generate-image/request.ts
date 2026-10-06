@@ -67,12 +67,11 @@ export async function requestImages({
         },
       ],
     });
-    const generated = result.files
-      .filter(({ mediaType }) => mediaType.startsWith('image/'))
-      .map((file) => ({
-        data: Buffer.from(file.uint8Array),
-        mediaType: file.mediaType,
-      }));
+    const generated = result.files.flatMap((file) => {
+      const data = Buffer.from(file.uint8Array);
+      const mediaType = viewableImageType(data);
+      return mediaType ? [{ data, mediaType }] : [];
+    });
     if (generated.length === 0) {
       throw new Error(
         `The image model returned no image${result.text ? `. It said: ${result.text.slice(0, 300)}` : '.'}`
