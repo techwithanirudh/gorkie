@@ -11,7 +11,7 @@ product backlog and is not expected to survive a fork.
 
 ## Current main fixes
 
-- [ ] Open a PR against main for terminal skip, Hack Club chat-completions image generation, concise personality guidance, and get_slack_file inline images/custom emoji. Keep provider and progress UI changes on the quality branch. Preserve existing download permission and resume behavior; validate locally without starting the live bot.
+- [x] Open a PR against main for terminal skip, Hack Club chat-completions image generation, concise personality guidance, and get_slack_file inline images/custom emoji. Keep provider and progress UI changes on the quality branch. Preserve existing download permission and resume behavior; validate locally without starting the live bot. Completed 2026-10-06: PR #42, https://github.com/techwithanirudh/gorkie/pull/42, targets main from fix/slack-skip-images-personality. Only this feature branch was pushed. See IMPLEMENTED.md for the implementation and verification evidence; the upstream spending allowance and live Slack check remain open.
 
 ## CRITICAL (2026-09-13)
 
