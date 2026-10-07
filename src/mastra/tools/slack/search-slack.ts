@@ -4,7 +4,7 @@ import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import { channelContext } from '../../lib/context';
-import { chatChannelId } from '../../lib/ids';
+import { chatChannelId, rawId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
 
@@ -76,6 +76,36 @@ const slackErrorSchema = z.looseObject({
   data: z.looseObject({ error: z.string().optional() }).optional(),
 });
 
+function searchFailure(error: unknown): Error {
+  const parsed = slackErrorSchema.safeParse(error);
+  const code = parsed.success ? parsed.data.data?.error : undefined;
+  if (!code) {
+    return new Error(
+      'Slack search failed. No results were returned to the model. Do not treat this as an empty search or retry with another token.',
+      { cause: error }
+    );
+  }
+  const reasons: Record<string, string> = {
+    access_denied: 'Slack denied access to the requested resource.',
+    assistant_search_context_disabled:
+      'Slack has disabled assistant search context. This does not establish whether the cause is an AI access setting or a temporary Slack issue.',
+    context_channel_not_found:
+      'The search context channel does not exist or the searching identity cannot access it.',
+    ekm_access_denied: 'Slack denied access under its encryption policy.',
+    enterprise_is_restricted:
+      'Slack restricted access for this Enterprise organization.',
+    missing_scope: 'The search token lacks a required Slack scope.',
+    token_expired: 'The Slack search token has expired.',
+    invalid_auth: 'Slack rejected the search token.',
+    ratelimited: 'Slack rate limited the search.',
+  };
+  const reason = reasons[code] ?? 'Slack rejected the search request.';
+  return new Error(
+    `Slack search failed (${code}): ${reason} No results were returned to the model. Do not treat this as an empty search, claim no matching messages exist, or bypass Slack AI access controls with another token.`,
+    { cause: error }
+  );
+}
+
 type SearchResponse = z.infer<typeof searchResponseSchema>;
 
 let verifiedToken: string | undefined;
@@ -112,28 +142,37 @@ async function assertPublicOnly(token: string): Promise<void> {
 }
 
 async function runSearch({
+  channelId,
   cursor,
   query,
   token,
 }: {
+  channelId: string;
   cursor?: string;
   query: string;
   token: string;
 }): Promise<SearchResponse> {
-  return searchResponseSchema.parse(
-    await slack.webClient.apiCall('assistant.search.context', {
-      // Slack reads these as comma-separated strings. WebClient JSON-encodes an
-      // array, which Slack then ignores, and an ignored channel_types silently
-      // reopens DMs and private channels to whatever the token can reach.
-      channel_types: 'public_channel',
-      content_types: 'messages',
-      cursor,
-      include_context_messages: true,
-      limit: 10,
-      query,
-      token,
-    })
-  );
+  try {
+    return searchResponseSchema.parse(
+      await slack.webClient.apiCall('assistant.search.context', {
+        // Keep the originating channel attached when searching with a user
+        // token, so Slack can enforce access controls in that context.
+        context_channel_id: rawId(channelId),
+        // Slack expects comma-separated strings, not JSON-encoded arrays.
+        channel_types: 'public_channel',
+        content_types: 'messages',
+        cursor,
+        include_context_messages: true,
+        limit: 10,
+        query,
+        token,
+      })
+    );
+  } catch (error) {
+    // Throw the reason as the tool error the model receives. Never retry a
+    // denied search under a different identity or disguise it as zero hits.
+    throw searchFailure(error);
+  }
 }
 
 async function toOutput({
@@ -257,8 +296,11 @@ export const searchSlackTool = createTool({
   },
   execute: async ({ query, cursor }, context) => {
     spendSlackCall(context?.requestContext);
-    const { messageId, threadId } = channelContext(context?.requestContext);
-    if (!messageId) {
+    const { channelId, messageId, threadId } = channelContext(
+      context?.requestContext
+    );
+    const searchChannelId = channelId ?? threadId;
+    if (!(messageId && searchChannelId)) {
       throw new Error(
         'Slack search needs a live message in this thread. gorkie does not run the workspace search identity on scheduled or unattended runs. Ask the user to mention the bot, then search again.'
       );
@@ -266,7 +308,12 @@ export const searchSlackTool = createTool({
     const token = env.SLACK_USER_TOKEN;
     await assertPublicOnly(token);
     return toOutput({
-      response: await runSearch({ cursor, query, token }),
+      response: await runSearch({
+        channelId: searchChannelId,
+        cursor,
+        query,
+        token,
+      }),
       threadId,
     });
   },
