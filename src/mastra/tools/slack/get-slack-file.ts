@@ -8,6 +8,7 @@ import { spendSlackCall } from '../../lib/slack-budget';
 import { sh } from '../../lib/utils';
 import { input, output } from '../../types/tools/index';
 import { sandboxPath as p, requireSandbox } from '../../workspace';
+import { downloadEmoji } from './emoji';
 import { assertReadableResource } from './utils';
 
 function formatBytes(value: number): string {
@@ -26,13 +27,13 @@ function throwIfAborted(signal?: AbortSignal): void {
 export const getSlackFileTool = createTool({
   id: 'get_slack_file',
   description:
-    'Download one Slack upload, snippet, or image into the thread sandbox for reading or processing. Pass a Slack file id such as F0123ABCD, or a Slack file permalink containing one. Use fetch_url for web URLs and read_canvas for canvases. Preserve a useful image extension so read_file can infer its MIME type.',
+    'Download a Slack file or custom emoji into the thread sandbox and return its saved path. Pass :emoji-name: for a custom emoji. Pass a Slack file id such as F0123ABCD, or a Slack file permalink containing one. Use fetch_url for web URLs and read_canvas for canvases. Use view_image with the saved path when you need to inspect an image.',
   inputSchema: input({
     file: z
       .string()
       .min(1)
       .describe(
-        'A Slack file id (e.g. F0123ABCD). A Slack file permalink containing the id also works; the id is extracted from it.'
+        'Slack file id, file permalink, or custom emoji shortcode such as :party-parrot:.'
       ),
     filename: z.string().optional().describe('Optional name to save it as.'),
   }),
@@ -54,6 +55,16 @@ export const getSlackFileTool = createTool({
       throw new Error('No workspace context.');
     }
     const sandbox = await requireSandbox(context.requestContext);
+
+    if (/^:[^:]+:(?::skin-tone-[2-6]:)?$/.test(file.trim())) {
+      return downloadEmoji({
+        shortcode: file,
+        filename,
+        sandbox,
+        requestContext: context.requestContext,
+        signal: context.abortSignal,
+      });
+    }
 
     const fileId = /(F[A-Z0-9]{6,})/.exec(file)?.[1];
     if (!fileId) {

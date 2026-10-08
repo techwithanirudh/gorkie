@@ -34,6 +34,9 @@ export const status: TypingStatusFn = (chunk, context) => {
   }
 
   const { toolName } = chunk.payload;
+  if (toolName === 'skip') {
+    return false;
+  }
 
   if (toolName.startsWith('agent-')) {
     const rest = toolName.slice(6);

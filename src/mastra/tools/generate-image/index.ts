@@ -1,10 +1,8 @@
 import { createTool } from '@mastra/core/tools';
-import { generateImage } from 'ai';
 import { z } from 'zod';
-import { hackclub, images } from '../../providers';
 import { input, output } from '../../types/tools/index';
 import { sandboxPath as p, requireSandbox } from '../../workspace';
-import { editImages } from './edit';
+import { requestImages } from './request';
 
 export const generateImageTool = createTool({
   id: 'generate_image',
@@ -45,27 +43,30 @@ export const generateImageTool = createTool({
     },
   },
   execute: async ({ prompt, n, referenceImages }, context) => {
-    if (!context?.requestContext) {
-      throw new Error('No workspace context.');
-    }
     const sandbox = await requireSandbox(context.requestContext);
 
     const generated =
       referenceImages && referenceImages.length > 0
-        ? await editImages({ prompt, referenceImages, sandbox })
+        ? await requestImages({
+            abortSignal: context.abortSignal,
+            prompt,
+            referenceImages,
+            sandbox,
+          })
         : (
-            await generateImage({
-              model: hackclub.imageModel(images.model),
-              prompt,
-              n,
-            })
-          ).images.map((image) => ({
-            data: Buffer.from(image.uint8Array),
-            mediaType: image.mediaType,
-          }));
+            await Promise.all(
+              Array.from({ length: n }, () =>
+                requestImages({
+                  abortSignal: context.abortSignal,
+                  prompt,
+                  referenceImages: [],
+                  sandbox,
+                })
+              )
+            )
+          ).flat();
 
-    const dir = p('downloads');
-    await sandbox.retryOnDead(() => sandbox.e2b.files.makeDir(dir));
+    await sandbox.retryOnDead(() => sandbox.e2b.files.makeDir(p('downloads')));
 
     const batch =
       context.agent?.toolCallId.replace(/[^\w-]/g, '').slice(-8) ||

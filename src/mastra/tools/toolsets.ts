@@ -5,6 +5,7 @@ import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
 import { scheduledTaskTools } from './scheduled-tasks';
 import { searchWebTool } from './search-web';
+import { skipTool } from './skip';
 import { slackTools } from './slack';
 import { uploadEmojiTool } from './upload-emoji';
 import { viewImageTool } from './view-image';
@@ -27,6 +28,7 @@ export async function orchestratorTools() {
     view_image: viewImageTool,
     upload_file: slackTools.upload_file,
     post_message: slackTools.post_message,
+    skip: skipTool,
     wait: waitTool,
   };
 }
