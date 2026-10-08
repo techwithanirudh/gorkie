@@ -29,15 +29,26 @@ export function benchProvider(host: string): void {
 function opencode({
   modelId,
   fallbackSession,
+  api = 'chat',
 }: {
   modelId: string;
   fallbackSession: string;
+  api?: 'chat' | 'responses';
 }): Rung {
   return {
     host: 'opencode.ai',
     slug: `opencode-go/${modelId}`,
     model: {
-      model: { id: `opencode-go/${modelId}`, apiKey: env.OPENCODE_API_KEY },
+      model: {
+        id: `opencode-go/${modelId}`,
+        apiKey: env.OPENCODE_API_KEY,
+        api,
+        url: 'https://opencode.ai/zen/go/v1',
+        headers: {
+          'user-agent': 'gorkie/1.0',
+          'x-opencode-session': `gorkie:${fallbackSession}`,
+        },
+      },
       headers: ({ requestContext }) => ({
         'user-agent': 'gorkie/1.0',
         'x-opencode-session':
@@ -79,12 +90,13 @@ async function preferLastWorking(rungs: Rung[]): Promise<ModelWithRetries[]> {
 
 function ladder(agentKey: string): () => Promise<ModelWithRetries[]> {
   const rungs = [
-    opencode({ modelId: 'deepseek-v4.1-flash', fallbackSession: agentKey }),
-    hackclub('deepseek/deepseek-v4.1-flash'),
     opencode({
-      modelId: 'glm-5.3-flash',
+      modelId: 'gpt-6-luna',
       fallbackSession: agentKey,
+      api: 'responses',
     }),
+    opencode({ modelId: 'mimo-v2.6-flash', fallbackSession: agentKey }),
+    opencode({ modelId: 'kimi-k3', fallbackSession: agentKey }),
   ];
   return () => preferLastWorking(rungs);
 }
@@ -101,6 +113,7 @@ export const summarizer: ModelWithRetries[] = [
 ];
 
 export const images = {
-  model: 'google/gemini-3.1-flash-image',
-  baseURL: hackclubBaseURL,
+  model: hackclubProvider('google/gemini-3.1-flash-image', {
+    extraBody: { modalities: ['image', 'text'] },
+  }),
 };
