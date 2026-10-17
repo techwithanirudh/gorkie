@@ -94,6 +94,7 @@ export class DeepgramVoice extends MastraVoice<
   // Flux ignores an Interrupt whose offset does not pass the previous one.
   private lastInterruptMs = -1;
   private oddByte?: number;
+  private unsentSpeech: (() => void)[] = [];
 
   constructor({ apiKey }: { apiKey: string }) {
     super({
@@ -168,6 +169,9 @@ export class DeepgramVoice extends MastraVoice<
       this.timeline = 0;
       this.lastInterruptMs = -1;
       this.oddByte = undefined;
+      for (const send of this.unsentSpeech.splice(0)) {
+        this.sendSpeech(send);
+      }
     });
     for (const [name, socket] of [
       ['listen', listen],
@@ -191,9 +195,10 @@ export class DeepgramVoice extends MastraVoice<
     clearInterval(this.keepAlive);
     this.keepAlive = setInterval(() => {
       if (Date.now() - this.lastAudioAt > 160) {
-        sendOrDrop(() =>
-          this.listenSocket?.sendMedia(new Int16Array(chunkSamples))
-        );
+        const chunk = new Int16Array(chunkSamples);
+        chunk.set(this.pending);
+        this.pending = new Int16Array(0);
+        sendOrDrop(() => this.listenSocket?.sendMedia(chunk));
       }
     }, 80);
   }
@@ -216,15 +221,16 @@ export class DeepgramVoice extends MastraVoice<
   }
 
   say(text: string) {
-    sendOrDrop(() => this.speakSocket?.sendSpeak({ type: 'Speak', text }));
+    this.sendSpeech(() => this.speakSocket?.sendSpeak({ type: 'Speak', text }));
   }
 
   flush() {
-    sendOrDrop(() => this.speakSocket?.sendFlush({ type: 'Flush' }));
+    this.sendSpeech(() => this.speakSocket?.sendFlush({ type: 'Flush' }));
   }
 
   interrupt(playedSample: number) {
     this.audio = 'discarding';
+    this.unsentSpeech = [];
     const offsetMs = Math.max(
       Math.round(playedSample / 48),
       this.lastInterruptMs + 1
@@ -256,6 +262,20 @@ export class DeepgramVoice extends MastraVoice<
     sendOrDrop(() => this.speakSocket?.sendClose({ type: 'Close' }));
     this.lifetime.abort();
     this.events.removeAllListeners();
+  }
+
+  // Text held back while the socket reconnects goes out in order once it
+  // reopens, so a reply is never missing words in the middle.
+  private sendSpeech(send: () => void) {
+    if (this.unsentSpeech.length) {
+      this.unsentSpeech.push(send);
+      return;
+    }
+    try {
+      send();
+    } catch {
+      this.unsentSpeech.push(send);
+    }
   }
 
   private interrupted(textSpoken: string) {
@@ -340,7 +360,7 @@ export class DeepgramVoice extends MastraVoice<
 }
 
 // The SDK throws on a send while a socket is reconnecting. Losing an 80 ms
-// audio chunk or a text fragment then beats breaking the caller's loop.
+// audio chunk or a control message then beats breaking the caller's loop.
 function sendOrDrop(send: () => void) {
   try {
     send();

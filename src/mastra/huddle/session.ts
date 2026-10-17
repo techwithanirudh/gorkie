@@ -34,6 +34,7 @@ const frameMs = 20;
 const speakingAttenuation = 36;
 const wakeWord = /\bg[ao]r[gk](ie|ey|y|i)\b/i;
 const maxCatchUpFrames = 10;
+const continuationGraceMs = 5000;
 
 const taskOutputSchema = z.looseObject({
   type: z.literal('background-task-output'),
@@ -97,6 +98,7 @@ export class HuddleSession implements LiveHuddle {
   private unsaved: string[] = [];
   private unheardTurns: string[] = [];
   private abortedRunId?: string;
+  private lastRunChunkAt = 0;
   private lastSpokeAt = 0;
   private floor: 'open' | 'user' = 'open';
   private readonly attendees = new Map<
@@ -297,6 +299,7 @@ export class HuddleSession implements LiveHuddle {
 
   private async consume(subscription: AgentThreadSubscription) {
     for await (const chunk of subscription.stream) {
+      this.lastRunChunkAt = Date.now();
       if (chunk.runId === this.abortedRunId) {
         // A finished delegation continues under the same run id, so only the
         // aborted turn itself is skipped.
@@ -339,6 +342,11 @@ export class HuddleSession implements LiveHuddle {
       threadId: this.thread.threadId,
       abortSignal: this.controller.signal,
     })) {
+      const ended = taskEndSchema.safeParse(raw);
+      if (ended.success) {
+        this.deliverIfMissed(ended.data);
+        continue;
+      }
       const parsed = taskOutputSchema.safeParse(raw);
       if (!parsed.success) {
         continue;
@@ -354,6 +362,27 @@ export class HuddleSession implements LiveHuddle {
       }
       this.progress.set(taskId, entry);
     }
+  }
+
+  // Mastra continues the talker with a finished delegation only while its
+  // idle loop is still open, five minutes after the last reply. When no run
+  // starts soon after a task ends, that window had closed, so wake it here.
+  private deliverIfMissed(ended: z.infer<typeof taskEndSchema>) {
+    const endedAt = Date.now();
+    setTimeout(() => {
+      if (this.controller.signal.aborted || this.lastRunChunkAt > endedAt) {
+        return;
+      }
+      const agent = ended.payload.toolName.replace(/^agent-/, '');
+      this.signal({
+        tagName: 'delegation',
+        contents:
+          ended.type === 'background-task-completed'
+            ? `The ${agent} delegation finished. Its result:\n${ended.payload.result.text}`
+            : `The ${agent} delegation failed.`,
+        wake: true,
+      });
+    }, continuationGraceMs);
   }
 
   // Nobody is left to hear a delegation that outlives the huddle, so its

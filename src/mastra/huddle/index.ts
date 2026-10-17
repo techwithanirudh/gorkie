@@ -9,6 +9,7 @@ import { HuddleSlack } from './slack';
 
 let huddles: { slack: HuddleSlack; apiKey: string } | undefined;
 const joining = new Set<string>();
+const endedWhileJoining = new Set<string>();
 
 async function startSession({
   joined,
@@ -19,6 +20,9 @@ async function startSession({
   actingAs: string;
   apiKey: string;
 }) {
+  if (endedWhileJoining.delete(joined.callId)) {
+    return;
+  }
   const session = new HuddleSession({
     joined,
     actingAs,
@@ -60,6 +64,7 @@ export async function joinHuddle({
     await startSession({ joined, actingAs: requesterId, apiKey });
   } finally {
     joining.delete(joined.callId);
+    endedWhileJoining.delete(joined.callId);
   }
   return true;
 }
@@ -79,14 +84,15 @@ export async function startHuddles(): Promise<void> {
     if (liveHuddles.has(event.callId) || joining.has(event.callId)) {
       return;
     }
-    if (!(await isUserAllowed(event.inviterId))) {
-      logger.info('[huddle] ignored invite from a user outside the allowlist', {
-        inviterId: event.inviterId,
-      });
-      return;
-    }
     joining.add(event.callId);
     try {
+      if (!(await isUserAllowed(event.inviterId))) {
+        logger.info(
+          '[huddle] ignored invite from a user outside the allowlist',
+          { inviterId: event.inviterId }
+        );
+        return;
+      }
       const joined = event.chime
         ? await slack.joinInvited({
             callId: event.callId,
@@ -97,6 +103,7 @@ export async function startHuddles(): Promise<void> {
       await startSession({ joined, actingAs: event.inviterId, apiKey });
     } finally {
       joining.delete(event.callId);
+      endedWhileJoining.delete(event.callId);
     }
   };
 
@@ -109,6 +116,9 @@ export async function startHuddles(): Promise<void> {
     }
     const session = liveHuddles.get(event.callId);
     if (event.type === 'ended') {
+      if (!session && joining.has(event.callId)) {
+        endedWhileJoining.add(event.callId);
+      }
       session?.end('huddle ended').catch(() => undefined);
       return;
     }
