@@ -260,6 +260,19 @@ export class HuddleSession {
       if (run.controller.signal.aborted) {
         return;
       }
+      // Splits a slow turn into Mastra's own work before the provider call
+      // and the model's time to first token, and shows a ladder fallback.
+      if (chunk.type === 'step-start' && this.timing) {
+        this.timing.modelCall ??= chunk.payload.startedAt ?? Date.now();
+        continue;
+      }
+      if (chunk.type === 'step-finish') {
+        logger.info('[huddle] reply step', {
+          callId: this.callId,
+          model: chunk.payload.response?.modelId,
+        });
+        continue;
+      }
       if (chunk.type === 'text-delta' && chunk.payload.text) {
         this.mark('firstText');
         run.reply += chunk.payload.text;
