@@ -23,13 +23,13 @@ export const delegateTool = createTool({
       ),
   }),
   outputSchema: z.object({ started: z.boolean() }),
-  execute: async ({ agent, task }, { requestContext }) => {
+  execute: ({ agent, task }, { requestContext }) => {
     const callId = requestContext?.get('huddle');
     const run = typeof callId === 'string' ? delegates.get(callId) : undefined;
     if (!run) {
-      return { started: false };
+      return Promise.resolve({ started: false });
     }
     run({ agent, task });
-    return { started: true };
+    return Promise.resolve({ started: true });
   },
 });

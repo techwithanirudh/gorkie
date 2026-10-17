@@ -97,9 +97,11 @@ orchestrator
     registerEvents();
     await buildAllowlist();
     logger.info('[agent] online');
-    await startHuddles().catch((err: unknown) =>
-      logger.error('[huddle] failed to start', { err })
-    );
+    try {
+      await startHuddles();
+    } catch (err) {
+      logger.error('[huddle] failed to start', { err });
+    }
   })
   .catch((err: unknown) =>
     logger.error('[agent] initialization failed', { err })

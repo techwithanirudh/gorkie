@@ -61,11 +61,11 @@ export async function startHuddles(): Promise<void> {
     }
     const session = sessions.get(event.callId);
     if (event.type === 'ended') {
-      void session?.end('huddle ended');
+      session?.end('huddle ended').catch(() => undefined);
       return;
     }
     if (event.userId === slack.userId) {
-      void session?.end('removed from the huddle');
+      session?.end('removed from the huddle').catch(() => undefined);
     }
   }
 

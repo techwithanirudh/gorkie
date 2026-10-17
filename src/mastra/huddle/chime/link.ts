@@ -240,10 +240,12 @@ export class ChimeLink {
     peer.setLocalDescription();
     // Chime takes the whole offer at once; there is no trickle ICE.
     await Promise.race([gathered, sleep(10_000)]);
-    const offer = peer.localDescription()?.sdp;
-    if (!offer?.includes('typ relay')) {
+    const description = peer.localDescription();
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: the binding returns null when gathering produced no description
+    if (!description?.sdp.includes('typ relay')) {
       throw new Error('No TURN relay candidate; Chime media is unreachable');
     }
+    const offer = description.sdp;
     signaling.send({
       type: 'SUBSCRIBE',
       body: {

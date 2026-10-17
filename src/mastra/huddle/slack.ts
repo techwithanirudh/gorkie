@@ -101,23 +101,26 @@ function toEvent(
 // this speaks its private API as a dedicated user: the realtime socket for
 // invites and room updates, and `rooms.join` for the Chime credentials.
 // Ported from HuddleFM's `slack-huddle.ts`.
+interface HuddleSlackOptions {
+  mediaRegion: string;
+  onEvent: (event: HuddleEvent) => void;
+  workspaceUrl: string;
+  xoxc: string;
+  xoxd: string;
+}
+
 export class HuddleSlack {
   private socket?: WebSocket;
   private pingTimer?: ReturnType<typeof setInterval>;
   private reconnectAttempts = 0;
   private reconnectUrl?: string;
-  private stopping = false;
+  private phase: 'running' | 'stopped' = 'running';
+  private readonly options: HuddleSlackOptions;
   userId?: string;
 
-  constructor(
-    private readonly options: {
-      workspaceUrl: string;
-      xoxc: string;
-      xoxd: string;
-      mediaRegion: string;
-      onEvent: (event: HuddleEvent) => void;
-    }
-  ) {}
+  constructor(options: HuddleSlackOptions) {
+    this.options = options;
+  }
 
   async start() {
     const auth = authSchema.parse(
@@ -131,7 +134,7 @@ export class HuddleSlack {
   }
 
   stop() {
-    this.stopping = true;
+    this.phase = 'stopped';
     clearInterval(this.pingTimer);
     this.socket?.close();
   }
@@ -257,17 +260,18 @@ export class HuddleSlack {
       });
       socket.on('close', () => {
         clearInterval(this.pingTimer);
-        if (ready && !this.stopping) {
-          void this.reconnect(teamId);
+        if (ready && this.phase === 'running') {
+          this.reconnect(teamId).catch(() => undefined);
         }
       });
     });
   }
 
   private async reconnect(teamId: string) {
-    while (!this.stopping) {
+    while (this.phase === 'running') {
       const delay = Math.min(30_000, 1000 * 2 ** this.reconnectAttempts++);
       logger.warn('[huddle] realtime socket closed, reconnecting', { delay });
+      // biome-ignore lint/performance/noAwaitInLoops: reconnect attempts back off one after another
       await sleep(delay);
       try {
         await this.connect(teamId);

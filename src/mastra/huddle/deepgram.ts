@@ -67,21 +67,17 @@ export class DeepgramVoice extends MastraVoice<
   private pending = new Int16Array(0);
   private lastAudioAt = 0;
   private keepAlive?: ReturnType<typeof setInterval>;
-  private closing = false;
+  private phase: 'live' | 'closed' = 'live';
+  private readonly options: { apiKey: string; voice: string; sttModel: string };
 
-  constructor(
-    private readonly options: {
-      apiKey: string;
-      voice: string;
-      sttModel: string;
-    }
-  ) {
+  constructor(options: { apiKey: string; voice: string; sttModel: string }) {
     super({
       name: 'deepgram',
       speaker: options.voice,
       listeningModel: { name: options.sttModel },
       speechModel: { name: options.voice },
     });
+    this.options = options;
   }
 
   async speak(
@@ -130,12 +126,12 @@ export class DeepgramVoice extends MastraVoice<
     return parsed.results.channels[0]?.alternatives[0]?.transcript ?? '';
   }
 
-  async getListener() {
-    return { enabled: true };
+  getListener() {
+    return Promise.resolve({ enabled: true });
   }
 
   connect() {
-    this.closing = false;
+    this.phase = 'live';
     const url = new URL('wss://api.deepgram.com/v2/listen');
     url.search = new URLSearchParams({
       model: this.options.sttModel,
@@ -149,12 +145,12 @@ export class DeepgramVoice extends MastraVoice<
     this.socket = socket;
     socket.addEventListener('message', (event) => this.receive(event.data));
     socket.addEventListener('close', () => {
-      if (this.closing || this.socket !== socket) {
+      if (this.phase === 'closed' || this.socket !== socket) {
         return;
       }
       this.events.emit('error', { message: 'Flux socket closed, reopening' });
       setTimeout(() => {
-        if (!this.closing && this.socket === socket) {
+        if (this.phase === 'live' && this.socket === socket) {
           this.connect().catch((error: unknown) =>
             this.events.emit('error', { message: String(error) })
           );
@@ -184,7 +180,11 @@ export class DeepgramVoice extends MastraVoice<
       for await (const chunk of audio) {
         if (Buffer.isBuffer(chunk)) {
           await this.send(
-            new Int16Array(chunk.buffer, chunk.byteOffset, chunk.length >> 1)
+            new Int16Array(
+              chunk.buffer,
+              chunk.byteOffset,
+              Math.floor(chunk.length / 2)
+            )
           );
         }
       }
@@ -210,7 +210,7 @@ export class DeepgramVoice extends MastraVoice<
   }
 
   close() {
-    this.closing = true;
+    this.phase = 'closed';
     clearInterval(this.keepAlive);
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ type: 'CloseStream' }));

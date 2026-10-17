@@ -88,7 +88,10 @@ function encodeFrame({
   return out;
 }
 
-function decodeFrame(bytes: Uint8Array): SignalFrame | undefined {
+// Newer servers send frame types this proto does not know; proto2 then drops
+// the required `type` and decode throws, so the frame is skipped like the JS
+// SDK does.
+function decodeFrame(bytes: Uint8Array): SignalFrame | null {
   try {
     const parsed = frameSchema.safeParse(
       Frame.toObject(Frame.decode(bytes.subarray(1)), {
@@ -97,8 +100,10 @@ function decodeFrame(bytes: Uint8Array): SignalFrame | undefined {
         longs: Number,
       })
     );
-    return parsed.success ? parsed.data : undefined;
-  } catch {}
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
 }
 
 export class ChimeSignaling {
@@ -106,14 +111,15 @@ export class ChimeSignaling {
   private readonly handlers = new Set<(frame: SignalFrame) => void>();
   private pingTimer?: ReturnType<typeof setInterval>;
   private pingId = 0;
-  private closed = false;
+  private state: 'open' | 'closed' = 'open';
   onClose?: (code: number) => void;
   closeCode: number | undefined;
   lastInboundAt = Date.now();
+  private readonly options: { signalingUrl: string; joinToken: string };
 
-  constructor(
-    private readonly options: { signalingUrl: string; joinToken: string }
-  ) {}
+  constructor(options: { signalingUrl: string; joinToken: string }) {
+    this.options = options;
+  }
 
   onFrame(handler: (frame: SignalFrame) => void) {
     this.handlers.add(handler);
@@ -145,10 +151,10 @@ export class ChimeSignaling {
         clearTimeout(timer);
         clearInterval(this.pingTimer);
         this.closeCode = event.code;
-        if (this.closed) {
+        if (this.state === 'closed') {
           return;
         }
-        this.closed = true;
+        this.state = 'closed';
         this.onClose?.(event.code);
       };
       socket.onmessage = (event) => {
@@ -257,7 +263,7 @@ export class ChimeSignaling {
   }
 
   close() {
-    this.closed = true;
+    this.state = 'closed';
     clearInterval(this.pingTimer);
     this.handlers.clear();
     this.socket?.close();
