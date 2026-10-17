@@ -5,7 +5,6 @@ import {
   createEncoder,
   type OpusDecoderHandle,
 } from 'libopus-wasm';
-import { addresseeAgent } from '../agents/addressee';
 import { voiceAgent } from '../agents/voice';
 import { slack as bot } from '../chat/client';
 import { chat } from '../chat/instance';
@@ -64,20 +63,16 @@ export class HuddleSession {
   private thinkingSince?: number;
   // Stage times for the latest addressed turn, logged at its first audio.
   private timing?: Record<string, number>;
-  // The last few lines of the room, gorkie's included, for the addressee
-  // check.
-  private recent: string[] = [];
-  // Lines and notes the talker has not seen yet. They go in with the next
-  // addressed turn, so side talk costs nothing until someone asks gorkie.
+  // Lines and notes the talker has not seen yet. Each finished line sends
+  // them, and lines said while a run is going wait for it to end.
   private backlog: string[] = [];
   private run?: HuddleRun;
-  // An addressed turn, result or requeue waiting for the current run to
-  // finish and the floor to free up.
+  // A line, result or requeue waiting for the current run to finish and the
+  // floor to free up.
   private owed = false;
   private readonly results: { text: string; at: number }[] = [];
   private readonly tasks = new Map<number, HuddleTask>();
   private taskCount = 0;
-  private turns: Promise<void> = Promise.resolve();
   private lastSpokeAt = 0;
   private floor: 'open' | 'user' = 'open';
   private readonly attendees = new Map<
@@ -237,7 +232,6 @@ export class HuddleSession {
       reply: '',
     };
     this.run = run;
-    this.setThinking(true);
     this.stream(run)
       .catch((error: unknown) => {
         if (!run.controller.signal.aborted) {
@@ -273,6 +267,9 @@ export class HuddleSession {
       if (chunk.type === 'tool-call') {
         this.mark('toolCall');
         run.delegated ||= chunk.payload.toolName === 'delegate';
+        if (run.delegated) {
+          this.setThinking(true);
+        }
         // Flux TTS holds a short ack like "on it" waiting for more text, so
         // say what is there now.
         this.flushSpeech();
@@ -302,9 +299,6 @@ export class HuddleSession {
           : [])
       );
       return;
-    }
-    if (run.reply.trim()) {
-      this.remember(`gorkie: ${run.reply.trim()}`);
     }
     if (this.ttsTurn === 'open') {
       this.flushSpeech();
@@ -470,28 +464,17 @@ export class HuddleSession {
       ? this.names.get(this.lastSpeaker)
       : undefined;
     const line = `${name ?? 'someone'}: ${turn.transcript}`;
-    this.remember(line);
     this.backlog.push(line);
     this.backlog = this.backlog.slice(-config.backlogLines);
-    // Turns queue so a slow addressee check never reorders the transcript.
-    this.turns = this.turns
-      .then(() => this.endTurn(turn.transcript))
-      .catch((error: unknown) =>
-        logger.warn('[huddle] turn failed', { callId: this.callId, error })
-      );
-  }
-
-  private async endTurn(transcript: string) {
-    const endedAt = Date.now();
-    const named = /\bg[ao]r[gk]/i.test(transcript);
-    const followUp = Date.now() - this.lastSpokeAt < config.followUpWindow;
-    // gorkie speaks only when spoken to: named, or, in the window right after
-    // it spoke, when a fast model reads the line as aimed at it. Everyone
-    // else's talk, alone with gorkie or not, waits in the backlog as context.
-    if (!(named || (followUp && (await this.aimedAtGorkie())))) {
-      return;
+    // Every line goes to the talker, which decides whether it was meant for
+    // gorkie and stays silent when it was not. Its name is only a hint, so
+    // only a named line shows the thinking status, and a silent decision
+    // never flickers it. Speech to text spells the name many ways: Gork,
+    // Gorky, Gorki, Corky, Gawky.
+    this.timing = { endOfSpeech: Date.now() };
+    if (/\b(?:g[ao]r[gk]|gawk|cork(?:y|ie))/i.test(turn.transcript)) {
+      this.setThinking(true);
     }
-    this.timing = { endOfSpeech: endedAt, addressed: Date.now() };
     this.talk();
   }
 
@@ -515,23 +498,6 @@ export class HuddleSession {
       ),
     });
     this.timing = undefined;
-  }
-
-  private async aimedAtGorkie() {
-    try {
-      const result = await addresseeAgent.generate(this.recent.join('\n'), {
-        abortSignal: AbortSignal.timeout(config.addressee.timeout),
-      });
-      return /^\s*yes/i.test(result.text);
-    } catch {
-      // Slow or failed: a missed follow-up is cheaper than butting in.
-      return false;
-    }
-  }
-
-  private remember(line: string) {
-    this.recent.push(line);
-    this.recent = this.recent.slice(-config.addressee.lines);
   }
 
   // Stops the talker and its audio, and tells TTS how far playback got.

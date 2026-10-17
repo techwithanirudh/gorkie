@@ -63,6 +63,9 @@ export const huddle = {
   // Flux end-of-turn confidence, and the silence after which a turn ends
   // regardless. The likeliest knobs to turn after a live test.
   eotThreshold: 0.7,
+  // Flux keyterm prompting, so the name survives speech to text. Without it
+  // "gorkie" came out as "Gorky", "Gork", or vanished entirely.
+  keyterm: ['Gorkie', 'Gork'],
   eotTimeoutMs: 5000,
   batchSttModel: 'nova-3',
   // Spoken replies are a few sentences, so a small cap also bounds the cost
@@ -73,17 +76,11 @@ export const huddle = {
   // and a huddle rarely refers back further. Observational memory folds
   // what falls out of the window.
   lastMessages: 12,
-  // Lines said since the talker last ran, sent with the next addressed
-  // turn. Older side talk is dropped rather than paid for.
+  // Lines said since the talker last ran, sent with its next run. Older
+  // ones are dropped rather than paid for.
   backlogLines: 40,
   // A delegation runs gorkie's full agent; past this it is given up on.
   delegateTimeout: 20 * 60 * 1000,
-  // Without its name, an utterance still gets an answer this soon after
-  // gorkie last spoke, so follow-ups flow without "hey gorkie" every time.
-  followUpWindow: 20 * 1000,
-  // Inside that window a fast model reads the last few lines to tell a
-  // follow-up from side chatter. Outside it, only the name gets a reply.
-  addressee: { lines: 8, timeout: 1500 },
   // Characters Flux must have heard before talking over gorkie cuts it off.
   bargeInChars: 4,
   // Clears the "is thinking..." status if a reply never comes.

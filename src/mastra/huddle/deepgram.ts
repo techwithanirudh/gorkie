@@ -166,6 +166,7 @@ export class DeepgramVoice extends MastraVoice<
         encoding: 'linear16',
         sample_rate: 16_000,
         eot_threshold: config.eotThreshold,
+        keyterm: config.keyterm,
         eot_timeout_ms: config.eotTimeoutMs,
       }),
       this.client.speak.v2.connect({
