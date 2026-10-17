@@ -8,9 +8,8 @@ import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
 import * as voice from '../prompts/agents/voice';
 import { voice as voiceModel } from '../providers';
-import { hangUpTool } from '../tools/leave-huddle';
+import { hangUpTool, taskStatusTool } from '../tools/huddle';
 import { slackTools } from '../tools/slack';
-import { taskStatusTool } from '../tools/task-status';
 import { exploreAgent } from './explore';
 import { researchAgent } from './research';
 
@@ -26,11 +25,7 @@ export const voiceAgent = new Agent({
   },
   model: voiceModel,
   voice: env.DEEPGRAM_API_KEY
-    ? new DeepgramVoice({
-        apiKey: env.DEEPGRAM_API_KEY,
-        voice: config.voice,
-        sttModel: config.sttModel,
-      })
+    ? new DeepgramVoice({ apiKey: env.DEEPGRAM_API_KEY })
     : undefined,
   errorProcessors: defaultErrorProcessors(),
   tools: {

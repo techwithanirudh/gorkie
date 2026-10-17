@@ -2,25 +2,13 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import WebSocket from 'ws';
 import { z } from 'zod';
 import { logger } from '../lib/logger';
-import type {
-  ChimeJoinInfo,
-  HuddleEvent,
-  HuddleSlackOptions,
-  JoinedHuddle,
+import {
+  type ChimeJoinInfo,
+  chimeJoinSchema,
+  type HuddleEvent,
+  type HuddleSlackOptions,
+  type JoinedHuddle,
 } from '../types';
-
-const chimeSchema = z.object({
-  meeting: z.looseObject({
-    MediaPlacement: z.looseObject({
-      AudioHostUrl: z.string(),
-      SignalingUrl: z.string(),
-    }),
-  }),
-  attendee: z.looseObject({
-    AttendeeId: z.string(),
-    JoinToken: z.string(),
-  }),
-});
 
 const okSchema = z.looseObject({
   ok: z.boolean(),
@@ -33,7 +21,7 @@ const authSchema = okSchema.extend({
 });
 
 const joinSchema = z.looseObject({
-  call: z.looseObject({ call_id: z.string(), free_willy: chimeSchema }),
+  call: z.looseObject({ call_id: z.string(), free_willy: chimeJoinSchema }),
   canvas: z.looseObject({
     thread_channel_id: z.string(),
     root_thread_ts: z.string(),
@@ -54,7 +42,7 @@ const realtimeSchema = z.discriminatedUnion('type', [
     channel_id: z.string(),
     call_id: z.string(),
     sender_user_id: z.string(),
-    free_willy: chimeSchema.optional(),
+    free_willy: chimeJoinSchema.optional(),
   }),
   z.looseObject({
     type: z.literal('sh_room_leave'),
@@ -106,11 +94,9 @@ function toEvent(
 // this speaks its private API as a dedicated user.
 // Ported from HuddleFM's `slack-huddle.ts`.
 export class HuddleSlack {
-  private socket?: WebSocket;
   private pingTimer?: ReturnType<typeof setInterval>;
   private reconnectAttempts = 0;
   private reconnectUrl?: string;
-  private phase: 'running' | 'stopped' = 'running';
   private readonly options: HuddleSlackOptions;
   userId?: string;
 
@@ -127,12 +113,6 @@ export class HuddleSlack {
     }
     this.userId = auth.user_id;
     await this.connect(auth.team_id);
-  }
-
-  stop() {
-    this.phase = 'stopped';
-    clearInterval(this.pingTimer);
-    this.socket?.close();
   }
 
   async join(channelId: string): Promise<JoinedHuddle> {
@@ -215,7 +195,6 @@ export class HuddleSlack {
       const socket = new WebSocket(url, {
         headers: { cookie: `d=${this.options.xoxd}` },
       });
-      this.socket = socket;
       let ready = false;
       const handshake = setTimeout(() => {
         socket.terminate();
@@ -267,15 +246,13 @@ export class HuddleSlack {
           reject(new Error('huddle realtime socket closed before hello'));
           return;
         }
-        if (this.phase === 'running') {
-          this.reconnect(teamId).catch(() => undefined);
-        }
+        this.reconnect(teamId).catch(() => undefined);
       });
     });
   }
 
   private async reconnect(teamId: string) {
-    while (this.phase === 'running') {
+    for (;;) {
       const delay = Math.min(30_000, 1000 * 2 ** this.reconnectAttempts++);
       logger.warn('[huddle] realtime socket closed, reconnecting', { delay });
       // biome-ignore lint/performance/noAwaitInLoops: reconnect attempts back off one after another
@@ -292,7 +269,7 @@ export class HuddleSlack {
 
   private gatewayUrl(teamId: string) {
     const url = new URL('wss://wss-primary.slack.com/');
-    for (const [key, value] of Object.entries({
+    url.search = new URLSearchParams({
       token: this.options.xoxc,
       sync_desync: '1',
       slack_client: 'desktop',
@@ -304,9 +281,7 @@ export class HuddleSlack {
       gateway_server: `T${teamId.slice(1)}-1`,
       enterprise_id: teamId,
       batch_presence_aware: '1',
-    })) {
-      url.searchParams.set(key, value);
-    }
+    }).toString();
     return url;
   }
 }

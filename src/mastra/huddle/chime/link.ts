@@ -2,17 +2,27 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { Audio, PeerConnection, type Track, Video } from 'node-datachannel';
 import type {
   ChimeJoinInfo,
-  ChimeLinkEvents,
+  ChimeLinkOptions,
   TurnCredentials,
 } from '../../types';
 import { rtpPacket, rtpPayload, senderReport } from './rtp';
 import { ChimeSignaling } from './signaling';
 
-const terminalAudioStatus = new Set([301, 302, 403, 409, 410, 411]);
+const terminalAudioStatus = new Set(
+  Object.values({
+    joinedFromAnotherDevice: 301,
+    disconnectAudio: 302,
+    authenticationRejected: 403,
+    callAtCapacity: 409,
+    meetingEnded: 410,
+    attendeeRemoved: 411,
+  })
+);
+const meetingEndedCloseCode = 4410;
+const signalingSilenceMs = 15_000;
 
 interface Connection {
   audio: Track;
-  dead: boolean;
   open: boolean;
   opusPayloadType: number;
   peer: PeerConnection;
@@ -55,7 +65,7 @@ function iceServers(turn: TurnCredentials) {
 export class ChimeLink {
   readonly attendeeId: string;
   private readonly chime: ChimeJoinInfo;
-  private readonly events: ChimeLinkEvents;
+  private readonly events: Omit<ChimeLinkOptions, 'chime'>;
   private connection?: Connection;
   private phase: 'live' | 'reconnecting' = 'live';
   private readonly stop = new AbortController();
@@ -67,7 +77,7 @@ export class ChimeLink {
   private packets = 0;
   private octets = 0;
 
-  constructor(chime: ChimeJoinInfo, events: ChimeLinkEvents) {
+  constructor({ chime, ...events }: ChimeLinkOptions) {
     this.chime = chime;
     this.events = events;
     this.attendeeId = chime.attendee.AttendeeId;
@@ -79,7 +89,7 @@ export class ChimeLink {
       const { connection } = this;
       if (
         connection?.open &&
-        Date.now() - connection.signaling.lastInboundAt > 15_000
+        Date.now() - connection.signaling.lastInboundAt > signalingSilenceMs
       ) {
         this.lost({ connection, reason: 'signaling went silent' });
       }
@@ -168,7 +178,7 @@ export class ChimeLink {
       } else {
         signaling.close();
       }
-      if (signaling.closeCode === 4410) {
+      if (signaling.closeCode === meetingEndedCloseCode) {
         throw new TerminalError('Chime meeting ended', { cause: error });
       }
       throw terminal ?? error;
@@ -207,7 +217,6 @@ export class ChimeLink {
       tracks: [audioTrack, peer.addTrack(video)],
       opusPayloadType: 111,
       open: false,
-      dead: false,
     };
   }
 
@@ -291,12 +300,12 @@ export class ChimeLink {
   private watch(connection: Connection) {
     const { signaling, peer, audio } = connection;
     audio.onMessage((packet) => {
-      const rtp = rtpPayload({
+      const payload = rtpPayload({
         packet,
         payloadType: connection.opusPayloadType,
       });
-      if (rtp) {
-        this.events.onAudio(rtp.payload);
+      if (payload) {
+        this.events.onAudio(payload);
       }
     });
     signaling.onFrame((frame) => {
@@ -311,7 +320,7 @@ export class ChimeLink {
       this.lost({ connection, reason: `Chime audio status ${status}` });
     });
     signaling.onClose = (code) => {
-      if (code === 4410) {
+      if (code === meetingEndedCloseCode) {
         this.terminal('Chime meeting ended');
         return;
       }
@@ -345,7 +354,6 @@ export class ChimeLink {
   }
 
   private teardown(connection: Connection) {
-    connection.dead = true;
     connection.open = false;
     clearInterval(connection.reportTimer);
     connection.signaling.close();
@@ -372,7 +380,7 @@ export class ChimeLink {
     connection: Connection;
     reason: string;
   }) {
-    if (connection.dead) {
+    if (!connection.open) {
       return;
     }
     this.teardown(connection);

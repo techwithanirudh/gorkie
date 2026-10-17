@@ -1,6 +1,5 @@
 import protobuf from 'protobufjs';
-import { z } from 'zod';
-import type { SignalFrame } from '../../types';
+import { type SignalFrame, signalFrameSchema } from '../../types';
 import { signalingProto } from './protocol';
 
 const Frame = protobuf
@@ -10,100 +9,8 @@ const frameTypes = Frame.lookupEnum('Type').values;
 
 type FrameType = keyof typeof frameTypes & string;
 
-const frameSchema: z.ZodType<SignalFrame> = z.looseObject({
-  type: z.string(),
-  error: z
-    .object({
-      description: z.string().optional(),
-      status: z.number().optional(),
-    })
-    .optional(),
-  joinack: z
-    .object({
-      turn_credentials: z
-        .object({
-          password: z.string(),
-          uris: z.array(z.string()),
-          username: z.string(),
-        })
-        .optional(),
-    })
-    .optional(),
-  suback: z
-    .object({
-      duplex: z.string().optional(),
-      sdp_answer: z.string().optional(),
-    })
-    .optional(),
-  audio_stream_id_info: z
-    .object({
-      streams: z
-        .array(
-          z.object({
-            audio_stream_id: z.number(),
-            attendee_id: z.string().optional(),
-            external_user_id: z.string().optional(),
-            muted: z.boolean().optional(),
-          })
-        )
-        .optional(),
-    })
-    .optional(),
-  audio_metadata: z
-    .object({
-      attendee_states: z
-        .array(
-          z.object({
-            audio_stream_id: z.number(),
-            volume: z.number().optional(),
-          })
-        )
-        .optional(),
-    })
-    .optional(),
-  audio_status: z.object({ audio_status: z.number().optional() }).optional(),
-  ping_pong: z
-    .object({ ping_id: z.number().optional(), type: z.string().optional() })
-    .optional(),
-});
-
-function encodeFrame({
-  type,
-  body,
-}: {
-  type: FrameType;
-  body: Record<string, unknown>;
-}) {
-  const encoded = Frame.encode(
-    Frame.fromObject({
-      timestamp_ms: Date.now(),
-      type: frameTypes[type],
-      ...body,
-    })
-  ).finish();
-  const out = new Uint8Array(encoded.length + 1);
-  out[0] = 0x05;
-  out.set(encoded, 1);
-  return out;
-}
-
-// Newer servers send frame types this proto does not know; proto2 then drops
-// the required `type` and decode throws, so the frame is skipped like the JS
-// SDK does.
-function decodeFrame(bytes: Uint8Array): SignalFrame | null {
-  try {
-    const parsed = frameSchema.safeParse(
-      Frame.toObject(Frame.decode(bytes.subarray(1)), {
-        bytes: String,
-        enums: String,
-        longs: Number,
-      })
-    );
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-}
+const signalFrameTypeByte = 0x05;
+const hasStreamUpdateFlag = 2;
 
 export class ChimeSignaling {
   private socket?: WebSocket;
@@ -166,10 +73,24 @@ export class ChimeSignaling {
 
   private receive(bytes: Uint8Array) {
     this.lastInboundAt = Date.now();
-    const frame = decodeFrame(bytes);
-    if (!frame) {
+    let decoded: unknown;
+    // Newer servers send frame types this proto does not know; proto2 then
+    // drops the required `type` and decode throws, so the frame is skipped
+    // like the JS SDK does.
+    try {
+      decoded = Frame.toObject(Frame.decode(bytes.subarray(1)), {
+        bytes: String,
+        enums: String,
+        longs: Number,
+      });
+    } catch {
       return;
     }
+    const parsed = signalFrameSchema.safeParse(decoded);
+    if (!parsed.success) {
+      return;
+    }
+    const frame = parsed.data;
     if (frame.type === 'PING_PONG' && frame.ping_pong?.type === 'PING') {
       this.send({
         type: 'PING_PONG',
@@ -191,7 +112,17 @@ export class ChimeSignaling {
     if (this.socket?.readyState !== WebSocket.OPEN) {
       return false;
     }
-    this.socket.send(encodeFrame({ type, body }));
+    const encoded = Frame.encode(
+      Frame.fromObject({
+        timestamp_ms: Date.now(),
+        type: frameTypes[type],
+        ...body,
+      })
+    ).finish();
+    const out = new Uint8Array(encoded.length + 1);
+    out[0] = signalFrameTypeByte;
+    out.set(encoded, 1);
+    this.socket.send(out);
     return true;
   }
 
@@ -229,7 +160,7 @@ export class ChimeSignaling {
       body: {
         join: {
           protocol_version: 2,
-          flags: 2,
+          flags: hasStreamUpdateFlag,
           client_details: {
             app_name: 'gorkie',
             app_version: '1',

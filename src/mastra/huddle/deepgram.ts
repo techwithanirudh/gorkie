@@ -40,7 +40,12 @@ const speakSchema = z.discriminatedUnion('type', [
   }),
   z.looseObject({ type: z.literal('SpeechStarted') }),
   z.looseObject({
-    type: z.enum(['Error', 'Warning']),
+    type: z.literal('Warning'),
+    code: z.string().optional(),
+    description: z.string().optional(),
+  }),
+  z.looseObject({
+    type: z.literal('Error'),
     description: z.string().optional(),
   }),
 ]);
@@ -60,7 +65,8 @@ const prerecordedSchema = z.looseObject({
   }),
 });
 
-const chunkSamples = 1280;
+const chunkSamples = (16_000 * 80) / 1000;
+const interruptAnswerTimeoutMs = 1500;
 
 export class DeepgramVoice extends MastraVoice<
   unknown,
@@ -70,7 +76,6 @@ export class DeepgramVoice extends MastraVoice<
   DeepgramEvents
 > {
   private readonly client: DeepgramClient;
-  private readonly options: { voice: string; sttModel: string };
   private readonly events = new EventEmitter();
   private readonly lifetime = new AbortController();
   private listenSocket?: ListenSocket;
@@ -85,23 +90,14 @@ export class DeepgramVoice extends MastraVoice<
   // because Interrupt's playback offset is measured on that timeline.
   private timeline = 0;
 
-  constructor({
-    apiKey,
-    voice,
-    sttModel,
-  }: {
-    apiKey: string;
-    voice: string;
-    sttModel: string;
-  }) {
+  constructor({ apiKey }: { apiKey: string }) {
     super({
       name: 'deepgram',
-      speaker: voice,
-      listeningModel: { name: sttModel },
-      speechModel: { name: voice },
+      speaker: config.voice,
+      listeningModel: { name: config.sttModel },
+      speechModel: { name: config.voice },
     });
     this.client = new DeepgramClient({ apiKey });
-    this.options = { voice, sttModel };
   }
 
   async speak(
@@ -112,7 +108,7 @@ export class DeepgramVoice extends MastraVoice<
       typeof input === 'string' ? input : (await collect(input)).toString();
     const response = await this.client.speak.v2.audio.generate(
       {
-        model: options?.speaker ?? this.options.voice,
+        model: options?.speaker ?? config.voice,
         text,
         encoding: 'linear16',
         sample_rate: 48_000,
@@ -148,7 +144,7 @@ export class DeepgramVoice extends MastraVoice<
     const [listen, speak] = await Promise.all([
       this.client.listen.v2.connect({
         ...shared,
-        model: this.options.sttModel,
+        model: config.sttModel,
         encoding: 'linear16',
         sample_rate: 16_000,
         eot_threshold: config.eotThreshold,
@@ -156,7 +152,7 @@ export class DeepgramVoice extends MastraVoice<
       }),
       this.client.speak.v2.connect({
         ...shared,
-        model: this.options.voice,
+        model: config.voice,
         encoding: 'linear16',
         sample_rate: '48000',
       }),
@@ -180,47 +176,41 @@ export class DeepgramVoice extends MastraVoice<
     clearInterval(this.keepAlive);
     this.keepAlive = setInterval(() => {
       if (Date.now() - this.lastAudioAt > 160) {
-        whenOpen(() =>
+        sendOrDrop(() =>
           this.listenSocket?.sendMedia(new Int16Array(chunkSamples))
         );
       }
     }, 80);
   }
 
-  async send(audio: NodeJS.ReadableStream | Int16Array) {
-    if (!(audio instanceof Int16Array)) {
-      const bytes = await collect(audio);
-      await this.send(
-        new Int16Array(bytes.buffer, bytes.byteOffset, bytes.length / 2)
-      );
-      return;
-    }
+  send(audio: Int16Array) {
     this.lastAudioAt = Date.now();
     const merged = new Int16Array(this.pending.length + audio.length);
     merged.set(this.pending);
     merged.set(audio, this.pending.length);
     let offset = 0;
     for (; offset + chunkSamples <= merged.length; offset += chunkSamples) {
-      whenOpen(() =>
+      sendOrDrop(() =>
         this.listenSocket?.sendMedia(
           merged.subarray(offset, offset + chunkSamples)
         )
       );
     }
     this.pending = merged.slice(offset);
+    return Promise.resolve();
   }
 
   say(text: string) {
-    whenOpen(() => this.speakSocket?.sendSpeak({ type: 'Speak', text }));
+    sendOrDrop(() => this.speakSocket?.sendSpeak({ type: 'Speak', text }));
   }
 
   flush() {
-    whenOpen(() => this.speakSocket?.sendFlush({ type: 'Flush' }));
+    sendOrDrop(() => this.speakSocket?.sendFlush({ type: 'Flush' }));
   }
 
   interrupt(playedSample: number) {
     this.audio = 'discarding';
-    whenOpen(() =>
+    sendOrDrop(() =>
       this.speakSocket?.sendInterrupt({
         type: 'Interrupt',
         playback_offset: {
@@ -230,22 +220,23 @@ export class DeepgramVoice extends MastraVoice<
       })
     );
     clearTimeout(this.interruptTimer);
-    this.interruptTimer = setTimeout(() => this.interrupted(''), 1500);
+    this.interruptTimer = setTimeout(
+      () => this.interrupted(''),
+      interruptAnswerTimeoutMs
+    );
   }
 
   on<E extends VoiceEventType>(event: E, callback: Listener<E>) {
     this.events.on(event, callback);
   }
 
-  off<E extends VoiceEventType>(event: E, callback: Listener<E>) {
-    this.events.off(event, callback);
-  }
-
   close() {
     clearInterval(this.keepAlive);
     clearTimeout(this.interruptTimer);
-    whenOpen(() => this.listenSocket?.sendCloseStream({ type: 'CloseStream' }));
-    whenOpen(() => this.speakSocket?.sendClose({ type: 'Close' }));
+    sendOrDrop(() =>
+      this.listenSocket?.sendCloseStream({ type: 'CloseStream' })
+    );
+    sendOrDrop(() => this.speakSocket?.sendClose({ type: 'Close' }));
     this.lifetime.abort();
     this.events.removeAllListeners();
   }
@@ -280,9 +271,6 @@ export class DeepgramVoice extends MastraVoice<
       return;
     }
     this.events.emit('turn', { type: 'end', transcript });
-    if (transcript) {
-      this.events.emit('writing', { text: transcript, role: 'user' });
-    }
   }
 
   private onSpeak(message: unknown) {
@@ -313,7 +301,10 @@ export class DeepgramVoice extends MastraVoice<
       this.interrupted(event.text_spoken ?? '');
       return;
     }
-    if (event.type === 'SpeechStarted') {
+    if (
+      event.type === 'SpeechStarted' ||
+      (event.type === 'Warning' && event.code === 'NO_AUDIO_GENERATED')
+    ) {
       this.interrupted('');
       return;
     }
@@ -325,7 +316,7 @@ export class DeepgramVoice extends MastraVoice<
 
 // The SDK throws on a send while a socket is reconnecting. Losing an 80 ms
 // audio chunk or a text fragment then beats breaking the caller's loop.
-function whenOpen(send: () => void) {
+function sendOrDrop(send: () => void) {
   try {
     send();
   } catch {

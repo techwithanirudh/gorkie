@@ -1,8 +1,9 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { liveHuddles } from '../huddle/live';
+import { huddleInThread, liveHuddles } from '../huddle/live';
 import { channelContext } from '../lib/context';
 import { rawId } from '../lib/ids';
+import { taskStatusSchema } from '../types';
 import { input, output } from '../types/tools/index';
 
 export const leaveHuddleTool = createTool({
@@ -38,11 +39,24 @@ export const hangUpTool = createTool({
   inputSchema: input({}),
   outputSchema: output({ leaving: z.boolean() }),
   execute: (_input, context) => {
-    const { threadId } = channelContext(context?.requestContext);
-    const huddle = [...liveHuddles.values()].find(
-      (live) => live.slackThreadId === threadId
+    const huddle = huddleInThread(
+      channelContext(context?.requestContext).threadId
     );
     huddle?.hangUp();
     return Promise.resolve({ leaving: Boolean(huddle) });
+  },
+});
+
+export const taskStatusTool = createTool({
+  id: 'task_status',
+  description:
+    'List the delegations still running in this huddle: which subagent, the brief, how long it has run, how many tools it has called, the tool it is on, and the latest text it wrote, which may be partial. Call it when someone asks how a delegation is going.',
+  inputSchema: input({}),
+  outputSchema: output({ tasks: z.array(taskStatusSchema) }),
+  execute: async (_input, context) => {
+    const huddle = huddleInThread(
+      channelContext(context?.requestContext).threadId
+    );
+    return { tasks: (await huddle?.runningTasks()) ?? [] };
   },
 });

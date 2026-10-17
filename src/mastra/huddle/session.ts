@@ -1,4 +1,7 @@
-import type { AgentThreadSubscription } from '@mastra/core/agent';
+import type {
+  AgentThreadSubscription,
+  SendAgentMessageOptions,
+} from '@mastra/core/agent';
 import { RequestContext } from '@mastra/core/request-context';
 import {
   Application,
@@ -52,8 +55,9 @@ const taskOutputSchema = z.looseObject({
 const taskArgsSchema = z.looseObject({ prompt: z.string().optional() });
 
 export class HuddleSession implements LiveHuddle {
+  readonly callId: string;
+  readonly channelId: string;
   readonly slackThreadId: string;
-  private readonly joined: JoinedHuddle;
   private readonly actingAs: string;
   private readonly onEnd: () => void;
   private readonly voice: DeepgramVoice;
@@ -102,7 +106,8 @@ export class HuddleSession implements LiveHuddle {
     apiKey: string;
     onEnd: () => void;
   }) {
-    this.joined = joined;
+    this.callId = joined.callId;
+    this.channelId = joined.channelId;
     this.actingAs = actingAs;
     this.slackThreadId = `${chatChannelId(joined.channelId)}:${joined.threadTs}`;
     this.onEnd = onEnd;
@@ -110,12 +115,9 @@ export class HuddleSession implements LiveHuddle {
       resourceId: `huddle:${joined.channelId}`,
       threadId: `huddle:${joined.callId}`,
     };
-    this.voice = new DeepgramVoice({
-      apiKey,
-      voice: config.voice,
-      sttModel: config.sttModel,
-    });
-    this.link = new ChimeLink(joined.chime, {
+    this.voice = new DeepgramVoice({ apiKey });
+    this.link = new ChimeLink({
+      chime: joined.chime,
       onAudio: (opus) => {
         try {
           const pcm = this.decoder?.decode(opus);
@@ -136,16 +138,14 @@ export class HuddleSession implements LiveHuddle {
     });
   }
 
-  get callId() {
-    return this.joined.callId;
-  }
-
   private get speaking() {
     return this.playback.length > 0 || this.ttsTurn === 'open';
   }
 
-  get channelId() {
-    return this.joined.channelId;
+  private get others() {
+    return [...this.attendees.values()].filter(
+      ({ attendeeId }) => attendeeId !== this.link.attendeeId
+    ).length;
   }
 
   async start() {
@@ -204,7 +204,7 @@ export class HuddleSession implements LiveHuddle {
     );
     logger.info('[huddle] joined', {
       callId: this.callId,
-      channelId: this.joined.channelId,
+      channelId: this.channelId,
     });
     this.signal({
       tagName: 'joined',
@@ -321,11 +321,11 @@ export class HuddleSession implements LiveHuddle {
   private nextFrame() {
     const frame = new Int16Array(opusFrameSamples);
     let written = 0;
-    for (
-      let [chunk] = this.playback;
-      chunk && written < opusFrameSamples;
-      [chunk] = this.playback
-    ) {
+    while (written < opusFrameSamples) {
+      const [chunk] = this.playback;
+      if (!chunk) {
+        break;
+      }
       const take = Math.min(
         opusFrameSamples - written,
         chunk.pcm.length - this.playbackOffset
@@ -361,11 +361,8 @@ export class HuddleSession implements LiveHuddle {
     const name = this.lastSpeaker
       ? this.names.get(this.lastSpeaker)
       : undefined;
-    const humans = [...this.attendees.values()].filter(
-      ({ attendeeId }) => attendeeId !== this.link.attendeeId
-    ).length;
     const addressed =
-      humans <= 1 ||
+      this.others <= 1 ||
       wakeWord.test(turn.transcript) ||
       Date.now() - this.lastSpokeAt < config.unnamedReplyWindow;
     if (addressed) {
@@ -377,14 +374,7 @@ export class HuddleSession implements LiveHuddle {
           contents: turn.transcript,
           attributes: name ? { name } : undefined,
         },
-        {
-          ...this.thread,
-          ifActive: { behavior: addressed ? 'deliver' : 'persist' },
-          ifIdle: {
-            behavior: addressed ? 'wake' : 'persist',
-            streamOptions: this.streamOptions(),
-          },
-        }
+        this.delivery(addressed)
       )
       .accepted.catch((error: unknown) =>
         logger.warn('[huddle] message not accepted', { error })
@@ -435,14 +425,7 @@ export class HuddleSession implements LiveHuddle {
     voiceAgent
       .sendSignal(
         { type: 'notification', tagName, contents },
-        {
-          ...this.thread,
-          ifActive: { behavior: wake ? 'deliver' : 'persist' },
-          ifIdle: {
-            behavior: wake ? 'wake' : 'persist',
-            streamOptions: this.streamOptions(),
-          },
-        }
+        this.delivery(wake)
       )
       .accepted.catch((error: unknown) =>
         logger.warn('[huddle] signal not accepted', { tagName, error })
@@ -469,16 +452,23 @@ export class HuddleSession implements LiveHuddle {
     this.checkPresence(now);
   }
 
-  private streamOptions() {
+  private delivery(wake: boolean): SendAgentMessageOptions {
     const requestContext = new RequestContext();
     requestContext.set('channel', {
-      channelId: this.joined.channelId,
+      channelId: this.channelId,
       threadId: this.slackThreadId,
       eventType: 'huddle',
       userId: this.actingAs,
       isDM: false,
     });
-    return { requestContext };
+    return {
+      ...this.thread,
+      ifActive: { behavior: wake ? 'deliver' : 'persist' },
+      ifIdle: {
+        behavior: wake ? 'wake' : 'persist',
+        streamOptions: { requestContext },
+      },
+    };
   }
 
   private track(frame: SignalFrame) {
@@ -525,11 +515,7 @@ export class HuddleSession implements LiveHuddle {
   }
 
   private checkPresence(now: number) {
-    const self = this.link.attendeeId;
-    const others = [...this.attendees.values()].some(
-      ({ attendeeId }) => attendeeId !== self
-    );
-    this.aloneSince = others ? undefined : (this.aloneSince ?? now);
+    this.aloneSince = this.others > 0 ? undefined : (this.aloneSince ?? now);
     if (this.aloneSince && now - this.aloneSince > config.aloneTimeout) {
       this.end('everyone left').catch(() => undefined);
       return;

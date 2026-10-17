@@ -1,3 +1,8 @@
+const fixedHeaderBytes = 12;
+const csrcCountMask = 0x0f;
+const extensionBit = 0x10;
+const paddingBit = 0x20;
+
 export function rtpPacket({
   payloadType,
   sequence,
@@ -11,13 +16,13 @@ export function rtpPacket({
   ssrc: number;
   payload: Uint8Array;
 }) {
-  const packet = Buffer.alloc(12 + payload.length);
+  const packet = Buffer.alloc(fixedHeaderBytes + payload.length);
   packet[0] = 0x80;
   packet[1] = payloadType;
   packet.writeUInt16BE(sequence & 0xff_ff, 2);
   packet.writeUInt32BE(timestamp >>> 0, 4);
   packet.writeUInt32BE(ssrc >>> 0, 8);
-  packet.set(payload, 12);
+  packet.set(payload, fixedHeaderBytes);
   return packet;
 }
 
@@ -54,7 +59,7 @@ export function rtpPayload({
   payloadType: number;
 }) {
   if (
-    packet.length < 12 ||
+    packet.length < fixedHeaderBytes ||
     packet[0] === undefined ||
     packet[1] === undefined
   ) {
@@ -64,20 +69,17 @@ export function rtpPayload({
   if (packet[0] >> 6 !== 2 || type !== payloadType) {
     return;
   }
-  let offset = 12 + (packet[0] & 0x0f) * 4;
-  if (packet[0] & 0x10) {
+  let offset = fixedHeaderBytes + (packet[0] & csrcCountMask) * 4;
+  if (packet[0] & extensionBit) {
     if (packet.length < offset + 4) {
       return;
     }
     offset += 4 + packet.readUInt16BE(offset + 2) * 4;
   }
-  const padding = packet[0] & 0x20 ? (packet.at(-1) ?? 0) : 0;
+  const padding = packet[0] & paddingBit ? (packet.at(-1) ?? 0) : 0;
   const end = packet.length - padding;
   if (offset >= end) {
     return;
   }
-  return {
-    sequence: packet.readUInt16BE(2),
-    payload: packet.subarray(offset, end),
-  };
+  return packet.subarray(offset, end);
 }
