@@ -137,6 +137,17 @@ export class HuddleSlack {
     this.socket?.close();
   }
 
+  // Public channels only; a private one needs a member to add this account.
+  async joinConversation(channelId: string) {
+    const ok = okSchema.parse(
+      await this.post({
+        method: 'conversations.join',
+        fields: { channel: channelId },
+      })
+    );
+    return ok.ok;
+  }
+
   async join(channelId: string): Promise<JoinedHuddle> {
     const raw = await this.post({
       method: 'rooms.join',

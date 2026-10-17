@@ -1,4 +1,7 @@
-// The huddle account's Slack id once it is listening, so the text agent can
-// tell people who to invite. Kept dependency free because the prompts import
-// it, and the rest of the huddle module imports the agents.
-export const huddleAccount: { userId?: string } = {};
+import type { HuddleAccount } from '../types';
+
+// The huddle account once it is listening: its Slack id, so the text agent
+// can name it, and a way to join a channel's huddle from a text request.
+// Kept free of runtime imports because the prompts and tools import it, and
+// the rest of the huddle module imports the agents.
+export const huddleAccount: HuddleAccount = {};

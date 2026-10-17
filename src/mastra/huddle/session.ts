@@ -173,6 +173,10 @@ export class HuddleSession {
     return this.joined.callId;
   }
 
+  get channelId() {
+    return this.joined.channelId;
+  }
+
   async start() {
     const { link, voice } = this;
     const [decoder, encoder] = await Promise.all([

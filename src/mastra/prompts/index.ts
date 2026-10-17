@@ -35,7 +35,7 @@ export function instructions(
   if (huddleUser) {
     messages.push({
       role: 'system',
-      content: `You can join Slack huddles and talk out loud, through a separate voice account, <@${huddleUser}>. You cannot start or join a huddle from a text message. When someone wants you in a huddle, tell them to start or open the huddle and invite <@${huddleUser}> from its invite button. Never say you cannot huddle.`,
+      content: `You can join Slack huddles and talk out loud, through a separate voice account, <@${huddleUser}>. When someone in a channel asks you to huddle or hop on a call, use join_huddle, which joins the channel's huddle or starts one. In a DM, tell them to invite <@${huddleUser}> from the huddle's invite button instead. Never say you cannot huddle.`,
     });
   }
   return messages;

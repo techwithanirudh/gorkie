@@ -65,4 +65,12 @@ export interface HuddleSlackOptions {
   xoxd: string;
 }
 
+export interface HuddleAccount {
+  join?: (options: {
+    channelId: string;
+    inviterId: string;
+  }) => Promise<{ callId: string; alreadyThere: boolean }>;
+  userId?: string;
+}
+
 export type TurnEvent = { type: 'start' } | { type: 'end'; transcript: string };

@@ -71,7 +71,11 @@ model call.
 
    Huddles stay off unless the first four are all set.
 5. **Restart the bot.** The log shows `[huddle] listening for huddle invites`.
-6. **Start a huddle and invite the huddle user.** If `OPT_IN_CHANNEL` is set,
+6. **Start a huddle and invite the huddle user,** or @mention gorkie in a
+   channel and ask it to huddle: its `join_huddle` tool adds the huddle user
+   to the channel (it joins public channels itself, and the bot invites it to
+   private ones) and joins the channel's huddle, starting one if none is
+   running. The person asking counts as the inviter. If `OPT_IN_CHANNEL` is set,
    gorkie ignores invites from people outside that allowlist. Inviting
    gorkie is consent for the whole huddle: anyone in it can talk to gorkie
    without being opted in themselves, and every request runs as the inviter

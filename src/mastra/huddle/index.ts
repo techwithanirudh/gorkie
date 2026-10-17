@@ -1,7 +1,9 @@
 import { env } from '@/env';
+import { slack as bot } from '../chat/client';
 import { isUserAllowed } from '../lib/allowed-users';
+import { rawId } from '../lib/ids';
 import { logger } from '../lib/logger';
-import type { HuddleEvent } from '../types';
+import type { HuddleEvent, JoinedHuddle } from '../types';
 import { huddleAccount } from './account';
 import { HuddleSession } from './session';
 import { HuddleSlack } from './slack';
@@ -38,19 +40,83 @@ export async function startHuddles(): Promise<void> {
             chime: event.chime,
           })
         : await slack.join(event.channelId);
-      const session = new HuddleSession({
-        joined,
-        inviterId: event.inviterId,
-        apiKey,
-        onEnd: () => sessions.delete(joined.callId),
-      });
-      sessions.set(joined.callId, session);
-      await session.start().catch(async (error: unknown) => {
-        await session.end('failed to start');
-        throw error;
-      });
+      await startSession({ joined, inviterId: event.inviterId });
     } finally {
       joining.delete(event.callId);
+    }
+  };
+
+  const startSession = async ({
+    joined,
+    inviterId,
+  }: {
+    joined: JoinedHuddle;
+    inviterId: string;
+  }) => {
+    const session = new HuddleSession({
+      joined,
+      inviterId,
+      apiKey,
+      onEnd: () => sessions.delete(joined.callId),
+    });
+    sessions.set(joined.callId, session);
+    await session.start().catch(async (error: unknown) => {
+      await session.end('failed to start');
+      throw error;
+    });
+  };
+
+  // Asked for in text rather than by an invite: get the huddle account into
+  // the channel, then `rooms.join` joins the channel's huddle, starting one
+  // when none is running.
+  const joinChannel = async ({
+    channelId,
+    inviterId,
+  }: {
+    channelId: string;
+    inviterId: string;
+  }) => {
+    const channel = rawId(channelId);
+    const running = [...sessions.values()].find(
+      (session) => session.channelId === channel
+    );
+    if (running) {
+      return { callId: running.callId, alreadyThere: true };
+    }
+    if (joining.has(channel)) {
+      throw new Error('Already joining this channel huddle.');
+    }
+    if (!(await isUserAllowed(inviterId))) {
+      throw new Error('The requester has not opted in to gorkie.');
+    }
+    joining.add(channel);
+    try {
+      // The huddle account joins a public channel itself. For a private one
+      // the bot, already a member since it was asked there, invites it.
+      const member =
+        (await slack.joinConversation(channel).catch(() => false)) ||
+        (await bot.webClient.conversations
+          .invite({ channel, users: slack.userId ?? '' })
+          .then(() => true)
+          .catch((error: unknown) => {
+            logger.debug('[huddle] could not invite the huddle account', {
+              channel,
+              error,
+            });
+            return false;
+          }));
+      const joined = await slack.join(channel).catch((error: unknown) => {
+        throw new Error(
+          member
+            ? 'Could not join the huddle.'
+            : `Could not get <@${slack.userId}> into this channel; someone needs to add it first.`,
+          { cause: error }
+        );
+      });
+      await startSession({ joined, inviterId });
+      return { callId: joined.callId, alreadyThere: false };
+    } finally {
+      joining.delete(channel);
     }
   };
 
@@ -80,6 +146,7 @@ export async function startHuddles(): Promise<void> {
   });
   await slack.start();
   huddleAccount.userId = slack.userId;
+  huddleAccount.join = joinChannel;
   logger.info('[huddle] listening for huddle invites', {
     userId: slack.userId,
   });
