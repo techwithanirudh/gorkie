@@ -315,14 +315,18 @@ export class HuddleSession {
     this.lastActivityAt = Date.now();
     if (turn.type === 'start') {
       this.floor = 'user';
-      // Barge-in cuts audible speech only. A reply still thinking keeps
-      // going, and the next utterance joins its run as a follow-up.
-      if (this.playback.length) {
+      // Barge-in cuts speech only, counting text already handed to TTS whose
+      // audio has not arrived yet. A reply still thinking keeps going, and
+      // the next utterance joins its run as a follow-up.
+      if (this.playback.length || this.ttsTurn === 'open') {
         this.interrupt();
       }
       return;
     }
     this.floor = 'open';
+    if (!turn.transcript) {
+      return;
+    }
     const name = this.lastSpeaker
       ? this.names.get(this.lastSpeaker)
       : undefined;

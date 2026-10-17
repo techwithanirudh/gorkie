@@ -290,8 +290,13 @@ export class DeepgramVoice extends MastraVoice<
       this.events.emit('turn', { type: 'start' });
       return;
     }
-    if (turn.data.event === 'EndOfTurn' && transcript) {
-      this.events.emit('turn', { type: 'end', transcript });
+    if (turn.data.event !== 'EndOfTurn') {
+      return;
+    }
+    // An empty turn (a cough, a door) still has to end, or the session
+    // keeps thinking someone holds the floor.
+    this.events.emit('turn', { type: 'end', transcript });
+    if (transcript) {
       this.events.emit('writing', { text: transcript, role: 'user' });
     }
   }
