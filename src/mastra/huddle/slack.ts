@@ -219,8 +219,6 @@ export class HuddleSlack {
       });
       this.socket = socket;
       let ready = false;
-      // A socket that never says hello would otherwise leave start() or the
-      // reconnect loop waiting forever.
       const handshake = setTimeout(() => {
         socket.terminate();
         reject(new Error('huddle realtime handshake timed out'));

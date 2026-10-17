@@ -82,9 +82,6 @@ const explorerModels = ladder('explore');
 
 export const explorer = () => preferLastWorking(explorerModels);
 
-// The configured voice model leads and the shared ladder is only the
-// fallback. The last-working lookup is skipped: it costs a state read per
-// spoken turn, and a text turn's pick could put a slower model first.
 export const voice: ModelWithRetries[] = [
   { ...opencode(huddle.model, 'voice'), maxRetries: 1 },
   ...ladder('voice'),

@@ -54,28 +54,18 @@ export const workingModel = {
 export const emoji = { listTtl: 5 * 60 * 1000 };
 
 export const huddle = {
-  // The talker's model on OpenCode Go: the fastest to first token in the
-  // other huddle branch's live comparison, with a 1M context.
   model: 'minimax-m3',
   voice: 'flux-alexis-en',
   sttModel: 'flux-general-en',
-  // Flux end-of-turn confidence, and the silence after which a turn ends
-  // regardless. The likeliest knobs to turn after a live test.
   eotThreshold: 0.7,
   eotTimeoutMs: 5000,
   batchSttModel: 'nova-3',
-  // Spoken replies are a few sentences, so a small cap also bounds the cost
-  // of a runaway turn. Steps cover a delegation plus the reply after it.
   maxOutputTokens: 1024,
   maxSteps: 4,
   lastMessages: 40,
   task: { researchTimeout: 15 * 60 * 1000, exploreTimeout: 20 * 60 * 1000 },
-  // Without its name, an utterance still gets an answer this soon after
-  // gorkie last spoke, so follow-ups flow without "hey gorkie" every time.
-  followUpWindow: 20 * 1000,
-  // After being asked to leave, the most a goodbye gets to finish playing.
-  leaveTimeout: 10 * 1000,
-  // Leave once nobody else has been in the call this long.
+  unnamedReplyWindow: 20 * 1000,
+  goodbye: { afterLeaveMs: 2000, afterAudioMs: 1500, maxMs: 10 * 1000 },
   aloneTimeout: 60 * 1000,
   idleTimeout: 15 * 60 * 1000,
 };

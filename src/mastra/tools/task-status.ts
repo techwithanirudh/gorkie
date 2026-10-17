@@ -3,9 +3,6 @@ import { z } from 'zod';
 import type { TaskStatus } from '../types';
 import { input, output } from '../types/tools/index';
 
-// The huddle talker's view of its running delegations. Each session builds
-// its own over that huddle's thread, and the model calls it only when someone
-// asks how things are going, so ordinary turns carry no task list.
 export function taskStatusTool(read: () => Promise<TaskStatus[]>) {
   return createTool({
     id: 'task_status',

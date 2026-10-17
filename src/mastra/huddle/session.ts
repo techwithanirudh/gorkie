@@ -13,7 +13,7 @@ import { resolveUserProfile } from '../chat/names';
 import { huddle as config } from '../config';
 import { threadIdOf } from '../lib/ids';
 import { logger } from '../lib/logger';
-import { leaveCallTool } from '../tools/leave-huddle';
+import { hangUpTool } from '../tools/leave-huddle';
 import { taskStatusTool } from '../tools/task-status';
 import type {
   JoinedHuddle,
@@ -21,15 +21,14 @@ import type {
   TaskStatus,
   TurnEvent,
 } from '../types';
-import { ChimeLink } from './chime/link';
+import { ChimeLink, opusFrameSamples } from './chime/link';
 import { DeepgramVoice } from './deepgram';
 
-// 20 ms at 48 kHz, the Opus frame Chime expects.
-const frameSamples = 960;
 const frameMs = 20;
+const speakingAttenuation = 36;
+const wakeWord = /\bg[ao]r[gk]/i;
+const maxCatchUpFrames = 10;
 
-// A subagent's own stream chunks, as Mastra relays them from a running
-// background task: what `task_status` reports as live progress.
 const taskOutputSchema = z.looseObject({
   type: z.literal('background-task-output'),
   payload: z.looseObject({
@@ -53,12 +52,6 @@ const taskOutputSchema = z.looseObject({
 
 const taskArgsSchema = z.looseObject({ prompt: z.string().optional() });
 
-// One huddle, run as a Mastra memory thread. Utterances go in through
-// `sendMessage`, the talker's output comes back on one thread subscription
-// and streams into Flux TTS as it is written, and delegations run as background
-// tasks. An idle wake runs with `untilIdle`, so Mastra itself continues the
-// talker when a task finishes; the session only covers the cases where that
-// wrapper was closed first (barge-in, a newer wake, its idle timeout).
 export class HuddleSession {
   private readonly joined: JoinedHuddle;
   private readonly inviterId: string;
@@ -68,18 +61,14 @@ export class HuddleSession {
   private readonly thread: { resourceId: string; threadId: string };
   private decoder?: OpusDecoderHandle;
   private subscription?: AgentThreadSubscription;
-  // TTS audio waiting to play, each chunk tagged with where it starts on
-  // the TTS timeline, which is what a barge-in reports back.
-  private playback: { pcm: Int16Array; at: number }[] = [];
+  private playback: { pcm: Int16Array; timelineOffset: number }[] = [];
   private playbackOffset = 0;
   private played = 0;
   private ttsTurn: 'idle' | 'open' = 'idle';
   // Utterances sent to a run whose first step has not finished, which is
   // when `savePerStep` writes them. A barge-in before then loses them.
   private unsaved: string[] = [];
-  // Unsaved utterances from an interrupted run, held until TTS reports what
-  // was actually heard.
-  private cutOff: string[] = [];
+  private unheardTurns: string[] = [];
   private abortedRunId?: string;
   private lastSpokeAt = 0;
   private floor: 'open' | 'user' = 'open';
@@ -93,7 +82,7 @@ export class HuddleSession {
   private lastActivityAt = Date.now();
   private readonly timers: ReturnType<typeof setInterval>[] = [];
   private readonly controller = new AbortController();
-  private readonly leave = leaveCallTool(() => {
+  private readonly leave = hangUpTool(() => {
     this.leavingAt ??= Date.now();
   });
   private readonly taskStatus = taskStatusTool(() => this.runningTasks());
@@ -103,7 +92,6 @@ export class HuddleSession {
     string,
     { toolCalls: number; currentTool?: string; text: string }
   >();
-  // Set when asked to leave; the call ends once the goodbye has played.
   private leavingAt?: number;
   private ending?: Promise<void>;
 
@@ -142,7 +130,7 @@ export class HuddleSession {
         }
       },
       onFrame: (frame) => this.track(frame),
-      onSignaling: () => this.attendees.clear(),
+      onJoining: () => this.attendees.clear(),
       onTerminal: (reason) => {
         this.end(reason).catch(() => undefined);
       },
@@ -153,6 +141,10 @@ export class HuddleSession {
 
   get callId() {
     return this.joined.callId;
+  }
+
+  private get speaking() {
+    return this.playback.length > 0 || this.ttsTurn === 'open';
   }
 
   get channelId() {
@@ -199,9 +191,10 @@ export class HuddleSession {
     let sent = 0;
     this.timers.push(
       setInterval(() => {
-        // After an event loop stall, carry on from now instead of bursting
-        // out the backlog, which the far end would only drop.
-        if (Math.floor((performance.now() - base) / frameMs) - sent > 10) {
+        if (
+          Math.floor((performance.now() - base) / frameMs) - sent >
+          maxCatchUpFrames
+        ) {
           base = performance.now() - frameMs;
           sent = 0;
         }
@@ -325,15 +318,15 @@ export class HuddleSession {
   }
 
   private nextFrame() {
-    const frame = new Int16Array(frameSamples);
+    const frame = new Int16Array(opusFrameSamples);
     let written = 0;
     for (
       let [chunk] = this.playback;
-      chunk && written < frameSamples;
+      chunk && written < opusFrameSamples;
       [chunk] = this.playback
     ) {
       const take = Math.min(
-        frameSamples - written,
+        opusFrameSamples - written,
         chunk.pcm.length - this.playbackOffset
       );
       frame.set(
@@ -342,7 +335,7 @@ export class HuddleSession {
       );
       written += take;
       this.playbackOffset += take;
-      this.played = chunk.at + this.playbackOffset;
+      this.played = chunk.timelineOffset + this.playbackOffset;
       if (this.playbackOffset >= chunk.pcm.length) {
         this.playback.shift();
         this.playbackOffset = 0;
@@ -355,10 +348,7 @@ export class HuddleSession {
     this.lastActivityAt = Date.now();
     if (turn.type === 'start') {
       this.floor = 'user';
-      // Barge-in cuts speech only, counting text already handed to TTS whose
-      // audio has not arrived yet. A reply still thinking keeps going, and
-      // the next utterance joins its run as a follow-up.
-      if (this.playback.length || this.ttsTurn === 'open') {
+      if (this.speaking) {
         this.interrupt();
       }
       return;
@@ -373,13 +363,10 @@ export class HuddleSession {
     const humans = [...this.attendees.values()].filter(
       ({ attendeeId }) => attendeeId !== this.link.attendeeId
     ).length;
-    // A huddle is a room: answer when named, during a back and forth, or
-    // when there is only one person to talk to. Everything else is kept as
-    // context without a reply.
     const addressed =
       humans <= 1 ||
-      /\bg[ao]r[gk]/i.test(turn.transcript) ||
-      Date.now() - this.lastSpokeAt < config.followUpWindow;
+      wakeWord.test(turn.transcript) ||
+      Date.now() - this.lastSpokeAt < config.unnamedReplyWindow;
     if (addressed) {
       this.unsaved.push(name ? `${name}: ${turn.transcript}` : turn.transcript);
     }
@@ -403,10 +390,6 @@ export class HuddleSession {
       );
   }
 
-  // Stops the talker and its audio, and tells TTS how far playback got.
-  // An aborted run saves nothing, so once TTS reports what the room heard,
-  // that and any utterance the run never saved go into the thread as a
-  // note instead.
   private interrupt() {
     const runId = this.subscription?.activeRunId();
     if (runId) {
@@ -417,20 +400,20 @@ export class HuddleSession {
     this.playback = [];
     this.playbackOffset = 0;
     this.ttsTurn = 'idle';
-    this.cutOff = this.unsaved.splice(0);
+    this.unheardTurns = this.unsaved.splice(0);
   }
 
   private noteInterruption(textSpoken: string) {
-    const cutOff = this.cutOff.splice(0);
-    if (!(textSpoken || cutOff.length)) {
+    const unheard = this.unheardTurns.splice(0);
+    if (!(textSpoken || unheard.length)) {
       return;
     }
     this.signal({
       tagName: 'interrupted',
       contents: [
         textSpoken ? `You were talked over after saying: "${textSpoken}"` : '',
-        cutOff.length
-          ? `You were answering: ${cutOff.map((line) => `"${line}"`).join(', ')}`
+        unheard.length
+          ? `You were answering: ${unheard.map((line) => `"${line}"`).join(', ')}`
           : '',
       ]
         .filter(Boolean)
@@ -472,15 +455,12 @@ export class HuddleSession {
       this.playback.length ||
       this.subscription?.activeRunId()
     );
-    // Hang up once the goodbye has played. Its audio lands a moment after
-    // the run ends, hence the grace periods, and a goodbye that never comes
-    // gets a timeout.
     if (
       this.leavingAt &&
       ((floorFree &&
-        now - this.leavingAt > 2000 &&
-        now - this.lastSpokeAt > 1500) ||
-        now - this.leavingAt > config.leaveTimeout)
+        now - this.leavingAt > config.goodbye.afterLeaveMs &&
+        now - this.lastSpokeAt > config.goodbye.afterAudioMs) ||
+        now - this.leavingAt > config.goodbye.maxMs)
     ) {
       this.end('asked to leave').catch(() => undefined);
       return;
@@ -503,11 +483,7 @@ export class HuddleSession {
     requestContext.set('channel', {
       channelId,
       threadId: threadIdOf({ channel: channelId, ts: threadTs }),
-      // A person speaking in the huddle is a live request, so the thread
-      // root stands in for the triggering message that Slack search needs.
       messageId: threadTs,
-      // Inviting gorkie is consent for the room, so the room's requests run
-      // as the inviter, who passed the opt-in check and owns the access.
       userId: this.inviterId,
       isDM: false,
     });
@@ -545,13 +521,12 @@ export class HuddleSession {
       }
     }
     for (const state of frame.audio_metadata?.attendee_states ?? []) {
-      // Volume is attenuation in dB; the JS SDK treats 42 and up as silence.
       const attendee = this.attendees.get(state.audio_stream_id);
       if (
         attendee?.userId &&
         attendee.attendeeId !== self &&
         state.volume !== undefined &&
-        state.volume < 36
+        state.volume < speakingAttenuation
       ) {
         this.lastSpeaker = attendee.userId;
       }

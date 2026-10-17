@@ -11,7 +11,7 @@ import { huddle as config } from '../config';
 import type { TurnEvent } from '../types';
 
 interface DeepgramEvents extends VoiceEventMap {
-  audio: { pcm: Int16Array<ArrayBuffer>; at: number };
+  audio: { pcm: Int16Array<ArrayBuffer>; timelineOffset: number };
   interrupted: { textSpoken: string };
   turn: TurnEvent;
 }
@@ -63,16 +63,6 @@ const prerecordedSchema = z.looseObject({
 // Flux STT wants 80 ms chunks of 16 kHz mono linear16.
 const chunkSamples = 1280;
 
-// Deepgram's Flux models behind Mastra's voice interface, built for a live
-// call. The realtime trio (`connect`, `send`, `on`) holds two warm sockets
-// through `@deepgram/sdk`, which reconnects them itself: Flux STT, whose
-// model decides turns (StartOfTurn for barge-in, EndOfTurn to reply), and
-// Flux TTS, which takes the agent's raw text deltas and picks its own
-// sentence boundaries. `interrupt` tells TTS how much audio actually played,
-// so the `interrupted` event carries the text the room heard. Flux's eager
-// end of turn is left off: a discarded speculative run would still leave
-// its half turn in the memory thread. `@mastra/voice-deepgram` only does
-// batch `listen` and REST `speak`.
 export class DeepgramVoice extends MastraVoice<
   unknown,
   { abortSignal?: AbortSignal },
@@ -89,9 +79,7 @@ export class DeepgramVoice extends MastraVoice<
   private pending = new Int16Array(0);
   private lastAudioAt = 0;
   private keepAlive?: ReturnType<typeof setInterval>;
-  // Audio still in flight from a turn being interrupted is dropped until
-  // TTS confirms the cut.
-  private speech: 'live' | 'interrupting' = 'live';
+  private audio: 'playing' | 'discarding' = 'playing';
   private interruptTimer?: ReturnType<typeof setTimeout>;
   private audioQueue: Promise<void> = Promise.resolve();
   // Samples TTS has sent since its socket opened, dropped audio included,
@@ -232,7 +220,7 @@ export class DeepgramVoice extends MastraVoice<
   }
 
   interrupt(playedSample: number) {
-    this.speech = 'interrupting';
+    this.audio = 'discarding';
     whenOpen(() =>
       this.speakSocket?.sendInterrupt({
         type: 'Interrupt',
@@ -266,11 +254,11 @@ export class DeepgramVoice extends MastraVoice<
   }
 
   private interrupted(textSpoken: string) {
-    if (this.speech !== 'interrupting') {
+    if (this.audio !== 'discarding') {
       return;
     }
     clearTimeout(this.interruptTimer);
-    this.speech = 'live';
+    this.audio = 'playing';
     this.events.emit('interrupted', { textSpoken });
   }
 
@@ -294,8 +282,6 @@ export class DeepgramVoice extends MastraVoice<
     if (turn.data.event !== 'EndOfTurn') {
       return;
     }
-    // An empty turn (a cough, a door) still has to end, or the session
-    // keeps thinking someone holds the floor.
     this.events.emit('turn', { type: 'end', transcript });
     if (transcript) {
       this.events.emit('writing', { text: transcript, role: 'user' });
@@ -304,7 +290,6 @@ export class DeepgramVoice extends MastraVoice<
 
   private onSpeak(message: unknown) {
     if (message instanceof Blob) {
-      // Blob reads are async, so chain them to keep audio in order.
       this.audioQueue = this.audioQueue
         .then(async () => {
           const bytes = await message.arrayBuffer();
@@ -313,10 +298,10 @@ export class DeepgramVoice extends MastraVoice<
             0,
             Math.floor(bytes.byteLength / 2)
           );
-          const at = this.timeline;
+          const timelineOffset = this.timeline;
           this.timeline += pcm.length;
-          if (this.speech === 'live') {
-            this.events.emit('audio', { pcm, at });
+          if (this.audio === 'playing') {
+            this.events.emit('audio', { pcm, timelineOffset });
           }
         })
         .catch(() => undefined);

@@ -29,9 +29,7 @@ export const leaveHuddleTool = createTool({
   },
 });
 
-// The huddle talker's way out. Each session builds its own, and the session
-// hangs up once the goodbye has finished playing.
-export function leaveCallTool(leave: () => void) {
+export function hangUpTool(leave: () => void) {
   return createTool({
     id: 'leave',
     description:

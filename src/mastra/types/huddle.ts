@@ -52,7 +52,7 @@ export interface SignalFrame {
 export interface ChimeLinkEvents {
   onAudio: (opus: Buffer) => void;
   onFrame: (frame: SignalFrame) => void;
-  onSignaling: () => void;
+  onJoining: () => void;
   onTerminal: (reason: string) => void;
   onWarn: (event: string, fields: Record<string, unknown>) => void;
 }

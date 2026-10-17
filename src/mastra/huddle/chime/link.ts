@@ -25,6 +25,8 @@ interface Connection {
   tracks: Track[];
 }
 
+export const opusFrameSamples = (48_000 * 20) / 1000;
+
 class TerminalError extends Error {}
 
 function iceServers(turn: TurnCredentials) {
@@ -52,17 +54,13 @@ function iceServers(turn: TurnCredentials) {
   });
 }
 
-// One attendee in a Chime meeting over a relay-only WebRTC peer, carrying
-// Opus both ways. Chime mixes everyone else's audio server side and never
-// echoes our own stream back, so what arrives is the room minus gorkie.
-// A dropped connection is rebuilt with the same JoinToken, which brings the
-// same attendee back, for up to two minutes.
 export class ChimeLink {
   readonly attendeeId: string;
   private readonly chime: ChimeJoinInfo;
   private readonly events: ChimeLinkEvents;
   private connection?: Connection;
-  private phase: 'live' | 'reconnecting' | 'stopping' = 'live';
+  private phase: 'live' | 'reconnecting' = 'live';
+  private readonly stop = new AbortController();
   private watchdog?: ReturnType<typeof setInterval>;
   private readonly audioSessionId = Math.floor(Math.random() * 2 ** 32);
   private readonly ssrc = Math.floor(Math.random() * 2 ** 31);
@@ -93,7 +91,7 @@ export class ChimeLink {
 
   sendAudio(opus: Uint8Array) {
     const { connection, timestamp } = this;
-    this.timestamp = (timestamp + 960) % 2 ** 32;
+    this.timestamp = (timestamp + opusFrameSamples) % 2 ** 32;
     const sequence = this.sequence++;
     if (!connection?.open) {
       return;
@@ -119,7 +117,7 @@ export class ChimeLink {
   }
 
   async leave() {
-    this.phase = 'stopping';
+    this.stop.abort();
     clearInterval(this.watchdog);
     const { connection } = this;
     this.connection = undefined;
@@ -143,7 +141,7 @@ export class ChimeLink {
     let terminal: TerminalError | undefined;
     // Listen before JOIN: Chime lists the attendees already present once,
     // right after it, and volumes are keyed by the stream ids that list sets.
-    this.events.onSignaling();
+    this.events.onJoining();
     signaling.onFrame((frame) => this.events.onFrame(frame));
     signaling.onFrame((frame) => {
       const status = frame.audio_status?.audio_status;
@@ -349,27 +347,19 @@ export class ChimeLink {
     }, 1000);
   }
 
-  private stopped() {
-    return this.phase === 'stopping';
-  }
-
   private teardown(connection: Connection) {
     connection.dead = true;
     connection.open = false;
     clearInterval(connection.reportTimer);
     connection.signaling.close();
-    try {
-      connection.peer.close();
-    } catch {
-      // Already closed.
-    }
+    connection.peer.close();
   }
 
   private terminal(reason: string) {
-    if (this.phase === 'stopping') {
+    if (this.stop.signal.aborted) {
       return;
     }
-    this.phase = 'stopping';
+    this.stop.abort();
     clearInterval(this.watchdog);
     if (this.connection) {
       this.teardown(this.connection);
@@ -392,7 +382,7 @@ export class ChimeLink {
     if (this.connection === connection) {
       this.connection = undefined;
     }
-    if (this.phase !== 'live') {
+    if (this.stop.signal.aborted || this.phase !== 'live') {
       return;
     }
     this.events.onWarn('chime connection lost', { reason });
@@ -402,12 +392,11 @@ export class ChimeLink {
 
   private async reconnect() {
     const startedAt = Date.now();
-    for (let attempt = 1; this.phase === 'reconnecting'; attempt++) {
+    for (let attempt = 1; !this.stop.signal.aborted; attempt++) {
       try {
         // biome-ignore lint/performance/noAwaitInLoops: reconnect attempts back off one after another
         const connection = await this.connect();
-        // leave() or terminal() can land while connect() is in flight.
-        if (this.stopped()) {
+        if (this.stop.signal.aborted) {
           this.teardown(connection);
           return;
         }
