@@ -81,6 +81,10 @@ const explorerModels = ladder('explore');
 
 export const explorer = () => preferLastWorking(explorerModels);
 
+const voiceModels = ladder('voice');
+
+export const voice = () => preferLastWorking(voiceModels);
+
 export const images = {
   model: hackclub('google/gemini-3.1-flash-image', {
     extraBody: { modalities: ['image', 'text'] },

@@ -52,3 +52,16 @@ export const workingModel = {
 };
 
 export const emoji = { listTtl: 5 * 60 * 1000 };
+
+export const huddle = {
+  voice: 'aura-2-thalia-en',
+  sttModel: 'flux-general-en',
+  // Spoken replies are a few sentences, so a small cap also bounds the cost
+  // of a runaway turn. Steps cover a delegate call plus the reply after it.
+  maxOutputTokens: 1024,
+  maxSteps: 4,
+  maxHistory: 40,
+  // Leave once nobody else has been in the call this long.
+  aloneTimeout: 60 * 1000,
+  idleTimeout: 15 * 60 * 1000,
+};

@@ -254,6 +254,7 @@ Six deepening candidates from the 2026-08-26 architecture review. All six agreed
 - [ ] Custom Gorkie emojis based on the logo, covering different moods and tasks.
 - [ ] Look into Mastra AgentController plus web integration, and decide whether gorkie web is a thing we want.
 - [ ] Gork and HuddleFM integration.
+- [ ] Huddle voice support, modelled on HuddleFM (asked 2026-10-17). Gorkie joins a Slack huddle and talks. Constraints from the owner: Deepgram for both speech-to-text and text-to-speech, no realtime speech-to-speech APIs, gorkie's own default model ladder for the talking model, and that talking model is a dedicated voice agent whose only abilities are speaking and delegating to subagents, so latency stays low. Reference Mastra's voice docs and how other voice stacks (Pipecat, LiveKit Agents) structure turn-taking.
 
 ## Rewrite parity
 

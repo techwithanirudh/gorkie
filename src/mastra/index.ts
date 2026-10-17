@@ -10,10 +10,12 @@ import { exploreAgent as explore } from './agents/explore';
 import orchestrator from './agents/orchestrator';
 import { researchAgent as research } from './agents/research';
 import { summarizer } from './agents/summarizer';
+import { voiceAgent as voice } from './agents/voice';
 import { registerEvents } from './chat/events';
 import { setChat } from './chat/instance';
 import { setMastra } from './chat/mastra-instance';
 import { postgresStore, runMigrations } from './db';
+import { startHuddles } from './huddle';
 import { buildAllowlist } from './lib/allowed-users';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
@@ -29,7 +31,7 @@ process.on('uncaughtException', (err: Error) => {
 const isProduction = env.NODE_ENV === 'production';
 
 export const mastra = new Mastra({
-  agents: { orchestrator, summarizer, research, explore },
+  agents: { orchestrator, summarizer, research, explore, voice },
   schedules: {
     prepare: async ({ mastra: runtime, schedule }) => {
       const current = await runtime.schedules.get(schedule.id);
@@ -95,6 +97,9 @@ orchestrator
     registerEvents();
     await buildAllowlist();
     logger.info('[agent] online');
+    await startHuddles().catch((err: unknown) =>
+      logger.error('[huddle] failed to start', { err })
+    );
   })
   .catch((err: unknown) =>
     logger.error('[agent] initialization failed', { err })
