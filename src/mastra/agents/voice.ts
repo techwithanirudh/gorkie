@@ -30,19 +30,23 @@ export const voiceAgent = new Agent({
       })
     : undefined,
   errorProcessors: defaultErrorProcessors(),
-  // Recent turns verbatim, older ones folded by observational memory. Its
-  // observer buffers in the background, so it stays off the spoken path.
-  // Working memory stays off. Both output caps override Mastra's 100,000
-  // default, which the summarizer models cannot produce.
+  // Recent turns verbatim, older ones folded by observational memory, which
+  // manages history itself (Memory's `lastMessages` does not cap it). Its
+  // observer buffers in the background, at a quarter of the window and
+  // whenever a turn ends, so a buffer is ready when the window fills and
+  // activation never blocks a spoken turn. Working memory stays off. Both
+  // output caps override Mastra's 100,000 default, which the summarizer
+  // models cannot produce.
   memory: new Memory({
     options: {
-      lastMessages: config.lastMessages,
       workingMemory: { enabled: false },
       observationalMemory: {
         model: summarizerModel,
         scope: 'thread',
         observation: {
-          bufferTokens: 0.2,
+          messageTokens: config.historyTokens,
+          bufferTokens: 0.25,
+          bufferOnIdle: true,
           modelSettings: { maxOutputTokens: summarizerConfig.maxTokens.output },
         },
         reflection: {

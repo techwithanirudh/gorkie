@@ -406,7 +406,12 @@ export class HuddleSession {
         task.text = (task.text + chunk.payload.text).slice(-300);
       }
     }
-    return output.text;
+    // A run that ends on a tool call has no closing text, and an empty post
+    // fails, which lost answers before.
+    return (
+      (await output.text).trim() ||
+      'The task finished without a written answer.'
+    );
   }
 
   // Delegations still running, for the talker to answer "how's it going".
@@ -591,7 +596,10 @@ export class HuddleSession {
       .thread(threadId)
       .post(text)
       .catch((error: unknown) =>
-        logger.debug('[huddle] could not post to the huddle thread', { error })
+        logger.warn('[huddle] could not post to the huddle thread', {
+          callId: this.callId,
+          error,
+        })
       );
   }
 

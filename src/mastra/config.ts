@@ -72,10 +72,12 @@ export const huddle = {
   // of a runaway turn. Two steps covers a delegation plus a line after it.
   maxOutputTokens: 1024,
   maxSteps: 2,
-  // Short on purpose: every turn pays for this context in model latency,
-  // and a huddle rarely refers back further. Observational memory folds
-  // what falls out of the window.
-  lastMessages: 12,
+  // Raw huddle history the talker keeps before observational memory folds
+  // it into observations. With observational memory on, this, not a message
+  // count, bounds the prompt: Mastra's default of 30,000 tokens let a long
+  // huddle add seconds to every turn. Small on purpose, since every turn
+  // pays for it in time to first token.
+  historyTokens: 4000,
   // Lines said since the talker last ran, sent with its next run. Older
   // ones are dropped rather than paid for.
   backlogLines: 40,

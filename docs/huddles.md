@@ -55,12 +55,13 @@ Once in the call:
 The talker leads with a fast model (`huddle.model` in `src/mastra/config.ts`,
 MiniMax M3 on OpenCode Go by default) and falls back to gorkie's normal
 ladder, with reasoning off, a 1024 token output cap, a short prompt, no
-tools but `delegate`, the last 12 messages verbatim, and thread-scoped
-observational memory for older turns. Its observer buffers in the
-background, and working memory is off, so a spoken turn is one fast model
-call. Each addressed turn logs its stage timings in milliseconds after the
-end of speech (`[huddle] turn timing`), and each delegation logs how long it
-took.
+tools but `delegate` and `leave`, about the last 4,000 tokens of the huddle
+verbatim (`huddle.historyTokens`), and thread-scoped observational memory
+for older turns. Its observer buffers in the background, and working memory
+is off, so a spoken turn is one fast model call. Each turn logs its stage
+timings in milliseconds after the end of speech (`[huddle] turn timing`,
+where `modelCall` is when the provider call started), the model that served
+it (`[huddle] reply step`), and each delegation logs how long it took.
 
 ## Setup
 
