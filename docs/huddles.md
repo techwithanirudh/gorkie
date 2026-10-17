@@ -68,10 +68,10 @@ model call.
    Huddles stay off unless the first four are all set.
 5. **Restart the bot.** The log shows `[huddle] listening for huddle invites`.
 6. **Start a huddle and invite the huddle user.** If `OPT_IN_CHANNEL` is set,
-   gorkie ignores invites from people outside that allowlist, and once in
-   the huddle it only answers speakers who are on it. Unanswered speech is
-   still kept as context. Since speakers are a volume guess, when gorkie
-   cannot tell who spoke it answers only if everyone in the huddle is on the
+   gorkie ignores invites from people outside that allowlist. Inviting
+   gorkie is consent for the whole huddle: anyone in it can talk to gorkie
+   without being opted in themselves, and every request runs as the inviter
+   (their tool access, their GitHub link). Nobody else gets added to the
    allowlist.
 
 ## Limits

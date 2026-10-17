@@ -7,13 +7,11 @@ import {
   type OpusDecoderHandle,
 } from 'libopus-wasm';
 import { z } from 'zod';
-import { env } from '@/env';
 import { voiceAgent } from '../agents/voice';
 import { chat } from '../chat/instance';
 import { getMastra } from '../chat/mastra-instance';
 import { resolveUserProfile } from '../chat/names';
 import { huddle as config } from '../config';
-import { isUserAllowed } from '../lib/allowed-users';
 import { threadIdOf } from '../lib/ids';
 import { logger } from '../lib/logger';
 import type { JoinedHuddle, SignalFrame, TurnEvent } from '../types';
@@ -59,6 +57,7 @@ const subagentResultSchema = z.looseObject({ text: z.string() });
 // wrapper was closed first (barge-in, a newer wake, its idle timeout).
 export class HuddleSession {
   private readonly joined: JoinedHuddle;
+  private readonly inviterId: string;
   private readonly onEnd: () => void;
   private readonly voice: DeepgramVoice;
   private readonly link: ChimeLink;
@@ -90,7 +89,6 @@ export class HuddleSession {
     { attendeeId: string; userId?: string }
   >();
   private readonly names = new Map<string, string>();
-  private readonly allowed = new Map<string, boolean>();
   private lastSpeaker?: string;
   private aloneSince?: number;
   private lastActivityAt = Date.now();
@@ -100,14 +98,17 @@ export class HuddleSession {
 
   constructor({
     joined,
+    inviterId,
     apiKey,
     onEnd,
   }: {
     joined: JoinedHuddle;
+    inviterId: string;
     apiKey: string;
     onEnd: () => void;
   }) {
     this.joined = joined;
+    this.inviterId = inviterId;
     this.onEnd = onEnd;
     this.thread = {
       resourceId: `huddle:${joined.channelId}`,
@@ -340,10 +341,9 @@ export class HuddleSession {
     // when there is only one person to talk to. Everything else is kept as
     // context without a reply.
     const addressed =
-      this.speakerAllowed() &&
-      (humans <= 1 ||
-        /\bg[ao]r[gk]/i.test(turn.transcript) ||
-        Date.now() - this.lastSpokeAt < config.followUpWindow);
+      humans <= 1 ||
+      /\bg[ao]r[gk]/i.test(turn.transcript) ||
+      Date.now() - this.lastSpokeAt < config.followUpWindow;
     if (addressed) {
       this.lastInputAt = Date.now();
       this.unsaved.push(name ? `${name}: ${turn.transcript}` : turn.transcript);
@@ -494,7 +494,9 @@ export class HuddleSession {
     requestContext.set('channel', {
       channelId,
       threadId: threadIdOf({ channel: channelId, ts: threadTs }),
-      userId: this.lastSpeaker,
+      // Inviting gorkie is consent for the room, so the room's requests run
+      // as the inviter, who passed the opt-in check and owns the access.
+      userId: this.inviterId,
       isDM: false,
     });
     return requestContext;
@@ -514,9 +516,6 @@ export class HuddleSession {
         });
         if (userId && !this.names.has(userId)) {
           this.names.set(userId, userId);
-          isUserAllowed(userId)
-            .then((allowed) => this.allowed.set(userId, allowed))
-            .catch(() => undefined);
           resolveUserProfile(userId)
             .then((profile) => {
               const name = profile?.displayName ?? profile?.realName;
@@ -545,23 +544,6 @@ export class HuddleSession {
         this.lastSpeaker = attendee.userId;
       }
     }
-  }
-
-  // The inviter passed the opt-in check, but anyone in the room can talk to
-  // gorkie, so the speaker has to pass it too. Speakers are a volume guess,
-  // so with no attributed speaker, every attendee must be known and allowed.
-  // That fails closed if Slack's external user id format is not what
-  // `track` expects.
-  private speakerAllowed() {
-    if (!env.OPT_IN_CHANNEL) {
-      return true;
-    }
-    if (this.lastSpeaker) {
-      return this.allowed.get(this.lastSpeaker) === true;
-    }
-    return [...this.attendees.values()]
-      .filter(({ attendeeId }) => attendeeId !== this.link.attendeeId)
-      .every(({ userId }) => userId && this.allowed.get(userId) === true);
   }
 
   private checkPresence(now: number) {

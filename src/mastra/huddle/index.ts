@@ -39,6 +39,7 @@ export async function startHuddles(): Promise<void> {
         : await slack.join(event.channelId);
       const session = new HuddleSession({
         joined,
+        inviterId: event.inviterId,
         apiKey,
         onEnd: () => sessions.delete(joined.callId),
       });
