@@ -15,6 +15,7 @@ import { huddle as config } from '../config';
 import { threadIdOf } from '../lib/ids';
 import { logger } from '../lib/logger';
 import { delegateTool } from '../tools/delegate';
+import { leaveCallTool } from '../tools/leave-huddle';
 import type {
   HuddleRun,
   HuddleTask,
@@ -43,6 +44,11 @@ export class HuddleSession {
   private readonly link: ChimeLink;
   private readonly thread: { resource: string; thread: string };
   private readonly delegate = delegateTool((task) => this.runTask(task));
+  private readonly leave = leaveCallTool(() => {
+    this.leavingAt ??= Date.now();
+  });
+  // Set when asked to leave; the call ends once the goodbye has played.
+  private leavingAt?: number;
   private decoder?: OpusDecoderHandle;
   // TTS audio waiting to play, each chunk tagged with where it starts on
   // the TTS timeline, which is what a barge-in reports back.
@@ -241,7 +247,7 @@ export class HuddleSession {
       {
         memory: this.thread,
         requestContext: this.requestContext(),
-        toolsets: { huddle: { delegate: this.delegate } },
+        toolsets: { huddle: { delegate: this.delegate, leave: this.leave } },
         abortSignal: run.controller.signal,
       }
     );
@@ -259,7 +265,7 @@ export class HuddleSession {
       }
       if (chunk.type === 'tool-call') {
         this.mark('toolCall');
-        run.delegated = true;
+        run.delegated ||= chunk.payload.toolName === 'delegate';
         // Flux TTS holds a short ack like "on it" waiting for more text, so
         // say what is there now.
         this.flushSpeech();
@@ -534,6 +540,19 @@ export class HuddleSession {
       this.playback.length ||
       this.run
     );
+    // Hang up once the goodbye has played. Its audio lands a moment after
+    // the run ends, hence the grace periods, and a goodbye that never comes
+    // gets a timeout.
+    if (
+      this.leavingAt &&
+      ((floorFree &&
+        now - this.leavingAt > 2000 &&
+        now - this.lastSpokeAt > 1500) ||
+        now - this.leavingAt > config.leaveTimeout)
+    ) {
+      this.end('asked to leave').catch(() => undefined);
+      return;
+    }
     // A result waits for a quiet moment rather than talking over the room.
     if (floorFree && this.results.length) {
       for (const result of this.results.splice(0)) {

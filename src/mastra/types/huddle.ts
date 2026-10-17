@@ -70,6 +70,7 @@ export interface HuddleAccount {
     channelId: string;
     inviterId: string;
   }) => Promise<{ callId: string; alreadyThere: boolean }>;
+  leave?: (options: { channelId: string }) => Promise<boolean>;
   userId?: string;
 }
 

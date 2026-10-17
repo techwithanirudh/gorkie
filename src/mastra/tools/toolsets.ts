@@ -5,6 +5,7 @@ import { submitFeedbackTool } from './feedback';
 import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
 import { joinHuddleTool } from './join-huddle';
+import { leaveHuddleTool } from './leave-huddle';
 import { scheduledTaskTools } from './scheduled-tasks';
 import { searchWebTool } from './search-web';
 import { skipTool } from './skip';
@@ -32,7 +33,9 @@ export async function orchestratorTools() {
     post_message: slackTools.post_message,
     skip: skipTool,
     wait: waitTool,
-    ...(huddleAccount.join ? { join_huddle: joinHuddleTool } : {}),
+    ...(huddleAccount.join
+      ? { join_huddle: joinHuddleTool, leave_huddle: leaveHuddleTool }
+      : {}),
   };
 }
 

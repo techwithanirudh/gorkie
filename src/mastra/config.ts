@@ -86,6 +86,8 @@ export const huddle = {
   addressee: { lines: 8, timeout: 1500 },
   // Clears the "is thinking..." status if a reply never comes.
   thinkingTimeout: 20 * 1000,
+  // After being asked to leave, the most a goodbye gets to finish playing.
+  leaveTimeout: 10 * 1000,
   // Leave once nobody else has been in the call this long.
   aloneTimeout: 60 * 1000,
   idleTimeout: 15 * 60 * 1000,

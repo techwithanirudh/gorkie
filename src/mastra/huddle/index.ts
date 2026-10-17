@@ -120,6 +120,15 @@ export async function startHuddles(): Promise<void> {
     }
   };
 
+  const leaveChannel = async ({ channelId }: { channelId: string }) => {
+    const channel = rawId(channelId);
+    const running = [...sessions.values()].find(
+      (session) => session.channelId === channel
+    );
+    await running?.end('asked to leave in text');
+    return Boolean(running);
+  };
+
   function handle(event: HuddleEvent) {
     if (event.type === 'invited') {
       join(event).catch((error: unknown) =>
@@ -147,6 +156,7 @@ export async function startHuddles(): Promise<void> {
   await slack.start();
   huddleAccount.userId = slack.userId;
   huddleAccount.join = joinChannel;
+  huddleAccount.leave = leaveChannel;
   logger.info('[huddle] listening for huddle invites', {
     userId: slack.userId,
   });

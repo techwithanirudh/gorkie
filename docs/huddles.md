@@ -46,7 +46,10 @@ Once in the call:
    finishes, its full answer is posted to the huddle thread, and gorkie says
    the gist once the room is quiet. A task outlives the huddle and still
    posts its answer.
-7. **Leaving.** gorkie leaves when the huddle ends, when it is removed, when it
+7. **Leaving.** gorkie leaves when asked: out loud ("gorkie, you can go"),
+   where it says goodbye and hangs up once that has played, or in text,
+   where text gorkie's `leave_huddle` tool ends the channel's huddle
+   session. It also leaves when the huddle ends, when it is removed, when it
    has been alone for a minute, or after 15 minutes without anyone speaking.
 
 The talker leads with a fast model (`huddle.model` in `src/mastra/config.ts`,
