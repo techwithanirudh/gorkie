@@ -70,3 +70,12 @@ export type TurnEvent = { type: 'start' } | { type: 'end'; transcript: string };
 export interface HuddleAccount {
   leave?: (options: { channelId: string }) => Promise<boolean>;
 }
+
+export interface TaskStatus {
+  agent: string;
+  brief: string;
+  currentTool?: string;
+  latestText?: string;
+  runningSeconds: number;
+  toolCalls: number;
+}

@@ -32,7 +32,9 @@ Once in the call:
    `explore`, which run as Mastra background tasks as the person who invited
    gorkie. It says a short ack and keeps the conversation going. When a task
    finishes, Mastra continues the talker with the result and it says the
-   answer. Talking over gorkie never cancels a running task.
+   answer. Asked how it is going, gorkie calls `task_status`: the running
+   tasks, how long each has run, the tool it is on, and its latest partial
+   text. Talking over gorkie never cancels a running task.
 7. **Posting.** Asked to "drop that in the thread", gorkie posts with
    `post_message`, to the huddle thread by default and using a subagent's
    full text so links survive. Anywhere else, it says what and where first and

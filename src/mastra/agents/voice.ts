@@ -13,7 +13,7 @@ import { exploreAgent } from './explore';
 import { researchAgent } from './research';
 
 // The talker in a huddle. Its only tool is `post_message`, plus the `leave`
-// tool each session hands its runs: research and explore are subagents
+// and `task_status` tools each session hands its runs: research and explore are subagents
 // dispatched as Mastra background tasks, so a delegation returns at once and
 // a turn stays one fast model call. Each huddle is a memory thread driven
 // through signals (see `huddle/session.ts`).

@@ -6,19 +6,52 @@ import {
   createEncoder,
   type OpusDecoderHandle,
 } from 'libopus-wasm';
+import { z } from 'zod';
 import { voiceAgent } from '../agents/voice';
+import { getMastra } from '../chat/mastra-instance';
 import { resolveUserProfile } from '../chat/names';
 import { huddle as config } from '../config';
 import { threadIdOf } from '../lib/ids';
 import { logger } from '../lib/logger';
 import { leaveCallTool } from '../tools/leave-huddle';
-import type { JoinedHuddle, SignalFrame, TurnEvent } from '../types';
+import { taskStatusTool } from '../tools/task-status';
+import type {
+  JoinedHuddle,
+  SignalFrame,
+  TaskStatus,
+  TurnEvent,
+} from '../types';
 import { ChimeLink } from './chime/link';
 import { DeepgramVoice } from './deepgram';
 
 // 20 ms at 48 kHz, the Opus frame Chime expects.
 const frameSamples = 960;
 const frameMs = 20;
+
+// A subagent's own stream chunks, as Mastra relays them from a running
+// background task: what `task_status` reports as live progress.
+const taskOutputSchema = z.looseObject({
+  type: z.literal('background-task-output'),
+  payload: z.looseObject({
+    taskId: z.string(),
+    payload: z.looseObject({
+      payload: z.looseObject({
+        output: z.discriminatedUnion('type', [
+          z.looseObject({
+            type: z.literal('text-delta'),
+            payload: z.looseObject({ text: z.string() }),
+          }),
+          z.looseObject({
+            type: z.literal('tool-call'),
+            payload: z.looseObject({ toolName: z.string() }),
+          }),
+        ]),
+      }),
+    }),
+  }),
+});
+
+const taskArgsSchema = z.looseObject({ prompt: z.string().optional() });
 
 // One huddle, run as a Mastra memory thread. Utterances go in through
 // `sendMessage`, the talker's output comes back on one thread subscription
@@ -63,6 +96,13 @@ export class HuddleSession {
   private readonly leave = leaveCallTool(() => {
     this.leavingAt ??= Date.now();
   });
+  private readonly taskStatus = taskStatusTool(() => this.runningTasks());
+  // Live progress of running delegations, keyed by task id. Mastra stores
+  // only status and result on the task record, so this comes off its stream.
+  private readonly progress = new Map<
+    string,
+    { toolCalls: number; currentTool?: string; text: string }
+  >();
   // Set when asked to leave; the call ends once the goodbye has played.
   private leavingAt?: number;
   private ending?: Promise<void>;
@@ -151,6 +191,9 @@ export class HuddleSession {
     this.consume(subscription).catch((error: unknown) =>
       logger.warn('[huddle] thread subscription ended', { error })
     );
+    this.watchProgress().catch((error: unknown) =>
+      logger.warn('[huddle] task progress stream ended', { error })
+    );
 
     let base = performance.now();
     let sent = 0;
@@ -222,6 +265,63 @@ export class HuddleSession {
         this.ttsTurn = 'idle';
       }
     }
+  }
+
+  private async watchProgress() {
+    const manager = getMastra().backgroundTaskManager;
+    if (!manager) {
+      return;
+    }
+    for await (const raw of manager.stream({
+      threadId: this.thread.threadId,
+      abortSignal: this.controller.signal,
+    })) {
+      const parsed = taskOutputSchema.safeParse(raw);
+      if (!parsed.success) {
+        continue;
+      }
+      const { taskId } = parsed.data.payload;
+      const chunk = parsed.data.payload.payload.payload.output;
+      const entry = this.progress.get(taskId) ?? { toolCalls: 0, text: '' };
+      if (chunk.type === 'tool-call') {
+        entry.toolCalls++;
+        entry.currentTool = chunk.payload.toolName;
+      } else {
+        entry.text = `${entry.text}${chunk.payload.text}`.slice(-400);
+      }
+      this.progress.set(taskId, entry);
+    }
+  }
+
+  private async runningTasks(): Promise<TaskStatus[]> {
+    const manager = getMastra().backgroundTaskManager;
+    if (!manager) {
+      return [];
+    }
+    const { tasks } = await manager.listTasks({
+      threadId: this.thread.threadId,
+      status: 'running',
+    });
+    const now = Date.now();
+    const ids = new Set(tasks.map(({ id }) => id));
+    for (const taskId of this.progress.keys()) {
+      if (!ids.has(taskId)) {
+        this.progress.delete(taskId);
+      }
+    }
+    return tasks.map((task) => {
+      const entry = this.progress.get(task.id);
+      return {
+        agent: task.toolName,
+        brief: taskArgsSchema.safeParse(task.args).data?.prompt ?? '',
+        runningSeconds: Math.round(
+          (now - (task.startedAt ?? task.createdAt).getTime()) / 1000
+        ),
+        toolCalls: entry?.toolCalls ?? 0,
+        currentTool: entry?.currentTool,
+        latestText: entry?.text.trim() || undefined,
+      };
+    });
   }
 
   private nextFrame() {
@@ -391,7 +491,9 @@ export class HuddleSession {
   private streamOptions() {
     return {
       requestContext: this.requestContext(),
-      toolsets: { huddle: { leave: this.leave } },
+      toolsets: {
+        huddle: { leave: this.leave, task_status: this.taskStatus },
+      },
     };
   }
 
