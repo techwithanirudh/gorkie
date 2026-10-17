@@ -46,9 +46,9 @@ runs commands and inspects files without touching the host machine.
   observation log instead of carrying the full raw history.
 - Mastra Observability tracing, stored locally in DuckDB.
 - Optional huddle voice: invite gorkie's huddle user to a Slack huddle and
-  talk to it. Deepgram handles speech both ways, a fast voice agent does the
-  talking, and research or explore run in the background when it needs real
-  work done. See [docs/huddles.md](./docs/huddles.md).
+  talk to it. Deepgram handles speech both ways, a small voice agent with a
+  short prompt does the talking, and research or explore run in the
+  background when a question needs real work. See [docs/huddles.md](./docs/huddles.md).
 
 See [TODO.md](./TODO.md) for open work and known issues.
 

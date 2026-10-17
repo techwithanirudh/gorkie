@@ -1,8 +1,8 @@
 # Huddle voice
 
-Invite gorkie to a Slack huddle and talk to it. It listens, answers out loud,
-and hands real work to the `research` and `explore` subagents without going
-quiet while they run.
+Invite gorkie to a Slack huddle and talk to it. It answers out loud and hands
+real work to the `research` and `explore` subagents, and you can keep talking
+to it while they run.
 
 ## How it works
 
@@ -32,9 +32,9 @@ Once in the call:
    `explore`, which run as Mastra background tasks as the person who invited
    gorkie. It says a short ack and keeps the conversation going. When a task
    finishes, Mastra continues the talker with the result and it says the
-   answer. Asked how it is going, gorkie calls `task_status`: the running
-   tasks, how long each has run, the tool it is on, and its latest partial
-   text. Talking over gorkie never cancels a running task.
+   answer. Asked how it is going, gorkie calls `task_status`, which lists each
+   running task with how long it has run, the tool it is on, and its latest
+   partial text. Talking over gorkie never cancels a running task.
 7. **Posting.** Asked to "drop that in the thread", gorkie posts with
    `post_message`, to the huddle thread by default and using a subagent's
    full text so links survive. Anywhere else, it says what and where first and
@@ -44,9 +44,10 @@ Once in the call:
    when it is removed, when it has been alone for a minute, or after 15
    minutes without anyone speaking.
 
-The voice agent runs on gorkie's normal model ladder with reasoning off, a
-1024 token output cap, and a short prompt, which keeps each turn to one fast
-model call.
+The voice agent leads with `minimax-m3` (`huddle.model` in
+`src/mastra/config.ts`) with thinking off, then falls back to gorkie's normal
+model ladder. Replies are capped at 1024 tokens and 4 steps, and the prompt is
+short, so the first spoken word is not waiting on a long generation.
 
 ## Setup
 
@@ -73,13 +74,14 @@ model call.
    HUDDLE_MEDIA_REGION="us-east-1"   # optional
    ```
 
-   Huddles stay off unless the first four are all set.
+   Set all of the first four or none of them. With none, huddles are off. A
+   partial set fails at startup with a message naming the four.
 5. **Restart the bot.** The log shows `[huddle] listening for huddle invites`.
 6. **Start a huddle and invite the huddle user.** If `OPT_IN_CHANNEL` is set,
    gorkie ignores invites from people outside that allowlist. Inviting
-   gorkie is consent for the whole huddle: anyone in it can talk to gorkie
-   without being opted in themselves, and every request runs as the inviter
-   (their tool access, their GitHub link). Nobody else gets added to the
+   gorkie is consent for the whole huddle. Anyone in it can talk to gorkie
+   without being opted in themselves, and every request runs as the inviter,
+   with their tool access and their GitHub link. Nobody else gets added to the
    allowlist.
 
 ## Limits
