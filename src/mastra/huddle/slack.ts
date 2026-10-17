@@ -28,6 +28,16 @@ const joinSchema = z.looseObject({
   }),
 });
 
+const channelInfoSchema = okSchema.extend({
+  channel: z
+    .looseObject({
+      is_member: z.boolean().optional(),
+      is_private: z.boolean().optional(),
+      is_archived: z.boolean().optional(),
+    })
+    .optional(),
+});
+
 const roomInfoSchema = z.looseObject({
   room: z.looseObject({
     id: z.string(),
@@ -113,6 +123,34 @@ export class HuddleSlack {
     }
     this.userId = auth.user_id;
     await this.connect(auth.team_id);
+  }
+
+  async enterChannel(channelId: string) {
+    const info = channelInfoSchema.parse(
+      await this.post({
+        method: 'conversations.info',
+        fields: { channel: channelId },
+      })
+    );
+    if (info.channel?.is_member) {
+      return;
+    }
+    if (!info.ok || info.channel?.is_private || info.channel?.is_archived) {
+      throw new Error(
+        `The huddle account <@${this.userId}> cannot join this channel by itself. Invite it here first.`
+      );
+    }
+    const joined = okSchema.parse(
+      await this.post({
+        method: 'conversations.join',
+        fields: { channel: channelId },
+      })
+    );
+    if (!joined.ok) {
+      throw new Error(
+        `conversations.join failed: ${joined.error ?? 'unknown'}`
+      );
+    }
   }
 
   async join(channelId: string): Promise<JoinedHuddle> {

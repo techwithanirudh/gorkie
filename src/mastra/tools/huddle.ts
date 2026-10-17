@@ -6,6 +6,33 @@ import { rawId } from '../lib/ids';
 import { taskStatusSchema } from '../types';
 import { input, output } from '../types/tools/index';
 
+export const joinHuddleTool = createTool({
+  id: 'join_huddle',
+  description:
+    'Bring your voice into the Slack huddle running in the current channel, so people there can talk to you out loud. Use this when someone asks you to join, hop in, or come to the huddle or call. Your voice runs as the person who asked.',
+  inputSchema: input({}),
+  outputSchema: output({ joined: z.boolean() }),
+  transform: {
+    display: {
+      output: ({ output }) => ({
+        summary: output?.joined
+          ? 'Joined the huddle'
+          : 'Was already in the huddle here',
+      }),
+    },
+  },
+  execute: async (_input, context) => {
+    const { channelId, userId } = channelContext(context?.requestContext);
+    if (!(channelId && userId)) {
+      throw new Error('Huddles can only be joined from their channel.');
+    }
+    // Imported late: the huddle session imports the voice agent, which
+    // imports these tools.
+    const { joinHuddle } = await import('../huddle');
+    return { joined: await joinHuddle({ channelId, requesterId: userId }) };
+  },
+});
+
 export const leaveHuddleTool = createTool({
   id: 'leave_huddle',
   description:

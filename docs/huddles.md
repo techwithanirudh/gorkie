@@ -34,7 +34,9 @@ Once in the call:
    finishes, Mastra continues the talker with the result and it says the
    answer. Asked how it is going, gorkie calls `task_status`, which lists each
    running task with how long it has run, the tool it is on, and its latest
-   partial text. Talking over gorkie never cancels a running task.
+   partial text. Talking over gorkie never cancels a running task. A task
+   still running when the huddle ends posts its result to the huddle thread
+   when it finishes, since nobody is left to hear it.
 7. **Posting.** Asked to "drop that in the thread", gorkie posts with
    `post_message`, to the huddle thread by default and using a subagent's
    full text so links survive. Anywhere else, it says what and where first and
@@ -77,8 +79,11 @@ short, so the first spoken word is not waiting on a long generation.
    Set all of the first four or none of them. With none, huddles are off. A
    partial set fails at startup with a message naming the four.
 5. **Restart the bot.** The log shows `[huddle] listening for huddle invites`.
-6. **Start a huddle and invite the huddle user.** If `OPT_IN_CHANNEL` is set,
-   gorkie ignores invites from people outside that allowlist. Inviting
+6. **Start a huddle and bring gorkie in.** Either invite the huddle user from
+   the huddle, or ask gorkie in the channel ("@gorkie join the huddle"). With
+   the second, the huddle user joins a public channel by itself first; a
+   private channel needs it invited once. If `OPT_IN_CHANNEL` is set, gorkie
+   ignores requests and invites from people outside that allowlist. Inviting
    gorkie is consent for the whole huddle. Anyone in it can talk to gorkie
    without being opted in themselves, and every request runs as the inviter,
    with their tool access and their GitHub link. Nobody else gets added to the

@@ -1,3 +1,4 @@
+import { SlackFormatConverter } from '@chat-adapter/slack';
 import type {
   AgentThreadSubscription,
   SendAgentMessageOptions,
@@ -12,11 +13,13 @@ import {
 } from 'libopus-wasm';
 import { z } from 'zod';
 import { voiceAgent } from '../agents/voice';
+import { slack } from '../chat/client';
 import { getMastra } from '../chat/mastra-instance';
 import { resolveUserProfile } from '../chat/names';
 import { huddle as config } from '../config';
 import { chatChannelId } from '../lib/ids';
 import { logger } from '../lib/logger';
+import { joinChannel } from '../tools/slack/utils';
 import type {
   JoinedHuddle,
   LiveHuddle,
@@ -55,10 +58,26 @@ const taskOutputSchema = z.looseObject({
 
 const taskArgsSchema = z.looseObject({ prompt: z.string().optional() });
 
+const taskEndSchema = z.discriminatedUnion('type', [
+  z.looseObject({
+    type: z.literal('background-task-completed'),
+    payload: z.looseObject({
+      taskId: z.string(),
+      toolName: z.string(),
+      result: z.looseObject({ text: z.string() }),
+    }),
+  }),
+  z.looseObject({
+    type: z.literal('background-task-failed'),
+    payload: z.looseObject({ taskId: z.string(), toolName: z.string() }),
+  }),
+]);
+
 export class HuddleSession implements LiveHuddle {
   readonly callId: string;
   readonly channelId: string;
   readonly slackThreadId: string;
+  private readonly threadTs: string;
   private readonly actingAs: string;
   private readonly onEnd: () => void;
   private readonly voice: DeepgramVoice;
@@ -113,6 +132,7 @@ export class HuddleSession implements LiveHuddle {
     this.callId = joined.callId;
     this.channelId = joined.channelId;
     this.actingAs = actingAs;
+    this.threadTs = joined.threadTs;
     this.slackThreadId = `${chatChannelId(joined.channelId)}:${joined.threadTs}`;
     this.onEnd = onEnd;
     this.thread = {
@@ -252,6 +272,9 @@ export class HuddleSession implements LiveHuddle {
 
   private async shutdown(reason: string) {
     logger.info('[huddle] leaving', { callId: this.callId, reason });
+    this.postLateResults().catch((error: unknown) =>
+      logger.warn('[huddle] late results not posted', { error })
+    );
     for (const timer of this.timers) {
       clearInterval(timer);
     }
@@ -330,6 +353,49 @@ export class HuddleSession implements LiveHuddle {
         entry.text = `${entry.text}${chunk.payload.text}`.slice(-400);
       }
       this.progress.set(taskId, entry);
+    }
+  }
+
+  // Nobody is left to hear a delegation that outlives the huddle, so its
+  // result goes to the huddle thread in writing instead.
+  private async postLateResults() {
+    const manager = getMastra().backgroundTaskManager;
+    if (!manager) {
+      return;
+    }
+    const { tasks } = await manager.listTasks({
+      threadId: this.thread.threadId,
+      status: 'running',
+    });
+    const waiting = new Set(tasks.map(({ id }) => id));
+    if (!waiting.size) {
+      return;
+    }
+    for await (const raw of manager.stream({
+      threadId: this.thread.threadId,
+      abortSignal: AbortSignal.timeout(
+        Math.max(config.task.researchTimeout, config.task.exploreTimeout)
+      ),
+    })) {
+      const parsed = taskEndSchema.safeParse(raw);
+      if (!(parsed.success && waiting.delete(parsed.data.payload.taskId))) {
+        continue;
+      }
+      const { data } = parsed;
+      const agent = data.payload.toolName.replace(/^agent-/, '');
+      const markdown =
+        data.type === 'background-task-completed'
+          ? `The ${agent} I started in the huddle finished after it ended:\n\n${data.payload.result.text}`
+          : `The ${agent} I started in the huddle failed after it ended.`;
+      await joinChannel(this.channelId);
+      await slack.webClient.chat.postMessage({
+        channel: this.channelId,
+        thread_ts: this.threadTs,
+        ...new SlackFormatConverter().toSlackPayload({ markdown }),
+      });
+      if (!waiting.size) {
+        return;
+      }
     }
   }
 

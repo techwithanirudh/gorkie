@@ -4,7 +4,7 @@ import { workspaceCodeMode } from './code-mode/slack';
 import { submitFeedbackTool } from './feedback';
 import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
-import { leaveHuddleTool } from './huddle';
+import { joinHuddleTool, leaveHuddleTool } from './huddle';
 import { scheduledTaskTools } from './scheduled-tasks';
 import { searchWebTool } from './search-web';
 import { skipTool } from './skip';
@@ -32,7 +32,9 @@ export async function orchestratorTools() {
     post_message: slackTools.post_message,
     skip: skipTool,
     wait: waitTool,
-    ...(env.HUDDLE_XOXC ? { leave_huddle: leaveHuddleTool } : {}),
+    ...(env.HUDDLE_XOXC
+      ? { join_huddle: joinHuddleTool, leave_huddle: leaveHuddleTool }
+      : {}),
   };
 }
 
