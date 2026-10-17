@@ -59,6 +59,13 @@ export const huddle = {
   sttModel: 'flux-general-en',
   eotThreshold: 0.7,
   eotTimeoutMs: 5000,
+  // Flux dropped or misheard the name ("Gorky", nothing) without a keyterm.
+  keyterm: ['Gorkie', 'Gork'],
+  // Characters Flux must have heard before talking over gorkie cuts it off,
+  // so a cough or a click does not kill a reply.
+  bargeInChars: 4,
+  // Flux TTS closes a socket with no client message for 60 s.
+  ttsKeepAliveMs: 30 * 1000,
   batchSttModel: 'nova-3',
   maxOutputTokens: 1024,
   maxSteps: 4,

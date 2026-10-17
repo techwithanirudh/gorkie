@@ -84,6 +84,7 @@ export class DeepgramVoice extends MastraVoice<
   private speakSocket?: SpeakSocket;
   private pending = new Int16Array(0);
   private lastAudioAt = 0;
+  private lastSpeakAt = Date.now();
   private keepAlive?: ReturnType<typeof setInterval>;
   private audio: 'playing' | 'discarding' = 'playing';
   private interruptTimer?: ReturnType<typeof setTimeout>;
@@ -155,6 +156,7 @@ export class DeepgramVoice extends MastraVoice<
         sample_rate: 16_000,
         eot_threshold: config.eotThreshold,
         eot_timeout_ms: config.eotTimeoutMs,
+        keyterm: config.keyterm,
       }),
       this.client.speak.v2.connect({
         ...shared,
@@ -199,6 +201,14 @@ export class DeepgramVoice extends MastraVoice<
         chunk.set(this.pending);
         this.pending = new Int16Array(0);
         sendOrDrop(() => this.listenSocket?.sendMedia(chunk));
+      }
+      // The SDK has no ping, so restate the default speed, which changes
+      // nothing audible.
+      if (Date.now() - this.lastSpeakAt > config.ttsKeepAliveMs) {
+        this.lastSpeakAt = Date.now();
+        sendOrDrop(() =>
+          this.speakSocket?.sendConfigure({ type: 'Configure', speed: 1 })
+        );
       }
     }, 80);
   }
@@ -267,6 +277,7 @@ export class DeepgramVoice extends MastraVoice<
   // Text held back while the socket reconnects goes out in order once it
   // reopens, so a reply is never missing words in the middle.
   private sendSpeech(send: () => void) {
+    this.lastSpeakAt = Date.now();
     if (this.unsentSpeech.length) {
       this.unsentSpeech.push(send);
       return;
@@ -302,6 +313,10 @@ export class DeepgramVoice extends MastraVoice<
     const transcript = turn.data.transcript.trim();
     if (turn.data.event === 'StartOfTurn') {
       this.events.emit('turn', { type: 'start' });
+      return;
+    }
+    if (turn.data.event === 'Update') {
+      this.events.emit('turn', { type: 'update', transcript });
       return;
     }
     if (turn.data.event !== 'EndOfTurn') {

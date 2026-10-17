@@ -25,7 +25,9 @@ Once in the call:
 4. **Answering only when addressed.** gorkie replies when someone says its
    name, during a back and forth (20 s after it last spoke), or when only one
    person is in the call. Everything else is kept as context without a reply.
-5. **Barge-in.** Talking over gorkie stops its audio and aborts the reply.
+5. **Barge-in.** Saying a few real words while gorkie's audio plays stops it
+   and aborts the reply. A cough or a click does not count, and a reply that
+   is still being written keeps going.
    gorkie tells Flux TTS how much audio actually played, and Flux answers with
    the exact text the room heard, which goes into the thread as a note.
 6. **Delegating.** The `voice` agent hands real work to `research` or

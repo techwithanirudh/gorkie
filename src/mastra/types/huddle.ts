@@ -30,8 +30,7 @@ export type HuddleEvent =
       inviterId: string;
       chime?: ChimeJoinInfo;
     }
-  | { type: 'ended'; callId: string }
-  | { type: 'member-left'; callId: string; userId: string };
+  | { type: 'ended'; callId: string };
 
 const turnCredentialsSchema = z.object({
   password: z.string(),
@@ -104,7 +103,10 @@ export interface HuddleSlackOptions {
   xoxd: string;
 }
 
-export type TurnEvent = { type: 'start' } | { type: 'end'; transcript: string };
+export type TurnEvent =
+  | { type: 'start' }
+  | { type: 'update'; transcript: string }
+  | { type: 'end'; transcript: string };
 
 export interface LiveHuddle {
   channelId: string;

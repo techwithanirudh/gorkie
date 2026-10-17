@@ -476,7 +476,16 @@ export class HuddleSession implements LiveHuddle {
     this.lastActivityAt = Date.now();
     if (turn.type === 'start') {
       this.floor = 'user';
-      if (this.speaking) {
+      return;
+    }
+    // Only audio actually playing gets cut, and only once Flux has heard
+    // real words: a reply still being written keeps going, since the new
+    // speech may not be for gorkie at all.
+    if (turn.type === 'update') {
+      if (
+        this.playback.length &&
+        turn.transcript.length >= config.bargeInChars
+      ) {
         this.interrupt();
       }
       return;
