@@ -53,7 +53,11 @@
     "e2b": "^2.36.1",
     "exa-js": "^2.16.3",
     "ipaddr.js": "^2.5.0",
+    "libopus-wasm": "0.4.1",
     "mime-types": "^3.0.2",
+    "node-datachannel": "0.33.4",
+    "protobufjs": "8.8.0",
+    "ws": "8.21.0",
     "zod": "^4"
   },
   "devDependencies": {
@@ -65,6 +69,7 @@
     "@types/bun": "latest",
     "@types/mime-types": "^3.0.1",
     "@types/node": "^24",
+    "@types/ws": "8.18.1",
     "cspell": "^10.0.1",
     "drizzle-kit": "1.0.0-rc.4",
     "lefthook": "^2.1.10",
