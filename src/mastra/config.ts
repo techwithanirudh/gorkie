@@ -54,7 +54,7 @@ export const workingModel = {
 export const emoji = { listTtl: 5 * 60 * 1000 };
 
 export const huddle = {
-  voice: 'aura-2-thalia-en',
+  voice: 'flux-alexis-en',
   sttModel: 'flux-general-en',
   // Spoken replies are a few sentences, so a small cap also bounds the cost
   // of a runaway turn. Steps cover a delegation plus the reply after it.

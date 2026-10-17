@@ -26,6 +26,7 @@
   "dependencies": {
     "@ai-sdk/provider-utils": "^5.0.26",
     "@chat-adapter/slack": "^4.35.0",
+    "@deepgram/sdk": "5.15.0",
     "@github-tools/sdk": "^1.11.1",
     "@langfuse/client": "^5.11.1",
     "@mastra/core": "1.66.0",

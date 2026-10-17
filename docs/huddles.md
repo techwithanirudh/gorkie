@@ -20,13 +20,14 @@ Once in the call:
    speaker, and their Slack name goes on the message.
 3. **Talking.** Each huddle is a Mastra memory thread on the `voice` agent. An
    utterance goes in with `sendMessage`. The agent's reply streams back on a
-   thread subscription and is spoken sentence by sentence through Deepgram
-   Aura-2 TTS.
+   thread subscription, and each text delta goes straight into a warm Deepgram
+   Flux TTS socket, which picks its own sentence boundaries.
 4. **Answering only when addressed.** gorkie replies when someone says its
    name, during a back and forth (20 s after it last spoke), or when only one
    person is in the call. Everything else is kept as context without a reply.
-5. **Barge-in.** Talking over gorkie stops its audio and aborts the reply. A
-   note records what it had said so far.
+5. **Barge-in.** Talking over gorkie stops its audio and aborts the reply.
+   gorkie tells Flux TTS how much audio actually played, and Flux answers with
+   the exact text the room heard, which goes into the thread as a note.
 6. **Delegating.** The `voice` agent's only abilities are talking and handing
    work to `research` or `explore`, which run as Mastra background tasks. It
    says a short ack and keeps the conversation going. When a task finishes,
@@ -74,7 +75,9 @@ model call.
 - Speaker names are a guess from volume levels, because Chime mixes the room
   into one stream. Two people talking at once get attributed to whoever was
   louder last.
-- Speech recognition is English only (Flux `flux-general-en`).
+- Speech recognition and the voice are English only (`flux-general-en`,
+  `flux-alexis-en`). Deepgram also has `flux-general-multi` for multilingual
+  speech; switching is one line in `src/mastra/config.ts`.
 - There is no voice command to cancel a running delegation yet.
 - Untested against a live huddle at the time of writing. See the huddle item
   in `TODO.md`.

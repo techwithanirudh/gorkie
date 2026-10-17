@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
+import { DeepgramClient } from '@deepgram/sdk';
 import {
   MastraVoice,
   type VoiceEventMap,
@@ -9,6 +10,8 @@ import { z } from 'zod';
 import type { TurnEvent } from '../types';
 
 interface DeepgramEvents extends VoiceEventMap {
+  audio: { pcm: Int16Array<ArrayBuffer>; at: number };
+  interrupted: { textSpoken: string };
   turn: TurnEvent;
 }
 
@@ -16,25 +19,35 @@ type Listener<E extends VoiceEventType> = (
   data: E extends keyof DeepgramEvents ? DeepgramEvents[E] : unknown
 ) => void;
 
-const fluxSchema = z.discriminatedUnion('type', [
+type ListenSocket = Awaited<
+  ReturnType<DeepgramClient['listen']['v2']['connect']>
+>;
+type SpeakSocket = Awaited<
+  ReturnType<DeepgramClient['speak']['v2']['connect']>
+>;
+
+const turnSchema = z.looseObject({
+  type: z.literal('TurnInfo'),
+  event: z.string(),
+  transcript: z.string(),
+});
+
+const speakSchema = z.discriminatedUnion('type', [
   z.looseObject({
-    type: z.literal('TurnInfo'),
-    event: z.enum([
-      'StartOfTurn',
-      'Update',
-      'EagerEndOfTurn',
-      'TurnResumed',
-      'EndOfTurn',
-    ]),
-    transcript: z.string(),
+    type: z.literal('SpeechInterrupted'),
+    text_spoken: z.string().optional(),
   }),
+  z.looseObject({ type: z.literal('SpeechStarted') }),
   z.looseObject({
-    type: z.literal('Error'),
-    code: z.string().optional(),
+    type: z.enum(['Error', 'Warning']),
     description: z.string().optional(),
   }),
-  z.looseObject({ type: z.literal('Connected') }),
 ]);
+
+const errorSchema = z.looseObject({
+  type: z.enum(['Error', 'FatalError']),
+  description: z.string().optional(),
+});
 
 const prerecordedSchema = z.looseObject({
   results: z.looseObject({
@@ -46,148 +59,152 @@ const prerecordedSchema = z.looseObject({
   }),
 });
 
-// Flux wants 80 ms chunks of 16 kHz mono linear16.
+// Flux STT wants 80 ms chunks of 16 kHz mono linear16.
 const chunkSamples = 1280;
 
-// Deepgram behind Mastra's voice interface, built for a live call rather
-// than files: `speak` streams Aura-2 PCM over REST per sentence, and the
-// realtime trio (`connect`, `send`, `on`) runs Flux, whose model decides
-// turn ends itself (StartOfTurn for barge-in, EndOfTurn to reply). Flux's
-// eager end of turn is left off: a speculative run that gets discarded
-// would still leave its half turn in the memory thread.
-// `@mastra/voice-deepgram` only does batch `listen` and has no live socket.
+// Deepgram's Flux models behind Mastra's voice interface, built for a live
+// call. The realtime trio (`connect`, `send`, `on`) holds two warm sockets
+// through `@deepgram/sdk`, which reconnects them itself: Flux STT, whose
+// model decides turns (StartOfTurn for barge-in, EndOfTurn to reply), and
+// Flux TTS, which takes the agent's raw text deltas and picks its own
+// sentence boundaries. `interrupt` tells TTS how much audio actually played,
+// so the `interrupted` event carries the text the room heard. Flux's eager
+// end of turn is left off: a discarded speculative run would still leave
+// its half turn in the memory thread. `@mastra/voice-deepgram` only does
+// batch `listen` and REST `speak`.
 export class DeepgramVoice extends MastraVoice<
   unknown,
-  { signal?: AbortSignal },
+  { abortSignal?: AbortSignal },
   unknown,
   never,
   DeepgramEvents
 > {
+  private readonly client: DeepgramClient;
+  private readonly options: { voice: string; sttModel: string };
   private readonly events = new EventEmitter();
-  private socket?: WebSocket;
+  private readonly lifetime = new AbortController();
+  private listenSocket?: ListenSocket;
+  private speakSocket?: SpeakSocket;
   private pending = new Int16Array(0);
   private lastAudioAt = 0;
   private keepAlive?: ReturnType<typeof setInterval>;
-  private phase: 'live' | 'closed' = 'live';
-  private readonly options: { apiKey: string; voice: string; sttModel: string };
+  // Audio still in flight from a turn being interrupted is dropped until
+  // TTS confirms the cut.
+  private speech: 'live' | 'interrupting' = 'live';
+  private interruptTimer?: ReturnType<typeof setTimeout>;
+  private audioQueue: Promise<void> = Promise.resolve();
+  // Samples TTS has sent since its socket opened, dropped audio included,
+  // because Interrupt's playback offset is measured on that timeline.
+  private timeline = 0;
 
-  constructor(options: { apiKey: string; voice: string; sttModel: string }) {
+  constructor({
+    apiKey,
+    voice,
+    sttModel,
+  }: {
+    apiKey: string;
+    voice: string;
+    sttModel: string;
+  }) {
     super({
       name: 'deepgram',
-      speaker: options.voice,
-      listeningModel: { name: options.sttModel },
-      speechModel: { name: options.voice },
+      speaker: voice,
+      listeningModel: { name: sttModel },
+      speechModel: { name: voice },
     });
-    this.options = options;
+    this.client = new DeepgramClient({ apiKey });
+    this.options = { voice, sttModel };
   }
 
   async speak(
     input: string | NodeJS.ReadableStream,
-    options?: { speaker?: string; signal?: AbortSignal }
+    options?: { speaker?: string; abortSignal?: AbortSignal }
   ): Promise<NodeJS.ReadableStream> {
     const text =
-      typeof input === 'string'
-        ? input
-        : (await collect(input)).toString('utf8');
-    const url = new URL('https://api.deepgram.com/v1/speak');
-    url.search = new URLSearchParams({
-      model: options?.speaker ?? this.options.voice,
-      encoding: 'linear16',
-      sample_rate: '48000',
-      container: 'none',
-    }).toString();
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        authorization: `Token ${this.options.apiKey}`,
-        'content-type': 'application/json',
+      typeof input === 'string' ? input : (await collect(input)).toString();
+    const response = await this.client.speak.v2.audio.generate(
+      {
+        model: options?.speaker ?? this.options.voice,
+        text,
+        encoding: 'linear16',
+        sample_rate: 48_000,
+        container: 'none',
       },
-      body: JSON.stringify({ text }),
-      signal: options?.signal,
-    });
-    if (!(response.ok && response.body)) {
-      throw new Error(`Deepgram speak failed: HTTP ${response.status}`);
+      { abortSignal: options?.abortSignal }
+    );
+    const body = response.stream();
+    if (!body) {
+      throw new Error('Deepgram speak returned no audio');
     }
-    return Readable.from(response.body);
+    return Readable.from(body);
   }
 
   async listen(audio: NodeJS.ReadableStream): Promise<string> {
-    const response = await fetch(
-      'https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true',
-      {
-        method: 'POST',
-        headers: { authorization: `Token ${this.options.apiKey}` },
-        body: await collect(audio),
-      }
+    const response = await this.client.listen.v1.media.transcribeFile(
+      await collect(audio),
+      { model: 'nova-3', smart_format: true }
     );
-    if (!response.ok) {
-      throw new Error(`Deepgram listen failed: HTTP ${response.status}`);
-    }
-    const parsed = prerecordedSchema.parse(await response.json());
-    return parsed.results.channels[0]?.alternatives[0]?.transcript ?? '';
+    const parsed = prerecordedSchema.safeParse(response);
+    return parsed.data?.results.channels[0]?.alternatives[0]?.transcript ?? '';
   }
 
   getListener() {
     return Promise.resolve({ enabled: true });
   }
 
-  connect() {
-    this.phase = 'live';
-    const url = new URL('wss://api.deepgram.com/v2/listen');
-    url.search = new URLSearchParams({
-      model: this.options.sttModel,
-      encoding: 'linear16',
-      sample_rate: '16000',
-      eot_threshold: '0.7',
-      eot_timeout_ms: '5000',
-    }).toString();
-    const socket = new WebSocket(url, ['token', this.options.apiKey]);
-    this.socket = socket;
-    socket.addEventListener('message', (event) => this.receive(event.data));
-    socket.addEventListener('close', () => {
-      if (this.phase === 'closed' || this.socket !== socket) {
-        return;
-      }
-      this.events.emit('error', { message: 'Flux socket closed, reopening' });
-      setTimeout(() => {
-        if (this.phase === 'live' && this.socket === socket) {
-          this.connect().catch((error: unknown) =>
-            this.events.emit('error', { message: String(error) })
-          );
-        }
-      }, 1000);
+  async connect() {
+    const shared = {
+      abortSignal: this.lifetime.signal,
+      connectionTimeoutInSeconds: 15,
+    };
+    const [listen, speak] = await Promise.all([
+      this.client.listen.v2.connect({
+        ...shared,
+        model: this.options.sttModel,
+        encoding: 'linear16',
+        sample_rate: 16_000,
+        eot_threshold: 0.7,
+        eot_timeout_ms: 5000,
+      }),
+      this.client.speak.v2.connect({
+        ...shared,
+        model: this.options.voice,
+        encoding: 'linear16',
+        sample_rate: '48000',
+      }),
+    ]);
+    listen.on('message', (message: unknown) => this.onListen(message));
+    speak.on('message', (message: unknown) => this.onSpeak(message));
+    speak.on('open', () => {
+      this.timeline = 0;
     });
+    for (const socket of [listen, speak]) {
+      socket.on('error', (error) =>
+        this.events.emit('error', { message: error.message })
+      );
+      socket.connect();
+    }
+    await Promise.all([listen.waitForOpen(), speak.waitForOpen()]);
+    this.listenSocket = listen;
+    this.speakSocket = speak;
     // Flux expects audio in real time and gives up on a silent socket, and
     // Chime stops sending when the room goes quiet, so pad with silence.
     clearInterval(this.keepAlive);
     this.keepAlive = setInterval(() => {
       if (Date.now() - this.lastAudioAt > 160) {
-        this.write(new Int16Array(chunkSamples));
+        whenOpen(() =>
+          this.listenSocket?.sendMedia(new Int16Array(chunkSamples))
+        );
       }
     }, 80);
-    return new Promise<void>((resolve, reject) => {
-      socket.addEventListener('open', () => resolve(), { once: true });
-      socket.addEventListener(
-        'error',
-        () => reject(new Error('Deepgram Flux connection failed')),
-        { once: true }
-      );
-    });
   }
 
   async send(audio: NodeJS.ReadableStream | Int16Array) {
     if (!(audio instanceof Int16Array)) {
-      for await (const chunk of audio) {
-        if (Buffer.isBuffer(chunk)) {
-          await this.send(
-            new Int16Array(
-              chunk.buffer,
-              chunk.byteOffset,
-              Math.floor(chunk.length / 2)
-            )
-          );
-        }
-      }
+      const bytes = await collect(audio);
+      await this.send(
+        new Int16Array(bytes.buffer, bytes.byteOffset, bytes.length / 2)
+      );
       return;
     }
     this.lastAudioAt = Date.now();
@@ -196,9 +213,38 @@ export class DeepgramVoice extends MastraVoice<
     merged.set(audio, this.pending.length);
     let offset = 0;
     for (; offset + chunkSamples <= merged.length; offset += chunkSamples) {
-      this.write(merged.subarray(offset, offset + chunkSamples));
+      whenOpen(() =>
+        this.listenSocket?.sendMedia(
+          merged.subarray(offset, offset + chunkSamples)
+        )
+      );
     }
     this.pending = merged.slice(offset);
+  }
+
+  say(text: string) {
+    whenOpen(() => this.speakSocket?.sendSpeak({ type: 'Speak', text }));
+  }
+
+  flush() {
+    whenOpen(() => this.speakSocket?.sendFlush({ type: 'Flush' }));
+  }
+
+  interrupt(playedSample: number) {
+    this.speech = 'interrupting';
+    whenOpen(() =>
+      this.speakSocket?.sendInterrupt({
+        type: 'Interrupt',
+        playback_offset: {
+          type: 'time_ms',
+          value: Math.round(playedSample / 48),
+        },
+      })
+    );
+    // With no turn left to cut, TTS may never answer, and audio must not
+    // stay muted waiting for it.
+    clearTimeout(this.interruptTimer);
+    this.interruptTimer = setTimeout(() => this.interrupted(''), 1500);
   }
 
   on<E extends VoiceEventType>(event: E, callback: Listener<E>) {
@@ -210,67 +256,92 @@ export class DeepgramVoice extends MastraVoice<
   }
 
   close() {
-    this.phase = 'closed';
     clearInterval(this.keepAlive);
-    if (this.socket?.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify({ type: 'CloseStream' }));
-    }
-    this.socket?.close();
+    clearTimeout(this.interruptTimer);
+    whenOpen(() => this.listenSocket?.sendCloseStream({ type: 'CloseStream' }));
+    whenOpen(() => this.speakSocket?.sendClose({ type: 'Close' }));
+    this.lifetime.abort();
     this.events.removeAllListeners();
   }
 
-  private write(pcm: Int16Array<ArrayBuffer>) {
-    if (this.socket?.readyState === WebSocket.OPEN) {
-      this.socket.send(pcm);
+  private interrupted(textSpoken: string) {
+    if (this.speech !== 'interrupting') {
+      return;
     }
+    clearTimeout(this.interruptTimer);
+    this.speech = 'live';
+    this.events.emit('interrupted', { textSpoken });
   }
 
-  private receive(data: unknown) {
-    if (typeof data !== 'string') {
-      return;
-    }
-    let raw: unknown;
-    try {
-      raw = JSON.parse(data);
-    } catch {
-      return;
-    }
-    const parsed = fluxSchema.safeParse(raw);
-    if (!parsed.success) {
-      return;
-    }
-    const message = parsed.data;
-    if (message.type === 'Error') {
+  private onListen(message: unknown) {
+    const error = errorSchema.safeParse(message);
+    if (error.success) {
       this.events.emit('error', {
-        message: message.description ?? 'Deepgram Flux error',
-        code: message.code,
+        message: error.data.description ?? 'Deepgram Flux STT error',
       });
       return;
     }
-    if (message.type !== 'TurnInfo') {
+    const turn = turnSchema.safeParse(message);
+    if (!turn.success) {
       return;
     }
-    const turn = toTurnEvent(message);
-    if (!turn) {
+    const transcript = turn.data.transcript.trim();
+    if (turn.data.event === 'StartOfTurn') {
+      this.events.emit('turn', { type: 'start' });
       return;
     }
-    this.events.emit('turn', turn);
-    if (turn.type === 'end') {
-      this.events.emit('writing', { text: turn.transcript, role: 'user' });
+    if (turn.data.event === 'EndOfTurn' && transcript) {
+      this.events.emit('turn', { type: 'end', transcript });
+      this.events.emit('writing', { text: transcript, role: 'user' });
     }
+  }
+
+  private onSpeak(message: unknown) {
+    if (message instanceof Blob) {
+      // Blob reads are async, so chain them to keep audio in order.
+      this.audioQueue = this.audioQueue
+        .then(async () => {
+          const bytes = await message.arrayBuffer();
+          const pcm = new Int16Array(
+            bytes,
+            0,
+            Math.floor(bytes.byteLength / 2)
+          );
+          const at = this.timeline;
+          this.timeline += pcm.length;
+          if (this.speech === 'live') {
+            this.events.emit('audio', { pcm, at });
+          }
+        })
+        .catch(() => undefined);
+      return;
+    }
+    const parsed = speakSchema.safeParse(message);
+    if (!parsed.success) {
+      return;
+    }
+    const event = parsed.data;
+    if (event.type === 'SpeechInterrupted') {
+      this.interrupted(event.text_spoken ?? '');
+      return;
+    }
+    if (event.type === 'SpeechStarted') {
+      this.interrupted('');
+      return;
+    }
+    this.events.emit('error', {
+      message: event.description ?? `Deepgram Flux TTS ${event.type}`,
+    });
   }
 }
 
-function toTurnEvent(message: {
-  event: string;
-  transcript: string;
-}): TurnEvent | undefined {
-  const transcript = message.transcript.trim();
-  if (message.event === 'StartOfTurn') {
-    return { type: 'start' };
-  }
-  if (message.event === 'EndOfTurn' && transcript) {
-    return { type: 'end', transcript };
+// The SDK throws on a send while a socket is reconnecting. Losing an 80 ms
+// audio chunk or a text fragment then beats breaking the caller's loop.
+function whenOpen(send: () => void) {
+  try {
+    send();
+  } catch {
+    // Reconnecting; dropped.
   }
 }
 

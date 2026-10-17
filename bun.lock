@@ -7,6 +7,7 @@
       "dependencies": {
         "@ai-sdk/provider-utils": "^5.0.26",
         "@chat-adapter/slack": "^4.35.0",
+        "@deepgram/sdk": "5.15.0",
         "@github-tools/sdk": "^1.11.1",
         "@langfuse/client": "^5.11.1",
         "@mastra/core": "1.66.0",
@@ -351,6 +352,8 @@
     "@cspell/strong-weak-map": ["@cspell/strong-weak-map@10.0.1", "", {}, "sha512-lenN1DVyPi8nJLSMSJJ670ddTjyiruLueuSZO1qLcxBqUhgxDt/mALu9N/1m6WdOVcg6m/5cLiZVg2KOo2UzRw=="],
 
     "@cspell/url": ["@cspell/url@10.0.1", "", {}, "sha512-abYYgI29wJhWIfWTYrYuzRYDcHQUQ1N5ylnhxYn1NJnIQMqUWGLbDmt12JABtZ+R6h6UNatQrS7rhP86etvJyQ=="],
+
+    "@deepgram/sdk": ["@deepgram/sdk@5.15.0", "", { "dependencies": { "ws": "^8.20.0" } }, "sha512-LAmMdOHVfvyJ8hz+YI4aK+kPmfqdtmMl7O8Q63lDWVyuHx9vEyoyt+W9y3vxxaVxdOmn4zFmGYjntbNVh/KyqA=="],
 
     "@drizzle-team/brocli": ["@drizzle-team/brocli@0.12.1", "", {}, "sha512-yHwomvolVafvUXhy5TdiJVkuNCxXn+bKOs2aWiWEQh/5YaV97Oa/abJz3dmx7lxgIUsUlS1Jl4mEfvJPo3YsVw=="],
 

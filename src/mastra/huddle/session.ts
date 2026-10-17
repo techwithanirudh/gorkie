@@ -49,22 +49,9 @@ const taskEventSchema = z.discriminatedUnion('type', [
 
 const subagentResultSchema = z.looseObject({ text: z.string() });
 
-// Splits off the first sentence once there is enough text to be worth a TTS
-// request, so audio starts after the first sentence rather than the reply.
-function nextSentence(text: string) {
-  const pattern = /[.!?]\s|\n/g;
-  pattern.lastIndex = 12;
-  const match = pattern.exec(text);
-  if (!match) {
-    return;
-  }
-  const cut = match.index + match[0].length;
-  return { sentence: text.slice(0, cut).trim(), rest: text.slice(cut) };
-}
-
 // One huddle, run as a Mastra memory thread. Utterances go in through
 // `sendMessage`, the talker's output comes back on one thread subscription
-// and is spoken sentence by sentence, and delegations run as background
+// and streams into Flux TTS as it is written, and delegations run as background
 // tasks. An idle wake runs with `untilIdle`, so Mastra itself continues the
 // talker when a task finishes; the session only covers the cases where that
 // wrapper was closed first (barge-in, a newer wake, its idle timeout).
@@ -76,15 +63,18 @@ export class HuddleSession {
   private readonly thread: { resourceId: string; threadId: string };
   private decoder?: OpusDecoderHandle;
   private subscription?: AgentThreadSubscription;
-  private playback: Int16Array[] = [];
+  // TTS audio waiting to play, each chunk tagged with where it starts on
+  // the TTS timeline, which is what a barge-in reports back.
+  private playback: { pcm: Int16Array; at: number }[] = [];
   private playbackOffset = 0;
-  private speech: Promise<void> = Promise.resolve();
-  private speechController = new AbortController();
-  private buffer = '';
-  private spoken: string[] = [];
+  private played = 0;
+  private ttsTurn: 'idle' | 'open' = 'idle';
   // Utterances sent to a run whose first step has not finished, which is
   // when `savePerStep` writes them. A barge-in before then loses them.
   private unsaved: string[] = [];
+  // Unsaved utterances from an interrupted run, held until TTS reports what
+  // was actually heard.
+  private cutOff: string[] = [];
   private abortedRunId?: string;
   private lastRunStartAt = 0;
   private lastInputAt = 0;
@@ -164,6 +154,13 @@ export class HuddleSession {
     ]);
     this.decoder = decoder;
     voice.on('turn', (turn) => this.onTurn(turn));
+    voice.on('audio', (audio) => {
+      this.playback.push(audio);
+      this.lastSpokeAt = Date.now();
+    });
+    voice.on('interrupted', ({ textSpoken }) =>
+      this.noteInterruption(textSpoken)
+    );
     voice.on('error', (error) =>
       logger.warn('[huddle] deepgram error', { callId: this.callId, error })
     );
@@ -218,7 +215,6 @@ export class HuddleSession {
       clearInterval(timer);
     }
     this.controller.abort();
-    this.speechController.abort();
     this.subscription?.abort();
     this.subscription?.unsubscribe();
     this.voice.close();
@@ -236,15 +232,9 @@ export class HuddleSession {
         continue;
       }
       if (chunk.type === 'text-delta') {
-        this.buffer += chunk.payload.text;
-        for (
-          let next = nextSentence(this.buffer);
-          next;
-          next = nextSentence(this.buffer)
-        ) {
-          this.spoken.push(next.sentence);
-          this.say(next.sentence);
-          this.buffer = next.rest;
+        if (chunk.payload.text) {
+          this.voice.say(chunk.payload.text);
+          this.ttsTurn = 'open';
         }
         continue;
       }
@@ -252,14 +242,12 @@ export class HuddleSession {
         this.unsaved = [];
         continue;
       }
-      if (chunk.type === 'finish' || chunk.type === 'error') {
-        const rest = this.buffer.trim();
-        if (rest) {
-          this.spoken.push(rest);
-          this.say(rest);
-        }
-        this.buffer = '';
-        this.spoken = [];
+      if (
+        (chunk.type === 'finish' || chunk.type === 'error') &&
+        this.ttsTurn === 'open'
+      ) {
+        this.voice.flush();
+        this.ttsTurn = 'idle';
       }
     }
   }
@@ -306,45 +294,21 @@ export class HuddleSession {
     ) {
       const take = Math.min(
         frameSamples - written,
-        chunk.length - this.playbackOffset
+        chunk.pcm.length - this.playbackOffset
       );
       frame.set(
-        chunk.subarray(this.playbackOffset, this.playbackOffset + take),
+        chunk.pcm.subarray(this.playbackOffset, this.playbackOffset + take),
         written
       );
       written += take;
       this.playbackOffset += take;
-      if (this.playbackOffset >= chunk.length) {
+      this.played = chunk.at + this.playbackOffset;
+      if (this.playbackOffset >= chunk.pcm.length) {
         this.playback.shift();
         this.playbackOffset = 0;
       }
     }
     return frame;
-  }
-
-  private say(sentence: string) {
-    const { signal } = this.speechController;
-    // Requested now so it downloads while earlier sentences play.
-    const audio = this.voice.speak(sentence, { signal });
-    audio.catch(() => undefined);
-    this.speech = this.speech
-      .then(async () => {
-        const stream = await audio;
-        let carry = Buffer.alloc(0);
-        for await (const chunk of stream) {
-          if (signal.aborted) {
-            return;
-          }
-          const bytes = Buffer.concat([carry, Buffer.from(chunk)]);
-          const usable = bytes.length - (bytes.length % 2);
-          const samples = new Int16Array(usable / 2);
-          Buffer.from(samples.buffer).set(bytes.subarray(0, usable));
-          this.playback.push(samples);
-          this.lastSpokeAt = Date.now();
-          carry = bytes.subarray(usable);
-        }
-      })
-      .catch(() => undefined);
   }
 
   private onTurn(turn: TurnEvent) {
@@ -396,31 +360,34 @@ export class HuddleSession {
       );
   }
 
-  // Stops the talker and its audio. An aborted run saves nothing, so what
-  // it had started saying, and any utterance its first step never saved,
-  // goes into the thread as a note instead.
+  // Stops the talker and its audio, and tells TTS how far playback got.
+  // An aborted run saves nothing, so once TTS reports what the room heard,
+  // that and any utterance the run never saved go into the thread as a
+  // note instead.
   private interrupt() {
     const runId = this.subscription?.activeRunId();
     if (runId) {
       this.abortedRunId = runId;
       this.subscription?.abort();
     }
-    this.speechController.abort();
-    this.speechController = new AbortController();
+    this.voice.interrupt(this.played);
     this.playback = [];
     this.playbackOffset = 0;
-    this.buffer = '';
-    const said = this.spoken.splice(0).join(' ');
-    const unheard = this.unsaved.splice(0);
-    if (!(said || unheard.length)) {
+    this.ttsTurn = 'idle';
+    this.cutOff = this.unsaved.splice(0);
+  }
+
+  private noteInterruption(textSpoken: string) {
+    const cutOff = this.cutOff.splice(0);
+    if (!(textSpoken || cutOff.length)) {
       return;
     }
     this.signal({
       tagName: 'interrupted',
       contents: [
-        said ? `You were talked over after saying: "${said}"` : '',
-        unheard.length
-          ? `You were answering: ${unheard.map((line) => `"${line}"`).join(', ')}`
+        textSpoken ? `You were talked over after saying: "${textSpoken}"` : '',
+        cutOff.length
+          ? `You were answering: ${cutOff.map((line) => `"${line}"`).join(', ')}`
           : '',
       ]
         .filter(Boolean)
@@ -488,7 +455,10 @@ export class HuddleSession {
       now - Math.max(this.filler.lastAt, this.lastSpokeAt) >
         (this.filler.count ? config.filler.interval : config.filler.first)
     ) {
-      this.say(fillers[this.filler.count % fillers.length] ?? 'still on it.');
+      this.voice.say(
+        fillers[this.filler.count % fillers.length] ?? 'still on it.'
+      );
+      this.voice.flush();
       this.filler = { count: this.filler.count + 1, lastAt: now };
     }
     this.checkPresence(now);
