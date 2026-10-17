@@ -207,6 +207,9 @@ export class HuddleSession {
       clearInterval(timer);
     }
     this.run?.controller.abort();
+    // An aborted run skips clearing the status, and the timer that would
+    // have timed it out is gone.
+    this.setThinking(false);
     this.voice.close();
     await this.link.leave().catch(() => undefined);
     this.onEnd();
