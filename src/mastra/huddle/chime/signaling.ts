@@ -10,6 +10,8 @@ const frameTypes = Frame.lookupEnum('Type').values;
 type FrameType = keyof typeof frameTypes & string;
 
 const signalFrameTypeByte = 0x05;
+// Needed for attendee presence, and a JOIN with no flags gets the meeting
+// reported at capacity.
 const hasStreamUpdateFlag = 2;
 
 export class ChimeSignaling {

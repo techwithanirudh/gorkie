@@ -83,8 +83,17 @@ export class ChimeLink {
     this.attendeeId = chime.attendee.AttendeeId;
   }
 
+  get reconnecting() {
+    return this.phase === 'reconnecting';
+  }
+
   async start() {
-    this.connection = await this.connect();
+    const connection = await this.connect();
+    if (this.stop.signal.aborted) {
+      this.teardown(connection);
+      return;
+    }
+    this.connection = connection;
     this.watchdog = setInterval(() => {
       const { connection } = this;
       if (

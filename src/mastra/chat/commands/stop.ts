@@ -3,9 +3,9 @@ import { memoryThread } from '../../lib/memory';
 import type { CommandHandler } from '../../types';
 
 // 'aborted' means a live run was cancelled, and the agent's own onAbort posts
-// about it; anything else is this command's to report. (Background-task
-// cancellation lives on the background branch, where backgroundTasks is
-// actually configured; this branch has no background tasks to stop.)
+// about it; anything else is this command's to report. Only the orchestrator's
+// thread is stopped: huddle delegations run as background tasks on the voice
+// agent's own thread, which this does not cancel.
 export async function stopThread(
   threadId: string
 ): Promise<'aborted' | 'idle'> {

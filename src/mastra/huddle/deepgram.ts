@@ -12,6 +12,7 @@ import type { TurnEvent } from '../types';
 
 interface DeepgramEvents extends VoiceEventMap {
   audio: { pcm: Int16Array<ArrayBuffer>; timelineOffset: number };
+  flushed: undefined;
   interrupted: { textSpoken: string };
   turn: TurnEvent;
 }
@@ -39,6 +40,7 @@ const speakSchema = z.discriminatedUnion('type', [
     text_spoken: z.string().optional(),
   }),
   z.looseObject({ type: z.literal('SpeechStarted') }),
+  z.looseObject({ type: z.literal('Flushed') }),
   z.looseObject({
     type: z.literal('Warning'),
     code: z.string().optional(),
@@ -89,6 +91,9 @@ export class DeepgramVoice extends MastraVoice<
   // Samples TTS has sent since its socket opened, dropped audio included,
   // because Interrupt's playback offset is measured on that timeline.
   private timeline = 0;
+  // Flux ignores an Interrupt whose offset does not pass the previous one.
+  private lastInterruptMs = -1;
+  private oddByte?: number;
 
   constructor({ apiKey }: { apiKey: string }) {
     super({
@@ -161,10 +166,20 @@ export class DeepgramVoice extends MastraVoice<
     speak.on('message', (message: unknown) => this.onSpeak(message));
     speak.on('open', () => {
       this.timeline = 0;
+      this.lastInterruptMs = -1;
+      this.oddByte = undefined;
     });
-    for (const socket of [listen, speak]) {
+    for (const [name, socket] of [
+      ['listen', listen],
+      ['speak', speak],
+    ] as const) {
       socket.on('error', (error) =>
         this.events.emit('error', { message: error.message })
+      );
+      socket.on('close', (event) =>
+        this.events.emit('error', {
+          message: `Deepgram ${name} socket closed (${event.code})`,
+        })
       );
       socket.connect();
     }
@@ -210,13 +225,15 @@ export class DeepgramVoice extends MastraVoice<
 
   interrupt(playedSample: number) {
     this.audio = 'discarding';
+    const offsetMs = Math.max(
+      Math.round(playedSample / 48),
+      this.lastInterruptMs + 1
+    );
+    this.lastInterruptMs = offsetMs;
     sendOrDrop(() =>
       this.speakSocket?.sendInterrupt({
         type: 'Interrupt',
-        playback_offset: {
-          type: 'time_ms',
-          value: Math.round(playedSample / 48),
-        },
+        playback_offset: { type: 'time_ms', value: offsetMs },
       })
     );
     clearTimeout(this.interruptTimer);
@@ -277,12 +294,16 @@ export class DeepgramVoice extends MastraVoice<
     if (message instanceof Blob) {
       this.audioQueue = this.audioQueue
         .then(async () => {
-          const bytes = await message.arrayBuffer();
-          const pcm = new Int16Array(
-            bytes,
-            0,
-            Math.floor(bytes.byteLength / 2)
-          );
+          const fresh = new Uint8Array(await message.arrayBuffer());
+          const carried = this.oddByte === undefined ? 0 : 1;
+          const bytes = new Uint8Array(carried + fresh.length);
+          if (this.oddByte !== undefined) {
+            bytes[0] = this.oddByte;
+          }
+          bytes.set(fresh, carried);
+          const even = bytes.length - (bytes.length % 2);
+          this.oddByte = even < bytes.length ? bytes[even] : undefined;
+          const pcm = new Int16Array(bytes.slice(0, even).buffer);
           const timelineOffset = this.timeline;
           this.timeline += pcm.length;
           if (this.audio === 'playing') {
@@ -299,6 +320,10 @@ export class DeepgramVoice extends MastraVoice<
     const event = parsed.data;
     if (event.type === 'SpeechInterrupted') {
       this.interrupted(event.text_spoken ?? '');
+      return;
+    }
+    if (event.type === 'Flushed') {
+      this.events.emit('flushed', undefined);
       return;
     }
     if (

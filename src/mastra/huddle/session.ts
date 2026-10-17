@@ -8,6 +8,7 @@ import {
   createDecoder,
   createEncoder,
   type OpusDecoderHandle,
+  type OpusEncoderHandle,
 } from 'libopus-wasm';
 import { z } from 'zod';
 import { voiceAgent } from '../agents/voice';
@@ -28,7 +29,7 @@ import { DeepgramVoice } from './deepgram';
 
 const frameMs = 20;
 const speakingAttenuation = 36;
-const wakeWord = /\bg[ao]r[gk]/i;
+const wakeWord = /\bg[ao]r[gk](ie|ey|y|i)\b/i;
 const maxCatchUpFrames = 10;
 
 const taskOutputSchema = z.looseObject({
@@ -64,11 +65,14 @@ export class HuddleSession implements LiveHuddle {
   private readonly link: ChimeLink;
   private readonly thread: { resourceId: string; threadId: string };
   private decoder?: OpusDecoderHandle;
+  private encoder?: OpusEncoderHandle;
   private subscription?: AgentThreadSubscription;
   private playback: { pcm: Int16Array; timelineOffset: number }[] = [];
   private playbackOffset = 0;
   private played = 0;
-  private ttsTurn: 'idle' | 'open' = 'idle';
+  // `flushing` covers the gap between the last text and Flux's first audio,
+  // when nothing is queued yet but a reply is still coming.
+  private ttsTurn: 'idle' | 'open' | 'flushing' = 'idle';
   // Utterances sent to a run whose first step has not finished, which is
   // when `savePerStep` writes them. A barge-in before then loses them.
   private unsaved: string[] = [];
@@ -139,7 +143,7 @@ export class HuddleSession implements LiveHuddle {
   }
 
   private get speaking() {
-    return this.playback.length > 0 || this.ttsTurn === 'open';
+    return this.playback.length > 0 || this.ttsTurn !== 'idle';
   }
 
   private get others() {
@@ -150,6 +154,7 @@ export class HuddleSession implements LiveHuddle {
 
   async start() {
     const { link, voice } = this;
+    const { signal } = this.controller;
     const [decoder, encoder] = await Promise.all([
       createDecoder({ channels: 1, sampleRate: 16_000 }),
       createEncoder({
@@ -161,10 +166,21 @@ export class HuddleSession implements LiveHuddle {
       }),
     ]);
     this.decoder = decoder;
+    this.encoder = encoder;
+    if (signal.aborted) {
+      this.releaseCodecs();
+      return;
+    }
     voice.on('turn', (turn) => this.onTurn(turn));
     voice.on('audio', (audio) => {
       this.playback.push(audio);
       this.lastSpokeAt = Date.now();
+      this.lastActivityAt = this.lastSpokeAt;
+    });
+    voice.on('flushed', () => {
+      if (this.ttsTurn === 'flushing') {
+        this.ttsTurn = 'idle';
+      }
     });
     voice.on('interrupted', ({ textSpoken }) =>
       this.noteInterruption(textSpoken)
@@ -174,8 +190,17 @@ export class HuddleSession implements LiveHuddle {
     );
     await voice.connect();
     await link.start();
+    if (signal.aborted) {
+      this.releaseCodecs();
+      return;
+    }
 
     const subscription = await voiceAgent.subscribeToThread(this.thread);
+    if (signal.aborted) {
+      subscription.unsubscribe();
+      this.releaseCodecs();
+      return;
+    }
     this.subscription = subscription;
     this.consume(subscription).catch((error: unknown) =>
       logger.warn('[huddle] thread subscription ended', { error })
@@ -197,7 +222,10 @@ export class HuddleSession implements LiveHuddle {
         }
         const due = Math.floor((performance.now() - base) / frameMs);
         for (; sent < due; sent++) {
-          link.sendAudio(encoder.encode(this.nextFrame()));
+          const opus = this.encoder?.encode(this.nextFrame());
+          if (opus) {
+            link.sendAudio(opus);
+          }
         }
       }, 10),
       setInterval(() => this.tick(), 1000)
@@ -232,12 +260,30 @@ export class HuddleSession implements LiveHuddle {
     this.subscription?.unsubscribe();
     this.voice.close();
     await this.link.leave().catch(() => undefined);
+    this.releaseCodecs();
     this.onEnd();
+  }
+
+  private releaseCodecs() {
+    const { decoder, encoder } = this;
+    this.decoder = undefined;
+    this.encoder = undefined;
+    decoder?.free();
+    encoder?.free();
   }
 
   private async consume(subscription: AgentThreadSubscription) {
     for await (const chunk of subscription.stream) {
       if (chunk.runId === this.abortedRunId) {
+        // A finished delegation continues under the same run id, so only the
+        // aborted turn itself is skipped.
+        if (
+          chunk.type === 'abort' ||
+          chunk.type === 'finish' ||
+          chunk.type === 'error'
+        ) {
+          this.abortedRunId = undefined;
+        }
         continue;
       }
       if (chunk.type === 'text-delta') {
@@ -256,7 +302,7 @@ export class HuddleSession implements LiveHuddle {
         this.ttsTurn === 'open'
       ) {
         this.voice.flush();
-        this.ttsTurn = 'idle';
+        this.ttsTurn = 'flushing';
       }
     }
   }
@@ -436,7 +482,7 @@ export class HuddleSession implements LiveHuddle {
     const now = Date.now();
     const floorFree = !(
       this.floor === 'user' ||
-      this.playback.length ||
+      this.speaking ||
       this.subscription?.activeRunId()
     );
     if (
@@ -515,13 +561,23 @@ export class HuddleSession implements LiveHuddle {
   }
 
   private checkPresence(now: number) {
+    // Every reconnect attempt starts the attendee list over, so an outage
+    // would otherwise read as everyone leaving.
+    if (this.link.reconnecting) {
+      this.aloneSince = undefined;
+      return;
+    }
     this.aloneSince = this.others > 0 ? undefined : (this.aloneSince ?? now);
     if (this.aloneSince && now - this.aloneSince > config.aloneTimeout) {
       this.end('everyone left').catch(() => undefined);
       return;
     }
-    if (now - this.lastActivityAt > config.idleTimeout) {
-      this.end('idle').catch(() => undefined);
+    if (now - this.lastActivityAt <= config.idleTimeout) {
+      return;
     }
+    this.lastActivityAt = now;
+    this.runningTasks()
+      .then((tasks) => (tasks.length ? undefined : this.end('idle')))
+      .catch(() => undefined);
   }
 }
