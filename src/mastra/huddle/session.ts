@@ -7,6 +7,7 @@ import {
   type OpusDecoderHandle,
 } from 'libopus-wasm';
 import { z } from 'zod';
+import { addresseeAgent } from '../agents/addressee';
 import { voiceAgent } from '../agents/voice';
 import { chat } from '../chat/instance';
 import { getMastra } from '../chat/mastra-instance';
@@ -49,6 +50,27 @@ const taskEventSchema = z.discriminatedUnion('type', [
 
 const subagentResultSchema = z.looseObject({ text: z.string() });
 
+// A soft rising three note "tu du dum" every 1.4 s, synthesized at 48 kHz so
+// there is no audio asset to ship. Each note is a sine under a half sine
+// envelope, so it starts and stops without clicks.
+const thinkingLoop = new Int16Array(67_200);
+for (const [start, hz] of [
+  [0, 523],
+  [0.14, 659],
+  [0.28, 784],
+] as const) {
+  const offset = Math.round(start * 48_000);
+  const length = 5280;
+  for (let i = 0; i < length; i++) {
+    thinkingLoop[offset + i] = Math.round(
+      Math.sin((Math.PI * i) / length) *
+        Math.sin((2 * Math.PI * hz * i) / 48_000) *
+        config.thinking.volume *
+        32_767
+    );
+  }
+}
+
 // One huddle, run as a Mastra memory thread. Utterances go in through
 // `sendMessage`, the talker's output comes back on one thread subscription
 // and streams into Flux TTS as it is written, and delegations run as background
@@ -70,6 +92,13 @@ export class HuddleSession {
   private playbackOffset = 0;
   private played = 0;
   private ttsTurn: 'idle' | 'open' = 'idle';
+  // Set from the moment gorkie owes a reply until its first audio arrives.
+  private thinking?: { since: number; at: number };
+  // The last few lines of the room, gorkie's included, for the addressee
+  // check. The reply being written is held apart until its run ends.
+  private recent: string[] = [];
+  private reply = '';
+  private turns: Promise<void> = Promise.resolve();
   // Utterances sent to a run whose first step has not finished, which is
   // when `savePerStep` writes them. A barge-in before then loses them.
   private unsaved: string[] = [];
@@ -159,6 +188,7 @@ export class HuddleSession {
     this.decoder = decoder;
     voice.on('turn', (turn) => this.onTurn(turn));
     voice.on('audio', (audio) => {
+      this.thinking = undefined;
       this.playback.push(audio);
       this.lastSpokeAt = Date.now();
     });
@@ -237,6 +267,7 @@ export class HuddleSession {
       }
       if (chunk.type === 'text-delta') {
         if (chunk.payload.text) {
+          this.reply += chunk.payload.text;
           this.voice.say(chunk.payload.text);
           this.ttsTurn = 'open';
         }
@@ -246,13 +277,21 @@ export class HuddleSession {
         this.unsaved = [];
         continue;
       }
-      if (
-        (chunk.type === 'finish' || chunk.type === 'error') &&
-        this.ttsTurn === 'open'
-      ) {
+      if (chunk.type !== 'finish' && chunk.type !== 'error') {
+        continue;
+      }
+      if (this.reply.trim()) {
+        this.remember(`gorkie: ${this.reply.trim()}`);
+        this.reply = '';
+      }
+      if (this.ttsTurn === 'open') {
         this.voice.flush();
         this.ttsTurn = 'idle';
+        continue;
       }
+      // A run that ended without a word (a quiet delegation, an error) owes
+      // no audio, so the thinking sound would loop to its timeout.
+      this.thinking = undefined;
     }
   }
 
@@ -290,6 +329,13 @@ export class HuddleSession {
 
   private nextFrame() {
     const frame = new Int16Array(frameSamples);
+    if (this.thinking && !this.playback.length) {
+      for (let i = 0; i < frameSamples; i++) {
+        frame[i] = thinkingLoop[this.thinking.at] ?? 0;
+        this.thinking.at = (this.thinking.at + 1) % thinkingLoop.length;
+      }
+      return frame;
+    }
     let written = 0;
     for (
       let [chunk] = this.playback;
@@ -319,6 +365,7 @@ export class HuddleSession {
     this.lastActivityAt = Date.now();
     if (turn.type === 'start') {
       this.floor = 'user';
+      this.thinking = undefined;
       // Barge-in cuts speech only, counting text already handed to TTS whose
       // audio has not arrived yet. A reply still thinking keeps going, and
       // the next utterance joins its run as a follow-up.
@@ -334,24 +381,43 @@ export class HuddleSession {
     const name = this.lastSpeaker
       ? this.names.get(this.lastSpeaker)
       : undefined;
+    const line = `${name ?? 'someone'}: ${turn.transcript}`;
+    this.remember(line);
+    // Turns queue so a slow addressee check never reorders the transcript.
+    this.turns = this.turns
+      .then(() => this.endTurn({ transcript: turn.transcript, name }))
+      .catch((error: unknown) =>
+        logger.warn('[huddle] turn failed', { callId: this.callId, error })
+      );
+  }
+
+  private async endTurn({
+    transcript,
+    name,
+  }: {
+    transcript: string;
+    name?: string;
+  }) {
     const humans = [...this.attendees.values()].filter(
       ({ attendeeId }) => attendeeId !== this.link.attendeeId
     ).length;
-    // A huddle is a room: answer when named, during a back and forth, or
-    // when there is only one person to talk to. Everything else is kept as
-    // context without a reply.
+    const named = /\bg[ao]r[gk]/i.test(transcript);
+    const followUp = Date.now() - this.lastSpokeAt < config.followUpWindow;
+    // A huddle is a room: answer when named, or when there is only one person
+    // to talk to. A follow-up without the name, with others around, is
+    // checked by a fast model so side chatter right after gorkie spoke does
+    // not get a reply. Everything else is kept as context.
     const addressed =
-      humans <= 1 ||
-      /\bg[ao]r[gk]/i.test(turn.transcript) ||
-      Date.now() - this.lastSpokeAt < config.followUpWindow;
+      named || humans <= 1 || (followUp && (await this.aimedAtGorkie()));
     if (addressed) {
+      this.thinking = { since: Date.now(), at: 0 };
       this.lastInputAt = Date.now();
-      this.unsaved.push(name ? `${name}: ${turn.transcript}` : turn.transcript);
+      this.unsaved.push(name ? `${name}: ${transcript}` : transcript);
     }
     voiceAgent
       .sendMessage(
         {
-          contents: turn.transcript,
+          contents: transcript,
           attributes: name ? { name } : undefined,
         },
         {
@@ -368,6 +434,23 @@ export class HuddleSession {
       );
   }
 
+  private async aimedAtGorkie() {
+    try {
+      const result = await addresseeAgent.generate(this.recent.join('\n'), {
+        abortSignal: AbortSignal.timeout(config.addressee.timeout),
+      });
+      return /^\s*yes/i.test(result.text);
+    } catch {
+      // Slow or failed: a missed follow-up is cheaper than butting in.
+      return false;
+    }
+  }
+
+  private remember(line: string) {
+    this.recent.push(line);
+    this.recent = this.recent.slice(-config.addressee.lines);
+  }
+
   // Stops the talker and its audio, and tells TTS how far playback got.
   // An aborted run saves nothing, so once TTS reports what the room heard,
   // that and any utterance the run never saved go into the thread as a
@@ -382,6 +465,8 @@ export class HuddleSession {
     this.playback = [];
     this.playbackOffset = 0;
     this.ttsTurn = 'idle';
+    // The interrupted note records what the room actually heard instead.
+    this.reply = '';
     this.cutOff = this.unsaved.splice(0);
   }
 
@@ -415,6 +500,7 @@ export class HuddleSession {
   }) {
     if (wake) {
       this.lastInputAt = Date.now();
+      this.thinking ??= { since: Date.now(), at: 0 };
     }
     voiceAgent
       .sendSignal(
@@ -435,6 +521,9 @@ export class HuddleSession {
 
   private tick() {
     const now = Date.now();
+    if (this.thinking && now - this.thinking.since > config.thinking.timeout) {
+      this.thinking = undefined;
+    }
     const floorFree = !(
       this.floor === 'user' ||
       this.playback.length ||

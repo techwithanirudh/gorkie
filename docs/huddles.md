@@ -23,8 +23,12 @@ Once in the call:
    thread subscription, and each text delta goes straight into a warm Deepgram
    Flux TTS socket, which picks its own sentence boundaries.
 4. **Answering only when addressed.** gorkie replies when someone says its
-   name, during a back and forth (20 s after it last spoke), or when only one
-   person is in the call. Everything else is kept as context without a reply.
+   name, or when only one person is in the call. In the 20 s after it last
+   spoke, with others around, a fast model reads the last few lines and
+   decides whether an unnamed line is a follow-up or side chatter. Everything
+   else is kept as context without a reply. While gorkie works on a reply, a
+   soft looping "thinking" sound plays until its first word, and stops the
+   moment someone starts talking.
 5. **Barge-in.** Talking over gorkie stops its audio and aborts the reply.
    gorkie tells Flux TTS how much audio actually played, and Flux answers with
    the exact text the room heard, which goes into the thread as a note.
@@ -80,7 +84,7 @@ model call.
   into one stream. Two people talking at once get attributed to whoever was
   louder last.
 - Speech recognition and the voice are English only (`flux-general-en`,
-  `flux-alexis-en`). Deepgram also has `flux-general-multi` for multilingual
+  `flux-haley-en`). Deepgram also has `flux-general-multi` for multilingual
   speech; switching is one line in `src/mastra/config.ts`.
 - There is no voice command to cancel a running delegation yet.
 - Untested against a live huddle at the time of writing. See the huddle item

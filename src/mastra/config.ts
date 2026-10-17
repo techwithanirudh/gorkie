@@ -54,7 +54,7 @@ export const workingModel = {
 export const emoji = { listTtl: 5 * 60 * 1000 };
 
 export const huddle = {
-  voice: 'flux-alexis-en',
+  voice: 'flux-haley-en',
   sttModel: 'flux-general-en',
   // Flux end-of-turn confidence, and the silence after which a turn ends
   // regardless. The likeliest knobs to turn after a live test.
@@ -70,6 +70,13 @@ export const huddle = {
   // Without its name, an utterance still gets an answer this soon after
   // gorkie last spoke, so follow-ups flow without "hey gorkie" every time.
   followUpWindow: 20 * 1000,
+  // Inside that window, with more than one person in the call, a fast model
+  // reads the last few lines to tell a follow-up from side chatter.
+  addressee: { lines: 8, timeout: 1500 },
+  // The looping "thinking" sound between someone finishing and gorkie's
+  // first word. Volume is a fraction of full scale; the timeout stops it if
+  // a reply never comes.
+  thinking: { volume: 0.08, timeout: 20 * 1000 },
   // Idle-gated "still working" lines while a delegation runs: the first
   // after this much quiet, then the interval, at most `count` of them.
   filler: { first: 5000, interval: 10_000, count: 3 },

@@ -2,6 +2,7 @@ import { env } from '@/env';
 import { isUserAllowed } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
 import type { HuddleEvent } from '../types';
+import { huddleAccount } from './account';
 import { HuddleSession } from './session';
 import { HuddleSlack } from './slack';
 
@@ -78,6 +79,7 @@ export async function startHuddles(): Promise<void> {
     onEvent: handle,
   });
   await slack.start();
+  huddleAccount.userId = slack.userId;
   logger.info('[huddle] listening for huddle invites', {
     userId: slack.userId,
   });
