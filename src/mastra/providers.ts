@@ -1,6 +1,7 @@
 import type { ModelWithRetries } from '@mastra/core/agent';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { env } from '@/env';
+import { huddle } from './config';
 import { channelContext } from './lib/context';
 import { recallModel, slugOf } from './lib/working-model';
 
@@ -81,9 +82,13 @@ const explorerModels = ladder('explore');
 
 export const explorer = () => preferLastWorking(explorerModels);
 
-const voiceModels = ladder('voice');
-
-export const voice = () => preferLastWorking(voiceModels);
+// The configured voice model leads and the shared ladder is only the
+// fallback. The last-working lookup is skipped: it costs a state read per
+// spoken turn, and a text turn's pick could put a slower model first.
+export const voice: ModelWithRetries[] = [
+  { ...opencode(huddle.model, 'voice'), maxRetries: 1 },
+  ...ladder('voice'),
+];
 
 export const images = {
   model: hackclub('google/gemini-3.1-flash-image', {

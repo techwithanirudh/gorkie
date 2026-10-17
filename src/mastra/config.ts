@@ -54,6 +54,9 @@ export const workingModel = {
 export const emoji = { listTtl: 5 * 60 * 1000 };
 
 export const huddle = {
+  // The talker's model on OpenCode Go: the fastest to first token in the
+  // other huddle branch's live comparison, with a 1M context.
+  model: 'minimax-m3',
   voice: 'flux-alexis-en',
   sttModel: 'flux-general-en',
   // Flux end-of-turn confidence, and the silence after which a turn ends
