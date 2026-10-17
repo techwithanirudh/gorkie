@@ -31,8 +31,8 @@ Once in the call:
 6. **Delegating.** The `voice` agent hands real work to `research` or
    `explore`, which run as Mastra background tasks as the person who invited
    gorkie. It says a short ack and keeps the conversation going. When a task
-   finishes, Mastra continues the talker with the result and it says the
-   answer. Asked how it is going, gorkie calls `task_status`, which lists each
+   finishes, the session wakes the talker with a signal carrying the result,
+   and it says the answer. Asked how it is going, gorkie calls `task_status`, which lists each
    running task with how long it has run, the tool it is on, and its latest
    partial text. Talking over gorkie never cancels a running task. A task
    still running when the huddle ends posts its result to the huddle thread
