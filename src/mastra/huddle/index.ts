@@ -136,14 +136,13 @@ export async function startHuddles(): Promise<void> {
       );
       return;
     }
-    const session = sessions.get(event.callId);
-    if (event.type === 'ended') {
-      session?.end('huddle ended').catch(() => undefined);
-      return;
-    }
-    if (event.userId === slack.userId) {
-      session?.end('removed from the huddle').catch(() => undefined);
-    }
+    // Slack also sends sh_room_leave for gorkie's own user while it is still
+    // in the call (it ended live sessions 30 to 65 s in), so being removed is
+    // left to Chime's audio status, which the link already treats as final.
+    sessions
+      .get(event.callId)
+      ?.end('huddle ended')
+      .catch(() => undefined);
   }
 
   const slack = new HuddleSlack({

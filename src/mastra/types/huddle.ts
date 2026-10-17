@@ -20,8 +20,7 @@ export type HuddleEvent =
       inviterId: string;
       chime?: ChimeJoinInfo;
     }
-  | { type: 'ended'; callId: string }
-  | { type: 'member-left'; callId: string; userId: string };
+  | { type: 'ended'; callId: string };
 
 export interface TurnCredentials {
   password: string;

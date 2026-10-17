@@ -57,12 +57,6 @@ const realtimeSchema = z.discriminatedUnion('type', [
     free_willy: chimeSchema.optional(),
   }),
   z.looseObject({
-    type: z.literal('sh_room_leave'),
-    user: z.string(),
-    call_id: z.string().optional(),
-    room: z.looseObject({ id: z.string().optional() }).optional(),
-  }),
-  z.looseObject({
     type: z.literal('sh_room_update'),
     huddle: z
       .looseObject({
@@ -88,12 +82,6 @@ function toEvent(
       inviterId: message.sender_user_id,
       chime: message.free_willy,
     };
-  }
-  if (message.type === 'sh_room_leave') {
-    const callId = message.call_id ?? message.room?.id;
-    return callId
-      ? { type: 'member-left', callId, userId: message.user }
-      : undefined;
   }
   if (message.type === 'sh_room_update') {
     const callId = message.room?.call_id ?? message.huddle?.id;
