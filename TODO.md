@@ -103,6 +103,8 @@ Three surfaces that are shipped, reachable by real people, and never verified en
 
 ## Known issues
 
+- [x] Summarizer ladder led with a model OpenCode Go does not serve yet (2026-10-17, seen on the huddle test box at 10:20:19): `opencode-go/mimo-v2.6-flash` answered `[model_coming_soon]`, so every summary, observational memory cycle and thread title spent its retries (`maxRetries: 3`) before falling back to `google/gemini-3.5-flash-lite` on Hack Club. Orchestrator title generation also failed outright with "Error generating title", because it takes `summarizerModel[0].model`, the bare model string, and so never sends the ladder entry's `x-opencode-session` header. Dropped the mimo entry, which leaves Gemini 3.5 Flash Lite first (1M input, 65,536 output, already the smallest output cap the providers rule is written around) and fixes titles as a side effect. Not verified against the live Go catalog from this session (the egress proxy blocks opencode.ai); the evidence is the provider's own error on the box. Re-add a Go summarizer once one is actually served there.
+
 - [ ] Hack Club image generation is still blocked upstream: the authenticated `google/gemini-3.1-flash-image` chat-completion request on 2026-10-05 returned HTTP 429, `The request would exceed the "OpenRouter top-up wait" spending limit`. The provider spending allowance must be restored before a live generation/edit can succeed; then verify generation and editing in the owner's existing bot instance. No bot process was started or restarted.
 
 

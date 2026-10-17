@@ -70,7 +70,6 @@ const orchestratorModels = ladder('orchestrator');
 export const orchestrator = () => preferLastWorking(orchestratorModels);
 
 export const summarizer: ModelWithRetries[] = [
-  { ...opencode('mimo-v2.6-flash', 'summarizer'), maxRetries: 3 },
   { model: hackclub('google/gemini-3.5-flash-lite'), maxRetries: 3 },
 ];
 
