@@ -75,6 +75,12 @@ export interface HuddleAccount {
 
 export type TurnEvent = { type: 'start' } | { type: 'end'; transcript: string };
 
+export interface HuddleTask {
+  brief: string;
+  startedAt: number;
+  step?: string;
+}
+
 export interface HuddleRun {
   controller: AbortController;
   delegated: boolean;

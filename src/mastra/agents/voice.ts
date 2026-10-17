@@ -4,7 +4,7 @@ import { env } from '@/env';
 import { huddle as config, summarizer as summarizerConfig } from '../config';
 import { DeepgramVoice } from '../huddle/deepgram';
 import { defaultErrorProcessors } from '../lib/error-handling';
-import { stepCountIs, toolCall } from '../lib/tools';
+import { stepCountIs } from '../lib/tools';
 import * as voice from '../prompts/agents/voice';
 import {
   summarizer as summarizerModel,
@@ -57,8 +57,6 @@ export const voiceAgent = new Agent({
       maxRetries: 1,
       reasoning: 'none',
     },
-    // A delegation ends the turn, so the talker cannot pile a second line on
-    // top of its ack.
-    stopWhen: [stepCountIs(config.maxSteps), toolCall('delegate')],
+    stopWhen: stepCountIs(config.maxSteps),
   },
 });

@@ -15,7 +15,13 @@ import { huddle as config } from '../config';
 import { threadIdOf } from '../lib/ids';
 import { logger } from '../lib/logger';
 import { delegateTool } from '../tools/delegate';
-import type { HuddleRun, JoinedHuddle, SignalFrame, TurnEvent } from '../types';
+import type {
+  HuddleRun,
+  HuddleTask,
+  JoinedHuddle,
+  SignalFrame,
+  TurnEvent,
+} from '../types';
 import { ChimeLink } from './chime/link';
 import { DeepgramVoice } from './deepgram';
 
@@ -57,6 +63,8 @@ export class HuddleSession {
   private backlog: string[] = [];
   private run?: HuddleRun;
   private readonly results: { text: string; at: number }[] = [];
+  private readonly tasks = new Map<number, HuddleTask>();
+  private taskCount = 0;
   private turns: Promise<void> = Promise.resolve();
   private lastSpokeAt = 0;
   private floor: 'open' | 'user' = 'open';
@@ -228,12 +236,15 @@ export class HuddleSession {
 
   private async stream(run: HuddleRun) {
     this.mark('streamStart');
-    const output = await voiceAgent.stream(run.lines.join('\n'), {
-      memory: this.thread,
-      requestContext: this.requestContext(),
-      toolsets: { huddle: { delegate: this.delegate } },
-      abortSignal: run.controller.signal,
-    });
+    const output = await voiceAgent.stream(
+      [...run.lines, ...this.runningNote()].join('\n'),
+      {
+        memory: this.thread,
+        requestContext: this.requestContext(),
+        toolsets: { huddle: { delegate: this.delegate } },
+        abortSignal: run.controller.signal,
+      }
+    );
     this.mark('streamReady');
     for await (const chunk of output.fullStream) {
       if (run.controller.signal.aborted) {
@@ -308,26 +319,16 @@ export class HuddleSession {
   // on the huddle thread, so tools that need a live Slack message (search)
   // work. It outlives the huddle: the result is posted to the thread either
   // way, and spoken if gorkie is still in the call.
-  private runTask(task: string) {
-    const startedAt = Date.now();
-    logger.info('[huddle] delegated', { callId: this.callId, task });
-    getMastra()
-      .getAgent('orchestrator')
-      .generate(
-        `Asked out loud in a Slack huddle, relayed by your voice:\n\n${task}`,
-        {
-          memory: {
-            resource: this.thread.resource,
-            thread: `huddle-task:${this.callId}`,
-          },
-          requestContext: this.requestContext(),
-          abortSignal: AbortSignal.timeout(config.delegateTimeout),
-        }
-      )
-      .then(({ text }) => {
+  private runTask(brief: string) {
+    const id = ++this.taskCount;
+    const task: HuddleTask = { brief, startedAt: Date.now() };
+    this.tasks.set(id, task);
+    logger.info('[huddle] delegated', { callId: this.callId, brief });
+    this.followTask({ id, task })
+      .then((text) => {
         logger.info('[huddle] delegation finished', {
           callId: this.callId,
-          ms: Date.now() - startedAt,
+          ms: Date.now() - task.startedAt,
         });
         this.postToThread(text);
         this.results.push({ text, at: Date.now() });
@@ -335,14 +336,51 @@ export class HuddleSession {
       .catch((error: unknown) => {
         logger.warn('[huddle] delegation failed', {
           callId: this.callId,
-          ms: Date.now() - startedAt,
+          ms: Date.now() - task.startedAt,
           error,
         });
         this.results.push({
           text: 'The task failed before it finished.',
           at: Date.now(),
         });
-      });
+      })
+      .finally(() => this.tasks.delete(id));
+  }
+
+  // Streams rather than generates so the talker can say what a running
+  // task is doing, from the tool it called last. Each task gets its own
+  // memory thread, since two can run at once and the brief is self
+  // contained.
+  private async followTask({ id, task }: { id: number; task: HuddleTask }) {
+    const output = await getMastra()
+      .getAgent('orchestrator')
+      .stream(
+        `Asked out loud in a Slack huddle, relayed by your voice:\n\n${task.brief}`,
+        {
+          memory: {
+            resource: this.thread.resource,
+            thread: `huddle-task:${this.callId}:${id}`,
+          },
+          requestContext: this.requestContext(),
+          abortSignal: AbortSignal.timeout(config.delegateTimeout),
+        }
+      );
+    for await (const chunk of output.fullStream) {
+      if (chunk.type === 'tool-call') {
+        task.step = chunk.payload.toolName;
+      }
+    }
+    return output.text;
+  }
+
+  // Delegations still running, for the talker to answer "how's it going".
+  private runningNote() {
+    const now = Date.now();
+    const running = [...this.tasks.values()].map(
+      ({ brief, startedAt, step }) =>
+        `"${brief.slice(0, 200)}" for ${Math.round((now - startedAt) / 1000)} s${step ? `, now using ${step}` : ''}`
+    );
+    return running.length ? [`[running] ${running.join('; ')}`] : [];
   }
 
   private nextFrame() {

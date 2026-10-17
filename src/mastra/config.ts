@@ -66,7 +66,7 @@ export const huddle = {
   eotTimeoutMs: 5000,
   batchSttModel: 'nova-3',
   // Spoken replies are a few sentences, so a small cap also bounds the cost
-  // of a runaway turn. A delegation ends the turn, so two steps is plenty.
+  // of a runaway turn. Two steps covers a delegation plus a line after it.
   maxOutputTokens: 1024,
   maxSteps: 2,
   // Short on purpose: every turn pays for this context in model latency,
