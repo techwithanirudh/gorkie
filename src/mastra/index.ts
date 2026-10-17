@@ -32,6 +32,7 @@ const isProduction = env.NODE_ENV === 'production';
 
 export const mastra = new Mastra({
   agents: { orchestrator, summarizer, research, explore, voice },
+  backgroundTasks: { enabled: true },
   schedules: {
     prepare: async ({ mastra: runtime, schedule }) => {
       const current = await runtime.schedules.get(schedule.id);

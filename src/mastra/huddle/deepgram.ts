@@ -52,8 +52,9 @@ const chunkSamples = 1280;
 // Deepgram behind Mastra's voice interface, built for a live call rather
 // than files: `speak` streams Aura-2 PCM over REST per sentence, and the
 // realtime trio (`connect`, `send`, `on`) runs Flux, whose model decides
-// turn ends itself (StartOfTurn for barge-in, EagerEndOfTurn to start the
-// reply early, TurnResumed to take that back, EndOfTurn to commit).
+// turn ends itself (StartOfTurn for barge-in, EndOfTurn to reply). Flux's
+// eager end of turn is left off: a speculative run that gets discarded
+// would still leave its half turn in the memory thread.
 // `@mastra/voice-deepgram` only does batch `listen` and has no live socket.
 export class DeepgramVoice extends MastraVoice<
   unknown,
@@ -138,7 +139,6 @@ export class DeepgramVoice extends MastraVoice<
       encoding: 'linear16',
       sample_rate: '16000',
       eot_threshold: '0.7',
-      eager_eot_threshold: '0.5',
       eot_timeout_ms: '5000',
     }).toString();
     const socket = new WebSocket(url, ['token', this.options.apiKey]);
@@ -269,16 +269,7 @@ function toTurnEvent(message: {
   if (message.event === 'StartOfTurn') {
     return { type: 'start' };
   }
-  if (message.event === 'TurnResumed') {
-    return { type: 'resumed' };
-  }
-  if (!transcript) {
-    return;
-  }
-  if (message.event === 'EagerEndOfTurn') {
-    return { type: 'eager', transcript };
-  }
-  if (message.event === 'EndOfTurn') {
+  if (message.event === 'EndOfTurn' && transcript) {
     return { type: 'end', transcript };
   }
 }

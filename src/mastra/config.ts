@@ -57,10 +57,17 @@ export const huddle = {
   voice: 'aura-2-thalia-en',
   sttModel: 'flux-general-en',
   // Spoken replies are a few sentences, so a small cap also bounds the cost
-  // of a runaway turn. Steps cover a delegate call plus the reply after it.
+  // of a runaway turn. Steps cover a delegation plus the reply after it.
   maxOutputTokens: 1024,
   maxSteps: 4,
-  maxHistory: 40,
+  lastMessages: 40,
+  task: { researchTimeout: 15 * 60 * 1000, exploreTimeout: 20 * 60 * 1000 },
+  // Without its name, an utterance still gets an answer this soon after
+  // gorkie last spoke, so follow-ups flow without "hey gorkie" every time.
+  followUpWindow: 20 * 1000,
+  // Idle-gated "still working" lines while a delegation runs: the first
+  // after this much quiet, then the interval, at most `count` of them.
+  filler: { first: 5000, interval: 10_000, count: 3 },
   // Leave once nobody else has been in the call this long.
   aloneTimeout: 60 * 1000,
   idleTimeout: 15 * 60 * 1000,

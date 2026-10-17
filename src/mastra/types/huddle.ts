@@ -49,14 +49,4 @@ export interface SignalFrame {
   type: string;
 }
 
-export type TurnEvent =
-  | { type: 'start' }
-  | { type: 'eager'; transcript: string }
-  | { type: 'resumed' }
-  | { type: 'end'; transcript: string };
-
-export type VoiceMessage =
-  | { role: 'user'; content: string }
-  | { role: 'assistant'; content: string };
-
-export type HuddleAgentKey = 'research' | 'explore';
+export type TurnEvent = { type: 'start' } | { type: 'end'; transcript: string };

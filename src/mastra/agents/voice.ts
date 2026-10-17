@@ -1,18 +1,20 @@
 import { Agent } from '@mastra/core/agent';
+import { Memory } from '@mastra/memory';
 import { env } from '@/env';
 import { huddle as config } from '../config';
 import { DeepgramVoice } from '../huddle/deepgram';
-import { delegateTool } from '../huddle/delegate';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
 import { workingModel } from '../processors/working-model';
 import * as voice from '../prompts/agents/voice';
 import { voice as voiceModel } from '../providers';
+import { exploreAgent } from './explore';
+import { researchAgent } from './research';
 
-// The talker in a huddle. Its only tool is `delegate`, which returns at once,
-// so a turn is one fast model call and anything slow happens in a subagent
-// while the room keeps talking. History lives on the huddle session, not in
-// Mastra memory, so a speculative reply that gets cancelled leaves no trace.
+// The talker in a huddle. It has no tools of its own: research and explore
+// are subagents dispatched as Mastra background tasks, so a delegation
+// returns at once and a turn stays one fast model call. Each huddle is a
+// memory thread driven through signals (see `huddle/session.ts`).
 export const voiceAgent = new Agent({
   id: 'voice',
   name: 'Voice',
@@ -27,12 +29,26 @@ export const voiceAgent = new Agent({
       })
     : undefined,
   errorProcessors: defaultErrorProcessors(),
-  tools: { delegate: delegateTool },
+  agents: { research: researchAgent, explore: exploreAgent },
+  backgroundTasks: {
+    tools: {
+      research: { enabled: true, timeoutMs: config.task.researchTimeout },
+      explore: { enabled: true, timeoutMs: config.task.exploreTimeout },
+    },
+  },
+  memory: new Memory({ options: { lastMessages: config.lastMessages } }),
   defaultOptions: {
     modelSettings: {
       maxOutputTokens: config.maxOutputTokens,
       maxRetries: 2,
       reasoning: 'none',
+    },
+    // A barge-in aborts the run, and an aborted run skips the end-of-run
+    // save. Saving per step keeps a delegation call made in an earlier
+    // step, which is where its background result is written back.
+    savePerStep: true,
+    delegation: {
+      messageFilter: ({ messages }) => messages.slice(-12),
     },
     stopWhen: stepCountIs(config.maxSteps),
   },
