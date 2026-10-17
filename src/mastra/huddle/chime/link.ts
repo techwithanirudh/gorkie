@@ -8,8 +8,6 @@ import type {
 import { rtpPacket, rtpPayload, senderReport } from './rtp';
 import { ChimeSignaling } from './signaling';
 
-// AUDIO_STATUS values after which reconnecting cannot help: joined from
-// another device, disconnected, rejected, at capacity, ended, removed.
 const terminalAudioStatus = new Set([301, 302, 403, 409, 410, 411]);
 
 interface Connection {
@@ -79,7 +77,6 @@ export class ChimeLink {
     this.connection = await this.connect();
     this.watchdog = setInterval(() => {
       const { connection } = this;
-      // The server sends BITRATES every 4 s, so silence means a dead socket.
       if (
         connection?.open &&
         Date.now() - connection.signaling.lastInboundAt > 15_000

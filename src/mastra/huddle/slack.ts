@@ -103,10 +103,8 @@ function toEvent(
 }
 
 // Slack's own desktop client is the only thing that can join a huddle, so
-// this speaks its private API as a dedicated user: the realtime socket for
-// invites and room updates, and `rooms.join` for the Chime credentials.
+// this speaks its private API as a dedicated user.
 // Ported from HuddleFM's `slack-huddle.ts`.
-
 export class HuddleSlack {
   private socket?: WebSocket;
   private pingTimer?: ReturnType<typeof setInterval>;
@@ -286,8 +284,6 @@ export class HuddleSlack {
         await this.connect(teamId);
         return;
       } catch (error) {
-        // Slack's reconnect_url is short-lived, so a failed attempt falls
-        // back to the gateway.
         this.reconnectUrl = undefined;
         logger.warn('[huddle] realtime reconnect failed', { error });
       }

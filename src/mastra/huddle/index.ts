@@ -39,8 +39,6 @@ export async function startHuddles(): Promise<void> {
         : await slack.join(event.channelId);
       const session = new HuddleSession({
         joined,
-        // Inviting gorkie is consent for the whole huddle, so every request
-        // runs as the inviter, the only person the allowlist checked.
         actingAs: event.inviterId,
         apiKey,
         onEnd: () => liveHuddles.delete(joined.callId),

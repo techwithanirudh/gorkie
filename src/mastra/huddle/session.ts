@@ -82,8 +82,8 @@ export class HuddleSession implements LiveHuddle {
   private lastActivityAt = Date.now();
   private readonly timers: ReturnType<typeof setInterval>[] = [];
   private readonly controller = new AbortController();
-  // Live progress of running delegations, keyed by task id. Mastra stores
-  // only status and result on the task record, so this comes off its stream.
+  // Mastra stores only status and result on the task record, so progress
+  // comes off its stream.
   private readonly progress = new Map<
     string,
     { toolCalls: number; currentTool?: string; text: string }

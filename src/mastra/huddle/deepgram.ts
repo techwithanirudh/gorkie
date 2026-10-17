@@ -60,7 +60,6 @@ const prerecordedSchema = z.looseObject({
   }),
 });
 
-// Flux STT wants 80 ms chunks of 16 kHz mono linear16.
 const chunkSamples = 1280;
 
 export class DeepgramVoice extends MastraVoice<
@@ -230,8 +229,6 @@ export class DeepgramVoice extends MastraVoice<
         },
       })
     );
-    // With no turn left to cut, TTS may never answer, and audio must not
-    // stay muted waiting for it.
     clearTimeout(this.interruptTimer);
     this.interruptTimer = setTimeout(() => this.interrupted(''), 1500);
   }

@@ -81,7 +81,6 @@ function encodeFrame({
       ...body,
     })
   ).finish();
-  // Every signaling message is one type byte, then the protobuf frame.
   const out = new Uint8Array(encoded.length + 1);
   out[0] = 0x05;
   out.set(encoded, 1);
@@ -230,8 +229,6 @@ export class ChimeSignaling {
       body: {
         join: {
           protocol_version: 2,
-          // HAS_STREAM_UPDATE, needed for attendee presence. Left otherwise
-          // unset like the JS SDK: sending 0 reports the meeting at capacity.
           flags: 2,
           client_details: {
             app_name: 'gorkie',

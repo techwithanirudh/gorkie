@@ -46,7 +46,6 @@ export function senderReport({
   return packet;
 }
 
-// RFC 3550 framing: fixed header, CSRCs, an optional extension, and padding.
 export function rtpPayload({
   packet,
   payloadType,
