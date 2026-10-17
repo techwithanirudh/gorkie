@@ -11,12 +11,11 @@ import { voiceAgent } from '../agents/voice';
 import { getMastra } from '../chat/mastra-instance';
 import { resolveUserProfile } from '../chat/names';
 import { huddle as config } from '../config';
-import { threadIdOf } from '../lib/ids';
+import { chatChannelId } from '../lib/ids';
 import { logger } from '../lib/logger';
-import { hangUpTool } from '../tools/leave-huddle';
-import { taskStatusTool } from '../tools/task-status';
 import type {
   JoinedHuddle,
+  LiveHuddle,
   SignalFrame,
   TaskStatus,
   TurnEvent,
@@ -52,9 +51,10 @@ const taskOutputSchema = z.looseObject({
 
 const taskArgsSchema = z.looseObject({ prompt: z.string().optional() });
 
-export class HuddleSession {
+export class HuddleSession implements LiveHuddle {
+  readonly slackThreadId: string;
   private readonly joined: JoinedHuddle;
-  private readonly inviterId: string;
+  private readonly actingAs: string;
   private readonly onEnd: () => void;
   private readonly voice: DeepgramVoice;
   private readonly link: ChimeLink;
@@ -82,10 +82,6 @@ export class HuddleSession {
   private lastActivityAt = Date.now();
   private readonly timers: ReturnType<typeof setInterval>[] = [];
   private readonly controller = new AbortController();
-  private readonly leave = hangUpTool(() => {
-    this.leavingAt ??= Date.now();
-  });
-  private readonly taskStatus = taskStatusTool(() => this.runningTasks());
   // Live progress of running delegations, keyed by task id. Mastra stores
   // only status and result on the task record, so this comes off its stream.
   private readonly progress = new Map<
@@ -97,17 +93,18 @@ export class HuddleSession {
 
   constructor({
     joined,
-    inviterId,
+    actingAs,
     apiKey,
     onEnd,
   }: {
     joined: JoinedHuddle;
-    inviterId: string;
+    actingAs: string;
     apiKey: string;
     onEnd: () => void;
   }) {
     this.joined = joined;
-    this.inviterId = inviterId;
+    this.actingAs = actingAs;
+    this.slackThreadId = `${chatChannelId(joined.channelId)}:${joined.threadTs}`;
     this.onEnd = onEnd;
     this.thread = {
       resourceId: `huddle:${joined.channelId}`,
@@ -216,6 +213,10 @@ export class HuddleSession {
     });
   }
 
+  hangUp() {
+    this.leavingAt ??= Date.now();
+  }
+
   end(reason: string) {
     this.ending ??= this.shutdown(reason);
     return this.ending;
@@ -286,7 +287,7 @@ export class HuddleSession {
     }
   }
 
-  private async runningTasks(): Promise<TaskStatus[]> {
+  async runningTasks(): Promise<TaskStatus[]> {
     const manager = getMastra().backgroundTaskManager;
     if (!manager) {
       return [];
@@ -469,25 +470,15 @@ export class HuddleSession {
   }
 
   private streamOptions() {
-    return {
-      requestContext: this.requestContext(),
-      toolsets: {
-        huddle: { leave: this.leave, task_status: this.taskStatus },
-      },
-    };
-  }
-
-  private requestContext() {
-    const { channelId, threadTs } = this.joined;
     const requestContext = new RequestContext();
     requestContext.set('channel', {
-      channelId,
-      threadId: threadIdOf({ channel: channelId, ts: threadTs }),
-      messageId: threadTs,
-      userId: this.inviterId,
+      channelId: this.joined.channelId,
+      threadId: this.slackThreadId,
+      eventType: 'huddle',
+      userId: this.actingAs,
       isDM: false,
     });
-    return requestContext;
+    return { requestContext };
   }
 
   private track(frame: SignalFrame) {

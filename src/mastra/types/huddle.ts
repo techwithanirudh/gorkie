@@ -67,8 +67,13 @@ export interface HuddleSlackOptions {
 
 export type TurnEvent = { type: 'start' } | { type: 'end'; transcript: string };
 
-export interface HuddleAccount {
-  leave?: (options: { channelId: string }) => Promise<boolean>;
+export interface LiveHuddle {
+  callId: string;
+  channelId: string;
+  end: (reason: string) => Promise<void>;
+  hangUp: () => void;
+  runningTasks: () => Promise<TaskStatus[]>;
+  slackThreadId: string;
 }
 
 export interface TaskStatus {

@@ -1,9 +1,8 @@
 import { env } from '@/env';
 import { isUserAllowed } from '../lib/allowed-users';
-import { rawId } from '../lib/ids';
 import { logger } from '../lib/logger';
 import type { HuddleEvent } from '../types';
-import { huddleAccount } from './account';
+import { liveHuddles } from './live';
 import { HuddleSession } from './session';
 import { HuddleSlack } from './slack';
 
@@ -17,11 +16,10 @@ export async function startHuddles(): Promise<void> {
   if (!(apiKey && workspaceUrl && xoxc && xoxd)) {
     return;
   }
-  const sessions = new Map<string, HuddleSession>();
   const joining = new Set<string>();
 
   const join = async (event: Extract<HuddleEvent, { type: 'invited' }>) => {
-    if (sessions.has(event.callId) || joining.has(event.callId)) {
+    if (liveHuddles.has(event.callId) || joining.has(event.callId)) {
       return;
     }
     if (!(await isUserAllowed(event.inviterId))) {
@@ -41,11 +39,13 @@ export async function startHuddles(): Promise<void> {
         : await slack.join(event.channelId);
       const session = new HuddleSession({
         joined,
-        inviterId: event.inviterId,
+        // Inviting gorkie is consent for the whole huddle, so every request
+        // runs as the inviter, the only person the allowlist checked.
+        actingAs: event.inviterId,
         apiKey,
-        onEnd: () => sessions.delete(joined.callId),
+        onEnd: () => liveHuddles.delete(joined.callId),
       });
-      sessions.set(joined.callId, session);
+      liveHuddles.set(joined.callId, session);
       await session.start().catch(async (error: unknown) => {
         await session.end('failed to start');
         throw error;
@@ -55,15 +55,6 @@ export async function startHuddles(): Promise<void> {
     }
   };
 
-  const leaveChannel = async ({ channelId }: { channelId: string }) => {
-    const channel = rawId(channelId);
-    const running = [...sessions.values()].find(
-      (session) => session.channelId === channel
-    );
-    await running?.end('asked to leave in text');
-    return Boolean(running);
-  };
-
   function handle(event: HuddleEvent) {
     if (event.type === 'invited') {
       join(event).catch((error: unknown) =>
@@ -71,7 +62,7 @@ export async function startHuddles(): Promise<void> {
       );
       return;
     }
-    const session = sessions.get(event.callId);
+    const session = liveHuddles.get(event.callId);
     if (event.type === 'ended') {
       session?.end('huddle ended').catch(() => undefined);
       return;
@@ -89,7 +80,6 @@ export async function startHuddles(): Promise<void> {
     onEvent: handle,
   });
   await slack.start();
-  huddleAccount.leave = leaveChannel;
   logger.info('[huddle] listening for huddle invites', {
     userId: slack.userId,
   });

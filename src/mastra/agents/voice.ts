@@ -8,7 +8,9 @@ import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
 import * as voice from '../prompts/agents/voice';
 import { voice as voiceModel } from '../providers';
+import { hangUpTool } from '../tools/leave-huddle';
 import { slackTools } from '../tools/slack';
+import { taskStatusTool } from '../tools/task-status';
 import { exploreAgent } from './explore';
 import { researchAgent } from './research';
 
@@ -31,7 +33,11 @@ export const voiceAgent = new Agent({
       })
     : undefined,
   errorProcessors: defaultErrorProcessors(),
-  tools: { post_message: slackTools.post_message },
+  tools: {
+    post_message: slackTools.post_message,
+    leave: hangUpTool,
+    task_status: taskStatusTool,
+  },
   agents: { research: researchAgent, explore: exploreAgent },
   backgroundTasks: {
     tools: {

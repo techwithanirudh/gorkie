@@ -82,6 +82,8 @@ const explorerModels = ladder('explore');
 
 export const explorer = () => preferLastWorking(explorerModels);
 
+// No preferLastWorking: the last working model is shared with the text agents,
+// so it would rank their slower ladder ahead of the voice model.
 export const voice: ModelWithRetries[] = [
   { ...opencode(huddle.model, 'voice'), maxRetries: 1 },
   ...ladder('voice'),

@@ -296,11 +296,12 @@ export const searchSlackTool = createTool({
   },
   execute: async ({ query, cursor }, context) => {
     spendSlackCall(context?.requestContext);
-    const { channelId, messageId, threadId } = channelContext(
+    const { channelId, eventType, messageId, threadId } = channelContext(
       context?.requestContext
     );
     const searchChannelId = channelId ?? threadId;
-    if (!(messageId && searchChannelId)) {
+    const live = messageId || eventType === 'huddle';
+    if (!(live && searchChannelId)) {
       throw new Error(
         'Slack search needs a live message in this thread. gorkie does not run the workspace search identity on scheduled or unattended runs. Ask the user to mention the bot, then search again.'
       );

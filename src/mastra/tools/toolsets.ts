@@ -1,4 +1,4 @@
-import { huddleAccount } from '../huddle/account';
+import { env } from '@/env';
 import { canvasTools } from './canvas';
 import { workspaceCodeMode } from './code-mode/slack';
 import { submitFeedbackTool } from './feedback';
@@ -32,7 +32,7 @@ export async function orchestratorTools() {
     post_message: slackTools.post_message,
     skip: skipTool,
     wait: waitTool,
-    ...(huddleAccount.leave ? { leave_huddle: leaveHuddleTool } : {}),
+    ...(env.HUDDLE_XOXC ? { leave_huddle: leaveHuddleTool } : {}),
   };
 }
 
