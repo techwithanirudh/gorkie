@@ -49,4 +49,24 @@ export interface SignalFrame {
   type: string;
 }
 
+export interface ChimeLinkEvents {
+  onAudio: (opus: Buffer) => void;
+  onFrame: (frame: SignalFrame) => void;
+  onSignaling: () => void;
+  onTerminal: (reason: string) => void;
+  onWarn: (event: string, fields: Record<string, unknown>) => void;
+}
+
+export interface HuddleSlackOptions {
+  mediaRegion: string;
+  onEvent: (event: HuddleEvent) => void;
+  workspaceUrl: string;
+  xoxc: string;
+  xoxd: string;
+}
+
 export type TurnEvent = { type: 'start' } | { type: 'end'; transcript: string };
+
+export interface HuddleAccount {
+  leave?: (options: { channelId: string }) => Promise<boolean>;
+}

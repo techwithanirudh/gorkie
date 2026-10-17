@@ -1,8 +1,10 @@
+import { huddleAccount } from '../huddle/account';
 import { canvasTools } from './canvas';
 import { workspaceCodeMode } from './code-mode/slack';
 import { submitFeedbackTool } from './feedback';
 import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
+import { leaveHuddleTool } from './leave-huddle';
 import { scheduledTaskTools } from './scheduled-tasks';
 import { searchWebTool } from './search-web';
 import { skipTool } from './skip';
@@ -30,6 +32,7 @@ export async function orchestratorTools() {
     post_message: slackTools.post_message,
     skip: skipTool,
     wait: waitTool,
+    ...(huddleAccount.leave ? { leave_huddle: leaveHuddleTool } : {}),
   };
 }
 

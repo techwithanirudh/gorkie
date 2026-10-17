@@ -7,6 +7,7 @@ import {
   type VoiceEventType,
 } from '@mastra/core/voice';
 import { z } from 'zod';
+import { huddle as config } from '../config';
 import type { TurnEvent } from '../types';
 
 interface DeepgramEvents extends VoiceEventMap {
@@ -142,7 +143,7 @@ export class DeepgramVoice extends MastraVoice<
   async listen(audio: NodeJS.ReadableStream): Promise<string> {
     const response = await this.client.listen.v1.media.transcribeFile(
       await collect(audio),
-      { model: 'nova-3', smart_format: true }
+      { model: config.batchSttModel, smart_format: true }
     );
     const parsed = prerecordedSchema.safeParse(response);
     return parsed.data?.results.channels[0]?.alternatives[0]?.transcript ?? '';
@@ -163,8 +164,8 @@ export class DeepgramVoice extends MastraVoice<
         model: this.options.sttModel,
         encoding: 'linear16',
         sample_rate: 16_000,
-        eot_threshold: 0.7,
-        eot_timeout_ms: 5000,
+        eot_threshold: config.eotThreshold,
+        eot_timeout_ms: config.eotTimeoutMs,
       }),
       this.client.speak.v2.connect({
         ...shared,
@@ -290,8 +291,13 @@ export class DeepgramVoice extends MastraVoice<
       this.events.emit('turn', { type: 'start' });
       return;
     }
-    if (turn.data.event === 'EndOfTurn' && transcript) {
-      this.events.emit('turn', { type: 'end', transcript });
+    if (turn.data.event !== 'EndOfTurn') {
+      return;
+    }
+    // An empty turn (a cough, a door) still has to end, or the session
+    // keeps thinking someone holds the floor.
+    this.events.emit('turn', { type: 'end', transcript });
+    if (transcript) {
       this.events.emit('writing', { text: transcript, role: 'user' });
     }
   }

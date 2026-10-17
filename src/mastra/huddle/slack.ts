@@ -2,7 +2,12 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import WebSocket from 'ws';
 import { z } from 'zod';
 import { logger } from '../lib/logger';
-import type { ChimeJoinInfo, HuddleEvent, JoinedHuddle } from '../types';
+import type {
+  ChimeJoinInfo,
+  HuddleEvent,
+  HuddleSlackOptions,
+  JoinedHuddle,
+} from '../types';
 
 const chimeSchema = z.object({
   meeting: z.looseObject({
@@ -101,13 +106,6 @@ function toEvent(
 // this speaks its private API as a dedicated user: the realtime socket for
 // invites and room updates, and `rooms.join` for the Chime credentials.
 // Ported from HuddleFM's `slack-huddle.ts`.
-interface HuddleSlackOptions {
-  mediaRegion: string;
-  onEvent: (event: HuddleEvent) => void;
-  workspaceUrl: string;
-  xoxc: string;
-  xoxd: string;
-}
 
 export class HuddleSlack {
   private socket?: WebSocket;
@@ -221,6 +219,12 @@ export class HuddleSlack {
       });
       this.socket = socket;
       let ready = false;
+      // A socket that never says hello would otherwise leave start() or the
+      // reconnect loop waiting forever.
+      const handshake = setTimeout(() => {
+        socket.terminate();
+        reject(new Error('huddle realtime handshake timed out'));
+      }, 15_000);
       socket.on('message', (raw) => {
         let data: unknown;
         try {
@@ -235,6 +239,7 @@ export class HuddleSlack {
         const message = parsed.data;
         if (message.type === 'hello') {
           ready = true;
+          clearTimeout(handshake);
           this.reconnectAttempts = 0;
           clearInterval(this.pingTimer);
           this.pingTimer = setInterval(
@@ -255,12 +260,18 @@ export class HuddleSlack {
       });
       socket.on('error', () => {
         if (!ready) {
+          clearTimeout(handshake);
           reject(new Error('huddle realtime connection failed'));
         }
       });
       socket.on('close', () => {
+        clearTimeout(handshake);
         clearInterval(this.pingTimer);
-        if (ready && this.phase === 'running') {
+        if (!ready) {
+          reject(new Error('huddle realtime socket closed before hello'));
+          return;
+        }
+        if (this.phase === 'running') {
           this.reconnect(teamId).catch(() => undefined);
         }
       });
@@ -277,6 +288,9 @@ export class HuddleSlack {
         await this.connect(teamId);
         return;
       } catch (error) {
+        // Slack's reconnect_url is short-lived, so a failed attempt falls
+        // back to the gateway.
+        this.reconnectUrl = undefined;
         logger.warn('[huddle] realtime reconnect failed', { error });
       }
     }

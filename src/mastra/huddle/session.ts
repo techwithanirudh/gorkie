@@ -6,14 +6,12 @@ import {
   createEncoder,
   type OpusDecoderHandle,
 } from 'libopus-wasm';
-import { z } from 'zod';
 import { voiceAgent } from '../agents/voice';
-import { chat } from '../chat/instance';
-import { getMastra } from '../chat/mastra-instance';
 import { resolveUserProfile } from '../chat/names';
 import { huddle as config } from '../config';
 import { threadIdOf } from '../lib/ids';
 import { logger } from '../lib/logger';
+import { leaveCallTool } from '../tools/leave-huddle';
 import type { JoinedHuddle, SignalFrame, TurnEvent } from '../types';
 import { ChimeLink } from './chime/link';
 import { DeepgramVoice } from './deepgram';
@@ -21,33 +19,6 @@ import { DeepgramVoice } from './deepgram';
 // 20 ms at 48 kHz, the Opus frame Chime expects.
 const frameSamples = 960;
 const frameMs = 20;
-
-const fillers = [
-  'still on it.',
-  'still digging, one sec.',
-  'almost there, hang tight.',
-];
-
-const taskEventSchema = z.discriminatedUnion('type', [
-  z.looseObject({
-    type: z.literal('background-task-running'),
-    payload: z.looseObject({ taskId: z.string(), toolName: z.string() }),
-  }),
-  z.looseObject({
-    type: z.literal('background-task-completed'),
-    payload: z.looseObject({
-      taskId: z.string(),
-      toolName: z.string(),
-      result: z.unknown(),
-    }),
-  }),
-  z.looseObject({
-    type: z.enum(['background-task-failed', 'background-task-cancelled']),
-    payload: z.looseObject({ taskId: z.string(), toolName: z.string() }),
-  }),
-]);
-
-const subagentResultSchema = z.looseObject({ text: z.string() });
 
 // One huddle, run as a Mastra memory thread. Utterances go in through
 // `sendMessage`, the talker's output comes back on one thread subscription
@@ -57,6 +28,7 @@ const subagentResultSchema = z.looseObject({ text: z.string() });
 // wrapper was closed first (barge-in, a newer wake, its idle timeout).
 export class HuddleSession {
   private readonly joined: JoinedHuddle;
+  private readonly inviterId: string;
   private readonly onEnd: () => void;
   private readonly voice: DeepgramVoice;
   private readonly link: ChimeLink;
@@ -76,13 +48,8 @@ export class HuddleSession {
   // was actually heard.
   private cutOff: string[] = [];
   private abortedRunId?: string;
-  private lastRunStartAt = 0;
-  private lastInputAt = 0;
   private lastSpokeAt = 0;
   private floor: 'open' | 'user' = 'open';
-  private readonly running = new Map<string, string>();
-  private results: { agent: string; text: string; at: number }[] = [];
-  private filler: { count: number; lastAt: number } = { count: 0, lastAt: 0 };
   private readonly attendees = new Map<
     number,
     { attendeeId: string; userId?: string }
@@ -93,18 +60,26 @@ export class HuddleSession {
   private lastActivityAt = Date.now();
   private readonly timers: ReturnType<typeof setInterval>[] = [];
   private readonly controller = new AbortController();
+  private readonly leave = leaveCallTool(() => {
+    this.leavingAt ??= Date.now();
+  });
+  // Set when asked to leave; the call ends once the goodbye has played.
+  private leavingAt?: number;
   private ending?: Promise<void>;
 
   constructor({
     joined,
+    inviterId,
     apiKey,
     onEnd,
   }: {
     joined: JoinedHuddle;
+    inviterId: string;
     apiKey: string;
     onEnd: () => void;
   }) {
     this.joined = joined;
+    this.inviterId = inviterId;
     this.onEnd = onEnd;
     this.thread = {
       resourceId: `huddle:${joined.channelId}`,
@@ -140,6 +115,10 @@ export class HuddleSession {
     return this.joined.callId;
   }
 
+  get channelId() {
+    return this.joined.channelId;
+  }
+
   async start() {
     const { link, voice } = this;
     const [decoder, encoder] = await Promise.all([
@@ -171,9 +150,6 @@ export class HuddleSession {
     this.subscription = subscription;
     this.consume(subscription).catch((error: unknown) =>
       logger.warn('[huddle] thread subscription ended', { error })
-    );
-    this.watchTasks().catch((error: unknown) =>
-      logger.warn('[huddle] task stream ended', { error })
     );
 
     let base = performance.now();
@@ -227,10 +203,6 @@ export class HuddleSession {
       if (chunk.runId === this.abortedRunId) {
         continue;
       }
-      if (chunk.type === 'start') {
-        this.lastRunStartAt = Date.now();
-        continue;
-      }
       if (chunk.type === 'text-delta') {
         if (chunk.payload.text) {
           this.voice.say(chunk.payload.text);
@@ -249,38 +221,6 @@ export class HuddleSession {
         this.voice.flush();
         this.ttsTurn = 'idle';
       }
-    }
-  }
-
-  private async watchTasks() {
-    const manager = getMastra().backgroundTaskManager;
-    if (!manager) {
-      return;
-    }
-    const stream = manager.stream({
-      threadId: this.thread.threadId,
-      abortSignal: this.controller.signal,
-    });
-    for await (const raw of stream) {
-      const parsed = taskEventSchema.safeParse(raw);
-      if (!parsed.success) {
-        continue;
-      }
-      const { type, payload } = parsed.data;
-      if (type === 'background-task-running') {
-        this.running.set(payload.taskId, payload.toolName);
-        this.filler = { count: 0, lastAt: Date.now() };
-        continue;
-      }
-      this.running.delete(payload.taskId);
-      if (parsed.data.type !== 'background-task-completed') {
-        continue;
-      }
-      const text =
-        subagentResultSchema.safeParse(parsed.data.payload.result).data?.text ??
-        '';
-      this.results.push({ agent: payload.toolName, text, at: Date.now() });
-      this.postToThread(`*${payload.toolName}* finished\n\n${text}`);
     }
   }
 
@@ -315,14 +255,18 @@ export class HuddleSession {
     this.lastActivityAt = Date.now();
     if (turn.type === 'start') {
       this.floor = 'user';
-      // Barge-in cuts audible speech only. A reply still thinking keeps
-      // going, and the next utterance joins its run as a follow-up.
-      if (this.playback.length) {
+      // Barge-in cuts speech only, counting text already handed to TTS whose
+      // audio has not arrived yet. A reply still thinking keeps going, and
+      // the next utterance joins its run as a follow-up.
+      if (this.playback.length || this.ttsTurn === 'open') {
         this.interrupt();
       }
       return;
     }
     this.floor = 'open';
+    if (!turn.transcript) {
+      return;
+    }
     const name = this.lastSpeaker
       ? this.names.get(this.lastSpeaker)
       : undefined;
@@ -337,7 +281,6 @@ export class HuddleSession {
       /\bg[ao]r[gk]/i.test(turn.transcript) ||
       Date.now() - this.lastSpokeAt < config.followUpWindow;
     if (addressed) {
-      this.lastInputAt = Date.now();
       this.unsaved.push(name ? `${name}: ${turn.transcript}` : turn.transcript);
     }
     voiceAgent
@@ -351,7 +294,7 @@ export class HuddleSession {
           ifActive: { behavior: addressed ? 'deliver' : 'persist' },
           ifIdle: {
             behavior: addressed ? 'wake' : 'persist',
-            streamOptions: { requestContext: this.requestContext() },
+            streamOptions: this.streamOptions(),
           },
         }
       )
@@ -405,9 +348,6 @@ export class HuddleSession {
     contents: string;
     wake: boolean;
   }) {
-    if (wake) {
-      this.lastInputAt = Date.now();
-    }
     voiceAgent
       .sendSignal(
         { type: 'notification', tagName, contents },
@@ -416,7 +356,7 @@ export class HuddleSession {
           ifActive: { behavior: wake ? 'deliver' : 'persist' },
           ifIdle: {
             behavior: wake ? 'wake' : 'persist',
-            streamOptions: { requestContext: this.requestContext() },
+            streamOptions: this.streamOptions(),
           },
         }
       )
@@ -432,52 +372,27 @@ export class HuddleSession {
       this.playback.length ||
       this.subscription?.activeRunId()
     );
-    // The `untilIdle` wrapper continues on a result by starting a run that
-    // no input of ours started. Without that, the result still needs saying.
-    this.results = this.results.filter((result) => {
-      if (this.lastRunStartAt > result.at && this.lastInputAt < result.at) {
-        return false;
-      }
-      if (!floorFree || now - result.at < 2000) {
-        return true;
-      }
-      this.signal({
-        tagName: 'task-result',
-        contents: `The ${result.agent} delegation finished. Its result:\n${result.text.slice(0, 6000)}`,
-        wake: true,
-      });
-      return false;
-    });
+    // Hang up once the goodbye has played. Its audio lands a moment after
+    // the run ends, hence the grace periods, and a goodbye that never comes
+    // gets a timeout.
     if (
-      floorFree &&
-      this.running.size &&
-      this.filler.count < config.filler.count &&
-      now - Math.max(this.filler.lastAt, this.lastSpokeAt) >
-        (this.filler.count ? config.filler.interval : config.filler.first)
+      this.leavingAt &&
+      ((floorFree &&
+        now - this.leavingAt > 2000 &&
+        now - this.lastSpokeAt > 1500) ||
+        now - this.leavingAt > config.leaveTimeout)
     ) {
-      this.voice.say(
-        fillers[this.filler.count % fillers.length] ?? 'still on it.'
-      );
-      this.voice.flush();
-      this.filler = { count: this.filler.count + 1, lastAt: now };
+      this.end('asked to leave').catch(() => undefined);
+      return;
     }
     this.checkPresence(now);
   }
 
-  private postToThread(text: string) {
-    const threadId = threadIdOf({
-      channel: this.joined.channelId,
-      ts: this.joined.threadTs,
-    });
-    if (!threadId) {
-      return;
-    }
-    chat()
-      .thread(threadId)
-      .post(text)
-      .catch((error: unknown) =>
-        logger.debug('[huddle] could not post to the huddle thread', { error })
-      );
+  private streamOptions() {
+    return {
+      requestContext: this.requestContext(),
+      toolsets: { huddle: { leave: this.leave } },
+    };
   }
 
   private requestContext() {
@@ -486,7 +401,12 @@ export class HuddleSession {
     requestContext.set('channel', {
       channelId,
       threadId: threadIdOf({ channel: channelId, ts: threadTs }),
-      userId: this.lastSpeaker,
+      // A person speaking in the huddle is a live request, so the thread
+      // root stands in for the triggering message that Slack search needs.
+      messageId: threadTs,
+      // Inviting gorkie is consent for the room, so the room's requests run
+      // as the inviter, who passed the opt-in check and owns the access.
+      userId: this.inviterId,
       isDM: false,
     });
     return requestContext;

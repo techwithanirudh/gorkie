@@ -28,13 +28,19 @@ Once in the call:
 5. **Barge-in.** Talking over gorkie stops its audio and aborts the reply.
    gorkie tells Flux TTS how much audio actually played, and Flux answers with
    the exact text the room heard, which goes into the thread as a note.
-6. **Delegating.** The `voice` agent's only abilities are talking and handing
-   work to `research` or `explore`, which run as Mastra background tasks. It
-   says a short ack and keeps the conversation going. When a task finishes,
-   gorkie says the result once the room is quiet, and posts the full text to
-   the huddle thread. Talking over gorkie never cancels a running task.
-7. **Leaving.** gorkie leaves when the huddle ends, when it is removed, when it
-   has been alone for a minute, or after 15 minutes without anyone speaking.
+6. **Delegating.** The `voice` agent hands real work to `research` or
+   `explore`, which run as Mastra background tasks as the person who invited
+   gorkie. It says a short ack and keeps the conversation going. When a task
+   finishes, Mastra continues the talker with the result and it says the
+   answer. Talking over gorkie never cancels a running task.
+7. **Posting.** Asked to "drop that in the thread", gorkie posts with
+   `post_message`, to the huddle thread by default and using a subagent's
+   full text so links survive. Anywhere else, it says what and where first and
+   waits for a yes.
+8. **Leaving.** gorkie leaves when asked out loud (it says goodbye and hangs
+   up), when text gorkie is asked to (`leave_huddle`), when the huddle ends,
+   when it is removed, when it has been alone for a minute, or after 15
+   minutes without anyone speaking.
 
 The voice agent runs on gorkie's normal model ladder with reasoning off, a
 1024 token output cap, and a short prompt, which keeps each turn to one fast
@@ -68,7 +74,11 @@ model call.
    Huddles stay off unless the first four are all set.
 5. **Restart the bot.** The log shows `[huddle] listening for huddle invites`.
 6. **Start a huddle and invite the huddle user.** If `OPT_IN_CHANNEL` is set,
-   gorkie ignores invites from people outside that allowlist.
+   gorkie ignores invites from people outside that allowlist. Inviting
+   gorkie is consent for the whole huddle: anyone in it can talk to gorkie
+   without being opted in themselves, and every request runs as the inviter
+   (their tool access, their GitHub link). Nobody else gets added to the
+   allowlist.
 
 ## Limits
 

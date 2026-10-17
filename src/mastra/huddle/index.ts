@@ -1,7 +1,9 @@
 import { env } from '@/env';
 import { isUserAllowed } from '../lib/allowed-users';
+import { rawId } from '../lib/ids';
 import { logger } from '../lib/logger';
 import type { HuddleEvent } from '../types';
+import { huddleAccount } from './account';
 import { HuddleSession } from './session';
 import { HuddleSlack } from './slack';
 
@@ -39,6 +41,7 @@ export async function startHuddles(): Promise<void> {
         : await slack.join(event.channelId);
       const session = new HuddleSession({
         joined,
+        inviterId: event.inviterId,
         apiKey,
         onEnd: () => sessions.delete(joined.callId),
       });
@@ -50,6 +53,15 @@ export async function startHuddles(): Promise<void> {
     } finally {
       joining.delete(event.callId);
     }
+  };
+
+  const leaveChannel = async ({ channelId }: { channelId: string }) => {
+    const channel = rawId(channelId);
+    const running = [...sessions.values()].find(
+      (session) => session.channelId === channel
+    );
+    await running?.end('asked to leave in text');
+    return Boolean(running);
   };
 
   function handle(event: HuddleEvent) {
@@ -77,6 +89,7 @@ export async function startHuddles(): Promise<void> {
     onEvent: handle,
   });
   await slack.start();
+  huddleAccount.leave = leaveChannel;
   logger.info('[huddle] listening for huddle invites', {
     userId: slack.userId,
   });

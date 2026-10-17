@@ -76,6 +76,7 @@ export const statuses: Record<string, (args: Args) => string> = {
       ? fit('is stopping process ', pid, '…')
       : 'is stopping a process…';
   },
+  leave_huddle: () => 'is leaving the huddle…',
   leave_thread: () => 'is leaving the thread…',
   list_canvases: (args) => {
     const query = str(args, 'query');

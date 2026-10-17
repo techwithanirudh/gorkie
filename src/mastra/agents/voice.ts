@@ -3,23 +3,31 @@ import { Memory } from '@mastra/memory';
 import { env } from '@/env';
 import { huddle as config } from '../config';
 import { DeepgramVoice } from '../huddle/deepgram';
+import { channelContext } from '../lib/context';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
 import { workingModel } from '../processors/working-model';
 import * as voice from '../prompts/agents/voice';
 import { voice as voiceModel } from '../providers';
+import { slackTools } from '../tools/slack';
 import { exploreAgent } from './explore';
 import { researchAgent } from './research';
 
-// The talker in a huddle. It has no tools of its own: research and explore
-// are subagents dispatched as Mastra background tasks, so a delegation
-// returns at once and a turn stays one fast model call. Each huddle is a
-// memory thread driven through signals (see `huddle/session.ts`).
+// The talker in a huddle. Its only tool is `post_message`, plus the `leave`
+// tool each session hands its runs: research and explore are subagents
+// dispatched as Mastra background tasks, so a delegation returns at once and
+// a turn stays one fast model call. Each huddle is a memory thread driven
+// through signals (see `huddle/session.ts`).
 export const voiceAgent = new Agent({
   id: 'voice',
   name: 'Voice',
   description: 'Talks in Slack huddles and delegates real work to subagents.',
-  instructions: voice.prompt,
+  instructions: ({ requestContext }) => {
+    const { threadId } = channelContext(requestContext);
+    return threadId
+      ? `${voice.prompt}\n\nThe huddle thread is ${threadId}.`
+      : voice.prompt;
+  },
   model: voiceModel,
   voice: env.DEEPGRAM_API_KEY
     ? new DeepgramVoice({
@@ -29,6 +37,7 @@ export const voiceAgent = new Agent({
       })
     : undefined,
   errorProcessors: defaultErrorProcessors(),
+  tools: { post_message: slackTools.post_message },
   agents: { research: researchAgent, explore: exploreAgent },
   backgroundTasks: {
     tools: {
