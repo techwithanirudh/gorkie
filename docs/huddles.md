@@ -22,13 +22,12 @@ Once in the call:
    utterance goes in with `sendMessage`. The agent's reply streams back on a
    thread subscription, and each text delta goes straight into a warm Deepgram
    Flux TTS socket, which picks its own sentence boundaries.
-4. **Answering only when addressed.** gorkie replies when someone says its
-   name, or when only one person is in the call. In the 20 s after it last
-   spoke, with others around, a fast model reads the last few lines and
-   decides whether an unnamed line is a follow-up or side chatter. Everything
-   else is kept as context without a reply. While gorkie works on a reply, a
-   soft looping "thinking" sound plays until its first word, and stops the
-   moment someone starts talking.
+4. **Speaking only when spoken to.** gorkie replies when someone says its
+   name. In the 20 s after it last spoke, a fast model reads the last few
+   lines and decides whether an unnamed line is a follow-up or side chatter.
+   Everything else, even alone with one person, is kept as context without a
+   reply. While gorkie works on a reply, the bot shows its "is thinking..."
+   status in the huddle thread, the same indicator as text chat.
 5. **Barge-in.** Talking over gorkie stops its audio and aborts the reply.
    gorkie tells Flux TTS how much audio actually played, and Flux answers with
    the exact text the room heard, which goes into the thread as a note.
@@ -40,8 +39,10 @@ Once in the call:
 7. **Leaving.** gorkie leaves when the huddle ends, when it is removed, when it
    has been alone for a minute, or after 15 minutes without anyone speaking.
 
-The voice agent runs on gorkie's normal model ladder with reasoning off, a
-1024 token output cap, and a short prompt, which keeps each turn to one fast
+The voice agent leads with a fast flash model (`huddle.model` in
+`src/mastra/config.ts`, Gemini 3.5 Flash Lite by default) and falls back to
+gorkie's normal ladder, with reasoning off, a 1024 token output cap, the last
+12 messages of context, and a short prompt, which keeps each turn to one fast
 model call.
 
 ## Setup

@@ -5,7 +5,6 @@ import { huddle as config } from '../config';
 import { DeepgramVoice } from '../huddle/deepgram';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
-import { workingModel } from '../processors/working-model';
 import * as voice from '../prompts/agents/voice';
 import { voice as voiceModel } from '../providers';
 import { exploreAgent } from './explore';
@@ -52,5 +51,4 @@ export const voiceAgent = new Agent({
     },
     stopWhen: stepCountIs(config.maxSteps),
   },
-  outputProcessors: [workingModel('voice')],
 });

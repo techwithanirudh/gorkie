@@ -9,6 +9,7 @@ import {
 import { z } from 'zod';
 import { addresseeAgent } from '../agents/addressee';
 import { voiceAgent } from '../agents/voice';
+import { slack as bot } from '../chat/client';
 import { chat } from '../chat/instance';
 import { getMastra } from '../chat/mastra-instance';
 import { resolveUserProfile } from '../chat/names';
@@ -50,27 +51,6 @@ const taskEventSchema = z.discriminatedUnion('type', [
 
 const subagentResultSchema = z.looseObject({ text: z.string() });
 
-// A soft rising three note "tu du dum" every 1.4 s, synthesized at 48 kHz so
-// there is no audio asset to ship. Each note is a sine under a half sine
-// envelope, so it starts and stops without clicks.
-const thinkingLoop = new Int16Array(67_200);
-for (const [start, hz] of [
-  [0, 523],
-  [0.14, 659],
-  [0.28, 784],
-] as const) {
-  const offset = Math.round(start * 48_000);
-  const length = 5280;
-  for (let i = 0; i < length; i++) {
-    thinkingLoop[offset + i] = Math.round(
-      Math.sin((Math.PI * i) / length) *
-        Math.sin((2 * Math.PI * hz * i) / 48_000) *
-        config.thinking.volume *
-        32_767
-    );
-  }
-}
-
 // One huddle, run as a Mastra memory thread. Utterances go in through
 // `sendMessage`, the talker's output comes back on one thread subscription
 // and streams into Flux TTS as it is written, and delegations run as background
@@ -92,8 +72,9 @@ export class HuddleSession {
   private playbackOffset = 0;
   private played = 0;
   private ttsTurn: 'idle' | 'open' = 'idle';
-  // Set from the moment gorkie owes a reply until its first audio arrives.
-  private thinking?: { since: number; at: number };
+  // When gorkie started owing a reply, until its first audio arrives. Shown
+  // as the bot's "is thinking..." status in the huddle thread, like text chat.
+  private thinkingSince?: number;
   // The last few lines of the room, gorkie's included, for the addressee
   // check. The reply being written is held apart until its run ends.
   private recent: string[] = [];
@@ -192,7 +173,7 @@ export class HuddleSession {
     this.decoder = decoder;
     voice.on('turn', (turn) => this.onTurn(turn));
     voice.on('audio', (audio) => {
-      this.thinking = undefined;
+      this.setThinking(false);
       this.playback.push(audio);
       this.lastSpokeAt = Date.now();
     });
@@ -293,9 +274,9 @@ export class HuddleSession {
         this.ttsTurn = 'idle';
         continue;
       }
-      // A run that ended without a word (a quiet delegation, an error) owes
-      // no audio, so the thinking sound would loop to its timeout.
-      this.thinking = undefined;
+      // A run that ended without a word (a quiet delegation, a deliberate
+      // silence, an error) owes no audio, so nothing will clear the status.
+      this.setThinking(false);
     }
   }
 
@@ -333,13 +314,6 @@ export class HuddleSession {
 
   private nextFrame() {
     const frame = new Int16Array(frameSamples);
-    if (this.thinking && !this.playback.length) {
-      for (let i = 0; i < frameSamples; i++) {
-        frame[i] = thinkingLoop[this.thinking.at] ?? 0;
-        this.thinking.at = (this.thinking.at + 1) % thinkingLoop.length;
-      }
-      return frame;
-    }
     let written = 0;
     for (
       let [chunk] = this.playback;
@@ -369,7 +343,6 @@ export class HuddleSession {
     this.lastActivityAt = Date.now();
     if (turn.type === 'start') {
       this.floor = 'user';
-      this.thinking = undefined;
       // Barge-in cuts speech only, counting text already handed to TTS whose
       // audio has not arrived yet. A reply still thinking keeps going, and
       // the next utterance joins its run as a follow-up.
@@ -402,19 +375,14 @@ export class HuddleSession {
     transcript: string;
     name?: string;
   }) {
-    const humans = [...this.attendees.values()].filter(
-      ({ attendeeId }) => attendeeId !== this.link.attendeeId
-    ).length;
     const named = /\bg[ao]r[gk]/i.test(transcript);
     const followUp = Date.now() - this.lastSpokeAt < config.followUpWindow;
-    // A huddle is a room: answer when named, or when there is only one person
-    // to talk to. A follow-up without the name, with others around, is
-    // checked by a fast model so side chatter right after gorkie spoke does
-    // not get a reply. Everything else is kept as context.
-    const addressed =
-      named || humans <= 1 || (followUp && (await this.aimedAtGorkie()));
+    // gorkie speaks only when spoken to: named, or, in the window right after
+    // it spoke, when a fast model reads the line as aimed at it. Everyone
+    // else's talk, alone with gorkie or not, is kept as context.
+    const addressed = named || (followUp && (await this.aimedAtGorkie()));
     if (addressed) {
-      this.thinking = { since: Date.now(), at: 0 };
+      this.setThinking(true);
       this.lastInputAt = Date.now();
       this.unsaved.push(name ? `${name}: ${transcript}` : transcript);
     }
@@ -504,7 +472,7 @@ export class HuddleSession {
   }) {
     if (wake) {
       this.lastInputAt = Date.now();
-      this.thinking ??= { since: Date.now(), at: 0 };
+      this.setThinking(true);
     }
     voiceAgent
       .sendSignal(
@@ -525,8 +493,11 @@ export class HuddleSession {
 
   private tick() {
     const now = Date.now();
-    if (this.thinking && now - this.thinking.since > config.thinking.timeout) {
-      this.thinking = undefined;
+    if (
+      this.thinkingSince &&
+      now - this.thinkingSince > config.thinkingTimeout
+    ) {
+      this.setThinking(false);
     }
     const floorFree = !(
       this.floor === 'user' ||
@@ -563,6 +534,22 @@ export class HuddleSession {
       this.filler = { count: this.filler.count + 1, lastAt: now };
     }
     this.checkPresence(now);
+  }
+
+  private setThinking(thinking: boolean) {
+    if (Boolean(this.thinkingSince) === thinking) {
+      return;
+    }
+    this.thinkingSince = thinking ? Date.now() : undefined;
+    bot.webClient.assistant.threads
+      .setStatus({
+        channel_id: this.joined.channelId,
+        thread_ts: this.joined.threadTs,
+        status: thinking ? 'is thinking...' : '',
+      })
+      .catch((error: unknown) =>
+        logger.debug('[huddle] could not set the thinking status', { error })
+      );
   }
 
   private postToThread(text: string) {
