@@ -54,7 +54,7 @@ export const workingModel = {
 export const emoji = { listTtl: 5 * 60 * 1000 };
 
 export const huddle = {
-  voice: 'flux-haley-en',
+  voice: 'flux-sienna-en',
   sttModel: 'flux-general-en',
   // Flux end-of-turn confidence, and the silence after which a turn ends
   // regardless. The likeliest knobs to turn after a live test.

@@ -84,7 +84,7 @@ model call.
   into one stream. Two people talking at once get attributed to whoever was
   louder last.
 - Speech recognition and the voice are English only (`flux-general-en`,
-  `flux-haley-en`). Deepgram also has `flux-general-multi` for multilingual
+  `flux-sienna-en`). Deepgram also has `flux-general-multi` for multilingual
   speech; switching is one line in `src/mastra/config.ts`.
 - There is no voice command to cancel a running delegation yet.
 - Untested against a live huddle at the time of writing. See the huddle item
