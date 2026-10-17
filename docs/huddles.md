@@ -1,8 +1,8 @@
 # Huddle voice
 
 Invite gorkie to a Slack huddle and talk to it. It listens, answers out loud,
-and hands real work to the `research` and `explore` subagents without going
-quiet while they run.
+and hands real work to gorkie's full text agent, which runs in the background
+while the conversation carries on.
 
 ## How it works
 
@@ -18,32 +18,42 @@ Once in the call:
    to 16 kHz and streamed to Deepgram Flux. Flux decides when a turn ends.
 2. **Who spoke.** Chime's per-attendee volume levels give a best guess at the
    speaker, and their Slack name goes on the message.
-3. **Talking.** Each huddle is a Mastra memory thread on the `voice` agent. An
-   utterance goes in with `sendMessage`. The agent's reply streams back on a
-   thread subscription, and each text delta goes straight into a warm Deepgram
-   Flux TTS socket, which picks its own sentence boundaries.
+3. **Talking.** Each huddle is a Mastra memory thread on a thin `voice`
+   agent. Lines said in the room collect as a backlog. When one is addressed
+   to gorkie, the backlog goes to the talker in one `stream` call, and each
+   text delta goes straight into a warm Deepgram Flux TTS socket, which picks
+   its own sentence boundaries.
 4. **Speaking only when spoken to.** gorkie replies when someone says its
    name. In the 20 s after it last spoke, a fast model reads the last few
    lines and decides whether an unnamed line is a follow-up or side chatter.
-   Everything else, even alone with one person, is kept as context without a
-   reply. While gorkie works on a reply, the bot shows its "is thinking..."
-   status in the huddle thread, the same indicator as text chat.
+   Everything else, even alone with one person, waits in the backlog as
+   context without a reply. While gorkie works on a reply, the bot shows its
+   "is thinking..." status in the huddle thread, the same indicator as text
+   chat.
 5. **Barge-in.** Talking over gorkie stops its audio and aborts the reply.
    gorkie tells Flux TTS how much audio actually played, and Flux answers with
-   the exact text the room heard, which goes into the thread as a note.
-6. **Delegating.** The `voice` agent's only abilities are talking and handing
-   work to `research` or `explore`, which run as Mastra background tasks. It
-   says a short ack and keeps the conversation going. When a task finishes,
-   gorkie says the result once the room is quiet, and posts the full text to
-   the huddle thread. Talking over gorkie never cancels a running task.
+   the exact text the room heard, which goes into the next turn as a note. A
+   newer addressed line replaces a reply that is still thinking, and the
+   aborted reply's lines go back on the backlog.
+6. **Delegating.** The talker has one tool, `delegate`. It runs gorkie's full
+   text agent in the background as the inviter, anchored on the huddle
+   thread, so everything text gorkie can do (Slack search, the web, GitHub,
+   code) works from a huddle. The talker may say one short line first, then
+   stops. When the task finishes, its full answer is posted to the huddle
+   thread, and gorkie says the gist once the room is quiet. A task outlives
+   the huddle and still posts its answer.
 7. **Leaving.** gorkie leaves when the huddle ends, when it is removed, when it
    has been alone for a minute, or after 15 minutes without anyone speaking.
 
-The voice agent leads with a fast flash model (`huddle.model` in
-`src/mastra/config.ts`, Gemini 3.5 Flash Lite by default) and falls back to
-gorkie's normal ladder, with reasoning off, a 1024 token output cap, the last
-12 messages of context, and a short prompt, which keeps each turn to one fast
-model call.
+The talker leads with a fast model (`huddle.model` in `src/mastra/config.ts`,
+MiniMax M3 on OpenCode Go by default) and falls back to gorkie's normal
+ladder, with reasoning off, a 1024 token output cap, a short prompt, no
+tools but `delegate`, the last 12 messages verbatim, and thread-scoped
+observational memory for older turns. Its observer buffers in the
+background, and working memory is off, so a spoken turn is one fast model
+call. Each addressed turn logs its stage timings in milliseconds after the
+end of speech (`[huddle] turn timing`), and each delegation logs how long it
+took.
 
 ## Setup
 
@@ -92,5 +102,7 @@ model call.
   `flux-sienna-en`). Deepgram also has `flux-general-multi` for multilingual
   speech; switching is one line in `src/mastra/config.ts`.
 - There is no voice command to cancel a running delegation yet.
+- gorkie has no video tile yet. HuddleFM shows one, so it is possible over
+  the same Chime link; see `TODO.md`.
 - Untested against a live huddle at the time of writing. See the huddle item
   in `TODO.md`.

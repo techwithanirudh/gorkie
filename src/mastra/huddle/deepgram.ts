@@ -88,6 +88,7 @@ export class DeepgramVoice extends MastraVoice<
   private speakSocket?: SpeakSocket;
   private pending = new Int16Array(0);
   private lastAudioAt = 0;
+  private lastSpeakAt = Date.now();
   private keepAlive?: ReturnType<typeof setInterval>;
   // Audio still in flight from a turn being interrupted is dropped until
   // TTS confirms the cut.
@@ -190,11 +191,20 @@ export class DeepgramVoice extends MastraVoice<
     this.speakSocket = speak;
     // Flux expects audio in real time and gives up on a silent socket, and
     // Chime stops sending when the room goes quiet, so pad with silence.
+    // Flux TTS closes a socket with no client message for 60 s, which a
+    // quiet stretch of a huddle easily reaches. The SDK exposes no ping, so
+    // restate the default speed, which changes nothing audible.
     clearInterval(this.keepAlive);
     this.keepAlive = setInterval(() => {
       if (Date.now() - this.lastAudioAt > 160) {
         whenOpen(() =>
           this.listenSocket?.sendMedia(new Int16Array(chunkSamples))
+        );
+      }
+      if (Date.now() - this.lastSpeakAt > 30_000) {
+        this.lastSpeakAt = Date.now();
+        whenOpen(() =>
+          this.speakSocket?.sendConfigure({ type: 'Configure', speed: 1 })
         );
       }
     }, 80);
@@ -224,10 +234,12 @@ export class DeepgramVoice extends MastraVoice<
   }
 
   say(text: string) {
+    this.lastSpeakAt = Date.now();
     whenOpen(() => this.speakSocket?.sendSpeak({ type: 'Speak', text }));
   }
 
   flush() {
+    this.lastSpeakAt = Date.now();
     whenOpen(() => this.speakSocket?.sendFlush({ type: 'Flush' }));
   }
 

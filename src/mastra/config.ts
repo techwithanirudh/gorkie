@@ -56,23 +56,28 @@ export const emoji = { listTtl: 5 * 60 * 1000 };
 export const huddle = {
   voice: 'flux-sienna-en',
   sttModel: 'flux-general-en',
-  // The talker's lead model, through the Hack Club proxy. Gemini Flash Lite
-  // for its low time to first token; it also has the 1M context every model
-  // here must hold. The usual ladder backs it up.
-  model: 'google/gemini-3.5-flash-lite',
+  // The talker's lead model on OpenCode Go, swappable here. MiniMax M3 was
+  // the fastest to first token in a live comparison (under a second, 1M
+  // context). The usual ladder backs it up.
+  model: 'minimax-m3',
   // Flux end-of-turn confidence, and the silence after which a turn ends
   // regardless. The likeliest knobs to turn after a live test.
   eotThreshold: 0.7,
   eotTimeoutMs: 5000,
   batchSttModel: 'nova-3',
   // Spoken replies are a few sentences, so a small cap also bounds the cost
-  // of a runaway turn. Steps cover a delegation plus the reply after it.
+  // of a runaway turn. A delegation ends the turn, so two steps is plenty.
   maxOutputTokens: 1024,
-  maxSteps: 4,
+  maxSteps: 2,
   // Short on purpose: every turn pays for this context in model latency,
-  // and a huddle rarely refers back further.
+  // and a huddle rarely refers back further. Observational memory folds
+  // what falls out of the window.
   lastMessages: 12,
-  task: { researchTimeout: 15 * 60 * 1000, exploreTimeout: 20 * 60 * 1000 },
+  // Lines said since the talker last ran, sent with the next addressed
+  // turn. Older side talk is dropped rather than paid for.
+  backlogLines: 40,
+  // A delegation runs gorkie's full agent; past this it is given up on.
+  delegateTimeout: 20 * 60 * 1000,
   // Without its name, an utterance still gets an answer this soon after
   // gorkie last spoke, so follow-ups flow without "hey gorkie" every time.
   followUpWindow: 20 * 1000,
@@ -81,9 +86,6 @@ export const huddle = {
   addressee: { lines: 8, timeout: 1500 },
   // Clears the "is thinking..." status if a reply never comes.
   thinkingTimeout: 20 * 1000,
-  // Idle-gated "still working" lines while a delegation runs: the first
-  // after this much quiet, then the interval, at most `count` of them.
-  filler: { first: 5000, interval: 10_000, count: 3 },
   // Leave once nobody else has been in the call this long.
   aloneTimeout: 60 * 1000,
   idleTimeout: 15 * 60 * 1000,

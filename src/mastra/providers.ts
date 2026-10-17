@@ -83,11 +83,11 @@ const explorerModels = ladder('explore');
 export const explorer = () => preferLastWorking(explorerModels);
 
 // Huddle replies are spoken, so time to first token beats everything else.
-// A fast flash model leads, the shared ladder is only the fallback, and the
-// shared last-working memory is skipped so a text turn's pick never puts a
-// slower model first.
+// The configured model leads, the shared ladder is only the fallback, and the
+// shared last-working memory is skipped: it costs a state read per turn and a
+// text turn's pick could put a slower model first.
 export const voice: ModelWithRetries[] = [
-  { model: hackclub(huddle.model), maxRetries: 1 },
+  { ...opencode(huddle.model, 'voice'), maxRetries: 1 },
   ...ladder('voice'),
 ];
 

@@ -1,4 +1,3 @@
-import type { AgentThreadSubscription } from '@mastra/core/agent';
 import { RequestContext } from '@mastra/core/request-context';
 import {
   Application,
@@ -6,7 +5,6 @@ import {
   createEncoder,
   type OpusDecoderHandle,
 } from 'libopus-wasm';
-import { z } from 'zod';
 import { addresseeAgent } from '../agents/addressee';
 import { voiceAgent } from '../agents/voice';
 import { slack as bot } from '../chat/client';
@@ -16,7 +14,8 @@ import { resolveUserProfile } from '../chat/names';
 import { huddle as config } from '../config';
 import { threadIdOf } from '../lib/ids';
 import { logger } from '../lib/logger';
-import type { JoinedHuddle, SignalFrame, TurnEvent } from '../types';
+import { delegateTool } from '../tools/delegate';
+import type { HuddleRun, JoinedHuddle, SignalFrame, TurnEvent } from '../types';
 import { ChimeLink } from './chime/link';
 import { DeepgramVoice } from './deepgram';
 
@@ -24,48 +23,21 @@ import { DeepgramVoice } from './deepgram';
 const frameSamples = 960;
 const frameMs = 20;
 
-const fillers = [
-  'still on it.',
-  'still digging, one sec.',
-  'almost there, hang tight.',
-];
-
-const taskEventSchema = z.discriminatedUnion('type', [
-  z.looseObject({
-    type: z.literal('background-task-running'),
-    payload: z.looseObject({ taskId: z.string(), toolName: z.string() }),
-  }),
-  z.looseObject({
-    type: z.literal('background-task-completed'),
-    payload: z.looseObject({
-      taskId: z.string(),
-      toolName: z.string(),
-      result: z.unknown(),
-    }),
-  }),
-  z.looseObject({
-    type: z.enum(['background-task-failed', 'background-task-cancelled']),
-    payload: z.looseObject({ taskId: z.string(), toolName: z.string() }),
-  }),
-]);
-
-const subagentResultSchema = z.looseObject({ text: z.string() });
-
-// One huddle, run as a Mastra memory thread. Utterances go in through
-// `sendMessage`, the talker's output comes back on one thread subscription
-// and streams into Flux TTS as it is written, and delegations run as background
-// tasks. An idle wake runs with `untilIdle`, so Mastra itself continues the
-// talker when a task finishes; the session only covers the cases where that
-// wrapper was closed first (barge-in, a newer wake, its idle timeout).
+// One huddle, run as a Mastra memory thread on the thin `voice` agent. Lines
+// said in the room collect as a backlog, and when one is addressed to gorkie
+// the backlog goes to the talker in one `stream` call, whose text goes
+// straight into Flux TTS as it is written. Real work goes through the
+// session's `delegate` tool, which runs gorkie's full agent in the
+// background as the inviter, and its result comes back as a note.
 export class HuddleSession {
   private readonly joined: JoinedHuddle;
   private readonly inviterId: string;
   private readonly onEnd: () => void;
   private readonly voice: DeepgramVoice;
   private readonly link: ChimeLink;
-  private readonly thread: { resourceId: string; threadId: string };
+  private readonly thread: { resource: string; thread: string };
+  private readonly delegate = delegateTool((task) => this.runTask(task));
   private decoder?: OpusDecoderHandle;
-  private subscription?: AgentThreadSubscription;
   // TTS audio waiting to play, each chunk tagged with where it starts on
   // the TTS timeline, which is what a barge-in reports back.
   private playback: { pcm: Int16Array; at: number }[] = [];
@@ -75,25 +47,19 @@ export class HuddleSession {
   // When gorkie started owing a reply, until its first audio arrives. Shown
   // as the bot's "is thinking..." status in the huddle thread, like text chat.
   private thinkingSince?: number;
+  // Stage times for the latest addressed turn, logged at its first audio.
+  private timing?: Record<string, number>;
   // The last few lines of the room, gorkie's included, for the addressee
-  // check. The reply being written is held apart until its run ends.
+  // check.
   private recent: string[] = [];
-  private reply = '';
+  // Lines and notes the talker has not seen yet. They go in with the next
+  // addressed turn, so side talk costs nothing until someone asks gorkie.
+  private backlog: string[] = [];
+  private run?: HuddleRun;
+  private readonly results: { text: string; at: number }[] = [];
   private turns: Promise<void> = Promise.resolve();
-  // Utterances sent to a run whose first step has not finished, which is
-  // when `savePerStep` writes them. A barge-in before then loses them.
-  private unsaved: string[] = [];
-  // Unsaved utterances from an interrupted run, held until TTS reports what
-  // was actually heard.
-  private cutOff: string[] = [];
-  private abortedRunId?: string;
-  private lastRunStartAt = 0;
-  private lastInputAt = 0;
   private lastSpokeAt = 0;
   private floor: 'open' | 'user' = 'open';
-  private readonly running = new Map<string, string>();
-  private results: { agent: string; text: string; at: number }[] = [];
-  private filler: { count: number; lastAt: number } = { count: 0, lastAt: 0 };
   private readonly attendees = new Map<
     number,
     { attendeeId: string; userId?: string }
@@ -103,7 +69,6 @@ export class HuddleSession {
   private aloneSince?: number;
   private lastActivityAt = Date.now();
   private readonly timers: ReturnType<typeof setInterval>[] = [];
-  private readonly controller = new AbortController();
   private ending?: Promise<void>;
 
   constructor({
@@ -121,8 +86,8 @@ export class HuddleSession {
     this.inviterId = inviterId;
     this.onEnd = onEnd;
     this.thread = {
-      resourceId: `huddle:${joined.channelId}`,
-      threadId: `huddle:${joined.callId}`,
+      resource: `huddle:${joined.channelId}`,
+      thread: `huddle:${joined.callId}`,
     };
     this.voice = new DeepgramVoice({
       apiKey,
@@ -174,26 +139,22 @@ export class HuddleSession {
     voice.on('turn', (turn) => this.onTurn(turn));
     voice.on('audio', (audio) => {
       this.setThinking(false);
+      this.logTiming('firstAudio');
       this.playback.push(audio);
       this.lastSpokeAt = Date.now();
     });
-    voice.on('interrupted', ({ textSpoken }) =>
-      this.noteInterruption(textSpoken)
-    );
+    voice.on('interrupted', ({ textSpoken }) => {
+      if (textSpoken) {
+        this.backlog.push(
+          `[note] You were talked over after saying: "${textSpoken}"`
+        );
+      }
+    });
     voice.on('error', (error) =>
       logger.warn('[huddle] deepgram error', { callId: this.callId, error })
     );
     await voice.connect();
     await link.start();
-
-    const subscription = await voiceAgent.subscribeToThread(this.thread);
-    this.subscription = subscription;
-    this.consume(subscription).catch((error: unknown) =>
-      logger.warn('[huddle] thread subscription ended', { error })
-    );
-    this.watchTasks().catch((error: unknown) =>
-      logger.warn('[huddle] task stream ended', { error })
-    );
 
     let base = performance.now();
     let sent = 0;
@@ -216,11 +177,10 @@ export class HuddleSession {
       callId: this.callId,
       channelId: this.joined.channelId,
     });
-    this.signal({
-      tagName: 'joined',
-      contents: 'You just joined the huddle. Greet the room in a few words.',
-      wake: true,
-    });
+    this.backlog.push(
+      '[note] You just joined the huddle. Greet the room in a few words.'
+    );
+    this.talk();
   }
 
   end(reason: string) {
@@ -233,83 +193,156 @@ export class HuddleSession {
     for (const timer of this.timers) {
       clearInterval(timer);
     }
-    this.controller.abort();
-    this.subscription?.abort();
-    this.subscription?.unsubscribe();
+    this.run?.controller.abort();
     this.voice.close();
     await this.link.leave().catch(() => undefined);
     this.onEnd();
   }
 
-  private async consume(subscription: AgentThreadSubscription) {
-    for await (const chunk of subscription.stream) {
-      if (chunk.runId === this.abortedRunId) {
-        continue;
-      }
-      if (chunk.type === 'start') {
-        this.lastRunStartAt = Date.now();
-        continue;
-      }
-      if (chunk.type === 'text-delta') {
-        if (chunk.payload.text) {
-          this.reply += chunk.payload.text;
-          this.voice.say(chunk.payload.text);
-          this.ttsTurn = 'open';
+  // Sends the backlog to the talker and speaks its reply as it streams. A
+  // newer addressed turn replaces a run still thinking, and the replaced
+  // run's lines go back on the backlog: an aborted run saves nothing to
+  // memory, so they would otherwise be lost.
+  private talk() {
+    this.cancelRun();
+    const lines = this.backlog.splice(0);
+    if (this.ending || !lines.length) {
+      return;
+    }
+    const run: HuddleRun = {
+      controller: new AbortController(),
+      delegated: false,
+      lines,
+      reply: '',
+    };
+    this.run = run;
+    this.setThinking(true);
+    this.stream(run)
+      .catch((error: unknown) => {
+        if (!run.controller.signal.aborted) {
+          logger.warn('[huddle] reply failed', { callId: this.callId, error });
         }
+      })
+      .finally(() => this.finishRun(run));
+  }
+
+  private async stream(run: HuddleRun) {
+    this.mark('streamStart');
+    const output = await voiceAgent.stream(run.lines.join('\n'), {
+      memory: this.thread,
+      requestContext: this.requestContext(),
+      toolsets: { huddle: { delegate: this.delegate } },
+      abortSignal: run.controller.signal,
+    });
+    this.mark('streamReady');
+    for await (const chunk of output.fullStream) {
+      if (run.controller.signal.aborted) {
+        return;
+      }
+      if (chunk.type === 'text-delta' && chunk.payload.text) {
+        this.mark('firstText');
+        run.reply += chunk.payload.text;
+        this.voice.say(chunk.payload.text);
+        this.ttsTurn = 'open';
         continue;
       }
-      if (chunk.type === 'step-finish') {
-        this.unsaved = [];
-        continue;
+      if (chunk.type === 'tool-call') {
+        this.mark('toolCall');
+        run.delegated = true;
+        // Flux TTS holds a short ack like "on it" waiting for more text, so
+        // say what is there now.
+        this.flushSpeech();
       }
-      if (chunk.type !== 'finish' && chunk.type !== 'error') {
-        continue;
-      }
-      if (this.reply.trim()) {
-        this.remember(`gorkie: ${this.reply.trim()}`);
-        this.reply = '';
-      }
-      if (this.ttsTurn === 'open') {
-        this.voice.flush();
-        this.ttsTurn = 'idle';
-        continue;
-      }
-      // A run that ended without a word (a quiet delegation, a deliberate
-      // silence, an error) owes no audio, so nothing will clear the status.
-      this.setThinking(false);
     }
   }
 
-  private async watchTasks() {
-    const manager = getMastra().backgroundTaskManager;
-    if (!manager) {
+  // Called by `cancelRun` and again when the stream settles, so only the
+  // first call counts.
+  private finishRun(run: HuddleRun) {
+    if (this.run !== run) {
       return;
     }
-    const stream = manager.stream({
-      threadId: this.thread.threadId,
-      abortSignal: this.controller.signal,
-    });
-    for await (const raw of stream) {
-      const parsed = taskEventSchema.safeParse(raw);
-      if (!parsed.success) {
-        continue;
-      }
-      const { type, payload } = parsed.data;
-      if (type === 'background-task-running') {
-        this.running.set(payload.taskId, payload.toolName);
-        this.filler = { count: 0, lastAt: Date.now() };
-        continue;
-      }
-      this.running.delete(payload.taskId);
-      if (parsed.data.type !== 'background-task-completed') {
-        continue;
-      }
-      const text =
-        subagentResultSchema.safeParse(parsed.data.payload.result).data?.text ??
-        '';
-      this.results.push({ agent: payload.toolName, text, at: Date.now() });
-      this.postToThread(`*${payload.toolName}* finished\n\n${text}`);
+    this.run = undefined;
+    if (run.controller.signal.aborted) {
+      // A handed-off task keeps running after the abort, so say so, or the
+      // requeued lines would be delegated twice.
+      this.backlog.unshift(
+        ...run.lines,
+        ...(run.delegated
+          ? [
+              '[note] You already delegated that. Its answer comes back as a [task result] note, so do not delegate it again.',
+            ]
+          : [])
+      );
+      return;
     }
+    if (run.reply.trim()) {
+      this.remember(`gorkie: ${run.reply.trim()}`);
+    }
+    if (this.ttsTurn === 'open') {
+      this.flushSpeech();
+      return;
+    }
+    // A run that ended without a word (a quiet delegation, a deliberate
+    // silence, an error) owes no audio, so nothing will clear the status.
+    this.setThinking(false);
+    this.logTiming('silentEnd');
+  }
+
+  private cancelRun() {
+    if (!this.run) {
+      return;
+    }
+    this.run.controller.abort();
+    this.finishRun(this.run);
+  }
+
+  private flushSpeech() {
+    if (this.ttsTurn === 'open') {
+      this.voice.flush();
+      this.ttsTurn = 'idle';
+    }
+  }
+
+  // Runs gorkie's full agent on a delegated task, as the inviter and anchored
+  // on the huddle thread, so tools that need a live Slack message (search)
+  // work. It outlives the huddle: the result is posted to the thread either
+  // way, and spoken if gorkie is still in the call.
+  private runTask(task: string) {
+    const startedAt = Date.now();
+    logger.info('[huddle] delegated', { callId: this.callId, task });
+    getMastra()
+      .getAgent('orchestrator')
+      .generate(
+        `Asked out loud in a Slack huddle, relayed by your voice:\n\n${task}`,
+        {
+          memory: {
+            resource: this.thread.resource,
+            thread: `huddle-task:${this.callId}`,
+          },
+          requestContext: this.requestContext(),
+          abortSignal: AbortSignal.timeout(config.delegateTimeout),
+        }
+      )
+      .then(({ text }) => {
+        logger.info('[huddle] delegation finished', {
+          callId: this.callId,
+          ms: Date.now() - startedAt,
+        });
+        this.postToThread(text);
+        this.results.push({ text, at: Date.now() });
+      })
+      .catch((error: unknown) => {
+        logger.warn('[huddle] delegation failed', {
+          callId: this.callId,
+          ms: Date.now() - startedAt,
+          error,
+        });
+        this.results.push({
+          text: 'The task failed before it finished.',
+          at: Date.now(),
+        });
+      });
   }
 
   private nextFrame() {
@@ -344,8 +377,8 @@ export class HuddleSession {
     if (turn.type === 'start') {
       this.floor = 'user';
       // Barge-in cuts speech only, counting text already handed to TTS whose
-      // audio has not arrived yet. A reply still thinking keeps going, and
-      // the next utterance joins its run as a follow-up.
+      // audio has not arrived yet. A reply still thinking keeps going, since
+      // the new speech may not be for gorkie at all.
       if (this.playback.length || this.ttsTurn === 'open') {
         this.interrupt();
       }
@@ -360,50 +393,50 @@ export class HuddleSession {
       : undefined;
     const line = `${name ?? 'someone'}: ${turn.transcript}`;
     this.remember(line);
+    this.backlog.push(line);
+    this.backlog = this.backlog.slice(-config.backlogLines);
     // Turns queue so a slow addressee check never reorders the transcript.
     this.turns = this.turns
-      .then(() => this.endTurn({ transcript: turn.transcript, name }))
+      .then(() => this.endTurn(turn.transcript))
       .catch((error: unknown) =>
         logger.warn('[huddle] turn failed', { callId: this.callId, error })
       );
   }
 
-  private async endTurn({
-    transcript,
-    name,
-  }: {
-    transcript: string;
-    name?: string;
-  }) {
+  private async endTurn(transcript: string) {
+    const endedAt = Date.now();
     const named = /\bg[ao]r[gk]/i.test(transcript);
     const followUp = Date.now() - this.lastSpokeAt < config.followUpWindow;
     // gorkie speaks only when spoken to: named, or, in the window right after
     // it spoke, when a fast model reads the line as aimed at it. Everyone
-    // else's talk, alone with gorkie or not, is kept as context.
-    const addressed = named || (followUp && (await this.aimedAtGorkie()));
-    if (addressed) {
-      this.setThinking(true);
-      this.lastInputAt = Date.now();
-      this.unsaved.push(name ? `${name}: ${transcript}` : transcript);
+    // else's talk, alone with gorkie or not, waits in the backlog as context.
+    if (!(named || (followUp && (await this.aimedAtGorkie())))) {
+      return;
     }
-    voiceAgent
-      .sendMessage(
-        {
-          contents: transcript,
-          attributes: name ? { name } : undefined,
-        },
-        {
-          ...this.thread,
-          ifActive: { behavior: addressed ? 'deliver' : 'persist' },
-          ifIdle: {
-            behavior: addressed ? 'wake' : 'persist',
-            streamOptions: { requestContext: this.requestContext() },
-          },
-        }
-      )
-      .accepted.catch((error: unknown) =>
-        logger.warn('[huddle] message not accepted', { error })
-      );
+    this.timing = { endOfSpeech: endedAt, addressed: Date.now() };
+    this.talk();
+  }
+
+  // Keeps the first time each stage was reached in the current turn.
+  private mark(stage: string) {
+    if (this.timing && !(stage in this.timing)) {
+      this.timing[stage] = Date.now();
+    }
+  }
+
+  private logTiming(stage: string) {
+    if (!this.timing) {
+      return;
+    }
+    this.mark(stage);
+    const { endOfSpeech = 0, ...stages } = this.timing;
+    logger.info('[huddle] turn timing (ms after end of speech)', {
+      callId: this.callId,
+      ...Object.fromEntries(
+        Object.entries(stages).map(([key, at]) => [key, at - endOfSpeech])
+      ),
+    });
+    this.timing = undefined;
   }
 
   private async aimedAtGorkie() {
@@ -424,71 +457,13 @@ export class HuddleSession {
   }
 
   // Stops the talker and its audio, and tells TTS how far playback got.
-  // An aborted run saves nothing, so once TTS reports what the room heard,
-  // that and any utterance the run never saved go into the thread as a
-  // note instead.
+  // TTS answers with the text the room heard, which becomes a note.
   private interrupt() {
-    const runId = this.subscription?.activeRunId();
-    if (runId) {
-      this.abortedRunId = runId;
-      this.subscription?.abort();
-    }
+    this.cancelRun();
     this.voice.interrupt(this.played);
     this.playback = [];
     this.playbackOffset = 0;
     this.ttsTurn = 'idle';
-    // The interrupted note records what the room actually heard instead.
-    this.reply = '';
-    this.cutOff = this.unsaved.splice(0);
-  }
-
-  private noteInterruption(textSpoken: string) {
-    const cutOff = this.cutOff.splice(0);
-    if (!(textSpoken || cutOff.length)) {
-      return;
-    }
-    this.signal({
-      tagName: 'interrupted',
-      contents: [
-        textSpoken ? `You were talked over after saying: "${textSpoken}"` : '',
-        cutOff.length
-          ? `You were answering: ${cutOff.map((line) => `"${line}"`).join(', ')}`
-          : '',
-      ]
-        .filter(Boolean)
-        .join('. '),
-      wake: false,
-    });
-  }
-
-  private signal({
-    tagName,
-    contents,
-    wake,
-  }: {
-    tagName: string;
-    contents: string;
-    wake: boolean;
-  }) {
-    if (wake) {
-      this.lastInputAt = Date.now();
-      this.setThinking(true);
-    }
-    voiceAgent
-      .sendSignal(
-        { type: 'notification', tagName, contents },
-        {
-          ...this.thread,
-          ifActive: { behavior: wake ? 'deliver' : 'persist' },
-          ifIdle: {
-            behavior: wake ? 'wake' : 'persist',
-            streamOptions: { requestContext: this.requestContext() },
-          },
-        }
-      )
-      .accepted.catch((error: unknown) =>
-        logger.warn('[huddle] signal not accepted', { tagName, error })
-      );
   }
 
   private tick() {
@@ -502,36 +477,14 @@ export class HuddleSession {
     const floorFree = !(
       this.floor === 'user' ||
       this.playback.length ||
-      this.subscription?.activeRunId()
+      this.run
     );
-    // The `untilIdle` wrapper continues on a result by starting a run that
-    // no input of ours started. Without that, the result still needs saying.
-    this.results = this.results.filter((result) => {
-      if (this.lastRunStartAt > result.at && this.lastInputAt < result.at) {
-        return false;
+    // A result waits for a quiet moment rather than talking over the room.
+    if (floorFree && this.results.length) {
+      for (const result of this.results.splice(0)) {
+        this.backlog.push(`[task result] ${result.text.slice(0, 6000)}`);
       }
-      if (!floorFree || now - result.at < 2000) {
-        return true;
-      }
-      this.signal({
-        tagName: 'task-result',
-        contents: `The ${result.agent} delegation finished. Its result:\n${result.text.slice(0, 6000)}`,
-        wake: true,
-      });
-      return false;
-    });
-    if (
-      floorFree &&
-      this.running.size &&
-      this.filler.count < config.filler.count &&
-      now - Math.max(this.filler.lastAt, this.lastSpokeAt) >
-        (this.filler.count ? config.filler.interval : config.filler.first)
-    ) {
-      this.voice.say(
-        fillers[this.filler.count % fillers.length] ?? 'still on it.'
-      );
-      this.voice.flush();
-      this.filler = { count: this.filler.count + 1, lastAt: now };
+      this.talk();
     }
     this.checkPresence(now);
   }
@@ -572,8 +525,13 @@ export class HuddleSession {
     const { channelId, threadTs } = this.joined;
     const requestContext = new RequestContext();
     requestContext.set('channel', {
+      platform: 'slack',
+      eventType: 'huddle',
       channelId,
       threadId: threadIdOf({ channel: channelId, ts: threadTs }),
+      // The huddle thread's root stands in for the live message a text turn
+      // would have, which Slack search needs as its anchor.
+      messageId: threadTs,
       // Inviting gorkie is consent for the room, so the room's requests run
       // as the inviter, who passed the opt-in check and owns the access.
       userId: this.inviterId,
