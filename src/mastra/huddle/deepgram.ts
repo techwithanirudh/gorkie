@@ -303,6 +303,10 @@ export class DeepgramVoice extends MastraVoice<
       this.events.emit('turn', { type: 'start' });
       return;
     }
+    if (turn.data.event === 'Update') {
+      this.events.emit('turn', { type: 'update', transcript });
+      return;
+    }
     if (turn.data.event !== 'EndOfTurn') {
       return;
     }

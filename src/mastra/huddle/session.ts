@@ -26,6 +26,9 @@ import type {
 import { ChimeLink } from './chime/link';
 import { DeepgramVoice } from './deepgram';
 
+const greeting =
+  '[note] You just joined the huddle. Greet the room in a few words.';
+
 // 20 ms at 48 kHz, the Opus frame Chime expects.
 const frameSamples = 960;
 const frameMs = 20;
@@ -68,6 +71,9 @@ export class HuddleSession {
   // addressed turn, so side talk costs nothing until someone asks gorkie.
   private backlog: string[] = [];
   private run?: HuddleRun;
+  // An addressed turn, result or requeue waiting for the current run to
+  // finish and the floor to free up.
+  private owed = false;
   private readonly results: { text: string; at: number }[] = [];
   private readonly tasks = new Map<number, HuddleTask>();
   private taskCount = 0;
@@ -191,9 +197,7 @@ export class HuddleSession {
       callId: this.callId,
       channelId: this.joined.channelId,
     });
-    this.backlog.push(
-      '[note] You just joined the huddle. Greet the room in a few words.'
-    );
+    this.backlog.push(greeting);
     this.talk();
   }
 
@@ -214,11 +218,14 @@ export class HuddleSession {
   }
 
   // Sends the backlog to the talker and speaks its reply as it streams. A
-  // newer addressed turn replaces a run still thinking, and the replaced
-  // run's lines go back on the backlog: an aborted run saves nothing to
-  // memory, so they would otherwise be lost.
+  // run already going is never replaced, since its reply may be about to
+  // play: the new lines wait in the backlog and go next, from `tick`.
   private talk() {
-    this.cancelRun();
+    if (this.run) {
+      this.owed = true;
+      return;
+    }
+    this.owed = false;
     const lines = this.backlog.splice(0);
     if (this.ending || !lines.length) {
       return;
@@ -281,10 +288,13 @@ export class HuddleSession {
     }
     this.run = undefined;
     if (run.controller.signal.aborted) {
-      // A handed-off task keeps running after the abort, so say so, or the
-      // requeued lines would be delegated twice.
+      // An aborted run saves nothing to memory, so its lines go back and
+      // run again once the floor is free. A handed-off task keeps running
+      // after the abort, so say so, or it would be delegated twice. The
+      // greeting is only worth saying once.
+      this.owed = true;
       this.backlog.unshift(
-        ...run.lines,
+        ...run.lines.filter((line) => line !== greeting),
         ...(run.delegated
           ? [
               '[note] You already delegated that. Its answer comes back as a [task result] note, so do not delegate it again.',
@@ -437,10 +447,17 @@ export class HuddleSession {
     this.lastActivityAt = Date.now();
     if (turn.type === 'start') {
       this.floor = 'user';
-      // Barge-in cuts speech only, counting text already handed to TTS whose
-      // audio has not arrived yet. A reply still thinking keeps going, since
-      // the new speech may not be for gorkie at all.
-      if (this.playback.length || this.ttsTurn === 'open') {
+      return;
+    }
+    // Barge-in cuts audio that is actually playing, and only once Flux has
+    // heard real words, so a cough or a click does not kill a reply. A reply
+    // still thinking keeps going, since the new speech may not be for
+    // gorkie at all.
+    if (turn.type === 'update') {
+      if (
+        this.playback.length &&
+        turn.transcript.length >= config.bargeInChars
+      ) {
         this.interrupt();
       }
       return;
@@ -554,10 +571,11 @@ export class HuddleSession {
       return;
     }
     // A result waits for a quiet moment rather than talking over the room.
-    if (floorFree && this.results.length) {
-      for (const result of this.results.splice(0)) {
-        this.backlog.push(`[task result] ${result.text.slice(0, 6000)}`);
-      }
+    for (const result of floorFree ? this.results.splice(0) : []) {
+      this.backlog.push(`[task result] ${result.text.slice(0, 6000)}`);
+      this.owed = true;
+    }
+    if (floorFree && this.owed) {
       this.talk();
     }
     this.checkPresence(now);

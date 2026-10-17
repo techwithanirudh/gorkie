@@ -84,6 +84,8 @@ export const huddle = {
   // Inside that window a fast model reads the last few lines to tell a
   // follow-up from side chatter. Outside it, only the name gets a reply.
   addressee: { lines: 8, timeout: 1500 },
+  // Characters Flux must have heard before talking over gorkie cuts it off.
+  bargeInChars: 4,
   // Clears the "is thinking..." status if a reply never comes.
   thinkingTimeout: 20 * 1000,
   // After being asked to leave, the most a goodbye gets to finish playing.

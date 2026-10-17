@@ -74,7 +74,10 @@ export interface HuddleAccount {
   userId?: string;
 }
 
-export type TurnEvent = { type: 'start' } | { type: 'end'; transcript: string };
+export type TurnEvent =
+  | { type: 'start' }
+  | { type: 'update'; transcript: string }
+  | { type: 'end'; transcript: string };
 
 export interface HuddleTask {
   brief: string;
