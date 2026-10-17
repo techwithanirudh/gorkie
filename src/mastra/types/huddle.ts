@@ -79,6 +79,8 @@ export interface HuddleTask {
   brief: string;
   startedAt: number;
   step?: string;
+  steps: number;
+  text: string;
 }
 
 export interface HuddleRun {

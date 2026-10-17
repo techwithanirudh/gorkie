@@ -40,8 +40,9 @@ Once in the call:
    thread, so everything text gorkie can do (Slack search, the web, GitHub,
    code) works from a huddle. Delegating doesn't end the talker's turn: it
    can say one short line, before or after the call. While a task runs,
-   each turn gets a note with how long it has been going and the tool it is
-   using now, so "how's that going?" gets a real answer. When the task
+   each turn gets a note with how long it has been going, its tool calls,
+   the tool it is using now and the latest text it wrote, so "how's that
+   going?" gets a real answer. When the task
    finishes, its full answer is posted to the huddle thread, and gorkie says
    the gist once the room is quiet. A task outlives the huddle and still
    posts its answer.

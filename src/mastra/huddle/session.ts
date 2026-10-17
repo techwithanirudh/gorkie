@@ -321,7 +321,12 @@ export class HuddleSession {
   // way, and spoken if gorkie is still in the call.
   private runTask(brief: string) {
     const id = ++this.taskCount;
-    const task: HuddleTask = { brief, startedAt: Date.now() };
+    const task: HuddleTask = {
+      brief,
+      startedAt: Date.now(),
+      steps: 0,
+      text: '',
+    };
     this.tasks.set(id, task);
     logger.info('[huddle] delegated', { callId: this.callId, brief });
     this.followTask({ id, task })
@@ -348,7 +353,8 @@ export class HuddleSession {
   }
 
   // Streams rather than generates so the talker can say what a running
-  // task is doing, from the tool it called last. Each task gets its own
+  // task is doing: the tool it called last, how many it has called, and the
+  // tail of what it has written so far. Each task gets its own
   // memory thread, since two can run at once and the brief is self
   // contained.
   private async followTask({ id, task }: { id: number; task: HuddleTask }) {
@@ -368,6 +374,10 @@ export class HuddleSession {
     for await (const chunk of output.fullStream) {
       if (chunk.type === 'tool-call') {
         task.step = chunk.payload.toolName;
+        task.steps += 1;
+      }
+      if (chunk.type === 'text-delta') {
+        task.text = (task.text + chunk.payload.text).slice(-300);
       }
     }
     return output.text;
@@ -377,8 +387,15 @@ export class HuddleSession {
   private runningNote() {
     const now = Date.now();
     const running = [...this.tasks.values()].map(
-      ({ brief, startedAt, step }) =>
-        `"${brief.slice(0, 200)}" for ${Math.round((now - startedAt) / 1000)} s${step ? `, now using ${step}` : ''}`
+      ({ brief, startedAt, step, steps, text }) =>
+        [
+          `"${brief.slice(0, 200)}" for ${Math.round((now - startedAt) / 1000)} s`,
+          `${steps} tool calls`,
+          step ? `now using ${step}` : '',
+          text.trim() ? `latest text: "${text.trim()}"` : '',
+        ]
+          .filter(Boolean)
+          .join(', ')
     );
     return running.length ? [`[running] ${running.join('; ')}`] : [];
   }
