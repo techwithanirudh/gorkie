@@ -135,6 +135,9 @@ export class HuddleSlack {
     if (info.channel?.is_member) {
       return;
     }
+    if (!info.ok && info.error !== 'channel_not_found') {
+      throw new Error(`conversations.info failed: ${info.error ?? 'unknown'}`);
+    }
     if (!info.ok || info.channel?.is_private || info.channel?.is_archived) {
       throw new Error(
         `The huddle account <@${this.userId}> cannot join this channel by itself. Invite it here first.`
