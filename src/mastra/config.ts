@@ -56,6 +56,11 @@ export const emoji = { listTtl: 5 * 60 * 1000 };
 export const huddle = {
   voice: 'flux-alexis-en',
   sttModel: 'flux-general-en',
+  // Flux end-of-turn confidence, and the silence after which a turn ends
+  // regardless. The likeliest knobs to turn after a live test.
+  eotThreshold: 0.7,
+  eotTimeoutMs: 5000,
+  batchSttModel: 'nova-3',
   // Spoken replies are a few sentences, so a small cap also bounds the cost
   // of a runaway turn. Steps cover a delegation plus the reply after it.
   maxOutputTokens: 1024,

@@ -1,6 +1,10 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import { Audio, PeerConnection, type Track, Video } from 'node-datachannel';
-import type { ChimeJoinInfo, SignalFrame, TurnCredentials } from '../../types';
+import type {
+  ChimeJoinInfo,
+  ChimeLinkEvents,
+  TurnCredentials,
+} from '../../types';
 import { rtpPacket, rtpPayload, senderReport } from './rtp';
 import { ChimeSignaling } from './signaling';
 
@@ -22,14 +26,6 @@ interface Connection {
 }
 
 class TerminalError extends Error {}
-
-export interface ChimeLinkEvents {
-  onAudio: (opus: Buffer) => void;
-  onFrame: (frame: SignalFrame) => void;
-  onSignaling: () => void;
-  onTerminal: (reason: string) => void;
-  onWarn: (event: string, fields: Record<string, unknown>) => void;
-}
 
 function iceServers(turn: TurnCredentials) {
   return turn.uris.flatMap((uri) => {
