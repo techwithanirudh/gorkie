@@ -52,3 +52,44 @@ export const workingModel = {
 };
 
 export const emoji = { listTtl: 5 * 60 * 1000 };
+
+export const huddle = {
+  voice: 'flux-sienna-en',
+  sttModel: 'flux-general-en',
+  // The talker's lead model on OpenCode Go, swappable here. MiniMax M3 was
+  // the fastest to first token in a live comparison (under a second, 1M
+  // context). The usual ladder backs it up.
+  model: 'minimax-m3',
+  // Flux end-of-turn confidence, and the silence after which a turn ends
+  // regardless. The likeliest knobs to turn after a live test.
+  eotThreshold: 0.7,
+  // Flux keyterm prompting, so the name survives speech to text. Without it
+  // "gorkie" came out as "Gorky", "Gork", or vanished entirely.
+  keyterm: ['Gorkie', 'Gork'],
+  eotTimeoutMs: 5000,
+  batchSttModel: 'nova-3',
+  // Spoken replies are a few sentences, so a small cap also bounds the cost
+  // of a runaway turn. Two steps covers a delegation plus a line after it.
+  maxOutputTokens: 1024,
+  maxSteps: 2,
+  // Raw huddle history the talker keeps before observational memory folds
+  // it into observations. With observational memory on, this, not a message
+  // count, bounds the prompt: Mastra's default of 30,000 tokens let a long
+  // huddle add seconds to every turn. Small on purpose, since every turn
+  // pays for it in time to first token.
+  historyTokens: 4000,
+  // Lines said since the talker last ran, sent with its next run. Older
+  // ones are dropped rather than paid for.
+  backlogLines: 40,
+  // A delegation runs gorkie's full agent; past this it is given up on.
+  delegateTimeout: 20 * 60 * 1000,
+  // Characters Flux must have heard before talking over gorkie cuts it off.
+  bargeInChars: 4,
+  // Clears the "is thinking..." status if a reply never comes.
+  thinkingTimeout: 20 * 1000,
+  // After being asked to leave, the most a goodbye gets to finish playing.
+  leaveTimeout: 10 * 1000,
+  // Leave once nobody else has been in the call this long.
+  aloneTimeout: 60 * 1000,
+  idleTimeout: 15 * 60 * 1000,
+};
