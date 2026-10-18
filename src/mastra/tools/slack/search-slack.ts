@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
+import { huddleInThread } from '../../huddle/live';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, rawId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
@@ -296,11 +297,13 @@ export const searchSlackTool = createTool({
   },
   execute: async ({ query, cursor }, context) => {
     spendSlackCall(context?.requestContext);
-    const { channelId, messageId, threadId } = channelContext(
+    const { channelId, eventType, messageId, threadId } = channelContext(
       context?.requestContext
     );
     const searchChannelId = channelId ?? threadId;
-    if (!(messageId && searchChannelId)) {
+    const live =
+      messageId || (eventType === 'huddle' && huddleInThread(threadId));
+    if (!(live && searchChannelId)) {
       throw new Error(
         'Slack search needs a live message in this thread. gorkie does not run the workspace search identity on scheduled or unattended runs. Ask the user to mention the bot, then search again.'
       );

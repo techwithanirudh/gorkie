@@ -45,9 +45,31 @@ export const env = createEnv({
 
     EXA_API_KEY: z.string().min(1),
 
+    DEEPGRAM_API_KEY: z.string().min(1).optional(),
+    HUDDLE_WORKSPACE_URL: z.url().optional(),
+    HUDDLE_XOXC: z.string().startsWith('xoxc-').optional(),
+    HUDDLE_XOXD: z.string().startsWith('xoxd-').optional(),
+    HUDDLE_MEDIA_REGION: z.string().default('us-east-1'),
+
     AGENTMAIL_API_KEY: z.string().min(1).optional(),
     EMOJI_PROXY_TOKEN: z.string().min(1).optional(),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
+  createFinalSchema: (shape) =>
+    z.object(shape).refine(
+      (vars) => {
+        const huddle = [
+          vars.DEEPGRAM_API_KEY,
+          vars.HUDDLE_WORKSPACE_URL,
+          vars.HUDDLE_XOXC,
+          vars.HUDDLE_XOXD,
+        ];
+        return huddle.every(Boolean) || !huddle.some(Boolean);
+      },
+      {
+        message:
+          'Huddle voice needs DEEPGRAM_API_KEY, HUDDLE_WORKSPACE_URL, HUDDLE_XOXC and HUDDLE_XOXD together: set all four or none.',
+      }
+    ),
 });
