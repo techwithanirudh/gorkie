@@ -1,5 +1,5 @@
---- a/node_modules/@mastra/core/dist/agent-DwtTO5Px.js
-+++ b/node_modules/@mastra/core/dist/agent-DwtTO5Px.js
+--- a/dist/agent-DwtTO5Px.js
++++ b/dist/agent-DwtTO5Px.js
 @@ -20781,15 +20781,37 @@
  */
  async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, toolDisplayFn, streamingOptions, channelToolNames, logger, onApprovalPosted, getPendingApproval, takePendingApproval, typingGate, formatError, textFormat }) {
@@ -539,8 +539,8 @@
  								else await context.writer.write(chunk);
  								if (chunk.type === "text-delta") fullText += chunk.textDelta;
  							}
---- a/node_modules/@mastra/core/dist/agent-DVnXHd4C.cjs
-+++ b/node_modules/@mastra/core/dist/agent-DVnXHd4C.cjs
+--- a/dist/agent-DVnXHd4C.cjs
++++ b/dist/agent-DVnXHd4C.cjs
 @@ -20783,15 +20783,37 @@
  */
  async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, toolDisplayFn, streamingOptions, channelToolNames, logger, onApprovalPosted, getPendingApproval, takePendingApproval, typingGate, formatError, textFormat }) {
