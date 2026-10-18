@@ -3,6 +3,7 @@ export * from './approval';
 export * from './channel';
 export * from './command';
 export * from './github';
+export * from './huddle';
 export * from './json';
 export * from './mcp';
 export * from './moderation';

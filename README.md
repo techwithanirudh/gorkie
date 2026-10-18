@@ -140,6 +140,12 @@ search also needs Slack's action token from the current mention or DM. Search
 calls return immediately during cooldown; workspace limits can affect both
 credentials.
 
+For gorkie's own voice in huddles, invite its huddle user to a Slack huddle
+(or ask gorkie to join) and talk to it. Deepgram handles speech both ways, a
+small voice agent with a short prompt does the talking, and research or explore
+run in the background when a question needs real work. Setup is in
+[docs/huddles.md](./docs/huddles.md).
+
 For manual HuddleFM music control, set optional `HUDDLEFM_USER_ID` to the
 HuddleFM integration user's Slack ID and have its operator allowlist Gorkie's
 bot ID. The `huddlefm` runtime skill loads deferred music tools. Request control
@@ -238,6 +244,11 @@ them without starting the bot, run `bun run db:migrate`.
 | `GITHUB_APP_CLIENT_ID` | yes | GitHub App client id, for the App Home web sign-in (see [docs/github-app.md](./docs/github-app.md)) |
 | `GITHUB_APP_CLIENT_SECRET` | yes | GitHub App client secret, for the sign-in code exchange, token refresh and revoking on disconnect |
 | `EXA_API_KEY` | yes | Exa key, powers `search_web`/`fetch_url` |
+| `DEEPGRAM_API_KEY` | no | Huddle voice: Deepgram key for speech to text and text to speech. See [docs/huddles.md](./docs/huddles.md) |
+| `HUDDLE_WORKSPACE_URL` | no | Huddle voice: workspace URL, e.g. `https://example.slack.com` |
+| `HUDDLE_XOXC` | no | Huddle voice: browser session token of the dedicated huddle user |
+| `HUDDLE_XOXD` | no | Huddle voice: that session's `d` cookie |
+| `HUDDLE_MEDIA_REGION` | no | Huddle voice: Chime media region, defaults to `us-east-1` |
 | `AGENTMAIL_API_KEY` | no | Enables the `agentmail_*` email tools for `gorkie@agentmail.to`. They run on the host through AgentMail's MCP server; the sandbox gets no email access. Use an inbox-scoped key limited to `message_read`, `message_send` and `message_update`, not an org key |
 | `EMOJI_PROXY_TOKEN` | no | Token for the Hack Club Slack emoji proxy. Enables `upload_emoji`; unset, the tool reports that emoji upload is not configured |
 | `NODE_ENV` | no | `development` (default), `production` or `test`. Production rejects a non-https `PUBLIC_BASE_URL`, and skips the local DuckDB trace store |

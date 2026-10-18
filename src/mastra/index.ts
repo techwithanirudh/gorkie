@@ -9,6 +9,7 @@ import { explore } from './agents/explore';
 import { orchestrator } from './agents/orchestrator';
 import { research } from './agents/research';
 import { summarizer } from './agents/summarizer';
+import { voiceAgent as voice } from './agents/voice';
 import { buildAllowlist } from './chat/allowed-users';
 import { registerEvents } from './chat/events';
 import { setMastra } from './chat/mastra-instance';
@@ -16,6 +17,7 @@ import { TurnDrainWorker } from './chat/turn-drain';
 import { backgroundTasks, shutdown } from './config';
 import { runMigrations } from './db';
 import { postgresStore } from './db/client';
+import { startHuddles } from './huddle';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
@@ -41,7 +43,7 @@ const langfuse = new LangfuseExporter({
 });
 
 export const mastra = new Mastra({
-  agents: { orchestrator, summarizer, research, explore },
+  agents: { orchestrator, summarizer, research, explore, voice },
   server: {
     host: env.HOST,
     port: env.PORT,
@@ -149,6 +151,11 @@ channels
     registerEvents();
     await buildAllowlist();
     logger.info('[agent] online');
+    try {
+      await startHuddles();
+    } catch (err) {
+      logger.error('[huddle] failed to start', { err });
+    }
   })
   .catch((err: unknown) =>
     logger.error('[agent] initialization failed', { err })

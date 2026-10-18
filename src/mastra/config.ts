@@ -210,3 +210,27 @@ export const activity = {
 };
 
 export const codeChannels = { maxViewBytes: 1_000_000 };
+
+export const huddle = {
+  model: 'minimax-m3',
+  voice: 'flux-alexis-en',
+  sttModel: 'flux-general-en',
+  eotThreshold: 0.7,
+  eotTimeoutMs: 5000,
+  // Flux dropped or misheard the name ("Gorky", nothing) without a keyterm.
+  keyterm: ['Gorkie', 'Gork'],
+  // Characters Flux must have heard before talking over gorkie cuts it off,
+  // so a cough or a click does not kill a reply.
+  bargeInChars: 4,
+  // Flux TTS closes a socket with no client message for 60 s.
+  ttsKeepAliveMs: 30 * 1000,
+  batchSttModel: 'nova-3',
+  maxOutputTokens: 1024,
+  maxSteps: 4,
+  lastMessages: 40,
+  task: { researchTimeout: 15 * 60 * 1000, exploreTimeout: 20 * 60 * 1000 },
+  unnamedReplyWindow: 20 * 1000,
+  goodbye: { afterLeaveMs: 2000, afterAudioMs: 1500, maxMs: 10 * 1000 },
+  aloneTimeout: 60 * 1000,
+  idleTimeout: 15 * 60 * 1000,
+};

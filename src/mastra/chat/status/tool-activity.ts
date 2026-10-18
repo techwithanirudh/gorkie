@@ -32,6 +32,8 @@ export const toolActions: Record<string, string | null> = {
   archive_code_channel: 'archiving the code channel',
   huddle_dj: 'sending a music command',
   huddle_dj_reply: 'checking the music command',
+  join_huddle: 'joining the huddle',
+  leave_huddle: 'leaving the huddle',
   create_canvas: 'writing a canvas',
   edit_canvas: 'editing a canvas',
   read_canvas: 'reading a canvas',
