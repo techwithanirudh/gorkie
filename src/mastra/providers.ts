@@ -90,13 +90,14 @@ async function preferLastWorking(rungs: Rung[]): Promise<ModelWithRetries[]> {
 
 function ladder(agentKey: string): () => Promise<ModelWithRetries[]> {
   const rungs = [
+    opencode({ modelId: 'deepseek-v4.1-flash', fallbackSession: agentKey }),
+    opencode({ modelId: 'glm-5.3-flash', fallbackSession: agentKey }),
     opencode({
       modelId: 'gpt-6-luna',
       fallbackSession: agentKey,
       api: 'responses',
     }),
-    opencode({ modelId: 'mimo-v2.6-flash', fallbackSession: agentKey }),
-    opencode({ modelId: 'kimi-k3', fallbackSession: agentKey }),
+    hackclub('deepseek/deepseek-v4.1-flash'),
   ];
   return () => preferLastWorking(rungs);
 }

@@ -21,7 +21,7 @@ async function downloadSlackFile({
 }) {
   const sandbox = await requireSandbox(requestContext);
 
-  if (/^:[^:]+:$/.test(file.trim())) {
+  if (/^:[^:]+:(?::skin-tone-[2-6]:)?$/.test(file.trim())) {
     return downloadEmoji({
       shortcode: file,
       filename,

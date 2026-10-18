@@ -6,6 +6,7 @@ import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { search } from '../../config';
 import { channelContext } from '../../lib/context';
+import { parseSlackInput } from '../../lib/ids';
 import type { ChannelContext } from '../../types';
 import { readableChannels } from './access';
 import { spendSlackCall } from './budget';
@@ -41,6 +42,39 @@ function searchCooldownError({
   return new Error(
     `Slack search is unavailable for ${seconds} seconds due to rate limiting. Do not retry searches during this cooldown. Use the evidence already gathered and report what could not be verified.`,
     { cause }
+  );
+}
+
+const slackErrorSchema = z.looseObject({
+  data: z.looseObject({ error: z.string().optional() }).optional(),
+});
+
+function searchFailure(error: unknown): Error {
+  const code = slackErrorSchema.safeParse(error).data?.data?.error;
+  if (!code) {
+    return new Error(
+      'Slack search failed. No results were returned to the model. Do not treat this as an empty search or retry with another token.',
+      { cause: error }
+    );
+  }
+  const reasons: Record<string, string> = {
+    access_denied: 'Slack denied access to the requested resource.',
+    assistant_search_context_disabled:
+      'Slack has disabled assistant search context. This does not establish whether the cause is an AI access setting or a temporary Slack issue.',
+    context_channel_not_found:
+      'The search context channel does not exist or the searching identity cannot access it.',
+    ekm_access_denied: 'Slack denied access under its encryption policy.',
+    enterprise_is_restricted:
+      'Slack restricted access for this Enterprise organization.',
+    missing_scope: 'The search token lacks a required Slack scope.',
+    token_expired: 'The Slack search token has expired.',
+    invalid_auth: 'Slack rejected the search token.',
+    ratelimited: 'Slack rate limited the search.',
+  };
+  const reason = reasons[code] ?? 'Slack rejected the search request.';
+  return new Error(
+    `Slack search failed (${code}): ${reason} No results were returned to the model. Do not treat this as an empty search, claim no matching messages exist, or bypass Slack AI access controls with another token.`,
+    { cause: error }
   );
 }
 
@@ -201,6 +235,7 @@ async function searchMessages(
   context: { requestContext?: RequestContext }
 ) {
   const ctx = channelContext(context.requestContext);
+  const contextChannel = parseSlackInput(ctx.channelId ?? ctx.threadId).channel;
   const actionToken = z
     .string()
     .min(1)
@@ -254,6 +289,9 @@ async function searchMessages(
         await slack.webClient.apiCall('assistant.search.context', {
           // Must be a comma-separated string: Slack ignores an array, which reopens private channels and DMs.
           ...(credential.bot ? { action_token: actionToken } : {}),
+          ...(!credential.bot && contextChannel
+            ? { context_channel_id: contextChannel }
+            : {}),
           channel_types: 'public_channel',
           content_types: 'messages',
           cursor: credential.cursor,
@@ -279,7 +317,7 @@ async function searchMessages(
         })
         .safeParse(error);
       if (!limited.success) {
-        throw error;
+        throw searchFailure(error);
       }
       retryAt.set(
         token,
