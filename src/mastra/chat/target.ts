@@ -8,7 +8,7 @@ export const targetSchema = z.object({
     .string()
     .min(1)
     .describe(
-      'Chat SDK id: thread (slack:C...:ts), channel (slack:C...), or a user id.'
+      'Chat SDK id: thread (slack:<conversation-id>:ts), conversation (slack:C..., slack:D..., or slack:G...), or a user id.'
     ),
 });
 

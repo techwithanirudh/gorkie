@@ -4,6 +4,10 @@ description: 'Common setup steps for CI (bun + deps + dummy env)'
 runs:
   using: composite
   steps:
+    - uses: actions/setup-node@v6
+      with:
+        node-version-file: .nvmrc
+
     - uses: oven-sh/setup-bun@v2
 
     - shell: bash
@@ -16,9 +20,10 @@ runs:
         SLACK_BOT_TOKEN=xoxb-dummy
         SLACK_APP_TOKEN=xapp-dummy
         HACKCLUB_API_KEY=dummy
+        OPENCODE_API_KEY=dummy
         DATABASE_URL=postgresql://user:pass@localhost:5432/db
+        MASTRA_PLATFORM_ACCESS_TOKEN=dummy
+        MASTRA_PROJECT_ID=dummy
         E2B_API_KEY=dummy
         EXA_API_KEY=dummy
-        LANGFUSE_PUBLIC_KEY=pk-lf-dummy
-        LANGFUSE_SECRET_KEY=sk-lf-dummy
         EOF

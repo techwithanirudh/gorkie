@@ -7,7 +7,7 @@ Use webhooks when the user explicitly wants AgentMail to call a public HTTP endp
 ```python
 from agentmail import AgentMail
 
-client = AgentMail(api_key="brokered-by-gorkie")
+client = AgentMail(api_key="brokered")
 
 webhook = client.webhooks.create(
     url="https://example.com/webhooks/agentmail",

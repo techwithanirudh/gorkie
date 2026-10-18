@@ -1,18 +1,24 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+import { logger } from '../lib/logger';
 
 export const skipTool = createTool({
   id: 'skip',
   description:
-    'End the turn without replying. Use when the message needs no response from you, for example when it is not addressed to you, is a side conversation between other people, or someone is showing your output to a third party. Prefer this over writing a bracketed status note or a filler acknowledgement.',
-  inputSchema: z.object({
+    'End this turn quietly without sending a Slack reply or reaction. Use for spam, repeated gibberish, low-value messages, events that do not warrant a response, and messages addressed to another person or agent that only mention you. Do not use when someone asked you a question or expects an explanation from you.',
+  inputSchema: z.strictObject({
     reason: z
       .string()
       .optional()
-      .describe('Optional short reason for skipping.'),
+      .describe('Why this message does not need a reply.'),
   }),
-  execute: async () => ({
-    success: true,
-    message: 'Skipped',
-  }),
+  outputSchema: z.strictObject({ skipped: z.boolean() }),
+  transform: { display: { output: () => ({ summary: 'Turn skipped' }) } },
+  execute: ({ reason }, context) => {
+    logger.info('[orchestrator] skipped turn', {
+      reason,
+      threadId: context.agent?.threadId,
+    });
+    return Promise.resolve({ skipped: true });
+  },
 });

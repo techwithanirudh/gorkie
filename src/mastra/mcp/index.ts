@@ -1,6 +1,19 @@
 import { MCPClient } from '@mastra/mcp';
+import { logger } from '../lib/logger';
 
-export const mcpClient = new MCPClient({
-  id: 'mcp-client',
-  servers: {},
+const client = new MCPClient({
+  id: 'mcp',
+  servers: {
+    context7: {
+      url: new URL('https://mcp.context7.com/mcp'),
+    },
+  },
 });
+client.__setLogger(logger);
+
+let listed: ReturnType<MCPClient['listTools']> | undefined;
+
+export function mcpTools(): ReturnType<MCPClient['listTools']> {
+  listed ??= client.listTools();
+  return listed;
+}

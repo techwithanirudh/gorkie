@@ -6,49 +6,59 @@ import {
 import { InMemoryStore } from '@mastra/core/storage';
 import { Memory } from '@mastra/memory';
 import { agent as config } from '../config';
+import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
 import { sandbox } from '../processors/sandbox';
-import { relocateToolResultImages } from '../processors/tool-media';
+import { moveToolImages } from '../processors/tool-media';
+import { workingModel } from '../processors/working-model';
+import * as explore from '../prompts/agents/explore';
 import { explorer } from '../providers';
-import { baseTools } from '../tools/base';
+import { fetchUrlTool } from '../tools/fetch-url';
+import { searchWebTool } from '../tools/search-web';
 import { workspace } from '../workspace';
 
 export const exploreAgent = new Agent({
   id: 'explore',
   name: 'Explore',
-  description:
-    'Reads workspace files and gathers implementation context without making changes.',
-  instructions:
-    'You are Explore. Inspect the workspace and gather context. Do not modify files, delete files, upload files, post messages, or run risky commands. Keep total tool calls under 300, then write up your findings. Return concise findings with file paths, facts, and uncertainties.',
+  description: explore.description,
+  instructions: explore.prompt,
   model: explorer,
+  errorProcessors: defaultErrorProcessors(),
+  maxProcessorRetries: 2,
   memory: new Memory({ storage: new InMemoryStore() }),
   workspace,
-  tools: baseTools,
+  tools: {
+    search_web: searchWebTool,
+    fetch_url: fetchUrlTool,
+  },
   inputProcessors: [
     new TokenLimiterProcessor({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
     }),
-    new ProviderHistoryCompat({
-      additionalRules: [relocateToolResultImages],
-    }),
+    new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
   ],
   defaultOptions: {
     activeTools: [
       'read_file',
+      'write_file',
+      'edit_file',
+      'delete_file',
       'list_files',
       'grep',
       'file_stat',
       'search_web',
       'fetch_url',
-      'search_slack',
-      'read_conversation_history',
-      'list_threads',
-      'get_user',
-      'get_channel_info',
     ],
-    modelSettings: { maxOutputTokens: 16_384 },
-    stopWhen: stepCountIs(400),
+    modelSettings: {
+      maxOutputTokens: 16_384,
+      maxRetries: 5,
+      reasoning: 'medium',
+      topP: 0.95,
+      timeout: config.modelTimeout,
+    },
+    stopWhen: stepCountIs(config.maxSteps),
+    autoResumeSuspendedTools: true,
   },
-  outputProcessors: [sandbox],
+  outputProcessors: [sandbox, workingModel('explore')],
 });

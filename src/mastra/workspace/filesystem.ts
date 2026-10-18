@@ -26,9 +26,9 @@ import {
 import type { E2BSandbox } from '@mastra/e2b';
 import { FileNotFoundError as E2BFileNotFoundError, FileType } from 'e2b';
 import { lookup } from 'mime-types';
-import { sandbox as config } from '../config';
+import { sandbox as config, file as fileLimits } from '../config';
 
-interface E2BFilesystemOptions {
+interface FilesystemOptions {
   basePath?: string;
   readOnly?: boolean;
   sandbox: E2BSandbox;
@@ -42,7 +42,7 @@ export class E2BFilesystem extends MastraFilesystem {
   readonly basePath: string;
   status: ProviderStatus = 'pending';
 
-  constructor(options: E2BFilesystemOptions) {
+  constructor(options: FilesystemOptions) {
     super({ name: 'E2BFilesystem' });
     this.id = `${options.sandbox.id}-filesystem`;
     this.basePath = path.posix.normalize(options.basePath ?? config.workdir);
@@ -59,10 +59,6 @@ export class E2BFilesystem extends MastraFilesystem {
     );
   }
 
-  destroy(): Promise<void> {
-    return Promise.resolve();
-  }
-
   async readFile(
     inputPath: string,
     options?: ReadOptions
@@ -70,47 +66,48 @@ export class E2BFilesystem extends MastraFilesystem {
     await this.ensureReady();
     const filePath = this.resolve(inputPath);
 
-    try {
-      const info = await this.e2b(() =>
-        this.sandbox.e2b.files.getInfo(filePath)
-      );
-      if (info.type === FileType.DIR) {
-        throw new IsDirectoryError(inputPath);
-      }
-
-      if (options?.encoding) {
-        if (options.encoding === 'base64' || options.encoding === 'hex') {
-          const bytes = await this.e2b(() =>
-            this.sandbox.e2b.files.read(filePath, { format: 'bytes' })
-          );
-          return Buffer.from(bytes).toString(options.encoding);
-        }
-
-        if (options.encoding === 'binary') {
-          const bytes = await this.e2b(() =>
-            this.sandbox.e2b.files.read(filePath, { format: 'bytes' })
-          );
-          return Buffer.from(bytes).toString('binary');
-        }
-
-        return this.e2b(() =>
-          this.sandbox.e2b.files.read(filePath, { format: 'text' })
+    return this.attempt({
+      absent: 'file',
+      inputPath,
+      run: async () => {
+        const info = await this.e2b(() =>
+          this.sandbox.e2b.files.getInfo(filePath)
         );
-      }
+        if (info.type === FileType.DIR) {
+          throw new IsDirectoryError(inputPath);
+        }
+        if (info.size > fileLimits.maxReadBytes) {
+          throw new Error(
+            `${inputPath} is ${Math.round(info.size / 1_000_000)}MB, over the ${Math.round(fileLimits.maxReadBytes / 1_000_000)}MB read limit. Read a slice with execute_command (head, sed, tail) instead.`
+          );
+        }
 
-      const bytes = await this.e2b(() =>
-        this.sandbox.e2b.files.read(filePath, { format: 'bytes' })
-      );
-      return Buffer.from(bytes);
-    } catch (error) {
-      if (error instanceof IsDirectoryError) {
-        throw error;
-      }
-      if (this.isNotFound(error)) {
-        throw this.withCause(new FileNotFoundError(inputPath), error);
-      }
-      throw error;
-    }
+        if (options?.encoding) {
+          if (options.encoding === 'base64' || options.encoding === 'hex') {
+            const bytes = await this.e2b(() =>
+              this.sandbox.e2b.files.read(filePath, { format: 'bytes' })
+            );
+            return Buffer.from(bytes).toString(options.encoding);
+          }
+
+          if (options.encoding === 'binary') {
+            const bytes = await this.e2b(() =>
+              this.sandbox.e2b.files.read(filePath, { format: 'bytes' })
+            );
+            return Buffer.from(bytes).toString('binary');
+          }
+
+          return this.e2b(() =>
+            this.sandbox.e2b.files.read(filePath, { format: 'text' })
+          );
+        }
+
+        const bytes = await this.e2b(() =>
+          this.sandbox.e2b.files.read(filePath, { format: 'bytes' })
+        );
+        return Buffer.from(bytes);
+      },
+    });
   }
 
   async writeFile(
@@ -123,7 +120,7 @@ export class E2BFilesystem extends MastraFilesystem {
     const filePath = this.resolve(inputPath);
 
     if (options?.recursive === false) {
-      await this.assertParentDirectory(filePath, inputPath);
+      await this.assertParent({ filePath, inputPath });
     } else {
       await this.e2b(() =>
         this.sandbox.e2b.files.makeDir(path.posix.dirname(filePath))
@@ -134,31 +131,18 @@ export class E2BFilesystem extends MastraFilesystem {
       throw new FileExistsError(inputPath);
     }
 
-    if (options?.expectedMtime) {
-      try {
-        const info = await this.e2b(() =>
-          this.sandbox.e2b.files.getInfo(filePath)
-        );
-        const modifiedAt = info.modifiedTime ?? new Date(0);
-        if (modifiedAt.getTime() !== options.expectedMtime.getTime()) {
-          throw new StaleFileError(
-            inputPath,
-            options.expectedMtime,
-            modifiedAt
-          );
-        }
-      } catch (error) {
-        if (error instanceof StaleFileError) {
-          throw error;
-        }
-        if (!this.isNotFound(error)) {
-          throw error;
-        }
+    const current = options?.expectedMtime
+      ? await this.infoOrAbsent(filePath)
+      : undefined;
+    if (options?.expectedMtime && current) {
+      const modifiedAt = current.modifiedTime ?? new Date(0);
+      if (modifiedAt.getTime() !== options.expectedMtime.getTime()) {
+        throw new StaleFileError(inputPath, options.expectedMtime, modifiedAt);
       }
     }
 
     await this.e2b(() =>
-      this.sandbox.e2b.files.write(filePath, this.toE2BContent(content))
+      this.sandbox.e2b.files.write(filePath, this.e2bContent(content))
     );
   }
 
@@ -177,7 +161,7 @@ export class E2BFilesystem extends MastraFilesystem {
     await this.e2b(() =>
       this.sandbox.e2b.files.write(
         filePath,
-        this.toE2BContent(
+        this.e2bContent(
           Buffer.concat([Buffer.from(current), Buffer.from(content)])
         )
       )
@@ -190,24 +174,23 @@ export class E2BFilesystem extends MastraFilesystem {
     const filePath = this.resolve(inputPath);
 
     try {
-      const info = await this.e2b(() =>
-        this.sandbox.e2b.files.getInfo(filePath)
-      );
-      if (info.type === FileType.DIR) {
-        throw new IsDirectoryError(inputPath);
-      }
-      await this.e2b(() => this.sandbox.e2b.files.remove(filePath));
+      await this.attempt({
+        absent: 'file',
+        inputPath,
+        run: async () => {
+          const info = await this.e2b(() =>
+            this.sandbox.e2b.files.getInfo(filePath)
+          );
+          if (info.type === FileType.DIR) {
+            throw new IsDirectoryError(inputPath);
+          }
+          await this.e2b(() => this.sandbox.e2b.files.remove(filePath));
+        },
+      });
     } catch (error) {
-      if (error instanceof IsDirectoryError) {
+      if (!(options?.force && error instanceof FileNotFoundError)) {
         throw error;
       }
-      if (this.isNotFound(error)) {
-        if (!options?.force) {
-          throw this.withCause(new FileNotFoundError(inputPath), error);
-        }
-        return;
-      }
-      throw error;
     }
   }
 
@@ -225,31 +208,27 @@ export class E2BFilesystem extends MastraFilesystem {
       throw new FileExistsError(dest);
     }
 
-    try {
-      const info = await this.e2b(() =>
-        this.sandbox.e2b.files.getInfo(srcPath)
-      );
-      if (info.type === FileType.DIR) {
-        throw new IsDirectoryError(src);
-      }
-      await this.e2b(() =>
-        this.sandbox.e2b.files.makeDir(path.posix.dirname(destPath))
-      );
-      const content = await this.e2b(() =>
-        this.sandbox.e2b.files.read(srcPath, { format: 'bytes' })
-      );
-      await this.e2b(() =>
-        this.sandbox.e2b.files.write(destPath, this.toE2BContent(content))
-      );
-    } catch (error) {
-      if (error instanceof IsDirectoryError) {
-        throw error;
-      }
-      if (this.isNotFound(error)) {
-        throw this.withCause(new FileNotFoundError(src), error);
-      }
-      throw error;
-    }
+    await this.attempt({
+      absent: 'file',
+      inputPath: src,
+      run: async () => {
+        const info = await this.e2b(() =>
+          this.sandbox.e2b.files.getInfo(srcPath)
+        );
+        if (info.type === FileType.DIR) {
+          throw new IsDirectoryError(src);
+        }
+        await this.e2b(() =>
+          this.sandbox.e2b.files.makeDir(path.posix.dirname(destPath))
+        );
+        const content = await this.e2b(() =>
+          this.sandbox.e2b.files.read(srcPath, { format: 'bytes' })
+        );
+        await this.e2b(() =>
+          this.sandbox.e2b.files.write(destPath, this.e2bContent(content))
+        );
+      },
+    });
   }
 
   async moveFile(
@@ -269,14 +248,12 @@ export class E2BFilesystem extends MastraFilesystem {
     await this.e2b(() =>
       this.sandbox.e2b.files.makeDir(path.posix.dirname(destPath))
     );
-    try {
-      await this.e2b(() => this.sandbox.e2b.files.rename(srcPath, destPath));
-    } catch (error) {
-      if (this.isNotFound(error)) {
-        throw this.withCause(new FileNotFoundError(src), error);
-      }
-      throw error;
-    }
+    await this.attempt({
+      absent: 'file',
+      inputPath: src,
+      run: () =>
+        this.e2b(() => this.sandbox.e2b.files.rename(srcPath, destPath)),
+    });
   }
 
   async mkdir(
@@ -288,23 +265,12 @@ export class E2BFilesystem extends MastraFilesystem {
     const dirPath = this.resolve(inputPath);
 
     if (options?.recursive === false) {
-      await this.assertParentDirectory(dirPath, inputPath);
+      await this.assertParent({ filePath: dirPath, inputPath });
     }
 
-    try {
-      const info = await this.e2b(() =>
-        this.sandbox.e2b.files.getInfo(dirPath)
-      );
-      if (info.type !== FileType.DIR) {
-        throw new FileExistsError(inputPath);
-      }
-    } catch (error) {
-      if (error instanceof FileExistsError) {
-        throw error;
-      }
-      if (!this.isNotFound(error)) {
-        throw error;
-      }
+    const existing = await this.infoOrAbsent(dirPath);
+    if (existing && existing.type !== FileType.DIR) {
+      throw new FileExistsError(inputPath);
     }
 
     await this.e2b(() => this.sandbox.e2b.files.makeDir(dirPath));
@@ -316,30 +282,29 @@ export class E2BFilesystem extends MastraFilesystem {
     const dirPath = this.resolve(inputPath);
 
     try {
-      const info = await this.e2b(() =>
-        this.sandbox.e2b.files.getInfo(dirPath)
-      );
-      if (info.type !== FileType.DIR) {
-        throw new NotDirectoryError(inputPath);
-      }
-      if (!options?.recursive && (await this.readdir(inputPath)).length > 0) {
-        throw new DirectoryNotEmptyError(inputPath);
-      }
-      await this.e2b(() => this.sandbox.e2b.files.remove(dirPath));
+      await this.attempt({
+        absent: 'directory',
+        inputPath,
+        run: async () => {
+          const info = await this.e2b(() =>
+            this.sandbox.e2b.files.getInfo(dirPath)
+          );
+          if (info.type !== FileType.DIR) {
+            throw new NotDirectoryError(inputPath);
+          }
+          if (
+            !options?.recursive &&
+            (await this.readdir(inputPath)).length > 0
+          ) {
+            throw new DirectoryNotEmptyError(inputPath);
+          }
+          await this.e2b(() => this.sandbox.e2b.files.remove(dirPath));
+        },
+      });
     } catch (error) {
-      if (
-        error instanceof NotDirectoryError ||
-        error instanceof DirectoryNotEmptyError
-      ) {
+      if (!(options?.force && error instanceof DirectoryNotFoundError)) {
         throw error;
       }
-      if (this.isNotFound(error)) {
-        if (!options?.force) {
-          throw this.withCause(new DirectoryNotFoundError(inputPath), error);
-        }
-        return;
-      }
-      throw error;
     }
   }
 
@@ -350,52 +315,53 @@ export class E2BFilesystem extends MastraFilesystem {
     await this.ensureReady();
     const dirPath = this.resolve(inputPath);
 
-    try {
-      const info = await this.e2b(() =>
-        this.sandbox.e2b.files.getInfo(dirPath)
-      );
-      if (info.type !== FileType.DIR) {
-        throw new NotDirectoryError(inputPath);
-      }
+    return this.attempt({
+      absent: 'directory',
+      inputPath,
+      run: async () => {
+        const info = await this.e2b(() =>
+          this.sandbox.e2b.files.getInfo(dirPath)
+        );
+        if (info.type !== FileType.DIR) {
+          throw new NotDirectoryError(inputPath);
+        }
 
-      const entries = await this.e2b(() =>
-        this.sandbox.e2b.files.list(dirPath, {
-          depth: options?.recursive ? (options.maxDepth ?? 100) : 1,
-        })
-      );
-      let extensions: string[] | undefined;
-      if (Array.isArray(options?.extension)) {
-        extensions = options.extension;
-      } else if (options?.extension) {
-        extensions = [options.extension];
-      }
+        const entries = await this.e2b(() =>
+          this.sandbox.e2b.files.list(dirPath, {
+            depth: options?.recursive ? (options.maxDepth ?? 100) : 1,
+          })
+        );
+        let extensions: string[] | undefined;
+        if (Array.isArray(options?.extension)) {
+          extensions = options.extension;
+        } else if (options?.extension) {
+          extensions = [options.extension];
+        }
 
-      return entries
-        .filter((entry) => {
-          if (!(extensions && entry.type === FileType.FILE)) {
-            return true;
-          }
-          return extensions.some((ext) => {
-            const normalized = ext.startsWith('.') ? ext : `.${ext}`;
-            return entry.name.endsWith(normalized);
-          });
-        })
-        .map((entry) => ({
-          name: entry.name,
-          type: entry.type === FileType.DIR ? 'directory' : 'file',
-          size: entry.type === FileType.FILE ? entry.size : undefined,
-          isSymlink: Boolean(entry.symlinkTarget) || undefined,
-          symlinkTarget: entry.symlinkTarget,
-        }));
-    } catch (error) {
-      if (error instanceof NotDirectoryError) {
-        throw error;
-      }
-      if (this.isNotFound(error)) {
-        throw this.withCause(new DirectoryNotFoundError(inputPath), error);
-      }
-      throw error;
-    }
+        return entries
+          .filter((entry) => {
+            if (!(extensions && entry.type === FileType.FILE)) {
+              return true;
+            }
+            return extensions.some((ext) => {
+              const normalized = ext.startsWith('.') ? ext : `.${ext}`;
+              return entry.name.endsWith(normalized);
+            });
+          })
+          .map((entry) => ({
+            // A recursive listing returns the same basename from many dirs, so
+            // key rows by their path relative to the listing root; a flat
+            // listing keeps the bare name.
+            name: options?.recursive
+              ? path.posix.relative(dirPath, entry.path)
+              : entry.name,
+            type: entry.type === FileType.DIR ? 'directory' : 'file',
+            size: entry.type === FileType.FILE ? entry.size : undefined,
+            isSymlink: Boolean(entry.symlinkTarget) || undefined,
+            symlinkTarget: entry.symlinkTarget,
+          }));
+      },
+    });
   }
 
   async exists(inputPath: string): Promise<boolean> {
@@ -408,23 +374,23 @@ export class E2BFilesystem extends MastraFilesystem {
   async stat(inputPath: string): Promise<FileStat> {
     await this.ensureReady();
     const filePath = this.resolve(inputPath);
-    let info: Awaited<ReturnType<typeof this.sandbox.e2b.files.getInfo>>;
-    try {
-      info = await this.e2b(() => this.sandbox.e2b.files.getInfo(filePath));
-    } catch (error) {
-      if (this.isNotFound(error)) {
-        throw this.withCause(new FileNotFoundError(inputPath), error);
-      }
-      throw error;
-    }
+    const info = await this.attempt({
+      absent: 'file',
+      inputPath,
+      run: () => this.e2b(() => this.sandbox.e2b.files.getInfo(filePath)),
+    });
 
     return {
       name: info.name,
       path: inputPath,
       type: info.type === FileType.DIR ? 'directory' : 'file',
       size: info.size,
-      createdAt: info.modifiedTime ?? new Date(),
-      modifiedAt: info.modifiedTime ?? new Date(),
+      // Fall back to the epoch, not `now`, to match writeFile's expectedMtime
+      // check: `now` there would never equal a later write's `new Date(0)`
+      // fallback, throwing a spurious StaleFileError on every edit-after-read of
+      // a file whose mtime the sandbox did not report.
+      createdAt: info.modifiedTime ?? new Date(0),
+      modifiedAt: info.modifiedTime ?? new Date(0),
       mimeType: lookup(filePath) || undefined,
     };
   }
@@ -468,33 +434,28 @@ export class E2BFilesystem extends MastraFilesystem {
     }
   }
 
-  private async assertParentDirectory(
-    filePath: string,
-    inputPath: string
-  ): Promise<void> {
-    const parentPath = path.posix.dirname(filePath);
-    try {
-      const info = await this.e2b(() =>
-        this.sandbox.e2b.files.getInfo(parentPath)
-      );
-      if (info.type !== FileType.DIR) {
-        throw new NotDirectoryError(path.posix.dirname(inputPath));
-      }
-    } catch (error) {
-      if (error instanceof NotDirectoryError) {
-        throw error;
-      }
-      if (this.isNotFound(error)) {
-        throw this.withCause(
-          new DirectoryNotFoundError(path.posix.dirname(inputPath)),
-          error
+  private async assertParent({
+    filePath,
+    inputPath,
+  }: {
+    filePath: string;
+    inputPath: string;
+  }): Promise<void> {
+    await this.attempt({
+      absent: 'directory',
+      inputPath: path.posix.dirname(inputPath),
+      run: async () => {
+        const info = await this.e2b(() =>
+          this.sandbox.e2b.files.getInfo(path.posix.dirname(filePath))
         );
-      }
-      throw error;
-    }
+        if (info.type !== FileType.DIR) {
+          throw new NotDirectoryError(path.posix.dirname(inputPath));
+        }
+      },
+    });
   }
 
-  private toE2BContent(content: FileContent): string | ArrayBuffer {
+  private e2bContent(content: FileContent): string | ArrayBuffer {
     if (typeof content === 'string') {
       return content;
     }
@@ -509,7 +470,7 @@ export class E2BFilesystem extends MastraFilesystem {
     return this.sandbox.retryOnDead(operation);
   }
 
-  private isNotFound(error: unknown): boolean {
+  private missing(error: unknown): boolean {
     return (
       error instanceof E2BFileNotFoundError ||
       (error instanceof Error && error.name === 'FileNotFoundError') ||
@@ -517,8 +478,42 @@ export class E2BFilesystem extends MastraFilesystem {
     );
   }
 
-  private withCause<T extends Error>(error: T, cause: unknown): T {
-    error.cause = cause;
-    return error;
+  private async infoOrAbsent(
+    filePath: string
+  ): Promise<
+    Awaited<ReturnType<E2BSandbox['e2b']['files']['getInfo']>> | undefined
+  > {
+    try {
+      return await this.e2b(() => this.sandbox.e2b.files.getInfo(filePath));
+    } catch (error) {
+      if (this.missing(error)) {
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private async attempt<T>({
+    absent,
+    inputPath,
+    run,
+  }: {
+    absent: 'directory' | 'file';
+    inputPath: string;
+    run: () => Promise<T>;
+  }): Promise<T> {
+    try {
+      return await run();
+    } catch (error) {
+      if (!this.missing(error)) {
+        throw error;
+      }
+      const translated =
+        absent === 'directory'
+          ? new DirectoryNotFoundError(inputPath)
+          : new FileNotFoundError(inputPath);
+      translated.cause = error;
+      throw translated;
+    }
   }
 }

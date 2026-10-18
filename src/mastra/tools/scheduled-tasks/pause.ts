@@ -1,34 +1,28 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import {
-  findOwnedTask,
-  isAgentSchedule,
-  schedules,
-  taskScope,
-} from './queries';
-import { formatTask } from './utils';
+import { agent as agentConfig } from '../../config';
+import { input, output } from '../../types/tools/index';
 
 export const pauseScheduledTaskTool = createTool({
   id: 'pause_scheduled_task',
-  description:
-    'Temporarily stop a recurring scheduled task without deleting it.',
-  inputSchema: z.object({
-    id: z.string().min(1).describe('Scheduled task id.'),
-  }),
+  description: 'Pause a recurring schedule without deleting it.',
+  inputSchema: input({ id: z.string().min(1).describe('Schedule ID.') }),
+  outputSchema: output({ schedule: z.unknown() }),
   execute: async ({ id }, context) => {
-    const service = schedules(context);
-    const scope = taskScope(context);
-    await findOwnedTask(service, { id, resourceId: scope.resourceId });
-    const result = await service.pause(id);
-    if (!isAgentSchedule(result)) {
-      throw new Error(`Scheduled task ${id} is not an agent schedule.`);
+    const service = context.mastra?.schedules;
+    const { resourceId } = context.agent ?? {};
+    if (!(service && resourceId)) {
+      throw new Error('A resourceId is required to manage a schedule.');
     }
-    const updated = result;
+    const schedule = await service.get(id);
+    if (
+      !(schedule && 'agentId' in schedule) ||
+      schedule.agentId !== agentConfig.id ||
+      schedule.resourceId !== resourceId
+    ) {
+      throw new Error(`Schedule ${id} was not found in this conversation.`);
+    }
 
-    return {
-      success: true,
-      task: formatTask(updated, scope.resourceId),
-      message: `Paused scheduled task ${id}.`,
-    };
+    return { schedule: await service.pause(id) };
   },
 });

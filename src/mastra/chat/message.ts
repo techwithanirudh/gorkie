@@ -11,3 +11,13 @@ export function rawText(message: Message): string {
 export function withoutLeadingMentions(text: string): string {
   return text.replace(/^\s*(?:<@[A-Z0-9][A-Z0-9._-]*(?:\|[^>]+)?>\s*)+/, '');
 }
+
+export function isComment(message: Message): boolean {
+  const [first] = rawText(message)
+    .split('\n')
+    .filter((line) => line.trim());
+  return (
+    first !== undefined &&
+    withoutLeadingMentions(first).trimStart().startsWith('##')
+  );
+}

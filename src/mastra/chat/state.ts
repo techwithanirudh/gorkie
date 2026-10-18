@@ -1,13 +1,15 @@
 import type { Thread } from 'chat';
+import { z } from 'zod';
 import type { ThreadState } from '../types';
 
-/**
- * Mastra's ChannelHandler fixes the Chat SDK's Thread generic at its default
- * (Record<string, unknown>), so thread state cannot be typed at the source.
- * This is the one place that cast lives.
- */
+const threadStateSchema = z.looseObject({
+  lastSeenMessage: z.string().optional(),
+  respondOnThreadMessages: z.boolean().optional(),
+});
+
 export async function threadState(
   thread: Thread | undefined
 ): Promise<ThreadState | null> {
-  return ((await thread?.state) ?? null) as ThreadState | null;
+  const state = await thread?.state;
+  return state ? threadStateSchema.parse(state) : null;
 }

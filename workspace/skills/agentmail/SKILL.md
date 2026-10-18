@@ -14,7 +14,7 @@ Use this placeholder:
 ```python
 from agentmail import AgentMail
 
-client = AgentMail(api_key="brokered-by-gorkie")
+client = AgentMail(api_key="brokered")
 ```
 
 The placeholder is not a secret. It only makes the SDK construct authenticated requests. Gorkie's host can inject the real `Authorization` header through the sandbox network policy. Never print API keys, bearer headers, or credential-broker internals.
@@ -36,7 +36,7 @@ List recent mail:
 ```python
 from agentmail import AgentMail
 
-client = AgentMail(api_key="brokered-by-gorkie")
+client = AgentMail(api_key="brokered")
 messages = client.inboxes.messages.list(inbox_id="gorkie@agentmail.to")
 for message in messages:
     print(message)

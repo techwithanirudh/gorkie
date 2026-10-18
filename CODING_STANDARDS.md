@@ -1,8 +1,8 @@
 # Coding Standards
 
 Project-wide rules for gorkie. These extend the project boundaries in
-[AGENTS.md](./AGENTS.md) with the concrete patterns to follow (and avoid)
-when writing or refactoring code. Enforced by review and by
+[AGENTS.md](./AGENTS.md) with the concrete patterns to follow and avoid when
+writing or refactoring code. Enforced by review and by
 `bun run check` (Biome/ultracite) where a rule is mechanically checkable;
 the rest is judgment applied consistently.
 
@@ -43,7 +43,7 @@ the rest is judgment applied consistently.
   the full SDK type through your own code.
 - Never fabricate data (empty descriptions, synthetic annotations,
   placeholder schemas) to satisfy a type. That's a signal the type is
-  wrong — narrow it instead of working around it.
+  wrong, narrow it instead of working around it.
 - When multiple files check the same string-literal union (e.g. a mode or
   permission discriminant), export one named union from a single canonical
   location. Don't re-declare or re-validate the same literals in more than
@@ -93,7 +93,7 @@ the rest is judgment applied consistently.
 
 ## Naming
 
-- Direct names. If a wrapper or variable is dead, delete it — don't rename
+- Direct names. If a wrapper or variable is dead, delete it, don't rename
   it to make it look intentional.
 - Name things after what they are, not how they're used in one call site.
   A name that references a specific caller ("used by the summarizer") goes
@@ -114,14 +114,14 @@ before renaming or splitting anything, never from vibes.
   them at the call site unless they hide a genuine boundary.
 - Split a file only when a module owns a coherent concept of its own (turn
   state, compaction, sandbox setup, Slack mention annotation, tool
-  factories, task rendering) — not just because a file got long.
+  factories, task rendering), not just because a file got long.
 - Keep schemas terse. Add `.describe()` only for fields whose contract
   isn't obvious from the name.
 - Type ownership: a private, single-file shape stays inline. A shared or
   exported shape lives in the nearest clear owner's `types/` folder.
   Tool-owned shared shapes live under `types/tools/<tool>.ts`.
 - After a rename or file move, search for the old name across source,
-  prompts, and docs and update every reference before handoff — stale
+  prompts, and docs and update every reference before handoff. Stale
   references in prompts are easy to miss and silently wrong at runtime.
 
 **Smells to watch for in this codebase:**
@@ -146,7 +146,7 @@ before renaming or splitting anything, never from vibes.
 - Write a comment only when it explains a non-obvious *why*: a hidden
   constraint, a workaround for a specific external bug, an invariant that
   isn't visible from the code itself.
-- Don't reference the current task, PR, or issue number in a comment — that
+- Don't reference the current task, PR, or issue number in a comment. That
   belongs in the commit message and rots as the code evolves.
 - No em dashes anywhere: code, comments, docs, chat replies. Use a comma,
   colon, or period.
@@ -200,13 +200,13 @@ them is a correctness bug, not a style nit.
   ```
 
 - Don't scrape `body.view.state.values` to reconstruct a structure just to
-  re-render it — that structure should already be in `private_metadata`.
+  re-render it. That structure should already be in `private_metadata`.
   Only read view state for values the user actively changed in this
   action.
 - Every `block_actions` handler that calls `client.views.update` mid-session
   must pass `hash: view.hash`, to avoid clobbering a view a concurrent
   action already updated.
-- Check ownership before any DB mutation triggered by a modal action — a
+- Check ownership before any DB mutation triggered by a modal action. A
   user should only be able to affect their own resources.
 
 ## Before calling work done
@@ -214,7 +214,7 @@ them is a correctness bug, not a style nit.
 1. `bun run fix` (ultracite autofix)
 2. `bun run typecheck`
 3. `bun run check` and `bun run check:spelling`
-4. `bun run start` — should log `[gorkie] online`
+4. Ask the user to test their own running Slack instance when needed.
 
 For file moves, deleted exports, or public entry points, also `rg` for the
 old name across `src/`, `workspace/`, and prompts to catch stale

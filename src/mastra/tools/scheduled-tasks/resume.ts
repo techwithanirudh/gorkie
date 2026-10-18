@@ -1,33 +1,28 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import {
-  findOwnedTask,
-  isAgentSchedule,
-  schedules,
-  taskScope,
-} from './queries';
-import { formatTask } from './utils';
+import { agent as agentConfig } from '../../config';
+import { input, output } from '../../types/tools/index';
 
 export const resumeScheduledTaskTool = createTool({
   id: 'resume_scheduled_task',
-  description: 'Restart a paused recurring scheduled task.',
-  inputSchema: z.object({
-    id: z.string().min(1).describe('Scheduled task id.'),
-  }),
+  description: 'Resume a paused schedule in the current Slack conversation.',
+  inputSchema: input({ id: z.string().min(1).describe('Schedule ID.') }),
+  outputSchema: output({ schedule: z.unknown() }),
   execute: async ({ id }, context) => {
-    const service = schedules(context);
-    const scope = taskScope(context);
-    await findOwnedTask(service, { id, resourceId: scope.resourceId });
-    const result = await service.resume(id);
-    if (!isAgentSchedule(result)) {
-      throw new Error(`Scheduled task ${id} is not an agent schedule.`);
+    const service = context.mastra?.schedules;
+    const { resourceId } = context.agent ?? {};
+    if (!(service && resourceId)) {
+      throw new Error('A resourceId is required to manage a schedule.');
     }
-    const updated = result;
+    const schedule = await service.get(id);
+    if (
+      !(schedule && 'agentId' in schedule) ||
+      schedule.agentId !== agentConfig.id ||
+      schedule.resourceId !== resourceId
+    ) {
+      throw new Error(`Schedule ${id} was not found in this conversation.`);
+    }
 
-    return {
-      success: true,
-      task: formatTask(updated, scope.resourceId),
-      message: `Resumed scheduled task ${id}.`,
-    };
+    return { schedule: await service.resume(id) };
   },
 });

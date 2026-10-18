@@ -3,9 +3,7 @@ import { computeNextFireAt, validateCron } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { agent as agentConfig, scheduledTasks } from '../../config';
 import { channelContext } from '../../lib/context';
-import { resolveMemoryThread } from '../../lib/memory';
-import { schedules } from './queries';
-import { formatTask, scheduledTaskKind } from './utils';
+import { input, output } from '../../types/tools/index';
 
 function assertMinimumInterval(cron: string, timezone?: string): void {
   validateCron(cron, timezone);
@@ -27,89 +25,68 @@ function assertMinimumInterval(cron: string, timezone?: string): void {
   }
 }
 
+const minMinutes = scheduledTasks.minInterval / 60_000;
+
+const createDescription =
+  minMinutes > 0
+    ? `Create a recurring schedule for the current Slack conversation. Use a valid cron expression and optional IANA timezone. Minimum interval is ${minMinutes} minutes between fires, each run costs model credits: never request a faster cadence, refuse and offer the nearest ${minMinutes}-minute-or-slower option instead.`
+    : 'Create a recurring schedule for the current Slack conversation. Use a valid cron expression and optional IANA timezone. No minimum interval in this environment; any cadence is allowed.';
+
+const cronDescription =
+  minMinutes > 0
+    ? `Cron expression for when to run. Minimum interval: ${minMinutes} minutes between fires.`
+    : 'Cron expression for when to run. Any cadence is allowed in this environment.';
+
 export const createScheduledTaskTool = createTool({
   id: 'create_scheduled_task',
-  description:
-    'Create a recurring scheduled task from a cron expression. Use for recurring tasks only, not one-time reminders. The task runs where it was scheduled: the current Slack thread or DM. A top-level channel message is treated as a thread rooted at that message. Include an IANA timezone when the user schedule is time-of-day sensitive. Never create a schedule that fires more often than every 30 minutes; refuse and offer the nearest 30-minute-or-slower cadence instead.',
-  inputSchema: z.object({
-    task: z
-      .string()
-      .min(1)
-      .describe('The recurring task to perform when the schedule fires.'),
-    cron: z
-      .string()
-      .min(1)
-      .describe(
-        'Cron expression for the recurring schedule. Minimum interval: 30 minutes between fires.'
-      ),
-    timezone: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('IANA timezone, such as America/New_York.'),
+  description: createDescription,
+  inputSchema: input({
+    task: z.string().min(1).describe('Prompt to run on the schedule.'),
+    cron: z.string().min(1).describe(cronDescription),
     name: z
       .string()
       .min(1)
       .max(120)
       .optional()
-      .describe('Short human-readable label for the task.'),
+      .describe('Short human-readable name for the schedule.'),
+    timezone: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('IANA timezone, such as America/New_York.'),
   }),
-  execute: async (input, context) => {
-    const service = schedules(context);
-    const ctx = channelContext(context?.requestContext);
+  outputSchema: output({ schedule: z.unknown() }),
+  execute: async ({ task, cron, name, timezone }, context) => {
+    const service = context.mastra?.schedules;
+    const threadId = context.agent?.threadId;
     const resourceId = context.agent?.resourceId;
-    const externalThreadId = ctx.threadId;
-    if (!(externalThreadId && resourceId)) {
+    if (!(threadId && resourceId)) {
       throw new Error('No current Slack thread/resource to schedule into.');
     }
-
-    const resolvedAgent = context.mastra?.getAgentById(agentConfig.id);
-    if (!resolvedAgent) {
-      throw new Error(
-        'Could not resolve this conversation to a memory thread yet. Send another message and try again.'
-      );
+    if (!service) {
+      throw new Error('No Mastra schedule service is available.');
     }
-    const memoryThread = await resolveMemoryThread(
-      resolvedAgent,
-      externalThreadId
-    );
-    const threadId = memoryThread.id;
-    const memoryResourceId = memoryThread.resourceId ?? resourceId;
 
-    assertMinimumInterval(input.cron, input.timezone);
-
-    const created = await service.create({
-      agentId: agentConfig.id,
-      cron: input.cron,
-      prompt: `Scheduled task due now. Task: ${input.task}\n\nRespond in this same Slack conversation with the result.`,
-      ...(input.name ? { name: input.name } : {}),
-      ...(input.timezone ? { timezone: input.timezone } : {}),
-      threadId,
-      resourceId: memoryResourceId,
-      tagName: 'scheduled-task',
-      ifActive: { behavior: 'persist' },
-      ifIdle: {
-        behavior: 'wake',
-        streamOptions: {
-          requestContext: context.requestContext?.toJSON(),
-        },
-      },
-      metadata: {
-        kind: scheduledTaskKind,
-        task: input.task,
-        createdBy: ctx.userId,
-        createdIn: {
-          channelId: ctx.channelId,
-          isDM: ctx.isDM,
-          threadId: externalThreadId,
-        },
-      },
-    });
+    assertMinimumInterval(cron, timezone);
 
     return {
-      success: true,
-      task: formatTask(created),
-      message: `Recurring scheduled task created: ${created.id}.`,
+      schedule: await service.create({
+        agentId: agentConfig.id,
+        cron,
+        prompt: task,
+        threadId,
+        resourceId,
+        signalType: 'notification',
+        ifActive: { behavior: 'persist' },
+        ifIdle: {
+          behavior: 'wake',
+          streamOptions: {
+            requestContext: { channel: channelContext(context.requestContext) },
+          },
+        },
+        ...(name ? { name } : {}),
+        ...(timezone ? { timezone } : {}),
+      }),
     };
   },
 });

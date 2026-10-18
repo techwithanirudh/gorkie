@@ -1,9 +1,11 @@
 {
-  "studio-thread": {
+  "studio": {
     "channel": {
-      "threadId": "1783103172.405119",
-      "channelId": "C0A3F6W44EP",
-      "platform": "studio"
+      "platform": "studio",
+      "isDM": false,
+      "threadId": "studio-thread",
+      "channelId": "studio-channel",
+      "userId": "studio-user"
     }
   }
 }

@@ -1,34 +1,46 @@
 import { logger } from '../../lib/logger';
-import { resolveMemoryThread } from '../../lib/memory';
+import { memoryThread } from '../../lib/memory';
 import type { CommandHandler } from '../../types';
 
-export const stop: CommandHandler = async (thread, message) => {
-  const { gorkieAgent } = await import('../../agents/gorkie');
-  const memoryThread = await resolveMemoryThread(gorkieAgent, thread.id).catch(
-    () => undefined
-  );
-  const scope = memoryThread
-    ? { threadId: memoryThread.id, resourceId: memoryThread.resourceId }
+// 'aborted' means a live run was cancelled, and the agent's own onAbort posts
+// about it; anything else is this command's to report. (Background-task
+// cancellation lives on the background branch, where backgroundTasks is
+// actually configured; this branch has no background tasks to stop.)
+export async function stopThread(
+  threadId: string
+): Promise<'aborted' | 'idle'> {
+  const { default: orchestrator } = await import('../../agents/orchestrator');
+  const threadMemory = await memoryThread({
+    agent: orchestrator,
+    externalThreadId: threadId,
+  }).catch(() => undefined);
+  const scope = threadMemory
+    ? { threadId: threadMemory.id, resourceId: threadMemory.resourceId }
     : undefined;
   const activeRunId = scope
-    ? gorkieAgent.getActiveThreadRunId(scope)
+    ? orchestrator.getActiveThreadRunId(scope)
     : undefined;
-
   if (!(scope && activeRunId)) {
-    await thread
-      .postEphemeral(message.author, 'Nothing to stop right now.', {
-        fallbackToDM: false,
-      })
-      .catch((error: unknown) => {
-        logger.warn('[commands] Failed to post stop feedback', {
-          error,
-          threadId: thread.id,
-          userId: message.author.userId,
-        });
-      });
+    return 'idle';
+  }
+  orchestrator.abortThreadStream(scope);
+  return 'aborted';
+}
+
+export const stop: CommandHandler = async ({ message, thread }) => {
+  const outcome = await stopThread(thread.id);
+  if (outcome === 'aborted') {
     return;
   }
-
-  gorkieAgent.abortThreadStream(scope);
-  await thread.post({ markdown: '_Stopped._' });
+  await thread
+    .postEphemeral(message.author, 'Nothing to stop right now.', {
+      fallbackToDM: false,
+    })
+    .catch((error: unknown) => {
+      logger.warn('[commands] Failed to post stop feedback', {
+        error,
+        threadId: thread.id,
+        userId: message.author.userId,
+      });
+    });
 };

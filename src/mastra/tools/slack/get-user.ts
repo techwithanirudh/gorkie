@@ -1,25 +1,42 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { resolveUserProfile } from '../../chat/names';
+import { spendSlackCall } from '../../lib/slack-budget';
+import { input, output } from '../../types/tools/index';
 
 export const getUserTool = createTool({
   id: 'get_user',
   description:
-    "Look up a Slack user's profile by id (U0123ABCD): display name, real name, pronouns, timezone, title, status, and custom profile fields (Website, GitHub, etc.). Use their pronouns when referring to them.",
-  inputSchema: z.object({
+    "Look up one Slack user's profile by raw user id, such as U0123ABCD. Returns names, pronouns, timezone, title, status, and custom profile fields. Use search_slack instead when you only know the person's name.",
+  inputSchema: input({
     userId: z.string().min(1).describe('Slack user id, e.g. U123ABC'),
   }),
-  execute: async ({ userId }) => {
+  outputSchema: output({
+    userId: z.string(),
+    userName: z.string().optional(),
+    fullName: z.string().optional(),
+    pronouns: z.string().optional(),
+    title: z.string().optional(),
+    status: z.string().optional(),
+    timezone: z.string().optional(),
+    timezoneLabel: z.string().optional(),
+    fields: z.array(z.object({ label: z.string(), value: z.string() })),
+  }),
+  transform: {
+    display: {
+      output: ({ output }) => ({
+        summary: output?.userName ?? output?.userId ?? 'User found',
+      }),
+    },
+  },
+  execute: async ({ userId }, context) => {
+    spendSlackCall(context?.requestContext);
+
     const profile = await resolveUserProfile(userId);
     if (!profile) {
-      return {
-        success: false,
-        userId,
-        message: `Could not find a user with id ${userId}.`,
-      };
+      throw new Error(`Could not find a user with id ${userId}.`);
     }
     return {
-      success: true,
       userId,
       userName: profile.displayName,
       fullName: profile.realName,
@@ -29,7 +46,6 @@ export const getUserTool = createTool({
       timezone: profile.timezone,
       timezoneLabel: profile.timezoneLabel,
       fields: profile.fields,
-      message: `${profile.displayName ?? userId}${profile.pronouns ? ` (${profile.pronouns})` : ''}${profile.title ? `, ${profile.title}` : ''}.`,
     };
   },
 });

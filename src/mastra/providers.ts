@@ -1,64 +1,88 @@
 import type { ModelWithRetries } from '@mastra/core/agent';
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { env } from '@/env';
+import { channelContext } from './lib/context';
+import { recallModel, slugOf } from './lib/working-model';
 
-type ModelConfig = ModelWithRetries['model'] & { id: `${string}/${string}` };
+export const hackclub = createOpenRouter({
+  apiKey: env.HACKCLUB_API_KEY,
+  baseURL: 'https://ai.hackclub.com/proxy/v1',
+});
 
-function gateways(id: `${string}/${string}`): ModelConfig[] {
-  return [
-    {
-      id,
-      apiKey: env.HACKCLUB_API_KEY,
-      url: 'https://ai.hackclub.com/proxy/v1',
-    },
-    { id, apiKey: env.OPENROUTER_API_KEY, url: env.OPENROUTER_BASE_URL },
-  ];
-}
-
-function opencode(id: `${string}/${string}`): ModelConfig {
+function opencode(modelId: string, fallbackSession: string): ModelWithRetries {
   return {
-    id,
-    apiKey: env.OPENCODE_API_KEY,
-    url: 'https://opencode.ai/zen/go/v1',
+    model: `opencode-go/${modelId}`,
+    headers: ({ requestContext }) => ({
+      'user-agent': 'gorkie/1.0',
+      'x-opencode-session':
+        channelContext(requestContext).threadId ?? `gorkie:${fallbackSession}`,
+    }),
   };
 }
 
-export const orchestrator: ModelWithRetries[] = [
-  ...gateways('openrouter/minimax/minimax-m3').map((model) => ({
-    model,
-    maxRetries: 3,
-    providerOptions: {
-      openrouter: { reasoningEffort: 'medium' },
-    },
-  })),
-  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
-];
+function modelSlug(entry: ModelWithRetries): string | undefined {
+  const { model } = entry;
+  if (typeof model === 'string') {
+    return slugOf(model);
+  }
+  if (
+    typeof model === 'object' &&
+    model !== null &&
+    'modelId' in model &&
+    typeof model.modelId === 'string'
+  ) {
+    return slugOf(model.modelId);
+  }
+}
+
+async function preferLastWorking(
+  models: ModelWithRetries[]
+): Promise<ModelWithRetries[]> {
+  const lastGoodSlug = await recallModel();
+  if (!lastGoodSlug) {
+    return models;
+  }
+  const matches: ModelWithRetries[] = [];
+  const rest: ModelWithRetries[] = [];
+  for (const entry of models) {
+    const slug = modelSlug(entry);
+    const same =
+      slug === lastGoodSlug ||
+      slug?.endsWith(`/${lastGoodSlug}`) ||
+      lastGoodSlug.endsWith(`/${slug}`);
+    (slug && same ? matches : rest).push(entry);
+  }
+  return matches.length ? [...matches, ...rest] : models;
+}
+
+function ladder(agentKey: string): ModelWithRetries[] {
+  return [
+    { ...opencode('deepseek-v4.1-flash', agentKey), maxRetries: 3 },
+    { ...opencode('glm-5.3-flash', agentKey), maxRetries: 3 },
+    { ...opencode('gpt-6-luna', agentKey), maxRetries: 3 },
+    { model: hackclub('deepseek/deepseek-v4.1-flash'), maxRetries: 3 },
+  ];
+}
+
+const orchestratorModels = ladder('orchestrator');
+
+export const orchestrator = () => preferLastWorking(orchestratorModels);
 
 export const summarizer: ModelWithRetries[] = [
-  ...gateways('openrouter/google/gemini-3.1-flash-lite').map((model) => ({
-    model,
-    maxRetries: 3,
-  })),
-  { model: opencode('opencode-go/mimo-v2.5'), maxRetries: 3 },
+  { ...opencode('mimo-v2.6-flash', 'summarizer'), maxRetries: 3 },
+  { model: hackclub('google/gemini-3.5-flash-lite'), maxRetries: 3 },
 ];
 
-export const scout: ModelWithRetries[] = [
-  ...gateways('openrouter/deepseek/deepseek-v4-flash').map((model) => ({
-    model,
-    maxRetries: 3,
-  })),
-  { model: opencode('opencode-go/deepseek-v4-flash'), maxRetries: 3 },
-];
+const scoutModels = ladder('research');
 
-export const explorer: ModelWithRetries[] = [
-  ...gateways('openrouter/minimax/minimax-m3').map((model) => ({
-    model,
-    maxRetries: 3,
-  })),
-  { model: opencode('opencode-go/minimax-m3'), maxRetries: 3 },
-];
+export const scout = () => preferLastWorking(scoutModels);
+
+const explorerModels = ladder('explore');
+
+export const explorer = () => preferLastWorking(explorerModels);
 
 export const images = {
-  id: 'google/gemini-3.1-flash-image',
-  apiKey: env.HACKCLUB_API_KEY,
-  url: 'https://ai.hackclub.com/proxy/v1',
+  model: hackclub('google/gemini-3.1-flash-image', {
+    extraBody: { modalities: ['image', 'text'] },
+  }),
 };

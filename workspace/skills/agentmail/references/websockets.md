@@ -7,7 +7,7 @@ Use WebSockets for live inbox events without exposing a public webhook endpoint.
 ```python
 from agentmail import AgentMail, MessageReceivedEvent, Subscribe, Subscribed
 
-client = AgentMail(api_key="brokered-by-gorkie")
+client = AgentMail(api_key="brokered")
 
 with client.websockets.connect() as socket:
     socket.send_subscribe(Subscribe(inbox_ids=["gorkie@agentmail.to"]))
@@ -26,7 +26,7 @@ with client.websockets.connect() as socket:
 import asyncio
 from agentmail import AsyncAgentMail, MessageReceivedEvent, Subscribe
 
-client = AsyncAgentMail(api_key="brokered-by-gorkie")
+client = AsyncAgentMail(api_key="brokered")
 
 async def main():
     async with client.websockets.connect() as socket:
@@ -91,7 +91,7 @@ Common fields on `event.message`:
 from agentmail import AsyncAgentMail, MessageReceivedEvent, Subscribe
 from agentmail.core.api_error import ApiError
 
-client = AsyncAgentMail(api_key="brokered-by-gorkie")
+client = AsyncAgentMail(api_key="brokered")
 
 async def main():
     try:

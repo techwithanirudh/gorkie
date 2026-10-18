@@ -1,46 +1,35 @@
 import { logger } from '../lib/logger';
+import { registerAppHome } from './app-home';
 import { slack } from './client';
+import { content } from './content';
+import {
+  feedbackIds,
+  onFeedbackClick,
+  recordFeedbackDetails,
+} from './feedback';
 import { chat } from './instance';
 import { acceptOptIn } from './onboarding';
-
-const STARTERS = [
-  {
-    title: 'Write & run code',
-    message:
-      'Write and run a Python script that plots a sine wave and send me the image.',
-  },
-  {
-    title: 'Search the web',
-    message: 'What are the top AI news stories today?',
-  },
-  {
-    title: 'Summarize this thread',
-    message: 'Summarize what was discussed in this thread so far.',
-  },
-  {
-    title: 'Search Slack',
-    message: 'Search Slack for recent decisions about this project.',
-  },
-];
-
-async function setStarters(channelId: string, threadTs: string): Promise<void> {
-  await slack
-    .setSuggestedPrompts(channelId, threadTs, STARTERS)
-    .catch((error: unknown) =>
-      logger.error('[events] setSuggestedPrompts failed', { error })
-    );
-}
 
 export function registerEvents(): void {
   const bot = chat();
 
-  bot.onAction('opt_in_accept', acceptOptIn);
-
-  bot.onAssistantThreadStarted((event) =>
-    setStarters(event.channelId, event.threadTs)
+  bot.onAssistantContextChanged((event) =>
+    slack
+      .setSuggestedPrompts(event.channelId, event.threadTs, content.starters)
+      .catch((error: unknown) =>
+        logger.error('[events] setSuggestedPrompts failed', { error })
+      )
   );
 
-  bot.onAssistantContextChanged((event) =>
-    setStarters(event.channelId, event.threadTs)
+  registerAppHome();
+
+  bot.onAction('opt_in_accept', acceptOptIn);
+
+  bot.onAction(feedbackIds.action, onFeedbackClick);
+  bot.onModalSubmit(feedbackIds.modal, (event) =>
+    recordFeedbackDetails({ comment: event.values.details, event })
+  );
+  bot.onModalClose(feedbackIds.modal, (event) =>
+    recordFeedbackDetails({ event })
   );
 }

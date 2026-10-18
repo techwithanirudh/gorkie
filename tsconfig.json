@@ -9,10 +9,11 @@
     "skipLibCheck": true,
     "noEmit": true,
     "outDir": "dist",
+    "types": ["node", "bun"],
     "paths": {
       "@/*": ["./src/*"]
     },
     "ignoreDeprecations": "6.0"
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "scripts/**/*", "*.ts"]
 }

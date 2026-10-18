@@ -1,7 +1,6 @@
 ---
 name: langfuse-judge-calibration
-description: Calibrate and validate LLM-as-a-Judge evaluators against dataset ground truth. Runs the judge prompt as a Langfuse dataset experiment, compares judge outputs with dataset item expected outputs, and reports simple accuracy or advanced confusion-matrix metrics. Use this guide whenever a user asks if their LLM judge is actually useful,
-aligned with human judgment, or safe to trust for monitoring decisions.
+description: Calibrate and validate LLM-as-a-Judge evaluators against dataset ground truth. Runs the judge prompt as a Langfuse dataset experiment, compares judge outputs with dataset item expected outputs, and reports simple accuracy or advanced confusion-matrix metrics. Use this guide whenever a user asks if their LLM judge is actually useful, aligned with human judgment, or safe to trust for monitoring decisions.
 metadata:
   required_access:
     - CODEBASE
@@ -193,8 +192,10 @@ Before trusting the judge on production traffic:
 3. **Metric recomputation check**: recompute aggregate stats from row-level
    flags and compare.
 4. **TPR/TNR review**: inspect both directions for class-direction bias.
-5. **Threshold**: target `TPR > 0.90` and `TNR > 0.90` before high-stakes
-   automation.
+5. **Acceptance criteria**: before the held-out test, agree on thresholds for
+   the relevant metrics based on the costs of false positives and false
+   negatives and whether the judge informs monitoring or automation. Do not
+   infer "ship" from a universal cutoff.
 
 ## 7) Report format
 
@@ -224,10 +225,10 @@ scores to the experiment traces and run-level scores to the dataset run.
 Use manual REST score creation only as a fallback when not using the SDK
 experiment runner, or for local smoke tests. See
 [Scores via SDK](https://langfuse.com/docs/evaluation/evaluation-methods/scores-via-sdk)
-and the [Scores API reference](https://langfuse.com/docs/api) (`POST /api/public/scores`)
-for the current payload shape. Do not use the current `langfuse-cli` score-create
-wrapper unless `--help` shows a usable `value` argument; `langfuse-cli@0.0.10`
-exposes `legacy-score-v1s create` but cannot pass the required score `value`.
+and the [Scores API reference](https://langfuse.com/docs/api) for the current
+payload shape. Before using the CLI for score creation, inspect its current
+schema and action help instead of assuming resource names, arguments, or
+capabilities from a known package version.
 
 Score names to emit:
 

@@ -1,0 +1,72 @@
+import {
+  isBadRequestError,
+  PrefillErrorHandler,
+  StreamErrorRetryProcessor,
+} from '@mastra/core/processors';
+
+function messageOf(error: unknown): string {
+  if (typeof error === 'string') {
+    return error;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return '';
+}
+
+const terminalPattern =
+  /is not supported|unknown model|model[_ ]not[_ ]found|insufficient credits|no endpoints found/i;
+
+function isTerminalModelError(error: unknown): boolean {
+  return terminalPattern.test(messageOf(error));
+}
+
+const econnresetMaxRetries = 2;
+const econnresetRetryInitialDelayMs = 1000;
+const econnresetRetryMaxDelayMs = 30_000;
+const econnresetMessagePattern = /econnreset|socket hang up/i;
+
+function isEconnresetError(error: unknown): boolean {
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? error.code
+      : undefined;
+  if (typeof code === 'string' && code.toUpperCase() === 'ECONNRESET') {
+    return true;
+  }
+  return econnresetMessagePattern.test(messageOf(error));
+}
+
+const rateLimitPattern = /temporarily rate-limited upstream|too many requests/i;
+
+function isRateLimitError(error: unknown): boolean {
+  return rateLimitPattern.test(messageOf(error));
+}
+
+export function defaultErrorProcessors() {
+  return [
+    new StreamErrorRetryProcessor({
+      retryUnknownErrors: true,
+      maxRetries: 2,
+      delayMs: 3000,
+      matchers: [
+        { match: isTerminalModelError, maxRetries: 0 },
+        // A 400 is deterministic (a malformed/oversized request), so retrying
+        // the same model is a guaranteed second failure. Stop, so the run falls
+        // through to the next model in the ladder instead.
+        { match: isBadRequestError, maxRetries: 0 },
+        {
+          match: isEconnresetError,
+          maxRetries: econnresetMaxRetries,
+          delayMs: ({ retryCount }) =>
+            Math.min(
+              econnresetRetryInitialDelayMs * 2 ** retryCount,
+              econnresetRetryMaxDelayMs
+            ),
+        },
+        { match: isRateLimitError, maxRetries: 2, delayMs: 3000 },
+      ],
+    }),
+    new PrefillErrorHandler(),
+  ];
+}

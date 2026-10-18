@@ -3,17 +3,9 @@ import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import type { Target } from '../../chat/target';
-import { chatChannelId, rawId } from '../../lib/ids';
+import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
+import { logger } from '../../lib/logger';
 import type { ChannelContext } from '../../types';
-
-const postedMessageRecord = z.object({
-  requestedBy: z.string().min(1),
-  isSelfDm: z.boolean().default(false),
-});
-
-function postedMessageKey({ channel, ts }: { channel: string; ts: string }) {
-  return `slack:posted-message:${rawId(channel)}:${ts}`;
-}
 
 export async function assertReadableChannel({
   channelId,
@@ -37,6 +29,31 @@ export async function assertReadableChannel({
   );
 }
 
+export async function assertReadableResource({
+  channelIds,
+  currentThreadId,
+}: {
+  channelIds: string[];
+  currentThreadId?: string;
+}): Promise<void> {
+  if (channelIds.length === 0) {
+    throw new Error('This Slack resource is not associated with a channel.');
+  }
+
+  const checks = await Promise.allSettled(
+    channelIds.map((channelId) =>
+      assertReadableChannel({ channelId, currentThreadId })
+    )
+  );
+  if (checks.some((check) => check.status === 'fulfilled')) {
+    return;
+  }
+
+  throw new Error(
+    'Reading or editing Slack resources from another private conversation is not allowed.'
+  );
+}
+
 export function assertCanPostTo({
   target,
   ctx,
@@ -44,98 +61,118 @@ export function assertCanPostTo({
   target: Target;
   ctx: ChannelContext;
 }): void {
-  if (target.type === 'thread' && target.id === ctx.threadId) {
-    return;
-  }
   if (target.type === 'user') {
     if (!ctx.userId || rawId(target.id) !== rawId(ctx.userId)) {
       throw new Error(
-        'Gorkie can only DM the person currently asking, not a third party on their behalf. Ask that person to message Gorkie directly instead.'
+        'gorkie can only DM the person currently asking, not a third party on their behalf. Ask that person to message gorkie directly instead.'
       );
     }
     return;
   }
+
   if (!ctx.channelId) {
-    throw new Error(
-      'No current channel to compare against, so Gorkie will not post there.'
-    );
+    throw new Error('No current Slack channel to compare against.');
   }
-  const targetChannelId =
-    target.type === 'channel'
-      ? target.id
-      : slack.channelIdFromThreadId(target.id);
-  if (chatChannelId(targetChannelId) !== chatChannelId(ctx.channelId)) {
+
+  const destination =
+    target.type === 'thread'
+      ? slack.decodeThreadId(target.id).channel
+      : target.id;
+  if (rawId(destination) !== rawId(ctx.channelId)) {
     throw new Error(
-      'Gorkie can only post to the channel this conversation is already in, not a different channel. Ask a member of that channel to post it there.'
+      'gorkie can only post into the channel this conversation is already in, not another channel. Ask someone in that channel to post there instead.'
     );
   }
 }
 
+function postedMessageKey({ channel, ts }: { channel: string; ts: string }) {
+  return `slack:posted-message:${rawId(channel)}:${ts}`;
+}
+
+// Edit and delete are limited to messages post_message sent for the same
+// requester, so record who asked for each one.
 export async function recordPostedMessage({
-  target,
-  sent,
+  channel,
+  ts,
   requestedBy,
-  isSelfDm,
 }: {
-  target: Target;
-  sent: { id: string; threadId?: string };
+  channel: string;
+  ts: string;
   requestedBy: string | undefined;
-  isSelfDm: boolean;
 }) {
   if (!requestedBy) {
     return;
   }
-  let channel = target.id;
-  if (target.type === 'thread') {
-    channel = slack.channelIdFromThreadId(target.id);
-  }
-  if (sent.threadId) {
-    channel = slack.channelIdFromThreadId(sent.threadId);
-  }
   await chat()
     .getState()
-    .set(postedMessageKey({ channel, ts: sent.id }), {
-      requestedBy: rawId(requestedBy),
-      isSelfDm,
-    });
+    .set(postedMessageKey({ channel, ts }), rawId(requestedBy));
 }
 
 export async function assertCanManagePostedMessage({
-  message,
+  channel,
+  ts,
   ctx,
 }: {
-  message: { channel: string; ts: string };
+  channel: string;
+  ts: string;
   ctx: ChannelContext;
 }) {
   if (!ctx.userId) {
     throw new Error(
-      'No current Slack user, so Gorkie will not edit or delete messages.'
+      'No current Slack user, so gorkie will not edit or delete messages.'
     );
   }
-  const record = postedMessageRecord.safeParse(
-    await chat().getState().get(postedMessageKey(message))
-  );
-  if (!record.success) {
+  const requestedBy = z
+    .string()
+    .safeParse(await chat().getState().get(postedMessageKey({ channel, ts })));
+  if (!requestedBy.success) {
     throw new Error(
-      'Gorkie can only edit or delete messages it previously sent through post_message and recorded ownership for.'
+      'gorkie can only edit or delete messages it sent through post_message.'
     );
   }
-  if (rawId(record.data.requestedBy) !== rawId(ctx.userId)) {
+  if (requestedBy.data !== rawId(ctx.userId)) {
     throw new Error(
-      'Only the same Slack user who asked Gorkie to send this message can edit or delete it.'
+      'Only the person who asked gorkie to send this message can edit or delete it.'
     );
   }
-  return { ...message, isSelfDm: record.data.isSelfDm };
 }
 
+const joinedChannels = new Set<string>();
+const slackErrorSchema = z.looseObject({
+  data: z.looseObject({ error: z.string().optional() }).optional(),
+});
+
 export async function joinChannel(channelId: string): Promise<void> {
-  try {
-    await slack.webClient.conversations.join({
-      channel: rawId(channelId),
-    });
-  } catch {
-    /* already a member, or can't join; reads will fail clearly if truly unreadable */
+  const id = rawId(channelId);
+  if (joinedChannels.has(id)) {
+    return;
   }
+  try {
+    await slack.webClient.conversations.join({ channel: id });
+    joinedChannels.add(id);
+  } catch (error) {
+    // already_in_channel means the bot is already a member, the state we want,
+    // so remember it and stop re-calling join. Other failures may be transient,
+    // so do not cache and let a later call retry.
+    if (
+      slackErrorSchema.safeParse(error).data?.data?.error ===
+      'already_in_channel'
+    ) {
+      joinedChannels.add(id);
+      return;
+    }
+    logger.debug('[slack] could not join the channel', { channelId, error });
+  }
+}
+
+export function slackThreadId({
+  channelId,
+  threadId,
+}: {
+  channelId?: string;
+  threadId: string;
+}): string {
+  return threadIdOf(parseSlackId(threadId, { channel: channelId })) ?? threadId;
 }
 
 export function formatMessage(message: Message) {
