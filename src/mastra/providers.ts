@@ -1,6 +1,7 @@
 import type { ModelWithRetries } from '@mastra/core/agent';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { env } from '@/env';
+import { huddle } from './config';
 import { channelContext } from './lib/context';
 import { recallModel, slugOf } from './lib/working-model';
 
@@ -80,6 +81,13 @@ export const scout = () => preferLastWorking(scoutModels);
 const explorerModels = ladder('explore');
 
 export const explorer = () => preferLastWorking(explorerModels);
+
+// No preferLastWorking: the last working model is shared with the text agents,
+// so it would rank their slower ladder ahead of the voice model.
+export const voice: ModelWithRetries[] = [
+  { ...opencode(huddle.model, 'voice'), maxRetries: 1 },
+  ...ladder('voice'),
+];
 
 export const images = {
   model: hackclub('google/gemini-3.1-flash-image', {
