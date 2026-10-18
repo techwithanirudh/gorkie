@@ -53,8 +53,8 @@ export const onSlashCommand: SlashCommandChannelHandler = async (
   event,
   defaultHandler
 ) => {
-  const isBan = ['/ban', '/dev-ban'].includes(event.command);
-  const isUnban = ['/unban', '/dev-unban'].includes(event.command);
+  const isBan = ['/ban', '/gorkie-dev-ban'].includes(event.command);
+  const isUnban = ['/unban', '/gorkie-dev-unban'].includes(event.command);
   if (!(isBan || isUnban)) {
     if (await slack.isAssignedCodeChannel(event.channel.id)) {
       await defaultHandler();
