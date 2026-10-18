@@ -232,6 +232,7 @@
     "toolsets",
     "traceId",
     "triggerable",
+    "trycloudflare",
     "Turbopack",
     "typechecks",
     "ultracite",
