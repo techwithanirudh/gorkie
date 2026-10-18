@@ -63,8 +63,8 @@ export const image = {
 export const agent = {
   id: 'orchestrator',
   // Every ladder rung must fit input plus output in its context window. The
-  // smallest on models.dev is 1,048,576 (MiMo Flash and Kimi K3):
-  // 850,000 + 65,536 leaves about 133,000 for
+  // smallest on models.dev is 1,000,000 (DeepSeek v4.1 Flash):
+  // 850,000 + 65,536 leaves about 84,000 for
   // tool schemas, which the limiter does not count, and for the gap between
   // its tokenizer and the provider's. GPT-6 Luna also caps input at 922,000.
   // Output must stay under the smallest
