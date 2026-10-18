@@ -5,8 +5,9 @@ import { statusUpdateInputSchema } from '../types/tools/index';
 export const statusUpdateTool = createTool({
   id: 'status_update',
   description:
-    'Always use this to show the person what you are doing while you work: it sets the progress line above your tool cards. Never write messages while working; text beside tool calls is posted into the thread as-is. Write text only for the final answer or a real question or blocker. Call it in the same step as the tool calls it describes, never as a step of its own.',
+    'Name the current work phase in Slack. Tool activity groups underneath it automatically. Call this first before your first work tool, in the same response, to name the work. Use it again only when work moves to a new phase. Reuse a phase while doing several related calls. Skip this for answers without work tools and silent or reaction-only turns. Use reply for the final answer, a question or a blocker. This tool accepts only status; descriptions belong to work tools. Never call this as a step of its own.',
   inputSchema: statusUpdateInputSchema,
   outputSchema: z.strictObject({ ok: z.boolean() }),
+  transform: { display: { output: () => ({ summary: 'Progress updated' }) } },
   execute: () => Promise.resolve({ ok: true }),
 });

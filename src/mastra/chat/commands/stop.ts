@@ -7,12 +7,16 @@ import { memoryThread } from '../memory-thread';
 import { notify } from '../notify';
 import { setThreadState } from '../state';
 
-export async function stopThread(
-  slackThreadId: string
-): Promise<'aborted' | 'cancelled' | 'idle'> {
+export async function stopThread({
+  threadId: slackThreadId,
+  stoppedAt = Date.now(),
+}: {
+  threadId: string;
+  stoppedAt?: number;
+}): Promise<'aborted' | 'cancelled' | 'idle'> {
   await setThreadState({
     thread: { id: slackThreadId },
-    patch: { dropMessagesBefore: Date.now() },
+    patch: { dropMessagesBefore: stoppedAt },
   });
   const mastra = getMastra();
   const orchestrator = mastra.getAgentById(agentConfig.id);
@@ -73,7 +77,10 @@ export async function stopThread(
 }
 
 export const stop: CommandHandler = async ({ message, thread }) => {
-  const outcome = await stopThread(thread.id);
+  const outcome = await stopThread({
+    threadId: thread.id,
+    stoppedAt: message.metadata.dateSent.getTime(),
+  });
   if (outcome === 'aborted') {
     return;
   }

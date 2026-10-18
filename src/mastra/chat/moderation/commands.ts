@@ -49,9 +49,16 @@ async function listBans(): Promise<string> {
     .join('\n');
 }
 
-export const onSlashCommand: SlashCommandChannelHandler = async (event) => {
+export const onSlashCommand: SlashCommandChannelHandler = async (
+  event,
+  defaultHandler
+) => {
   const isBan = ['/ban', '/dev-ban'].includes(event.command);
-  if (!(isBan || ['/unban', '/dev-unban'].includes(event.command))) {
+  const isUnban = ['/unban', '/dev-unban'].includes(event.command);
+  if (!(isBan || isUnban)) {
+    if (await slack.isAssignedCodeChannel(event.channel.id)) {
+      await defaultHandler();
+    }
     return;
   }
   const actorId = event.user.userId;
@@ -85,7 +92,7 @@ export const onSlashCommand: SlashCommandChannelHandler = async (event) => {
     await reply({ raw: event.raw, text: refusal });
     return;
   }
-  if (!isBan) {
+  if (isUnban) {
     await decide({
       action: 'unban',
       actorId,

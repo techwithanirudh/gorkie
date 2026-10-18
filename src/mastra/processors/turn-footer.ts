@@ -13,6 +13,9 @@ export const turnFooter = {
     'Closes a turn with how long it took and a thumbs rating for the response.',
   processOutputStream(args) {
     args.state.startTime ??= Date.now();
+    if (args.part.type === 'text-delta' && args.part.payload.text.trim()) {
+      args.state.replySent = true;
+    }
     if (
       args.part.type === 'tool-call' &&
       args.part.payload.toolName === runBackgroundTool.id
@@ -26,7 +29,7 @@ export const turnFooter = {
     const { startTime } = args.state;
 
     if (
-      !(threadId && args.result.text.trim()) ||
+      !(threadId && args.state.replySent === true) ||
       typeof startTime !== 'number'
     ) {
       return args.messages;

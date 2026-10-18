@@ -70,9 +70,8 @@ async function botMentionRoot({
   return leading?.[1] === botUserId ? root : null;
 }
 
-// Slack titles agent sessions, which exist in DMs and in channel threads. A
-// channel thread gets one only when its root message opens with a mention of
-// the bot, so a thread gorkie was pulled into later keeps no title.
+// Code channels share one session at the channel root. Ordinary channel
+// threads get a session only when the root starts with a bot mention.
 export async function syncTitle({
   message,
   thread,
@@ -81,12 +80,14 @@ export async function syncTitle({
   thread: Thread;
 }): Promise<void> {
   const { channel, threadTs } = slack.decodeThreadId(thread.id);
-  if (!threadTs) {
+  const codeChannel = await slack.isCodeChannel(channel);
+  if ((codeChannel && threadTs) || !(codeChannel || threadTs)) {
     return;
   }
-  const root = thread.isDM
-    ? message
-    : await botMentionRoot({ message, thread, threadTs });
+  const root =
+    thread.isDM || codeChannel
+      ? message
+      : await botMentionRoot({ message, thread, threadTs });
   if (!root) {
     return;
   }

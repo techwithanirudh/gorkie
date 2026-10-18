@@ -63,11 +63,12 @@ export const image = {
 export const agent = {
   id: 'orchestrator',
   // Every ladder rung must fit input plus output in its context window. The
-  // smallest on models.dev is 1,000,000 (opencode-go deepseek-v4.1-flash and
-  // deepseek-v4-flash-vision-exp): 850,000 + 65,536 leaves about 84,000 for
+  // smallest on models.dev is 1,048,576 (MiMo Flash and Kimi K3):
+  // 850,000 + 65,536 leaves about 133,000 for
   // tool schemas, which the limiter does not count, and for the gap between
-  // its tokenizer and the provider's. Output must stay under the smallest
-  // output cap on the ladder, 384,000 (opencode-go DeepSeek).
+  // its tokenizer and the provider's. GPT-6 Luna also caps input at 922,000.
+  // Output must stay under the smallest
+  // output cap on the ladder, 128,000 (opencode-go GPT-6 Luna).
   maxTokens: {
     input: 850_000,
     output: 65_536,
@@ -82,15 +83,6 @@ export const agent = {
   reasoning: 'medium' as const,
   toolCallConcurrency: 10,
   maxProcessorRetries: 2,
-};
-
-// Slack rejects a task_update chunk over 256 characters (msg_too_long) and the
-// adapter then drops to text-only streaming for the rest of the turn.
-export const toolDisplay = {
-  maxChunkChars: 256,
-  maxInline: 120,
-  maxDetails: 200,
-  maxOutput: 200,
 };
 
 // Output caps on models.dev: mimo-v2.6-flash 131,072; gemini-3.5-flash-lite
@@ -152,6 +144,7 @@ export const search = {
 
 export const slack = {
   maxCachedThreads: 10_000,
+  codeChannelCacheTtlMs: 5 * 60 * 1000,
   recipientTtlMs: 30 * 24 * 60 * 60 * 1000,
   userLookupConcurrency: 4,
   channelLookupConcurrency: 4,
@@ -197,6 +190,23 @@ export const backgroundTasks = {
   cleanupIntervalMs: 60 * 60 * 1000,
 };
 
+export const huddleFm = {
+  replyPageSize: 100,
+};
+
 export const database = {
   connectAttemptTimeoutMs: 2000,
 };
+
+export const activity = {
+  updateIntervalMs: 1500,
+  maxPhases: 8,
+  maxTools: 32,
+  elapsedIntervalMs: 5000,
+  maxAnswerPreviewChars: 10_000,
+  answerChunkChars: 1000,
+  maxTitleChars: 96,
+  maxTargetChars: 48,
+};
+
+export const codeChannels = { maxViewBytes: 1_000_000 };

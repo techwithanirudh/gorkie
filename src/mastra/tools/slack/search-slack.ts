@@ -1,4 +1,6 @@
+import type { RequestContext } from '@mastra/core/request-context';
 import { createTool } from '@mastra/core/tools';
+import { ErrorCode, WebClientEvent } from '@slack/web-api';
 import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
@@ -7,6 +9,40 @@ import { channelContext } from '../../lib/context';
 import type { ChannelContext } from '../../types';
 import { readableChannels } from './access';
 import { spendSlackCall } from './budget';
+
+const retryAt = new Map<string, number>();
+
+slack.webClient.on(
+  WebClientEvent.RATE_LIMITED,
+  (
+    seconds: number,
+    { url, body }: { url: string; body: { token?: string } }
+  ) => {
+    if (url.endsWith('/assistant.search.context') && body.token) {
+      retryAt.set(
+        body.token,
+        Math.max(retryAt.get(body.token) ?? 0, Date.now() + seconds * 1000)
+      );
+    }
+  }
+);
+
+function searchCooldownError({
+  token,
+  cause,
+}: {
+  token: string;
+  cause?: unknown;
+}): Error {
+  const seconds = Math.max(
+    0,
+    Math.ceil(((retryAt.get(token) ?? 0) - Date.now()) / 1000)
+  );
+  return new Error(
+    `Slack search is unavailable for ${seconds} seconds due to rate limiting. Do not retry searches during this cooldown. Use the evidence already gathered and report what could not be verified.`,
+    { cause }
+  );
+}
 
 const contextMessageSchema = z
   .looseObject({
@@ -69,35 +105,44 @@ const searchResponseSchema = z.looseObject({
 
 type SearchResponse = z.infer<typeof searchResponseSchema>;
 
-let verifiedToken: string | undefined;
+const verifiedTokens = new Set<string>();
 
-async function assertPublicOnly(token: string): Promise<void> {
-  if (verifiedToken === token) {
+async function assertPublicOnly({
+  token,
+  credential,
+}: {
+  token: string;
+  credential: string;
+}): Promise<void> {
+  if (verifiedTokens.has(token)) {
     return;
   }
   const scopes = (await slack.webClient.auth.test({ token })).response_metadata
     ?.scopes;
   if (!scopes) {
     throw new Error(
-      'Slack did not report the scopes on SLACK_USER_TOKEN, so gorkie cannot confirm it is limited to public channels. Workspace search is disabled until it can.'
+      `Slack did not report the scopes on ${credential}, so gorkie cannot confirm public-only search access. Workspace search is disabled until it can.`
     );
   }
   const overreach = scopes.filter((scope) =>
-    ['search:read.im', 'search:read.mpim', 'search:read.private'].includes(
-      scope
-    )
+    [
+      'search:read',
+      'search:read.im',
+      'search:read.mpim',
+      'search:read.private',
+    ].includes(scope)
   );
   if (overreach.length > 0) {
     throw new Error(
-      `SLACK_USER_TOKEN grants ${overreach.join(', ')}, which can read DMs and private channels. Reissue it with search:read.public only.`
+      `${credential} grants ${overreach.join(', ')}, which can search DMs and private channels. Reissue it with search:read.public only.`
     );
   }
   if (!scopes.includes('search:read.public')) {
     throw new Error(
-      'SLACK_USER_TOKEN is missing search:read.public, so workspace search would only fail later. Reissue it with search:read.public.'
+      `${credential} is missing search:read.public. Grant that public-only scope and reinstall the Slack app to enable search with this credential.`
     );
   }
-  verifiedToken = token;
+  verifiedTokens.add(token);
 }
 
 async function toOutput({
@@ -151,6 +196,106 @@ async function toOutput({
   };
 }
 
+async function searchMessages(
+  { query, cursor }: { query: string; cursor?: string },
+  context: { requestContext?: RequestContext }
+) {
+  const ctx = channelContext(context.requestContext);
+  const actionToken = z
+    .string()
+    .min(1)
+    .safeParse(context.requestContext?.get('slackSearchActionToken')).data;
+  const botPage = cursor?.startsWith('bot:') === true;
+  const credentials = botPage
+    ? [
+        {
+          token: env.SLACK_BOT_TOKEN,
+          name: 'SLACK_BOT_TOKEN',
+          cursor: cursor?.slice(4),
+          bot: true,
+        },
+      ]
+    : [
+        {
+          token: env.SLACK_USER_TOKEN,
+          name: 'SLACK_USER_TOKEN',
+          cursor,
+          bot: false,
+        },
+        ...(cursor
+          ? []
+          : [
+              {
+                token: env.SLACK_BOT_TOKEN,
+                name: 'SLACK_BOT_TOKEN',
+                cursor: undefined,
+                bot: true,
+              },
+            ]),
+      ];
+  for (const [index, credential] of credentials.entries()) {
+    const { token } = credential;
+    if ((retryAt.get(token) ?? 0) > Date.now()) {
+      if (index < credentials.length - 1) {
+        continue;
+      }
+      throw searchCooldownError({ token });
+    }
+    if (credential.bot && !actionToken) {
+      throw new Error(
+        'Public bot search needs the action token from a current Slack mention or DM. Ask the user to mention gorkie or send a new DM, then search again.'
+      );
+    }
+    // biome-ignore lint/performance/noAwaitInLoops: credentials are attempted only after the previous search is rate limited.
+    await assertPublicOnly({ token, credential: credential.name });
+    spendSlackCall(context.requestContext);
+    try {
+      const response = searchResponseSchema.parse(
+        await slack.webClient.apiCall('assistant.search.context', {
+          // Must be a comma-separated string: Slack ignores an array, which reopens private channels and DMs.
+          ...(credential.bot ? { action_token: actionToken } : {}),
+          channel_types: 'public_channel',
+          content_types: 'messages',
+          cursor: credential.cursor,
+          include_context_messages: true,
+          limit: search.slackPageSize,
+          query,
+          token,
+        })
+      );
+      const output = await toOutput({ response, ctx });
+      return {
+        ...output,
+        nextCursor:
+          credential.bot && output.nextCursor
+            ? `bot:${output.nextCursor}`
+            : output.nextCursor,
+      };
+    } catch (error) {
+      const limited = z
+        .looseObject({
+          code: z.literal(ErrorCode.RateLimitedError),
+          retryAfter: z.number(),
+        })
+        .safeParse(error);
+      if (!limited.success) {
+        throw error;
+      }
+      retryAt.set(
+        token,
+        Math.max(
+          retryAt.get(token) ?? 0,
+          Date.now() + limited.data.retryAfter * 1000
+        )
+      );
+      if (index === credentials.length - 1) {
+        throw searchCooldownError({ token, cause: error });
+      }
+    }
+  }
+  throw new Error('No Slack search credential was available.');
+}
+
 export const searchSlackTool = createTool({
   id: 'search_slack',
   description:
@@ -190,25 +335,5 @@ export const searchSlackTool = createTool({
       }),
     },
   },
-  execute: async ({ query, cursor }, context) => {
-    spendSlackCall(context.requestContext);
-    const ctx = channelContext(context.requestContext);
-    const token = env.SLACK_USER_TOKEN;
-    await assertPublicOnly(token);
-    return toOutput({
-      response: searchResponseSchema.parse(
-        await slack.webClient.apiCall('assistant.search.context', {
-          // Must be a comma-separated string: Slack ignores an array, which reopens private channels and DMs.
-          channel_types: 'public_channel',
-          content_types: 'messages',
-          cursor,
-          include_context_messages: true,
-          limit: search.slackPageSize,
-          query,
-          token,
-        })
-      ),
-      ctx,
-    });
-  },
+  execute: searchMessages,
 });

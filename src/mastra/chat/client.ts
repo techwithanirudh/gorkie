@@ -13,6 +13,7 @@ export const slack = new SlackAgentAdapter({
   suggestedPrompts: { prompts: content.starters },
   webClientOptions: {
     logger: slackWebLogger,
+    rejectRateLimitedCalls: true,
     retryConfig: config.webClient.retry,
     timeout: config.webClient.timeoutMs,
   },

@@ -20,9 +20,21 @@ runs commands and inspects files without touching the host machine.
 
 - Slack-native replies for mentions, DMs, and subscribed thread follow-ups,
   streamed into the thread as they generate, with a typing indicator.
-- Tool calls render as a card per call with its inputs and result, helper
-  agents' steps inside their card, in one grouped plan per reply. Scheduled
-  runs show only the typing status.
+- One editable Plan message holds temporary work steps and expandable tool
+  history. A first `status_update` names the work and stays in both the global
+  title and typing indicator. The top title shows total elapsed time; steps
+  show their own durations, frozen when done. Tool calls carry the work, and
+  `reply` posts the answer separately and keeps the completed plan. Ordinary model text stays
+  out of Slack. Progress uses message edits, so it does not split when a
+  native stream expires. Search details include bounded queries; history reads
+  identify their conversation or thread. Lookup and skill actions show their
+  target. Subagent rows have their own timers and child-tool history. Slack
+  rate limits return immediately; search calls share the retry cooldown. Approval
+  cards stay visible.
+- RFC i message rules: `##` never triggers a turn, `<>` requires a direct
+  mention, and group pings alone do not trigger a reply. Root mentions and
+  `join_thread` can subscribe; reply mentions do not. `@gorkie !stop` interrupts
+  the active turn while later messages remain eligible.
 - Thread commands: `!help`, `!stop`, `!compact` and
   `!connections`, handled before the agent runs
   (`chat/commands/`).
@@ -38,7 +50,9 @@ runs commands and inspects files without touching the host machine.
   (`execute_command`) with background process support (`get_process_output`,
   `kill_process`). `grep` runs one native `rg --json` call in the sandbox
   instead of Mastra's default of reading one file at a time, and `view_image`
-  loads a sandbox image into the model's context.
+  loads a sandbox image into the model's context. Saved history keeps its
+  path and media type, excluding image bytes and the duplicate model-output
+  payload. Later turns can call `view_image` again while the file is available.
 - Delegated helper agents for research (Slack and web lookups) and codebase
   exploration (read-only workspace inspection), so multi-step digging stays
   out of the main conversation.
@@ -103,6 +117,35 @@ See [TODO.md](./TODO.md) for open work and known issues.
 - [PostgreSQL][postgres] via `@mastra/pg`
 - Mastra Observability, exported to [Langfuse][langfuse] (plus local
   [DuckDB][duckdb] in development)
+
+## Slack code channels and music
+
+Ask Gorkie to open a code channel for a task. It returns a channel link; continue
+there to work in the dedicated session. Code channels support preview tabs for
+sandbox HTML and diffs, canvases, pull requests and structured cards. The
+`code-channels` runtime skill describes tab updates, context items and archival.
+Slack shows its native Working indicator in code channels; named progress steps
+remain in the Plan card.
+Current turns and sandbox files are not automatically transferred from the
+origin thread. Channels are archived only when asked.
+
+Both Slack manifests enable code channels and add `code_channels:manage` and
+bot `search:read.public`. Apply the manifest and reinstall the app to grant
+those permissions. Editing the manifest file alone does not change the live
+app's token. If `create_code_channel` returns `feature_disabled`, the installed
+app has not been enabled as an agent-session app; if it returns `missing_scope`,
+reinstall it so `code_channels:manage` is granted. Public search can fall back
+from the user token to the bot token when the user token is rate limited. Bot
+search also needs Slack's action token from the current mention or DM. Search
+calls return immediately during cooldown; workspace limits can affect both
+credentials.
+
+For manual HuddleFM music control, set optional `HUDDLEFM_USER_ID` to the
+HuddleFM integration user's Slack ID and have its operator allowlist Gorkie's
+bot ID. The `huddlefm` runtime skill loads deferred music tools. Request control
+from the huddle host before queue or playback changes. Commands return pending
+immediately, and a separate tool checks for a reply. Autonomous DJ sessions and
+unsolicited playback event handling are not implemented.
 
 ## Getting started
 
@@ -285,16 +328,30 @@ carries six fixes:
   background wake) stash no requester in memory, so the check falls back to the
   stored one, the run's creator. It fails closed: a card with no recorded
   requester is refused.
-- **Plan widgets stay under Slack's cap.** A grouped turn rolls into
-  a new message at a step boundary once it has 40 tasks, and never sends more
-  than Slack's 50, so long turns do not crash the stream.
-- **Grouped plans work with a custom renderer.** Tool calls render through
-  gorkie's own function (`chat/tool-display.ts`) inside one grouped plan per
-  turn; the patch sets the plan header from the latest task, as Mastra's
-  built-in grouped renderer does, since function-form results carry no header.
+
+- **Custom mention handlers own subscriptions.** The default handler retains
+  automatic subscription when it has no override. Gorkie subscribes only on a
+  root mention or an explicit `join_thread` call.
+- **Editable activity stays as history.** Gorkie supplies complete step
+  snapshots through stream metadata. The channels driver hands its activity
+  session to the renderer attached to `toolDisplay`. The renderer uses Chat
+  SDK's Plan `postObject` and `editObject` methods for one message, serialized
+  edits and elapsed titles. The Slack adapter keeps
+  the plan's block id stable. On reply, timers freeze and the completed plan
+  stays visible with its expandable history; the answer is posted separately.
+  Work history remains on wait, failure and stop, with frozen timers and a
+  Waiting, Failed or Stopped header. Empty status-only cards are omitted. Approvals,
+  files and errors retain channels' existing handling. Answers beyond the
+  preview size use the SDK's ordinary streaming path so their text is retained;
+  progress itself does not rotate.
 
 [`patches/@chat-adapter+slack@4.41.0.patch`](./patches/@chat-adapter+slack@4.41.0.patch)
 patches the Slack adapter's `dist/index.js`, which native streaming needs:
+
+- **Activity cleanup preserves rotated replies.** The adapter returns the text
+  and ids of native stream segments. Channels deletes empty activity segments
+  and replaces each remaining layout with that segment's answer text, preserving
+  markdown and avoiding duplicate prefixes after a stream rotation.
 
 - **A lost streamed message continues in a new one.** On a long turn Slack can
   drop the streaming message, and the next append or `chat.stopStream` returns

@@ -1,8 +1,17 @@
 import { SlackAdapter } from '@chat-adapter/slack';
 import type { SlackBlock } from '@chat-adapter/slack/blocks';
+import { Message, type PlanModel } from 'chat';
 import { z } from 'zod';
 import { slack as config } from '../config';
-import { userMention } from './message';
+import { activityAnswerSchema } from '../types/progress';
+import { codeChannelSchema } from '../types/tools/code-channel';
+import { ignoredMessageReason, userMention } from './message';
+
+interface ThreadStopEvent {
+  stoppedAt: number;
+  threadId: string;
+  userId: string;
+}
 
 interface MemberLeftEvent {
   channel: string;
@@ -45,7 +54,101 @@ function evictOldest({
 }
 
 export class SlackAgentAdapter extends SlackAdapter {
+  private readonly codeChannels = new Map<
+    string,
+    { assigned: boolean; code: boolean; expiresAt: number }
+  >();
+  private readonly codeChannelLookups = new Map<string, Promise<boolean>>();
+  private readonly stoppedCodeChannels = new Set<string>();
+
+  private nativeSessionStopped(threadId: string): boolean {
+    const { channel } = this.decodeThreadId(threadId);
+    return (
+      this.stoppedCodeChannels.has(threadId) ||
+      this.stoppedCodeChannels.has(
+        this.encodeThreadId({ channel, threadTs: '' })
+      )
+    );
+  }
+
+  private assertSessionWritable(threadId: string): void {
+    if (this.nativeSessionStopped(threadId)) {
+      throw new Error('Slack code channel session was stopped.');
+    }
+  }
+
+  async isCodeChannel(channel: string): Promise<boolean> {
+    if (channel.startsWith('D')) {
+      return false;
+    }
+    const cached = this.codeChannels.get(channel);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.code;
+    }
+    const pending = this.codeChannelLookups.get(channel);
+    if (pending) {
+      return pending;
+    }
+    const lookup = (async () => {
+      try {
+        const response = await this._client.conversations.info(
+          await this.withToken({ channel })
+        );
+        const parsed = codeChannelSchema.safeParse(response.channel);
+        const assigned =
+          parsed.success &&
+          !!this.botUserId &&
+          (
+            parsed.data.properties.agent_session?.encoded_agent_bot_user_ids ??
+            []
+          ).includes(this.botUserId);
+        evictOldest({ cache: this.codeChannels, key: channel });
+        this.codeChannels.set(channel, {
+          assigned,
+          code: parsed.success,
+          expiresAt: Date.now() + config.codeChannelCacheTtlMs,
+        });
+        return parsed.success;
+      } catch (error) {
+        this.logger.warn('Could not recognize Slack code channel', {
+          channel,
+          error,
+        });
+        if (cached) {
+          cached.assigned = false;
+        }
+        return cached?.code ?? false;
+      } finally {
+        this.codeChannelLookups.delete(channel);
+      }
+    })();
+    this.codeChannelLookups.set(channel, lookup);
+    return await lookup;
+  }
+
+  async isAssignedCodeChannel(channel: string): Promise<boolean> {
+    return (
+      (await this.isCodeChannel(channel)) &&
+      this.codeChannels.get(channel)?.assigned === true
+    );
+  }
+
+  protected override threadIdForMessageEvent(
+    event: Parameters<SlackAdapter['threadIdForMessageEvent']>[0]
+  ): string {
+    if (
+      event.channel &&
+      this.codeChannels.get(event.channel)?.code &&
+      !event.thread_ts
+    ) {
+      return this.encodeThreadId({ channel: event.channel, threadTs: '' });
+    }
+    return super.threadIdForMessageEvent(event);
+  }
+
   private readonly recipients = new Map<string, Recipient>();
+
+  private threadStopHandler?: (event: ThreadStopEvent) => Promise<void>;
 
   private memberLeftHandler?: (event: MemberLeftEvent) => Promise<void>;
   // Threads whose root is gone: Slack posts a reply to a deleted root at the
@@ -59,7 +162,83 @@ export class SlackAgentAdapter extends SlackAdapter {
   protected override handleMessageEvent(
     ...args: Parameters<SlackAdapter['handleMessageEvent']>
   ): ReturnType<SlackAdapter['handleMessageEvent']> {
-    const [event] = args;
+    const [event, options] = args;
+    if (
+      ignoredMessageReason({
+        text: event.text ?? '',
+        botUserId: this.botUserId,
+      })
+    ) {
+      return;
+    }
+    if (!event.channel || event.channel_type === 'im' || !this.chat) {
+      return this.handleReadyMessageEvent(...args);
+    }
+    const { channel } = event;
+    const { chat } = this;
+    const task = (async () => {
+      const assigned = await this.isAssignedCodeChannel(channel);
+      if (
+        this.codeChannels.get(channel)?.code &&
+        event.user &&
+        !event.bot_id &&
+        !event.subtype
+      ) {
+        this.stoppedCodeChannels.delete(
+          this.encodeThreadId({ channel, threadTs: '' })
+        );
+        this.stoppedCodeChannels.delete(this.threadIdForMessageEvent(event));
+        if (assigned && !event.thread_ts) {
+          await chat
+            .getState()
+            .subscribe(this.encodeThreadId({ channel, threadTs: '' }));
+        }
+      }
+      this.handleReadyMessageEvent(...args);
+    })().catch((error: unknown) => {
+      this.logger.error('Could not route Slack channel message', {
+        error,
+        channel: event.channel,
+      });
+      if (options?.propagateHandlerErrors && options.waitUntil) {
+        throw error;
+      }
+    });
+    options?.waitUntil?.(task);
+  }
+
+  private handleReadyMessageEvent(
+    ...args: Parameters<SlackAdapter['handleMessageEvent']>
+  ): ReturnType<SlackAdapter['handleMessageEvent']> {
+    const [event, options] = args;
+    const text = event.text ?? '';
+    if (ignoredMessageReason({ text, botUserId: this.botUserId })) {
+      return;
+    }
+    if (
+      event.channel &&
+      event.ts &&
+      event.user &&
+      this.threadStopHandler &&
+      [...text.matchAll(new RegExp(userMention.source, 'g'))].some(
+        (mention) =>
+          mention[1] === this.botUserId &&
+          /^!stop\b/i.test(
+            text.slice(mention.index + mention[0].length).trimStart()
+          )
+      )
+    ) {
+      const threadId = this.threadIdForMessageEvent(event);
+      const task = this.threadStopHandler({
+        threadId,
+        userId: event.user,
+        stoppedAt: Number(event.ts) * 1000,
+      }).catch((error: unknown) => {
+        this.logger.error('Thread stop handler failed', { error, threadId });
+      });
+      options?.waitUntil?.(task);
+      return;
+    }
     const { chat } = this;
     const userId = event.user;
     const teamId = event.team_id ?? event.team;
@@ -71,10 +250,7 @@ export class SlackAgentAdapter extends SlackAdapter {
       userId &&
       teamId
     ) {
-      const threadId = this.encodeThreadId({
-        channel: event.channel,
-        threadTs: event.thread_ts || event.ts,
-      });
+      const threadId = this.threadIdForMessageEvent(event);
       const known = this.recipients.get(threadId);
       if (!(known?.userId === userId && known.teamId === teamId)) {
         const recipient: Recipient = { userId, teamId };
@@ -96,10 +272,164 @@ export class SlackAgentAdapter extends SlackAdapter {
     return super.handleMessageEvent(...args);
   }
 
+  protected override handleAgentSessionStopped(
+    ...args: Parameters<SlackAdapter['handleAgentSessionStopped']>
+  ): void {
+    const [event, options] = args;
+    const task = (async () => {
+      if (!(await this.isCodeChannel(event.channel))) {
+        super.handleAgentSessionStopped(...args);
+        return;
+      }
+      const { chat } = this;
+      if (!chat) {
+        return;
+      }
+      const threadId = this.encodeThreadId({
+        channel: event.channel,
+        threadTs: event.thread_ts || '',
+      });
+      evictOldest({ cache: this.stoppedCodeChannels, key: threadId });
+      this.stoppedCodeChannels.add(threadId);
+      await chat.abortTurn(threadId);
+      chat.processAgentSessionStopped(
+        {
+          adapter: this,
+          channelId: event.channel,
+          streamingMessageTs: event.streaming_message_ts,
+          threadId,
+          threadTs: event.thread_ts || '',
+          userId: event.user,
+        },
+        options
+      );
+    })().catch((error: unknown) =>
+      this.logger.error('Could not stop Slack code channel', {
+        channel: event.channel,
+        error,
+      })
+    );
+    options?.waitUntil?.(task);
+  }
+
+  override async setSessionStatus(
+    ...args: Parameters<SlackAdapter['setSessionStatus']>
+  ): Promise<void> {
+    const [channel, threadTs, status, options] = args;
+    if (!(await this.isCodeChannel(channel))) {
+      return super.setSessionStatus(...args);
+    }
+    if (this.nativeSessionStopped(this.encodeThreadId({ channel, threadTs }))) {
+      return;
+    }
+    await this._client.apiCall(
+      'agents.sessions.setStatus',
+      await this.withToken({
+        channel_id: channel,
+        status,
+        ...(options?.initiatorUserId
+          ? { initiator_user_id: options.initiatorUserId }
+          : {}),
+        ...(options?.title ? { title: options.title } : {}),
+      })
+    );
+  }
+
+  override async setAssistantStatus(
+    ...args: Parameters<SlackAdapter['setAssistantStatus']>
+  ): Promise<void> {
+    const [channel, threadTs, status] = args;
+    if (await this.isCodeChannel(channel)) {
+      return this.setSessionStatus(
+        channel,
+        threadTs,
+        status ? 'processing' : 'active'
+      );
+    }
+    return super.setAssistantStatus(...args);
+  }
+
+  protected override async renameAgentSession(
+    ...args: Parameters<SlackAdapter['renameAgentSession']>
+  ): Promise<void> {
+    const [channel, threadTs, title] = args;
+    if (!(await this.isCodeChannel(channel))) {
+      return super.renameAgentSession(...args);
+    }
+    if (this.nativeSessionStopped(this.encodeThreadId({ channel, threadTs }))) {
+      return;
+    }
+    await this._client.apiCall(
+      'agents.sessions.rename',
+      await this.withToken({ channel_id: channel, title })
+    );
+  }
+
+  override async startTyping(
+    ...args: Parameters<SlackAdapter['startTyping']>
+  ): Promise<void> {
+    const [threadId, status, options] = args;
+    const { channel, threadTs } = this.decodeThreadId(threadId);
+    if (!(await this.isCodeChannel(channel))) {
+      return super.startTyping(...args);
+    }
+    try {
+      await this.setSessionStatus(
+        channel,
+        threadTs,
+        status === '' ? 'active' : 'processing',
+        { initiatorUserId: options?.initiatorUserId }
+      );
+    } catch (error) {
+      this.logger.warn('Could not update Slack code channel thinking state', {
+        channel,
+        error,
+      });
+    }
+  }
+
+  override async endTyping(
+    ...args: Parameters<SlackAdapter['endTyping']>
+  ): Promise<void> {
+    const [threadId, status = 'active'] = args;
+    const { channel, threadTs } = this.decodeThreadId(threadId);
+    if (!(await this.isCodeChannel(channel))) {
+      return super.endTyping(...args);
+    }
+    try {
+      await this.setSessionStatus(channel, threadTs, status);
+    } catch (error) {
+      this.logger.warn('Could not clear Slack code channel thinking state', {
+        channel,
+        error,
+      });
+    }
+  }
+
+  override async fetchMessages(
+    ...args: Parameters<SlackAdapter['fetchMessages']>
+  ): ReturnType<SlackAdapter['fetchMessages']> {
+    const [threadId, options] = args;
+    const { channel, threadTs } = this.decodeThreadId(threadId);
+    if (!threadTs && (await this.isCodeChannel(channel))) {
+      const page = await this.fetchChannelMessages(`slack:${channel}`, options);
+      return {
+        ...page,
+        messages: page.messages.map(
+          (message) => new Message({ ...message, threadId })
+        ),
+      };
+    }
+    return super.fetchMessages(...args);
+  }
+
   override async stream(
     ...args: Parameters<SlackAdapter['stream']>
   ): ReturnType<SlackAdapter['stream']> {
     const [threadId, textStream, options] = args;
+    if (await this.isCodeChannel(this.decodeThreadId(threadId).channel)) {
+      return null;
+    }
     const { chat } = this;
     if (
       this.isDM(threadId) ||
@@ -126,6 +456,32 @@ export class SlackAgentAdapter extends SlackAdapter {
       recipientUserId: recipient.userId,
       recipientTeamId: recipient.teamId,
     });
+  }
+
+  protected override planToBlockKit(plan: PlanModel): unknown[] {
+    const parsed = activityAnswerSchema.safeParse(plan);
+    if (!parsed.success) {
+      return super.planToBlockKit(plan);
+    }
+    const blocks = super.planToBlockKit(plan).map((block, index) => ({
+      ...z.looseObject({ type: z.string() }).parse(block),
+      block_id: `gorkie_plan_${index}`,
+    }));
+    if (parsed.data.gorkieActivity.answer) {
+      return [
+        ...blocks,
+        {
+          type: 'markdown',
+          block_id: 'gorkie_answer',
+          text: parsed.data.gorkieActivity.answer,
+        },
+      ];
+    }
+    return blocks;
+  }
+
+  onThreadStop(handler: (event: ThreadStopEvent) => Promise<void>): void {
+    this.threadStopHandler = handler;
   }
 
   // Chat SDK has onMemberJoinedChannel but nothing for leaving.
@@ -184,9 +540,31 @@ export class SlackAgentAdapter extends SlackAdapter {
   override async postMessage(
     ...args: Parameters<SlackAdapter['postMessage']>
   ): ReturnType<SlackAdapter['postMessage']> {
+    this.assertSessionWritable(args[0]);
     const posted = await super.postMessage(...args);
     this.landedUnthreaded({ raw: posted.raw, threadId: args[0] });
     return posted;
+  }
+
+  override async editMessage(
+    ...args: Parameters<SlackAdapter['editMessage']>
+  ): ReturnType<SlackAdapter['editMessage']> {
+    this.assertSessionWritable(args[0]);
+    return await super.editMessage(...args);
+  }
+
+  override async postObject(
+    ...args: Parameters<SlackAdapter['postObject']>
+  ): ReturnType<SlackAdapter['postObject']> {
+    this.assertSessionWritable(args[0]);
+    return await super.postObject(...args);
+  }
+
+  override async editObject(
+    ...args: Parameters<SlackAdapter['editObject']>
+  ): ReturnType<SlackAdapter['editObject']> {
+    this.assertSessionWritable(args[0]);
+    return await super.editObject(...args);
   }
 
   async postBlocks({
@@ -198,6 +576,7 @@ export class SlackAgentAdapter extends SlackAdapter {
     text: string;
     threadId: string;
   }): Promise<void> {
+    this.assertSessionWritable(threadId);
     if (this.unthreaded.has(threadId)) {
       this.logger.warn('Skipped blocks for a thread whose root is gone', {
         threadId,

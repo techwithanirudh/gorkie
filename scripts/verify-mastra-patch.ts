@@ -5,6 +5,17 @@ const root = process.argv[2] ?? process.cwd();
 const dist = join(root, 'node_modules/@mastra/core/dist');
 
 const markers = [
+  'pendingActivity',
+  'await toolDisplayFn.activity({ stream: iterable, thread: chatThread, adapter })',
+  'const completeActivity = () =>',
+  'if (typeof this.handlerOverrides?.onMention !== "function") chatThread.subscribe()',
+  'gorkieActivity',
+  'type: "activity_end"',
+  'render.abortActivity = async () =>',
+  'get(CHAT_CHANNEL_RENDER_CONTEXT_KEY)?.abortActivity?.()',
+  'gorkieDelegation: { toolCallId, toolName:',
+  'transient activity cleanup failed',
+  'typingGate.transientActivity',
   'approvalRequesterId',
   'stashed?.requesterId ?? persistedRequesterId',
   'channelRequesterId',
@@ -51,7 +62,12 @@ const missing = [
   }),
   ...(existsSync(slackDist) ? [] : ['@chat-adapter/slack index.js: not found']),
   ...(existsSync(slackDist)
-    ? ['STREAM_GONE_ERROR', 'STREAM_SEGMENT_MAX_CHARS']
+    ? [
+        'STREAM_GONE_ERROR',
+        'STREAM_SEGMENT_MAX_CHARS',
+        'gorkieStreamSegments',
+        'gorkieTransientActivity',
+      ]
         .filter((marker) => !readFileSync(slackDist, 'utf8').includes(marker))
         .map((marker) => `@chat-adapter/slack index.js: ${marker}`)
     : []),

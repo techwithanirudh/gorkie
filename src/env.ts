@@ -71,6 +71,7 @@ export const env = createEnv({
 
     AGENTMAIL_API_KEY: z.string().min(1).optional(),
     EMOJI_PROXY_TOKEN: z.string().min(1).optional(),
+    HUDDLEFM_USER_ID: slackUserIdSchema.optional(),
   },
   createFinalSchema: (shape) =>
     z.object(shape).superRefine((value, ctx) => {

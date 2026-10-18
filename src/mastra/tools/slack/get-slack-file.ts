@@ -5,6 +5,7 @@ import { slackFileId } from '../../lib/ids';
 import { formatBytes } from '../../lib/media';
 import { requireSandbox, sandboxPath } from '../../workspace';
 import { spendSlackCall } from './budget';
+import { downloadEmoji } from './emoji';
 import { fetchPrivateSlackFile, readableFile } from './files';
 
 async function downloadSlackFile({
@@ -20,6 +21,15 @@ async function downloadSlackFile({
 }) {
   const sandbox = await requireSandbox(requestContext);
 
+  if (/^:[^:]+:$/.test(file.trim())) {
+    return downloadEmoji({
+      shortcode: file,
+      filename,
+      sandbox,
+      requestContext,
+      signal: abortSignal,
+    });
+  }
   const fileId = slackFileId(file);
   if (!fileId) {
     throw new Error(
@@ -88,13 +98,13 @@ async function downloadSlackFile({
 export const getSlackFileTool = createTool({
   id: 'get_slack_file',
   description:
-    'Download one Slack upload, snippet, or image into the thread sandbox for reading or processing. Pass a Slack file id such as F0123ABCD, or a Slack file permalink containing one. Use fetch_url for web URLs and read_canvas for canvases. To look at a downloaded image, pass the saved path to view_image; read_file cannot show you a picture.',
+    'Download a Slack upload or custom emoji into the thread sandbox and return its saved path. Pass :emoji-name: for custom emoji. Pass a Slack file id such as F0123ABCD, or a Slack file permalink containing one. Use fetch_url for web URLs and read_canvas for canvases. Use view_image with the saved path when you need to inspect an image.',
   inputSchema: z.strictObject({
     file: z
       .string()
       .min(1)
       .describe(
-        'A Slack file id (e.g. F0123ABCD). A Slack file permalink containing the id also works; the id is extracted from it.'
+        'Slack file id, permalink, or custom emoji shortcode such as :party-parrot:.'
       ),
     filename: z.string().optional().describe('Optional name to save it as.'),
   }),

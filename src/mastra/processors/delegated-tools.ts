@@ -1,5 +1,6 @@
 import type { Processor } from '@mastra/core/processors';
 import { z } from 'zod';
+import { activitySchema } from '../types/progress';
 
 const delegatedToolChunk = z.looseObject({
   payload: z.looseObject({
@@ -10,19 +11,6 @@ const delegatedToolChunk = z.looseObject({
 });
 
 const callIdSeparator = '::';
-const agentTool = /^agent-([a-z0-9-]+?)(?:_(.+))?$/;
-
-export function parseAgentTool(
-  toolName: string
-): { agent: string; tool?: string } | undefined {
-  const match = agentTool.exec(toolName);
-  return match ? { agent: match[1], tool: match[2] } : undefined;
-}
-
-export function parentToolCallId(toolCallId: string): string {
-  return toolCallId.split(callIdSeparator)[0];
-}
-
 export const delegatedTools = {
   id: 'delegated-tools',
   name: 'Delegated Tool Output',
@@ -34,17 +22,34 @@ export const delegatedTools = {
 
     const { output } = part.payload;
     const delegatedTool = delegatedToolChunk.safeParse(output);
-    if (!delegatedTool.success) {
+    const activity = z
+      .object({
+        type: z.literal('data-code-mode-activity'),
+        data: activitySchema,
+      })
+      .safeParse(output);
+    if (!(delegatedTool.success || activity.success)) {
       return Promise.resolve(part);
     }
 
     return Promise.resolve({
       ...output,
-      payload: {
-        ...output.payload,
-        toolCallId: `${part.payload.toolCallId}${callIdSeparator}${delegatedTool.data.payload.toolCallId}`,
-        toolName: `${part.payload.toolName ?? 'agent'}_${delegatedTool.data.payload.toolName}`,
+      metadata: {
+        ...output.metadata,
+        gorkieDelegation: {
+          toolCallId: part.payload.toolCallId,
+          toolName: part.payload.toolName ?? 'agent',
+        },
       },
+      ...(delegatedTool.success
+        ? {
+            payload: {
+              ...output.payload,
+              toolCallId: `${part.payload.toolCallId}${callIdSeparator}${delegatedTool.data.payload.toolCallId}`,
+              toolName: `${part.payload.toolName ?? 'agent'}_${delegatedTool.data.payload.toolName}`,
+            },
+          }
+        : {}),
     });
   },
 } satisfies Processor<'delegated-tools'>;

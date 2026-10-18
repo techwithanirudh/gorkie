@@ -1,6 +1,27 @@
---- a/dist/agent-DwtTO5Px.js
-+++ b/dist/agent-DwtTO5Px.js
-@@ -20789,6 +20789,15 @@
+--- a/node_modules/@mastra/core/dist/agent-DwtTO5Px.js
++++ b/node_modules/@mastra/core/dist/agent-DwtTO5Px.js
+@@ -20781,15 +20781,37 @@
+ */
+ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, toolDisplayFn, streamingOptions, channelToolNames, logger, onApprovalPosted, getPendingApproval, takePendingApproval, typingGate, formatError, textFormat }) {
+ 	const platform = adapter.name;
+-	const groupTasks = toolDisplay === "timeline" ? "timeline" : toolDisplay === "grouped" ? "plan" : void 0;
+-	const rendersToolsInPlan = toolDisplay === "timeline" || toolDisplay === "grouped";
++	let groupTasks = toolDisplay === "timeline" ? "timeline" : toolDisplay === "grouped" ? "plan" : void 0;
++	let rendersToolsInPlan = toolDisplay === "timeline" || toolDisplay === "grouped";
++	let transientActivity = false;
++	let activityTimer;
++	let activityIntervalMs = 0;
++	let lastActivitySentAt = 0;
++	let activityTitle;
++	let activityStartedAt;
++	let sentActivityTitle;
++	const pendingActivity = new Map();
++	const activityTasks = new Map();
++	let activityReplied = false;
++	let activityOutcome;
+ 	const tracker = new ToolTracker();
+ 	const sessionRef = { current: null };
+ 	const pendingInitialText = [];
  	const pendingOmTasks = /* @__PURE__ */ new Map();
  	const aggregatedRecallRef = { current: null };
  	const planTitleRef = { current: false };
@@ -14,17 +35,76 @@
 +	// opens titled; a later status update can still replace it.
 +	let carriedPlanTitle;
  	const openSession = () => {
++		let activityShown = false;
++		let finalText = "";
  		let buffer = [];
  		let closed = false;
-@@ -20853,6 +20862,7 @@
+ 		let resolveNext;
+@@ -20812,6 +20834,8 @@
+ 		return {
+ 			push: (piece) => {
+ 				if (closed) return;
++				if (typeof piece === "string") finalText += piece;
++				else if (piece.type === "task_update") activityShown = true;
+ 				buffer.push(piece);
+ 				if (resolveNext) {
+ 					const r = resolveNext;
+@@ -20830,12 +20854,30 @@
+ 			},
+ 			done: (async () => {
+ 				try {
+-					await chatThread.post(postable);
++					if (transientActivity && toolDisplayFn?.activity) {
++						await toolDisplayFn.activity({ stream: iterable, thread: chatThread, adapter });
++						return;
++					}
++					const posted = await chatThread.post(postable);
++					if (transientActivity && activityShown && posted) {
++						const segments = posted.raw?.gorkieStreamSegments;
++						const targets = Array.isArray(segments) ? segments : [{ id: posted.id, text: finalText }];
++						for (const target of targets) {
++							if (!target || typeof target.id !== "string" || typeof target.text !== "string") continue;
++							try {
++								if (target.text.trim()) await adapter.editMessage(chatThread.id, target.id, textFormat === "plain" ? target.text : { markdown: target.text, gorkieTransientActivity: true });
++								else await adapter.deleteMessage(chatThread.id, target.id);
++							} catch (error) {
++								logger?.warn("[CHANNEL] transient activity cleanup failed", { error, messageId: target.id });
++							}
++						}
++					}
+ 				} catch (e) {
+ 					logger?.warn("[CHANNEL] streaming post failed, falling back to buffered text", { error: e });
+-					let fallback = "";
++					let fallback = transientActivity ? finalText : "";
+ 					while (true) {
+-						fallback += buffer.filter((p) => typeof p === "string").join("");
++						if (transientActivity) fallback = finalText;
++						else fallback += buffer.filter((p) => typeof p === "string").join("");
+ 						buffer = [];
+ 						if (closed) break;
+ 						await waitForNext();
+@@ -20848,11 +20890,19 @@
+ 					}
+ 				} finally {
+ 					typingGate.active = false;
++					if (transientActivity) await chatThread.startTyping("").catch((error) => logger?.debug("[CHANNEL] activity status cleanup failed", { error }));
+ 				}
+ 			})()
  		};
  	};
- 	const closeSession = async () => {
+-	const closeSession = async () => {
++	const closeSession = async ({ completed = false, outcome } = {}) => {
++		if (completed) completeActivity();
++		flushActivity();
++		if (transientActivity && sessionRef.current) sessionRef.current.push({ type: "activity_end", outcome: outcome ?? activityOutcome ?? (completed ? "Completed" : "Waiting") });
++		activityOutcome = void 0;
++		activityTasks.clear();
++		activityReplied = false;
 +		await Promise.all(retiredSessions.splice(0));
  		const s = sessionRef.current;
  		if (!s) {
  			pendingInitialText.length = 0;
-@@ -20867,6 +20877,9 @@
+@@ -20867,6 +20917,9 @@
  		pendingOmTasks.clear();
  		aggregatedRecallRef.current = null;
  		planTitleRef.current = false;
@@ -34,7 +114,7 @@
  		sessionRef.current = null;
  		s.close();
  		await s.done;
-@@ -20879,8 +20892,55 @@
+@@ -20879,15 +20932,92 @@
  	* `if (!session) session = openSession(); session.push(...)` pattern out
  	* of the handlers.
  	*/
@@ -91,7 +171,27 @@
  		for (const pendingPiece of pendingInitialText) sessionRef.current.push(pendingPiece);
  		pendingInitialText.length = 0;
  		sessionRef.current.push(piece);
-@@ -20888,6 +20948,16 @@
+ 	};
++	const flushActivity = () => {
++		if (activityTimer) clearTimeout(activityTimer);
++		activityTimer = void 0;
++		if (!pendingActivity.size) return;
++		for (const piece of pendingActivity.values()) pushToSession(piece);
++		pendingActivity.clear();
++		if (activityTitle !== sentActivityTitle) {
++			pushToSession({ type: "plan_update", title: activityTitle, startedAt: activityStartedAt });
++			sentActivityTitle = activityTitle;
++		}
++		lastActivitySentAt = Date.now();
++	};
++	const completeActivity = () => {
++		if (!(activityReplied && sessionRef.current)) return;
++		flushActivity();
++		for (const piece of activityTasks.values()) if (piece.status !== "complete" && piece.status !== "error") {
++			pushToSession({ type: "task_update", id: piece.id, title: piece.title, status: "complete" });
++		}
++		activityTasks.clear();
++	};
  	const pushToolDisplayResult = (result) => {
  		if (result.openIfEmpty === false && !sessionRef.current) return;
  		pushToSession(result.chunk);
@@ -108,7 +208,37 @@
  	};
  	const lookupTaskTitle = (toolCallId, fallback) => {
  		const stash = getPendingApproval(toolCallId);
-@@ -20978,7 +21048,8 @@
+@@ -20966,6 +21096,29 @@
+ 		});
+ 	};
+ 	for await (const chunk of stream) {
++		const activity = chunk.metadata?.gorkieActivity;
++		if (activity) {
++			transientActivity = true;
++			groupTasks = "plan";
++			toolDisplay = "grouped";
++			rendersToolsInPlan = true;
++			typingGate.transientActivity = true;
++			activityIntervalMs = activity.intervalMs ?? activityIntervalMs;
++			activityTitle = activity.status;
++			activityStartedAt = activity.startedAt;
++			activityReplied = activity.replied;
++			activityOutcome = activity.outcome;
++			for (const piece of activity.chunks) {
++				activityTasks.set(piece.id, piece);
++				pendingActivity.set(piece.id, piece);
++			}
++			if (chunk.type === "finish" && !sessionRef.current) pendingActivity.clear();
++			if (pendingActivity.size) {
++				const delay = Math.max(0, lastActivitySentAt + activityIntervalMs - Date.now());
++				if (!sessionRef.current || delay === 0 || ["text-delta", "error", "abort", "finish", "tool-call-approval", "data-user-message"].includes(chunk.type)) flushActivity();
++				else if (!activityTimer) activityTimer = setTimeout(flushActivity, delay);
++			}
++		}
+ 		if (aggregatedRecallRef.current) {
+ 			const probe = asOmChunk(chunk);
+ 			if (!(probe?.type === "data-om-activation" && probe.data.operationType === "observation")) aggregatedRecallRef.current = null;
+@@ -20978,7 +21131,8 @@
  			}
  			const om = asOmChunk(chunk);
  			if (om) {
@@ -118,7 +248,7 @@
  				if (om.data.cycleId) {
  					if (!planTitleRef.current) {
  						pushToSession({
-@@ -21028,7 +21099,24 @@
+@@ -21028,7 +21182,24 @@
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -144,19 +274,68 @@
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -21306,6 +21394,11 @@
+@@ -21041,11 +21212,12 @@
+ 			continue;
+ 		}
+ 		if (chunk.type === "finish") {
++			completeActivity();
+ 			tracker.reset();
+ 			continue;
+ 		}
+ 		if (chunk.type === "error") {
+-			await closeSession();
++			await closeSession({ outcome: "Failed" });
+ 			await postStreamError({
+ 				chunk,
+ 				chatThread,
+@@ -21057,7 +21229,7 @@
+ 			continue;
+ 		}
+ 		if (chunk.type === "abort") {
+-			await closeSession();
++			await closeSession({ outcome: "Stopped" });
+ 			tracker.reset();
+ 			continue;
+ 		}
+@@ -21297,7 +21469,7 @@
+ 		}
+ 		if (chunk.type === "tripwire") {
+ 			if (chunk.payload.retry) continue;
+-			await closeSession();
++			await closeSession({ outcome: "Failed" });
+ 			await postTripwire({
+ 				chunk,
+ 				chatThread,
+@@ -21306,7 +21478,12 @@
  			continue;
  		}
  	}
+-	await closeSession();
 +	// The turn finished, so the last plan stops showing the latest status.
 +	if (toolDisplay === "grouped" && sessionRef.current && sessionTaskIds.size > 0) sessionRef.current.push({
 +		type: "plan_update",
 +		title: "Completed"
 +	});
- 	await closeSession();
++	await closeSession({ completed: true });
  }
  //#endregion
-@@ -22227,12 +22320,16 @@
+ //#region src/channels/output-processor.ts
+@@ -21421,8 +21598,13 @@
+ 			session = this.#openSession(render);
+ 			state.session = session;
+ 		}
++		render.abortActivity = async () => {
++			session.queue.push({ type: "abort", payload: {} });
++			session.queue.close();
++			await session.driverPromise;
++		};
+ 		session.queue.push(part);
+-		if (part.type === "step-finish" && part.payload?.stepResult?.isContinued !== true || part.type === "error" || part.type === "abort") {
++		if (part.type === "step-finish" && part.payload?.stepResult?.isContinued !== true || part.type === "finish" || part.type === "error" || part.type === "abort") {
+ 			session.queue.close();
+ 			try {
+ 				await session.driverPromise;
+@@ -22227,12 +22409,16 @@
  						let runId;
  						let toolName;
  						let toolArgs;
@@ -174,7 +353,7 @@
  							const storage = mastra.getStorage();
  							const memoryStore = storage ? await storage.getStore("memory") : void 0;
  							if (!memoryStore) throw new Error("Storage is required for tool approval lookups");
-@@ -22248,12 +22345,13 @@
+@@ -22248,17 +22434,28 @@
  								const pending = msg.content?.metadata?.pendingToolApprovals;
  								if (pending) {
  									for (const toolData of Object.values(pending)) if (toolData.toolCallId === toolCallId) {
@@ -192,10 +371,10 @@
  								}
  							}
  						}
-@@ -22261,6 +22359,16 @@
+ 						if (!runId) {
  							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
- 							return;
- 						}
++							return;
++						}
 +						// The requester comes from the in-memory stash, else from what was
 +						// persisted with the suspended run (the run's creator: the person who
 +						// asked, scheduled, or started the wait). With neither, refuse the click
@@ -204,12 +383,10 @@
 +						const actingUserId = event.user?.userId;
 +						if (!approvalRequesterId || !actingUserId || approvalRequesterId !== actingUserId) {
 +							this.log("info", `Ignoring tool approval action from ${actingUserId}: only ${approvalRequesterId} may answer toolCallId=${toolCallId}`);
-+							return;
-+						}
+ 							return;
+ 						}
  						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
- 						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
- 						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -22281,7 +22389,7 @@
+@@ -22281,7 +22478,7 @@
  							});
  							const { requestContext } = handlerContext;
  							requestContext.set("channel", channelContext);
@@ -218,7 +395,7 @@
  							requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  							try {
  								await this.dispatchDecline({
-@@ -22318,7 +22426,7 @@
+@@ -22318,7 +22515,7 @@
  						const renderContext = this._buildRenderContext(chatThread, platform, {
  							toolCallId,
  							messageId
@@ -227,16 +404,19 @@
  						requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  						await this.dispatchApproval({
  							runId,
-@@ -22754,7 +22862,7 @@
+@@ -22754,9 +22951,9 @@
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
 -		const renderContext = this._buildRenderContext(chatThread, platform);
 +		const renderContext = this._buildRenderContext(chatThread, platform, void 0, message.author?.userId);
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
- 		chatThread.subscribe().catch((err) => {
+-		chatThread.subscribe().catch((err) => {
++		if (typeof this.handlerOverrides?.onMention !== "function") chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -22816,14 +22924,17 @@
+ 		});
+ 		const signalContents = parts.length === 1 && parts[0]?.type === "text" ? parts[0].text : parts;
+@@ -22816,14 +23013,17 @@
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -256,7 +436,25 @@
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -27353,6 +27464,16 @@
+@@ -22929,7 +23129,7 @@
+ 		let statusSent = false;
+ 		try {
+ 			for await (const chunk of stream) {
+-				if (typingStatusFn && !typingGate.active) {
++				if (typingStatusFn && (!typingGate.active || typingGate.transientActivity)) {
+ 					let result;
+ 					try {
+ 						result = typingStatusFn(chunk, {
+@@ -22954,7 +23154,7 @@
+ 				yield chunk;
+ 			}
+ 		} finally {
+-			if (statusSent && !typingGate.active) chatThread.startTyping("").catch((e) => {
++			if (statusSent && (!typingGate.active || typingGate.transientActivity)) chatThread.startTyping("").catch((e) => {
+ 				this.logger?.debug("[CHANNEL] Typing clear failed (best-effort)", { error: e });
+ 			});
+ 		}
+@@ -27353,6 +27553,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -273,7 +471,7 @@
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -27373,7 +27494,11 @@
+@@ -27373,7 +27583,11 @@
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -286,7 +484,7 @@
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -27401,7 +27526,7 @@
+@@ -27401,7 +27615,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -295,7 +493,7 @@
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
-@@ -28331,10 +28456,12 @@
+@@ -28331,10 +28545,12 @@
  				const suspendTransform = getTransformedToolPayload(toolStateTransformMetadata, "transcript", "suspend");
  				const transformedArgs = type === "approval" ? hasTransformedToolPayload(approvalTransform) ? approvalTransform.transformed : hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : args : hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : args;
  				const transformedSuspendPayload = type === "suspension" ? hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : suspendPayload : void 0;
@@ -308,9 +506,63 @@
  					...parentToolName ? {
  						parentToolName,
  						parentArgs
---- a/dist/agent-DVnXHd4C.cjs
-+++ b/dist/agent-DVnXHd4C.cjs
-@@ -20791,6 +20791,15 @@
+@@ -34141,7 +34357,13 @@
+ 				onStepFinish: result.onStepFinish,
+ 				onChunk: options.onChunk,
+ 				onError: options.onError,
+-				onAbort: options.onAbort,
++				onAbort: async (event) => {
++					try {
++						await requestContext?.get(CHAT_CHANNEL_RENDER_CONTEXT_KEY)?.abortActivity?.();
++					} finally {
++						await options.onAbort?.(event);
++					}
++				},
+ 				abortSignal: options.abortSignal
+ 			},
+ 			activeTools: options.activeTools,
+@@ -37894,7 +38116,7 @@
+ 							let suspendedPayload;
+ 							let resumeSchema;
+ 							for await (const chunk of streamResult.fullStream) {
+-								if (context?.writer) if (chunk.type.startsWith("data-")) await context.writer.custom(chunk);
++								if (context?.writer) if (chunk.type.startsWith("data-")) await context.writer.custom({ ...chunk, metadata: { ...chunk.metadata, gorkieDelegation: { toolCallId, toolName: `agent-${agentName}` } } });
+ 								else await context.writer.write(chunk);
+ 								if (chunk.type === "data-tool-call-approval") {
+ 									requireToolApproval = chunk.data ?? true;
+@@ -37959,7 +38181,7 @@
+ 							});
+ 							let fullText = "";
+ 							for await (const chunk of streamResult.fullStream) {
+-								if (context?.writer) if (chunk.type.startsWith("data-")) await context.writer.custom(chunk);
++								if (context?.writer) if (chunk.type.startsWith("data-")) await context.writer.custom({ ...chunk, metadata: { ...chunk.metadata, gorkieDelegation: { toolCallId, toolName: `agent-${agentName}` } } });
+ 								else await context.writer.write(chunk);
+ 								if (chunk.type === "text-delta") fullText += chunk.textDelta;
+ 							}
+--- a/node_modules/@mastra/core/dist/agent-DVnXHd4C.cjs
++++ b/node_modules/@mastra/core/dist/agent-DVnXHd4C.cjs
+@@ -20783,15 +20783,37 @@
+ */
+ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, toolDisplayFn, streamingOptions, channelToolNames, logger, onApprovalPosted, getPendingApproval, takePendingApproval, typingGate, formatError, textFormat }) {
+ 	const platform = adapter.name;
+-	const groupTasks = toolDisplay === "timeline" ? "timeline" : toolDisplay === "grouped" ? "plan" : void 0;
+-	const rendersToolsInPlan = toolDisplay === "timeline" || toolDisplay === "grouped";
++	let groupTasks = toolDisplay === "timeline" ? "timeline" : toolDisplay === "grouped" ? "plan" : void 0;
++	let rendersToolsInPlan = toolDisplay === "timeline" || toolDisplay === "grouped";
++	let transientActivity = false;
++	let activityTimer;
++	let activityIntervalMs = 0;
++	let lastActivitySentAt = 0;
++	let activityTitle;
++	let activityStartedAt;
++	let sentActivityTitle;
++	const pendingActivity = new Map();
++	const activityTasks = new Map();
++	let activityReplied = false;
++	let activityOutcome;
+ 	const tracker = new ToolTracker();
+ 	const sessionRef = { current: null };
+ 	const pendingInitialText = [];
  	const pendingOmTasks = /* @__PURE__ */ new Map();
  	const aggregatedRecallRef = { current: null };
  	const planTitleRef = { current: false };
@@ -324,17 +576,76 @@
 +	// opens titled; a later status update can still replace it.
 +	let carriedPlanTitle;
  	const openSession = () => {
++		let activityShown = false;
++		let finalText = "";
  		let buffer = [];
  		let closed = false;
-@@ -20855,6 +20864,7 @@
+ 		let resolveNext;
+@@ -20814,6 +20836,8 @@
+ 		return {
+ 			push: (piece) => {
+ 				if (closed) return;
++				if (typeof piece === "string") finalText += piece;
++				else if (piece.type === "task_update") activityShown = true;
+ 				buffer.push(piece);
+ 				if (resolveNext) {
+ 					const r = resolveNext;
+@@ -20832,12 +20856,30 @@
+ 			},
+ 			done: (async () => {
+ 				try {
+-					await chatThread.post(postable);
++					if (transientActivity && toolDisplayFn?.activity) {
++						await toolDisplayFn.activity({ stream: iterable, thread: chatThread, adapter });
++						return;
++					}
++					const posted = await chatThread.post(postable);
++					if (transientActivity && activityShown && posted) {
++						const segments = posted.raw?.gorkieStreamSegments;
++						const targets = Array.isArray(segments) ? segments : [{ id: posted.id, text: finalText }];
++						for (const target of targets) {
++							if (!target || typeof target.id !== "string" || typeof target.text !== "string") continue;
++							try {
++								if (target.text.trim()) await adapter.editMessage(chatThread.id, target.id, textFormat === "plain" ? target.text : { markdown: target.text, gorkieTransientActivity: true });
++								else await adapter.deleteMessage(chatThread.id, target.id);
++							} catch (error) {
++								logger?.warn("[CHANNEL] transient activity cleanup failed", { error, messageId: target.id });
++							}
++						}
++					}
+ 				} catch (e) {
+ 					logger?.warn("[CHANNEL] streaming post failed, falling back to buffered text", { error: e });
+-					let fallback = "";
++					let fallback = transientActivity ? finalText : "";
+ 					while (true) {
+-						fallback += buffer.filter((p) => typeof p === "string").join("");
++						if (transientActivity) fallback = finalText;
++						else fallback += buffer.filter((p) => typeof p === "string").join("");
+ 						buffer = [];
+ 						if (closed) break;
+ 						await waitForNext();
+@@ -20850,11 +20892,19 @@
+ 					}
+ 				} finally {
+ 					typingGate.active = false;
++					if (transientActivity) await chatThread.startTyping("").catch((error) => logger?.debug("[CHANNEL] activity status cleanup failed", { error }));
+ 				}
+ 			})()
  		};
  	};
- 	const closeSession = async () => {
+-	const closeSession = async () => {
++	const closeSession = async ({ completed = false, outcome } = {}) => {
++		if (completed) completeActivity();
++		flushActivity();
++		if (transientActivity && sessionRef.current) sessionRef.current.push({ type: "activity_end", outcome: outcome ?? activityOutcome ?? (completed ? "Completed" : "Waiting") });
++		activityOutcome = void 0;
++		activityTasks.clear();
++		activityReplied = false;
 +		await Promise.all(retiredSessions.splice(0));
  		const s = sessionRef.current;
  		if (!s) {
  			pendingInitialText.length = 0;
-@@ -20869,6 +20879,9 @@
+@@ -20869,6 +20919,9 @@
  		pendingOmTasks.clear();
  		aggregatedRecallRef.current = null;
  		planTitleRef.current = false;
@@ -344,7 +655,7 @@
  		sessionRef.current = null;
  		s.close();
  		await s.done;
-@@ -20881,8 +20894,55 @@
+@@ -20881,15 +20934,92 @@
  	* `if (!session) session = openSession(); session.push(...)` pattern out
  	* of the handlers.
  	*/
@@ -401,7 +712,27 @@
  		for (const pendingPiece of pendingInitialText) sessionRef.current.push(pendingPiece);
  		pendingInitialText.length = 0;
  		sessionRef.current.push(piece);
-@@ -20890,6 +20950,16 @@
+ 	};
++	const flushActivity = () => {
++		if (activityTimer) clearTimeout(activityTimer);
++		activityTimer = void 0;
++		if (!pendingActivity.size) return;
++		for (const piece of pendingActivity.values()) pushToSession(piece);
++		pendingActivity.clear();
++		if (activityTitle !== sentActivityTitle) {
++			pushToSession({ type: "plan_update", title: activityTitle, startedAt: activityStartedAt });
++			sentActivityTitle = activityTitle;
++		}
++		lastActivitySentAt = Date.now();
++	};
++	const completeActivity = () => {
++		if (!(activityReplied && sessionRef.current)) return;
++		flushActivity();
++		for (const piece of activityTasks.values()) if (piece.status !== "complete" && piece.status !== "error") {
++			pushToSession({ type: "task_update", id: piece.id, title: piece.title, status: "complete" });
++		}
++		activityTasks.clear();
++	};
  	const pushToolDisplayResult = (result) => {
  		if (result.openIfEmpty === false && !sessionRef.current) return;
  		pushToSession(result.chunk);
@@ -418,7 +749,37 @@
  	};
  	const lookupTaskTitle = (toolCallId, fallback) => {
  		const stash = getPendingApproval(toolCallId);
-@@ -20980,7 +21050,8 @@
+@@ -20968,6 +21098,29 @@
+ 		});
+ 	};
+ 	for await (const chunk of stream) {
++		const activity = chunk.metadata?.gorkieActivity;
++		if (activity) {
++			transientActivity = true;
++			groupTasks = "plan";
++			toolDisplay = "grouped";
++			rendersToolsInPlan = true;
++			typingGate.transientActivity = true;
++			activityIntervalMs = activity.intervalMs ?? activityIntervalMs;
++			activityTitle = activity.status;
++			activityStartedAt = activity.startedAt;
++			activityReplied = activity.replied;
++			activityOutcome = activity.outcome;
++			for (const piece of activity.chunks) {
++				activityTasks.set(piece.id, piece);
++				pendingActivity.set(piece.id, piece);
++			}
++			if (chunk.type === "finish" && !sessionRef.current) pendingActivity.clear();
++			if (pendingActivity.size) {
++				const delay = Math.max(0, lastActivitySentAt + activityIntervalMs - Date.now());
++				if (!sessionRef.current || delay === 0 || ["text-delta", "error", "abort", "finish", "tool-call-approval", "data-user-message"].includes(chunk.type)) flushActivity();
++				else if (!activityTimer) activityTimer = setTimeout(flushActivity, delay);
++			}
++		}
+ 		if (aggregatedRecallRef.current) {
+ 			const probe = asOmChunk(chunk);
+ 			if (!(probe?.type === "data-om-activation" && probe.data.operationType === "observation")) aggregatedRecallRef.current = null;
+@@ -20980,7 +21133,8 @@
  			}
  			const om = asOmChunk(chunk);
  			if (om) {
@@ -428,7 +789,7 @@
  				if (om.data.cycleId) {
  					if (!planTitleRef.current) {
  						pushToSession({
-@@ -21030,7 +21101,24 @@
+@@ -21030,7 +21184,24 @@
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -454,19 +815,68 @@
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -21308,6 +21396,11 @@
+@@ -21043,11 +21214,12 @@
+ 			continue;
+ 		}
+ 		if (chunk.type === "finish") {
++			completeActivity();
+ 			tracker.reset();
+ 			continue;
+ 		}
+ 		if (chunk.type === "error") {
+-			await closeSession();
++			await closeSession({ outcome: "Failed" });
+ 			await postStreamError({
+ 				chunk,
+ 				chatThread,
+@@ -21059,7 +21231,7 @@
+ 			continue;
+ 		}
+ 		if (chunk.type === "abort") {
+-			await closeSession();
++			await closeSession({ outcome: "Stopped" });
+ 			tracker.reset();
+ 			continue;
+ 		}
+@@ -21299,7 +21471,7 @@
+ 		}
+ 		if (chunk.type === "tripwire") {
+ 			if (chunk.payload.retry) continue;
+-			await closeSession();
++			await closeSession({ outcome: "Failed" });
+ 			await postTripwire({
+ 				chunk,
+ 				chatThread,
+@@ -21308,7 +21480,12 @@
  			continue;
  		}
  	}
+-	await closeSession();
 +	// The turn finished, so the last plan stops showing the latest status.
 +	if (toolDisplay === "grouped" && sessionRef.current && sessionTaskIds.size > 0) sessionRef.current.push({
 +		type: "plan_update",
 +		title: "Completed"
 +	});
- 	await closeSession();
++	await closeSession({ completed: true });
  }
  //#endregion
-@@ -22229,12 +22322,16 @@
+ //#region src/channels/output-processor.ts
+@@ -21423,8 +21600,13 @@
+ 			session = this.#openSession(render);
+ 			state.session = session;
+ 		}
++		render.abortActivity = async () => {
++			session.queue.push({ type: "abort", payload: {} });
++			session.queue.close();
++			await session.driverPromise;
++		};
+ 		session.queue.push(part);
+-		if (part.type === "step-finish" && part.payload?.stepResult?.isContinued !== true || part.type === "error" || part.type === "abort") {
++		if (part.type === "step-finish" && part.payload?.stepResult?.isContinued !== true || part.type === "finish" || part.type === "error" || part.type === "abort") {
+ 			session.queue.close();
+ 			try {
+ 				await session.driverPromise;
+@@ -22229,12 +22411,16 @@
  						let runId;
  						let toolName;
  						let toolArgs;
@@ -484,7 +894,7 @@
  							const storage = mastra.getStorage();
  							const memoryStore = storage ? await storage.getStore("memory") : void 0;
  							if (!memoryStore) throw new Error("Storage is required for tool approval lookups");
-@@ -22250,12 +22347,13 @@
+@@ -22250,17 +22436,28 @@
  								const pending = msg.content?.metadata?.pendingToolApprovals;
  								if (pending) {
  									for (const toolData of Object.values(pending)) if (toolData.toolCallId === toolCallId) {
@@ -502,10 +912,10 @@
  								}
  							}
  						}
-@@ -22263,6 +22361,16 @@
+ 						if (!runId) {
  							this.log("info", `No pending approval found for toolCallId=${toolCallId}`);
- 							return;
- 						}
++							return;
++						}
 +						// The requester comes from the in-memory stash, else from what was
 +						// persisted with the suspended run (the run's creator: the person who
 +						// asked, scheduled, or started the wait). With neither, refuse the click
@@ -514,12 +924,10 @@
 +						const actingUserId = event.user?.userId;
 +						if (!approvalRequesterId || !actingUserId || approvalRequesterId !== actingUserId) {
 +							this.log("info", `Ignoring tool approval action from ${actingUserId}: only ${approvalRequesterId} may answer toolCallId=${toolCallId}`);
-+							return;
-+						}
+ 							return;
+ 						}
  						const displayName = toolName ? stripToolPrefix(toolName) : "tool";
- 						const argsSummary = toolArgs ? formatArgsSummary(toolArgs) : "";
- 						const { resolved: toolDisplay } = this.resolveToolDisplay(platform, adapterConfig?.toolDisplay, false, adapterConfig?.cards, adapterConfig?.formatToolCall);
-@@ -22283,7 +22391,7 @@
+@@ -22283,7 +22480,7 @@
  							});
  							const { requestContext } = handlerContext;
  							requestContext.set("channel", channelContext);
@@ -528,7 +936,7 @@
  							requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  							try {
  								await this.dispatchDecline({
-@@ -22320,7 +22428,7 @@
+@@ -22320,7 +22517,7 @@
  						const renderContext = this._buildRenderContext(chatThread, platform, {
  							toolCallId,
  							messageId
@@ -537,16 +945,19 @@
  						requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
  						await this.dispatchApproval({
  							runId,
-@@ -22756,7 +22864,7 @@
+@@ -22756,9 +22953,9 @@
  			actor: message.author
  		});
  		requestContext.set("channel", channelContext);
 -		const renderContext = this._buildRenderContext(chatThread, platform);
 +		const renderContext = this._buildRenderContext(chatThread, platform, void 0, message.author?.userId);
  		requestContext.set(CHAT_CHANNEL_RENDER_CONTEXT_KEY, renderContext);
- 		chatThread.subscribe().catch((err) => {
+-		chatThread.subscribe().catch((err) => {
++		if (typeof this.handlerOverrides?.onMention !== "function") chatThread.subscribe().catch((err) => {
  			this.log("debug", "chatThread.subscribe failed", err);
-@@ -22818,14 +22926,17 @@
+ 		});
+ 		const signalContents = parts.length === 1 && parts[0]?.type === "text" ? parts[0].text : parts;
+@@ -22818,14 +23015,17 @@
  	*
  	* @internal Used by `processChatMessage` and the approve/decline paths.
  	*/
@@ -566,7 +977,25 @@
  		};
  		const getPendingApproval = (id) => this.pendingApprovalCards.get(id);
  		const takePendingApproval = (id) => {
-@@ -27355,6 +27466,16 @@
+@@ -22931,7 +23131,7 @@
+ 		let statusSent = false;
+ 		try {
+ 			for await (const chunk of stream) {
+-				if (typingStatusFn && !typingGate.active) {
++				if (typingStatusFn && (!typingGate.active || typingGate.transientActivity)) {
+ 					let result;
+ 					try {
+ 						result = typingStatusFn(chunk, {
+@@ -22956,7 +23156,7 @@
+ 				yield chunk;
+ 			}
+ 		} finally {
+-			if (statusSent && !typingGate.active) chatThread.startTyping("").catch((e) => {
++			if (statusSent && (!typingGate.active || typingGate.transientActivity)) chatThread.startTyping("").catch((e) => {
+ 				this.logger?.debug("[CHANNEL] Typing clear failed (best-effort)", { error: e });
+ 			});
+ 		}
+@@ -27355,6 +27555,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -583,7 +1012,7 @@
  				}
  			}
  			if (apiErrorRetryResult?.retry && options?.abortSignal?.aborted) {
-@@ -27375,7 +27496,11 @@
+@@ -27375,7 +27585,11 @@
  				cleanupProviderToolSpans(true);
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -596,7 +1025,7 @@
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -27403,7 +27528,7 @@
+@@ -27403,7 +27617,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -605,7 +1034,7 @@
  				};
  			}
  			if (runState.state.deferredErrorChunk && runState.state.hasErrored) {
-@@ -28333,10 +28458,12 @@
+@@ -28333,10 +28547,12 @@
  				const suspendTransform = require_payload_transform.getTransformedToolPayload(toolStateTransformMetadata, "transcript", "suspend");
  				const transformedArgs = type === "approval" ? require_payload_transform.hasTransformedToolPayload(approvalTransform) ? approvalTransform.transformed : require_payload_transform.hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : args : require_payload_transform.hasTransformedToolPayload(inputTransform) ? inputTransform.transformed : require_payload_transform.hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : args;
  				const transformedSuspendPayload = type === "suspension" ? require_payload_transform.hasTransformedToolPayload(suspendTransform) ? suspendTransform.transformed : suspendPayload : void 0;
@@ -618,3 +1047,36 @@
  					...parentToolName ? {
  						parentToolName,
  						parentArgs
+@@ -34143,7 +34359,13 @@
+ 				onStepFinish: result.onStepFinish,
+ 				onChunk: options.onChunk,
+ 				onError: options.onError,
+-				onAbort: options.onAbort,
++				onAbort: async (event) => {
++					try {
++						await requestContext?.get(CHAT_CHANNEL_RENDER_CONTEXT_KEY)?.abortActivity?.();
++					} finally {
++						await options.onAbort?.(event);
++					}
++				},
+ 				abortSignal: options.abortSignal
+ 			},
+ 			activeTools: options.activeTools,
+@@ -37896,7 +38118,7 @@
+ 							let suspendedPayload;
+ 							let resumeSchema;
+ 							for await (const chunk of streamResult.fullStream) {
+-								if (context?.writer) if (chunk.type.startsWith("data-")) await context.writer.custom(chunk);
++								if (context?.writer) if (chunk.type.startsWith("data-")) await context.writer.custom({ ...chunk, metadata: { ...chunk.metadata, gorkieDelegation: { toolCallId, toolName: `agent-${agentName}` } } });
+ 								else await context.writer.write(chunk);
+ 								if (chunk.type === "data-tool-call-approval") {
+ 									requireToolApproval = chunk.data ?? true;
+@@ -37961,7 +38183,7 @@
+ 							});
+ 							let fullText = "";
+ 							for await (const chunk of streamResult.fullStream) {
+-								if (context?.writer) if (chunk.type.startsWith("data-")) await context.writer.custom(chunk);
++								if (context?.writer) if (chunk.type.startsWith("data-")) await context.writer.custom({ ...chunk, metadata: { ...chunk.metadata, gorkieDelegation: { toolCallId, toolName: `agent-${agentName}` } } });
+ 								else await context.writer.write(chunk);
+ 								if (chunk.type === "text-delta") fullText += chunk.textDelta;
+ 							}

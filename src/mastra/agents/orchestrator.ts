@@ -7,6 +7,7 @@ import type { RequestContext } from '@mastra/core/request-context';
 import { Memory } from '@mastra/memory';
 import { skillResultRedactor } from '@mastra/memory/hooks';
 import { Chat } from 'chat';
+import { toolDisplay } from '../chat/activity';
 import { slack } from '../chat/client';
 import {
   onAction,
@@ -23,11 +24,10 @@ import { chatLogger } from '../lib/logger/chat';
 import { userMCPTools } from '../mcp/user-servers/tools';
 import { delegatedTools } from '../processors/delegated-tools';
 import { outputBudget } from '../processors/output-budget';
+import { progress } from '../processors/progress';
 import { sandbox } from '../processors/sandbox';
 import { staleMessages } from '../processors/stale-messages';
-import { stepBreaks } from '../processors/step-breaks';
 import { stepGuard } from '../processors/step-guard';
-import { toolDisplay } from '../processors/tool-display';
 import { searchOnly, toolSearch } from '../processors/tool-search';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
@@ -62,6 +62,7 @@ function runOptions({
 }): AgentExecutionOptions {
   return {
     ...runDefaults(config.maxTokens.output),
+    toolChoice: 'required',
     delegation: {
       messageFilter: ({ messages }) =>
         messages.filter(({ role }) => role === 'user').slice(-1),
@@ -83,6 +84,7 @@ function runOptions({
         .at(-1)
         ?.toolResults?.some(
           ({ toolName }) =>
+            toolName === 'reply' ||
             toolName === 'skip' ||
             toolName === 'wait' ||
             toolName === 'ask_user'
@@ -149,10 +151,9 @@ export const orchestrator = new Agent({
     ...historyProcessors,
   ],
   outputProcessors: [
-    toolDisplay,
     stepGuard,
-    stepBreaks,
     delegatedTools,
+    progress,
     sandbox,
     turnFooter,
     workingModel(config.id),
@@ -197,12 +198,7 @@ export const orchestrator = new Agent({
       slack: {
         adapter: slack,
         streaming: true,
-        // User turns and approval clicks carry a render object that the
-        // tool-display processor switches to 'grouped' with gorkie's renderer.
-        // Scheduled and wake runs rebuild theirs from this default, which the
-        // processor never sees: 'grouped' would show Mastra's own plan (bare
-        // titles, memory tasks), so they keep the typing status instead.
-        toolDisplay: 'hidden',
+        toolDisplay,
         typingStatus: status,
         formatError: (error) =>
           `*Oops, something went wrong.*\n\n> ${error.message}`,

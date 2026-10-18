@@ -32,7 +32,11 @@
         "usage_hint": "@user [reason]",
         "should_escape": true
       }
-    ]
+    ],
+    "code_channels": {
+      "enabled": true,
+      "slash_command_url": "https://<your-host>/api/agents/orchestrator/channels/slack/webhook"
+    }
   },
   "oauth_config": {
     "scopes": {
@@ -47,6 +51,7 @@
         "channels:read",
         "chat:write",
         "chat:write.customize",
+        "code_channels:manage",
         "commands",
         "emoji:read",
         "files:read",
@@ -61,6 +66,7 @@
         "pins:read",
         "reactions:read",
         "reactions:write",
+        "search:read.public",
         "team:read",
         "usergroups:read",
         "users.profile:read",

@@ -1,67 +1,35 @@
-import {
-  defaultTypingStatus,
-  type TypingStatusFn,
-} from '@mastra/core/channels';
-import { parseAgentTool } from '../../processors/delegated-tools';
+import type { TypingStatusFn } from '@mastra/core/channels';
 import { statusUpdateInputSchema } from '../../types';
-import { fit, truncate } from './format';
-import { label } from './label';
-import { toolStatus } from './statuses';
-
-// Channels calls this once per chunk and the newest string wins, so the real
-// tool calls made beside a status_update in the same step would replace it.
-// The status holds until the next step starts.
-const statusThreads = new Set<string>();
+import { activitySchema } from '../../types/progress';
+import { fit } from './format';
 
 export const status: TypingStatusFn = (chunk, context) => {
+  const activity = activitySchema.safeParse(chunk.metadata?.gorkieActivity);
   if (
-    chunk.type === 'step-start' ||
-    chunk.type === 'finish' ||
-    chunk.type === 'error' ||
-    chunk.type === 'abort'
+    activity.success &&
+    chunk.type !== 'finish' &&
+    chunk.type !== 'error' &&
+    chunk.type !== 'abort'
   ) {
-    statusThreads.delete(context.threadId);
+    return fit({ prefix: 'is ', content: activity.data.status, suffix: '…' });
   }
   if (chunk.type === 'tool-call-approval') {
-    return truncate(`is asking about ${label(chunk.payload.toolName)}…`);
+    return 'is waiting for your approval…';
   }
-  if (chunk.type !== 'tool-call') {
-    const fallback = defaultTypingStatus(chunk, context);
-    return typeof fallback === 'string' ? truncate(fallback) : fallback;
-  }
-
-  const { toolName } = chunk.payload;
-
-  if (toolName === 'status_update') {
+  if (
+    chunk.type === 'tool-call' &&
+    chunk.payload.toolName === 'status_update'
+  ) {
     const parsed = statusUpdateInputSchema.safeParse(chunk.payload.args);
-    if (!parsed.success) {
-      return false;
-    }
-    statusThreads.add(context.threadId);
-    return fit({ prefix: 'is ', content: parsed.data.status, suffix: '…' });
+    return parsed.success
+      ? fit({ prefix: 'is ', content: parsed.data.status, suffix: '…' })
+      : false;
   }
-
-  if (toolName === 'skip' || statusThreads.has(context.threadId)) {
-    return false;
+  if (
+    chunk.type === 'start' ||
+    (chunk.type === 'step-start' && !context.currentStatus)
+  ) {
+    return 'is working…';
   }
-
-  const agentTool = parseAgentTool(toolName);
-  if (agentTool) {
-    return truncate(
-      `is spawning a ${label(agentTool.agent).toLowerCase()} agent…`
-    );
-  }
-
-  if (toolName.startsWith('github_')) {
-    return truncate(
-      `is using github: ${label(toolName.slice('github_'.length)).toLowerCase()}…`
-    );
-  }
-
-  const known = toolStatus({ args: chunk.payload.args, toolName });
-  if (known) {
-    return truncate(known);
-  }
-
-  return truncate(`is using ${label(toolName).toLowerCase()}…`);
+  return false;
 };

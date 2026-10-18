@@ -2,10 +2,13 @@ import { env } from '@/env';
 import { agentmailTools } from './agentmail';
 import { readArtifactTool } from './artifacts';
 import { canvasTools } from './canvas';
+import { codeChannelTools } from './code-channel';
 import { codeMode } from './code-mode/slack';
 import { submitFeedbackTool } from './feedback';
 import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
+import { huddleDjReplyTool, huddleDjTool } from './huddlefm';
+import { replyTool } from './reply';
 import { runBackgroundTool } from './run-background';
 import { scheduledTaskTools } from './scheduled-tasks';
 import { searchWebTool } from './search-web';
@@ -37,19 +40,23 @@ export async function orchestratorTools() {
     run_background: runBackgroundTool,
     read_artifact: readArtifactTool,
     status_update: statusUpdateTool,
+    reply: replyTool,
     skip: skipTool,
     wait: waitTool,
   };
 }
 
 export const deferredTools = {
+  ...codeChannelTools,
+  ...(env.HUDDLEFM_USER_ID
+    ? { huddle_dj: huddleDjTool, huddle_dj_reply: huddleDjReplyTool }
+    : {}),
   ...scheduledTaskTools,
   ...agentmailTools,
   get_channel_info: slackTools.get_channel_info,
   list_channels: slackTools.list_channels,
   list_threads: slackTools.list_threads,
   generate_image: generateImageTool,
-  get_slack_emoji: slackTools.get_slack_emoji,
   call_slack_api: slackTools.call_slack_api,
   post_card: slackTools.post_card,
   ...(env.EMOJI_PROXY_TOKEN

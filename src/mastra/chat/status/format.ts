@@ -12,7 +12,3 @@ export function fit({
   const budget = slackStatusMaxLength - prefix.length - suffix.length;
   return prefix + content.replace(/\s+/g, ' ').trim().slice(0, budget) + suffix;
 }
-
-export function truncate(text: string): string {
-  return text.slice(0, slackStatusMaxLength);
-}

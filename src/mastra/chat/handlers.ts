@@ -3,6 +3,7 @@ import type {
   ChannelHandler,
 } from '@mastra/core/channels';
 import type { Message, Thread } from 'chat';
+import { z } from 'zod';
 import { logger } from '../lib/logger';
 import type { ThreadState } from '../types';
 import { optInStatus, rebuildAllowlist } from './allowed-users';
@@ -10,7 +11,7 @@ import { appendAttachments } from './attachments';
 import { slack } from './client';
 import { handleCommand } from './commands';
 import { prependHistory } from './history';
-import { isComment } from './message';
+import { ignoredMessageReason, rawText } from './message';
 import { banStatus } from './moderation';
 import { banNotice } from './moderation/cards';
 import { notify } from './notify';
@@ -18,6 +19,10 @@ import { offerOptIn } from './onboarding';
 import { sentBeforeStop, setThreadState, threadStateOrNull } from './state';
 import { syncTitle } from './title';
 import { claimTurn } from './usage';
+
+const messageActionToken = z.looseObject({
+  action_token: z.string().min(1).optional(),
+});
 
 function isFromBot(message: Message): boolean {
   return message.author.isBot === true || message.author.userId === 'USLACKBOT';
@@ -97,12 +102,14 @@ function declined({
 
 async function runTurn({
   defaultHandler,
+  context,
   follow = false,
   message,
   state,
   thread,
 }: {
   defaultHandler: Parameters<ChannelHandler>[2];
+  context: Parameters<ChannelHandler>[3];
   follow?: boolean;
   message: Message;
   state: ThreadState | null;
@@ -136,7 +143,12 @@ async function runTurn({
   appendAttachments(message);
   await prependHistory({ message, state, thread });
   if (follow) {
+    await thread.subscribe();
     await setThreadState({ thread, patch: { respondOnThreadMessages: true } });
+  }
+  const token = messageActionToken.safeParse(message.raw).data?.action_token;
+  if (token) {
+    context.requestContext.set('slackSearchActionToken', token);
   }
   await defaultHandler(thread, message);
   if (!thread.isDM) {
@@ -153,16 +165,26 @@ async function runTurn({
 }
 
 async function answer({
+  context,
   defaultHandler,
   follow,
   message,
   thread,
 }: {
+  context: Parameters<ChannelHandler>[3];
   defaultHandler: Parameters<ChannelHandler>[2];
   follow: boolean;
   message: Message;
   thread: Thread;
 }): Promise<void> {
+  const reason = ignoredMessageReason({
+    text: rawText(message),
+    botUserId: slack.botUserId,
+  });
+  if (reason) {
+    declined({ message, reason, thread });
+    return;
+  }
   if (isFromBot(message)) {
     declined({ message, reason: 'from a bot', thread });
     return;
@@ -174,11 +196,17 @@ async function answer({
   if (await handleCommand({ message, state, thread })) {
     return;
   }
-  await runTurn({ defaultHandler, follow, message, state, thread });
+  await runTurn({ context, defaultHandler, follow, message, state, thread });
 }
 
-export const onMention: ChannelHandler = (thread, message, defaultHandler) =>
+export const onMention: ChannelHandler = (
+  thread,
+  message,
+  defaultHandler,
+  context
+) =>
   answer({
+    context,
     defaultHandler,
     follow: slack.decodeThreadId(message.threadId).threadTs === message.id,
     message,
@@ -188,24 +216,35 @@ export const onMention: ChannelHandler = (thread, message, defaultHandler) =>
 export const onDirectMessage: ChannelHandler = (
   thread,
   message,
-  defaultHandler
-) => answer({ defaultHandler, follow: false, message, thread });
+  defaultHandler,
+  context
+) => answer({ context, defaultHandler, follow: false, message, thread });
 
 export const onSubscribedMessage: ChannelHandler = async (
   thread,
   message,
-  defaultHandler
+  defaultHandler,
+  context
 ) => {
-  if (isFromBot(message) || isComment(message)) {
+  const reason = ignoredMessageReason({
+    text: rawText(message),
+    botUserId: slack.botUserId,
+  });
+  if (isFromBot(message) || reason) {
     declined({
       message,
-      reason: isFromBot(message) ? 'from a bot' : 'a comment',
+      reason: isFromBot(message) ? 'from a bot' : reason || 'a comment',
       thread,
     });
     return;
   }
   const state = await threadStateOrNull(thread);
-  const isFollowingThread = state?.respondOnThreadMessages === true;
+  const { channel, threadTs } = slack.decodeThreadId(thread.id);
+  const isFollowingThread =
+    state?.respondOnThreadMessages === true ||
+    (state?.respondOnThreadMessages !== false &&
+      !threadTs &&
+      (await slack.isAssignedCodeChannel(channel)));
   if (!(isFollowingThread || message.isMention)) {
     declined({
       message,
@@ -226,7 +265,7 @@ export const onSubscribedMessage: ChannelHandler = async (
   if (await handleCommand({ message, state, thread })) {
     return;
   }
-  await runTurn({ defaultHandler, message, state, thread });
+  await runTurn({ context, defaultHandler, message, state, thread });
 };
 
 // defaultHandler is Mastra's tool approve/deny button handler.

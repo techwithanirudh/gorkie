@@ -2,7 +2,6 @@ import { askUserTool } from './ask-user';
 import { callSlackApiTool } from './call-api';
 import { getChannelInfoTool } from './get-channel-info';
 import { getPermalinkTool } from './get-permalink';
-import { getSlackEmojiTool } from './get-slack-emoji';
 import { getSlackFileTool } from './get-slack-file';
 import { getUserTool } from './get-user';
 import { joinThreadTool } from './join-thread';
@@ -27,7 +26,6 @@ export const slackTools = {
   get_permalink: getPermalinkTool,
   list_channels: listChannelsTool,
   get_slack_file: getSlackFileTool,
-  get_slack_emoji: getSlackEmojiTool,
   upload_file: uploadFileTool,
   post_message: postMessageTool,
   post_card: postCardTool,

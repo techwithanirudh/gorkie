@@ -14,7 +14,33 @@
  var FENCE_LINE_PATTERN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
  var TABLE_ROW_PATTERN = /^\|.*\|$/;
  var TABLE_SEPARATOR_PATTERN = /^\|[\s:]*-+[\s:]*(?:\|[\s:]*-+[\s:]*)*\|$/;
-@@ -4989,6 +4995,19 @@
+@@ -4539,7 +4545,10 @@
+           raw: result2
+         };
+       }
+-      const payload = this.formatConverter.toSlackPayload(message);
++      const formatted = this.formatConverter.toSlackPayload(message);
++      const payload = message?.gorkieTransientActivity && "markdown_text" in formatted
++        ? { text: formatted.markdown_text, blocks: [{ type: "markdown", text: formatted.markdown_text }] }
++        : formatted;
+       this.logger.debug("Slack API: chat.update", {
+         channel,
+         messageId,
+@@ -4911,11 +4920,13 @@
+     });
+     const segment = {
+       streamer: createStreamer(),
++      text: "",
+       startedAt: void 0,
+       flushNextAppend: false,
+       reopenFence: "",
+       tableHeader: ""
+     };
++    const streamSegments = [];
+     let rotations = 0;
+     let lastAppended = "";
+     let lastFlushed = "";
+@@ -4989,6 +5000,19 @@
        );
      };
      const isStreamExpired = (error) => slackPlatformErrorCode(error) === STREAM_EXPIRED_ERROR;
@@ -34,27 +60,39 @@
      const markSegmentStarted = () => {
        segment.startedAt ??= Date.now();
        segment.flushNextAppend = false;
-@@ -4999,6 +5018,10 @@
+@@ -4998,6 +5022,10 @@
+     const rotationDue = (atBlockBoundary) => {
        if (segment.startedAt === void 0) {
          return false;
-       }
++      }
 +      const size = lastAppended.length - segmentBase.length;
 +      if (size >= STREAM_SEGMENT_MAX_CHARS) {
 +        return atBlockBoundary || size >= STREAM_SEGMENT_HARD_MAX_CHARS;
-+      }
+       }
        const age = segmentAgeMs();
        if (age < this.streamSegmentMaxAgeMs) {
-         return false;
-@@ -5028,6 +5051,8 @@
+@@ -5027,7 +5055,12 @@
+       );
      };
      const startNextSegment = async (sent) => {
++      const previousTs = segment.streamer.ts;
++      if (previousTs) streamSegments.push({ id: previousTs, text: segment.text });
++      segment.text = "";
        segment.streamer = createStreamer();
 +      segmentBase = sent;
 +      lastFlushed = sent;
        segment.startedAt = void 0;
        segment.flushNextAppend = true;
        const fence = openFenceIn(sent);
-@@ -5092,15 +5117,16 @@
+@@ -5085,6 +5118,7 @@
+           // next segment, and chat.stopStream defaults to "active".
+           ...this.agentView ? { session_status: "processing" } : {}
+         });
++        segment.text += finalText;
+         lastFlushed = sent;
+         this.logger.debug("Slack: rotated stream segment", {
+           channel,
+@@ -5092,15 +5126,16 @@
            ageMs
          });
        } catch (error) {
@@ -76,7 +114,25 @@
        }
        await startNextSegment(sent);
        return tail;
-@@ -5134,7 +5160,18 @@
+@@ -5108,13 +5143,15 @@
+     const sendDelta = async (delta, atBlockBoundary) => {
+       const text = rotationDue(atBlockBoundary || delta.includes("\n\n")) ? await rotateSegment(delta) : delta;
+       if (text.length > 0) {
++        const markdownText = withSegmentPrefix(text);
+         const response = await segment.streamer.append({
+-          markdown_text: withSegmentPrefix(text),
++          markdown_text: markdownText,
+           token,
+           ...segment.flushNextAppend ? { chunks: [] } : {}
+         });
+         if (response) {
+-          markSegmentStarted();
++          segment.text += markdownText;
++        markSegmentStarted();
+           lastFlushed = resolvedCommitted;
+         }
+       }
+@@ -5134,7 +5171,18 @@
          await sendDelta(delta, false);
        } catch (error) {
          if (fallback.nativeRendered) {
@@ -96,7 +152,7 @@
          }
          switchToFallback(error);
          await flushFallback(force);
-@@ -5159,7 +5196,20 @@
+@@ -5159,7 +5207,20 @@
          lastFlushed = lastAppended;
          rememberStructuredChunk(chunk);
        } catch (error) {
@@ -118,7 +174,7 @@
        }
      };
      for await (const chunk of textStream) {
-@@ -5213,10 +5263,11 @@
+@@ -5213,10 +5274,11 @@
          await this.endTyping(threadId, options?.sessionStatus ?? "active");
          return fallback.message;
        }
@@ -132,7 +188,7 @@
        if (unconfirmed.length === 0) {
          const expiredTs = segment.streamer.ts;
          if (!expiredTs) {
-@@ -5226,6 +5277,7 @@
+@@ -5226,24 +5288,28 @@
            "Slack: stream expired before stop, stream-end blocks skipped",
            {
              channel,
@@ -140,7 +196,11 @@
              messageId: expiredTs,
              skippedBlocks: stopBlocks.length
            }
-@@ -5236,10 +5288,11 @@
+         );
+         await this.endTyping(threadId, options?.sessionStatus ?? "active");
+-        return { id: expiredTs, threadId, raw: { ts: expiredTs } };
++        return { id: expiredTs, threadId, raw: { ts: expiredTs, gorkieStreamSegments: [...streamSegments, { id: expiredTs, text: segment.text }] } };
+       }
        this.logger.warn(
          "Slack: stream expired before stop, delivering the rest in a new message",
          {
@@ -151,6 +211,22 @@
        );
 -      await startNextSegment(lastFlushed);
 +      await startNextSegment(resumed);
++      const markdownText = withSegmentPrefix(unconfirmed);
        result = await segment.streamer.stop({
          ...stopArgs,
-         markdown_text: withSegmentPrefix(unconfirmed)
+-        markdown_text: withSegmentPrefix(unconfirmed)
++        markdown_text: markdownText
+       });
++      segment.text += markdownText;
+     }
+     const messageTs = result.message?.ts ?? result.ts;
+     this.logger.debug("Slack: stream complete", {
+@@ -5253,7 +5319,7 @@
+     return {
+       id: messageTs,
+       threadId,
+-      raw: result
++      raw: { ...result, gorkieStreamSegments: [...streamSegments, { id: messageTs, text: segment.text }] }
+     };
+   }
+   /**

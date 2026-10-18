@@ -2,6 +2,7 @@ import type { ToolsInput } from '@mastra/core/agent';
 import type { RequestContext } from '@mastra/core/request-context';
 import { createCodeMode, createCodeModeTool } from '@mastra/core/tools';
 import { E2BCodeModeTransport } from '@mastra/e2b';
+import { toolActivity } from '../../chat/status/tool-activity';
 import { sandbox as sandboxConfig, slack as slackConfig } from '../../config';
 import { channelContext } from '../../lib/context';
 import { logger } from '../../lib/logger';
@@ -12,6 +13,7 @@ import { codeModeToolNames } from '../../workspace/tool-names';
 import { workspaceTools } from '../../workspace/tools';
 import { canvasTools } from '../canvas';
 import { slackTools } from '../slack';
+import { describeWorkSchema } from '../work-description';
 
 const transport = new E2BCodeModeTransport();
 
@@ -59,12 +61,14 @@ async function createCodeModeInstance({
     tools: await toolsFor(),
   };
   const mode = createCodeMode(modeConfig, transport);
+  mode.tool.inputSchema = describeWorkSchema(mode.tool.inputSchema);
 
   mode.tool.execute = async (input, context) => {
     if (!context.requestContext) {
       throw new Error('No request context available for Slack code mode.');
     }
     const sandbox = await requireSandbox(context.requestContext);
+    let coveredAction = toolActivity({ toolName: 'slack', args: input });
 
     const { execute } = createCodeModeTool(
       {
@@ -72,7 +76,24 @@ async function createCodeModeInstance({
         sandbox,
         tools: await toolsFor(context.requestContext),
       },
-      transport
+      {
+        run: (options) =>
+          transport.run({
+            ...options,
+            dispatch: async (toolName, args) => {
+              const status = toolActivity({ toolName, args });
+              if (status === coveredAction) {
+                coveredAction = null;
+              } else if (status) {
+                await context.writer?.custom({
+                  type: 'data-code-mode-activity',
+                  data: { status },
+                });
+              }
+              return options.dispatch(toolName, args);
+            },
+          }),
+      }
     );
     if (!execute) {
       throw new Error('Slack code mode is not executable.');

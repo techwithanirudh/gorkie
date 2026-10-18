@@ -14,7 +14,7 @@ API is unauthenticated and accepts either `mode=67` or `mode=55`.
 
 Require:
 
-- The image. A Slack upload arrives through `get_slack_file`, which saves it under `/home/user/downloads`; a custom emoji through `get_slack_emoji`.
+- The image. A Slack upload arrives through `get_slack_file`, which saves it under `/home/user/downloads`; a custom emoji through `get_slack_file` with a `:name:` shortcode.
 
 Optional:
 

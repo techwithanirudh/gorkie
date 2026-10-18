@@ -2,6 +2,8 @@ import { type Processor, ToolSearchProcessor } from '@mastra/core/processors';
 import type { RequestContext } from '@mastra/core/request-context';
 import { z } from 'zod';
 import { deferredTools } from '../tools/toolsets';
+import { describeWorkSchema } from '../tools/work-description';
+import { toolNames } from '../workspace/tool-names';
 
 const searchOnlyKey = 'gorkie:searchOnlyTools';
 
@@ -60,6 +62,14 @@ export const toolSearch = {
       requestContext: args.requestContext,
       tools: args.tools,
     });
+    const command = resident[toolNames.executeCommand];
+    if (command) {
+      const parsed = z.looseObject({ parameters: z.unknown() }).parse(command);
+      resident[toolNames.executeCommand] = {
+        ...parsed,
+        parameters: describeWorkSchema(parsed.parameters),
+      };
+    }
     const { tools } = await search.processInputStep({
       ...args,
       tools: searchable,
