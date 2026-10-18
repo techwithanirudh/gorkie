@@ -11,7 +11,7 @@ Newest first. The bracketed label is the `TODO.md` section the item came from.
 
 [TODO.md: Moderation]
 
-- [x] Renamed the dev moderation slash commands from `/dev-ban` and `/dev-unban` to `/gorkie-dev-ban` and `/gorkie-dev-unban`, to match what the gorkie (dev) Slack app actually registers. `onSlashCommand` in `chat/moderation/commands.ts` only recognised the old names, so `/gorkie-dev-ban` fell through to the "not a moderation command" branch and returned without replying. Slack then showed the command as failed, which looked like the bot dying (the gorkie-dev server on Coolify stayed up, `/health` 200). `slack-manifest.dev.json` updated to the same names. Prod `/ban` and `/unban` unchanged.
+- [x] Renamed the dev moderation slash commands from `/dev-ban` and `/dev-unban` to `/gorkie-dev-ban` and `/gorkie-dev-unban`, to match what the gorkie (dev) Slack app actually registers. `onSlashCommand` in `chat/moderation/commands.ts` only recognised the old names, so `/gorkie-dev-ban` fell through to the "not a moderation command" branch and returned without replying. Slack then showed the command as failed, which looked like the bot dying (the gorkie-dev server stayed up, `/health` 200). `slack-manifest.dev.json` updated to the same names. Prod `/ban` and `/unban` unchanged.
 
 ## 2026-10-08
 
