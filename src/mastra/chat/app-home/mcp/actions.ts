@@ -21,6 +21,7 @@ import {
   mcpServerSchema,
   toolPermissionSchema,
 } from '../../../types';
+import { isBlocked } from '../../moderation';
 import { scopeSchema } from '../presets';
 import { publishHome, refreshHome } from '../view';
 import { ids } from './ids';
@@ -133,6 +134,9 @@ export function registerMCPServers(): void {
   const bot = Chat.getSingleton();
 
   bot.onAction(ids.add, async (event) => {
+    if (await isBlocked(event.user.userId)) {
+      return;
+    }
     const servers = await listMCPServers(event.user.userId);
     if (servers.length >= mcp.maxServers) {
       refreshHome(event.user.userId);
@@ -211,6 +215,9 @@ export function registerMCPServers(): void {
   });
 
   bot.onModalSubmit(ids.configureModal, async (event) => {
+    if (await isBlocked(event.user.userId)) {
+      return;
+    }
     const name = mcpServerSchema.shape.name.safeParse(
       event.privateMetadata
     ).data;
@@ -232,10 +239,13 @@ export function registerMCPServers(): void {
     refreshHome(event.user.userId);
   });
 
-  bot.onModalSubmit(ids.modal, (event) =>
-    addServer({
+  bot.onModalSubmit(ids.modal, async (event) => {
+    if (await isBlocked(event.user.userId)) {
+      return;
+    }
+    return addServer({
       userId: event.user.userId,
       values: event.values,
-    })
-  );
+    });
+  });
 }

@@ -8,6 +8,7 @@ import {
 import { githubAccessToken, revokeGitHubGrant } from '../../../lib/github';
 import { logger } from '../../../lib/logger';
 import { githubPermissionSchema } from '../../../types';
+import { isBlocked } from '../../moderation';
 import { scopeSchema } from '../presets';
 import { publishHome, refreshHome } from '../view';
 import { ids } from './ids';
@@ -20,12 +21,18 @@ export function registerGitHub(): void {
   bot.onAction(ids.connect, () => undefined);
 
   bot.onAction(ids.configure, async (event) => {
+    if (await isBlocked(event.user.userId)) {
+      return;
+    }
     await event.openModal(
       configureModal((await getUserSettings(event.user.userId)).github)
     );
   });
 
   bot.onModalSubmit(ids.configureModal, async (event) => {
+    if (await isBlocked(event.user.userId)) {
+      return;
+    }
     const permission = githubPermissionSchema.safeParse(
       event.values[ids.permission]
     );
