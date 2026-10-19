@@ -91,7 +91,7 @@ export async function startHuddles(): Promise<void> {
     try {
       if (await isBlocked(event.inviterId)) {
         logger.info(
-          '[huddle] ignored invite from a user outside the allowlist',
+          '[huddle] ignored invite from a banned or non-opted-in user',
           { inviterId: event.inviterId }
         );
         return;
