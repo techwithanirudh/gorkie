@@ -236,6 +236,7 @@ const getAttachmentTool = createTool({
 
 const sendMessageTool = createTool({
   id: 'agentmail_send_message',
+  requireApproval: true,
   transform: {
     display: {
       output: ({ input }) => ({
@@ -272,6 +273,7 @@ const sendMessageTool = createTool({
 
 const replyToMessageTool = createTool({
   id: 'agentmail_reply_to_message',
+  requireApproval: true,
   transform: {
     display: { output: () => ({ summary: 'Replied to an email' }) },
   },
