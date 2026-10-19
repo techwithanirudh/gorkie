@@ -5,7 +5,8 @@ import { logger } from '../../lib/logger';
 import { banDurationSchema } from '../../types';
 import { slack } from '../client';
 import { userMention } from '../message';
-import { decide } from '.';
+import { claimTurn } from '../usage';
+import { decide, isBlocked } from '.';
 import { until } from './cards';
 import { isModerator } from './moderators';
 
@@ -56,9 +57,25 @@ export const onSlashCommand: SlashCommandChannelHandler = async (
   const isBan = ['/ban', '/gorkie-dev-ban'].includes(event.command);
   const isUnban = ['/unban', '/gorkie-dev-unban'].includes(event.command);
   if (!(isBan || isUnban)) {
-    if (await slack.isAssignedCodeChannel(event.channel.id)) {
-      await defaultHandler();
+    if (!(await slack.isAssignedCodeChannel(event.channel.id))) {
+      return;
     }
+    // defaultHandler runs a full agent turn, so it gets the same gate as a
+    // mention: banned or non-opted-in members get nothing, and it counts
+    // against the quota.
+    if (await isBlocked(event.user.userId)) {
+      await reply({
+        raw: event.raw,
+        text: "you can't use gorkie right now.",
+      });
+      return;
+    }
+    const claim = await claimTurn(event.user.userId);
+    if (claim.status === 'over-limit') {
+      await reply({ raw: event.raw, text: claim.notice });
+      return;
+    }
+    await defaultHandler();
     return;
   }
   const actorId = event.user.userId;
