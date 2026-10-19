@@ -2,16 +2,17 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
-import { chatChannelId } from '../../lib/ids';
-import { spendSlackCall } from '../../lib/slack-budget';
-import { input, output, slackMessageSchema } from '../../types/tools/index';
-import { assertReadableChannel, formatMessage, joinChannel } from './utils';
+import { parseSlackInput } from '../../lib/ids';
+import { slackMessageSchema } from '../../types/tools/index';
+import { openReadableChannel } from './access';
+import { spendSlackCall } from './budget';
+import { formatMessage } from './message';
 
 export const listThreadsTool = createTool({
   id: 'list_threads',
   description:
     'List recent threads in a Slack channel. The current conversation is always readable; other channels must be public, and public channels are joined automatically. Defaults to the current channel.',
-  inputSchema: input({
+  inputSchema: z.strictObject({
     channelId: z
       .string()
       .optional()
@@ -21,7 +22,7 @@ export const listThreadsTool = createTool({
     limit: z.coerce.number().int().min(1).max(100).default(20),
     cursor: z.string().optional(),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     channelId: z.string(),
     threads: z.array(
       z.strictObject({
@@ -41,23 +42,20 @@ export const listThreadsTool = createTool({
     },
   },
   execute: async ({ channelId, limit, cursor }, context) => {
-    spendSlackCall(context?.requestContext);
-    const ctx = channelContext(context?.requestContext);
-    const id = channelId ?? ctx.channelId;
-    if (!id) {
+    spendSlackCall(context.requestContext);
+    const ctx = channelContext(context.requestContext);
+    const { channel } = parseSlackInput(channelId ?? ctx.channelId);
+    if (!channel) {
       throw new Error('No channel to list threads from.');
     }
+    await openReadableChannel({ channelId: channel, ctx });
 
-    const chId = chatChannelId(id);
-    await assertReadableChannel({
-      channelId: chId,
-      currentThreadId: ctx.threadId,
-    });
-    await joinChannel(chId);
-
-    const result = await slack.listThreads(chId, { limit, cursor });
+    const conversation = slack.channelIdFromThreadId(
+      slack.encodeThreadId({ channel, threadTs: '' })
+    );
+    const result = await slack.listThreads(conversation, { limit, cursor });
     return {
-      channelId: chId,
+      channelId: conversation,
       threads: result.threads.map((thread) => ({
         id: thread.id,
         replyCount: thread.replyCount,

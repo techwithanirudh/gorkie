@@ -1,64 +1,47 @@
 import { Agent } from '@mastra/core/agent';
-import {
-  ProviderHistoryCompat,
-  TokenLimiterProcessor,
-} from '@mastra/core/processors';
-import { InMemoryStore } from '@mastra/core/storage';
-import { Memory } from '@mastra/memory';
 import { agent as config } from '../config';
-import { defaultErrorProcessors } from '../lib/error-handling';
-import { stepCountIs } from '../lib/tools';
-import { sandbox } from '../processors/sandbox';
-import { moveToolImages } from '../processors/tool-media';
+import { stepGuard } from '../processors/step-guard';
 import { workingModel } from '../processors/working-model';
-import * as explore from '../prompts/agents/explore';
-import { explorer } from '../providers';
+import { description, prompt } from '../prompts/agents/explore';
+import { models } from '../providers';
+import { saveArtifactTool } from '../tools/artifacts';
 import { fetchUrlTool } from '../tools/fetch-url';
 import { searchWebTool } from '../tools/search-web';
 import { workspace } from '../workspace';
+import { toolNames } from '../workspace/tool-names';
+import {
+  agentDefaults,
+  delegationMemory,
+  historyProcessors,
+  runDefaults,
+} from './shared';
 
-export const exploreAgent = new Agent({
+export const explore = new Agent({
   id: 'explore',
   name: 'Explore',
-  description: explore.description,
-  instructions: explore.prompt,
-  model: explorer,
-  errorProcessors: defaultErrorProcessors(),
-  maxProcessorRetries: 2,
-  memory: new Memory({ storage: new InMemoryStore() }),
+  description,
+  instructions: prompt,
+  model: models.explore,
+  ...agentDefaults,
+  memory: delegationMemory,
   workspace,
   tools: {
     search_web: searchWebTool,
     fetch_url: fetchUrlTool,
+    save_artifact: saveArtifactTool,
   },
-  inputProcessors: [
-    new TokenLimiterProcessor({
-      limit: config.maxTokens.input,
-      trimMode: 'contiguous',
-    }),
-    new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
-  ],
+  inputProcessors: historyProcessors,
   defaultOptions: {
+    ...runDefaults(config.maxTokens.subagentOutput),
     activeTools: [
-      'read_file',
-      'write_file',
-      'edit_file',
-      'delete_file',
-      'list_files',
-      'grep',
-      'file_stat',
+      toolNames.readFile,
+      toolNames.listFiles,
+      toolNames.grep,
+      toolNames.fileStat,
       'search_web',
       'fetch_url',
+      'save_artifact',
     ],
-    modelSettings: {
-      maxOutputTokens: 16_384,
-      maxRetries: 5,
-      reasoning: 'medium',
-      topP: 0.95,
-      timeout: config.modelTimeout,
-    },
-    stopWhen: stepCountIs(config.maxSteps),
-    autoResumeSuspendedTools: true,
   },
-  outputProcessors: [sandbox, workingModel('explore')],
+  outputProcessors: [stepGuard, workingModel('explore')],
 });

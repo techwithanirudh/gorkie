@@ -1,19 +1,19 @@
+import { Chat } from 'chat';
 import { logger } from '../../lib/logger';
-import { chat } from '../instance';
-import { registerGitHub } from './github';
-import { registerCustomInstructions } from './instructions';
-import { registerMCPServers } from './mcp';
-import { registerScheduledTasks } from './scheduled-tasks';
+import { registerGitHub } from './github/actions';
+import { registerCustomInstructions } from './instructions/actions';
+import { registerMCPServers } from './mcp/actions';
+import { registerScheduledTasks } from './scheduled-tasks/actions';
 import { publishHome } from './view';
 
 export function registerAppHome(): void {
-  chat().onAppHomeOpened((event) =>
+  Chat.getSingleton().onAppHomeOpened((event) =>
     publishHome(event.userId).catch((error: unknown) =>
       logger.error('[app-home] publishHome failed', { error })
     )
   );
-  registerCustomInstructions({ publishHome });
-  registerGitHub({ publishHome });
-  registerMCPServers({ publishHome });
-  registerScheduledTasks({ publishHome });
+  registerCustomInstructions();
+  registerGitHub();
+  registerMCPServers();
+  registerScheduledTasks();
 }

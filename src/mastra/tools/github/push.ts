@@ -1,26 +1,49 @@
 import { createTool } from '@mastra/core/tools';
-import { sandbox as sandboxConfig } from '../../config';
-import { sh } from '../../lib/utils';
+import { z } from 'zod';
+import { sh } from '../../lib/shell';
 import { branchSchema, repositorySchema } from '../../types';
-import { input } from '../../types/tools/index';
 import { requireSandbox } from '../../workspace';
-import { git, withCredential } from './git';
+import { checkoutPath, git, repoAccessFor, withCredential } from './git';
+
+// The schema only knows main and master; a repo whose default is anything else
+// is caught only by asking GitHub, so a push that cannot confirm it is refused.
+async function refuseDefaultBranch({
+  branch,
+  repository,
+  userId,
+}: {
+  branch: string;
+  repository: string;
+  userId: string;
+}): Promise<void> {
+  const access = await repoAccessFor({ repository, userId });
+  if ('error' in access || !access.defaultBranch) {
+    throw new Error(
+      `Could not confirm the default branch of ${repository}${'error' in access ? ` (${access.error})` : ''}, so the push was not attempted.`
+    );
+  }
+  if (branch === access.defaultBranch) {
+    throw new Error(
+      `${branch} is the default branch of ${repository}, and direct pushes to it are not allowed. Push a feature branch and open a pull request.`
+    );
+  }
+}
 
 export const pushTool = ({
   approval,
-  canFork,
+  threadId,
   userId,
 }: {
   approval: boolean;
-  canFork: boolean;
+  threadId: string;
   userId: string;
 }) =>
   createTool({
     id: 'github_push_branch',
     description:
-      'Push a committed branch of a sandbox checkout to GitHub. The branch must already exist locally with the work committed; main and master are refused. Use this when a change spans more than a couple of files, then open the pull request with github_create_pull_request. To push to a fork, set `checkout` to the repo you cloned and `repository` to the fork.',
+      'Push a committed branch of a sandbox checkout to GitHub. The branch must already exist locally with the work committed; the default branch, main, and master are refused. Then open the pull request with github_create_pull_request. To push to a fork the app is installed on (for example their own fork), set `checkout` to the repo you cloned and `repository` to the fork. Gorkie cannot create forks.',
     requireApproval: approval,
-    inputSchema: input({
+    inputSchema: z.strictObject({
       repository: repositorySchema.describe(
         'Where to push, as "owner/repo". For a fork PR this is the fork; otherwise the same repo you checked out.'
       ),
@@ -36,13 +59,18 @@ export const pushTool = ({
         )
         .describe('Local branch to push.'),
     }),
+    outputSchema: z.strictObject({ branch: z.string(), sha: z.string() }),
+    transform: {
+      display: {
+        output: ({ output }) => ({
+          summary: `Pushed ${output?.branch ?? 'branch'}`,
+        }),
+      },
+    },
     execute: async ({ repository, branch, checkout }, context) => {
       const sandbox = await requireSandbox(context.requestContext);
-      // The branch lives in the checkout directory. For a normal push that is
-      // the target repo; for a fork PR it is the upstream repo that was cloned,
-      // not the fork we push to, so the two are tracked apart.
-      const source = checkout ?? repository;
-      const path = `${sandboxConfig.workdir}/${source.replace('/', '__')}`;
+      const path = checkoutPath(checkout ?? repository);
+      await refuseDefaultBranch({ branch, repository, userId });
       const remote = `https://github.com/${repository}.git`;
       const push = () =>
         git({
@@ -56,9 +84,6 @@ export const pushTool = ({
             await push();
           } catch (error) {
             const message = error instanceof Error ? error.message : `${error}`;
-            // github_checkout clones shallow (--depth 50), and git refuses a
-            // push whose history bottoms out at that boundary. Deepen once and
-            // retry rather than handing back a git internals error.
             if (/shallow/i.test(message)) {
               await git({
                 command: 'git fetch --unshallow',
@@ -68,9 +93,9 @@ export const pushTool = ({
               await push();
             } else if (/denied|permission|403|forbidden/i.test(message)) {
               throw new Error(
-                canFork
-                  ? `${message}\n\nThis account cannot push to ${repository}. Fork it with github_fork_repository, then call github_push_branch again with checkout set to "${source}" (the repo you cloned) and repository set to your fork, then open the pull request from the fork into ${repository}.`
-                  : `${message}\n\nThis GitHub App connection cannot push to ${repository} and cannot fork it, because an app only reaches repositories it is installed on. Say so, and offer a classic token from the Home tab or a pull request they open themselves.`,
+                `${message}
+
+This GitHub App connection cannot push to ${repository}, because an app only reaches repositories it is installed on. Say so, and offer the diff or a patch so they can open the pull request themselves.`,
                 { cause: error }
               );
             } else {
@@ -87,6 +112,7 @@ export const pushTool = ({
           };
         },
         sandbox,
+        threadId,
         userId,
       });
     },

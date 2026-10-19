@@ -1,21 +1,20 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { exa } from '../lib/exa';
-import { input, output } from '../types/tools/index';
+import { search } from '../config';
+import { exa, withExaTimeout } from '../lib/exa';
 
 export const searchWebTool = createTool({
   id: 'search_web',
   description:
     'Search the web for current information, documentation, news, and facts. Do not guess at recent or external facts. For unfamiliar names, acronyms, projects, links, screenshots, or "what is X" questions, also use search_slack when available before answering because the reference may be internal.',
-  inputSchema: input({
+  inputSchema: z.strictObject({
     query: z
       .string()
       .min(1)
       .max(500)
       .describe("A specific, clear web search query for what you're after."),
   }),
-  outputSchema: output({
-    links: z.array(z.url()),
+  outputSchema: z.strictObject({
     results: z.array(
       z.strictObject({
         title: z.string(),
@@ -32,15 +31,16 @@ export const searchWebTool = createTool({
       }),
     },
   },
-  execute: async ({ query }) => {
-    const { results } = await exa.search(query, {
-      type: 'auto',
-      numResults: 8,
-      contents: { text: { maxCharacters: 1200 } },
+  execute: async ({ query }, { abortSignal }) => {
+    const { results } = await withExaTimeout({
+      request: exa.search(query, {
+        type: 'auto',
+        numResults: search.webResults,
+        contents: { text: { maxCharacters: search.snippetChars } },
+      }),
+      signal: abortSignal,
     });
-    const links = results.slice(0, 5).map((r) => r.url);
     return {
-      links,
       results: results.map((r) => ({
         title: r.title ?? r.url,
         url: r.url,

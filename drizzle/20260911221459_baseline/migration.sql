@@ -1,7 +1,3 @@
--- Baseline. These tables already exist in every deployed database, created by
--- the previous hand-rolled `createTables()`, so this migration has to be a
--- no-op there while still building them from scratch on a fresh one. Only this
--- one migration is edited by hand; every later one is generated.
 CREATE TABLE IF NOT EXISTS "github_credentials" (
 	"user_id" text PRIMARY KEY NOT NULL,
 	"kind" text NOT NULL,

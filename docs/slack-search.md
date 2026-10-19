@@ -6,9 +6,9 @@ conversations are never searched.
 
 Search runs as a single workspace identity: the user token in
 `SLACK_USER_TOKEN`. It calls `assistant.search.context` pinned to
-`channel_types: public_channel`, needs a live message in the thread (it never
-runs on scheduled or App Home turns, since it searches as a real person), and
-re-checks the visibility of every result channel before returning it.
+`channel_types: public_channel` and re-checks the visibility of every result
+channel before returning it. It runs on live, `wait` and scheduled-task turns
+alike, always as the installer's public-only identity.
 
 ## The token
 
@@ -51,8 +51,7 @@ bot from any channel; channel membership belongs to the installation, and only
 uninstalling the app drops it. With token rotation off, the bot token value is
 stable across a reinstall, so revoking all tokens still lets you re-copy the
 same `xoxb-` value (or revoke only the user token to leave the bot untouched).
-The Socket Mode app-level token (`xapp-`) is not an OAuth token and is
-unaffected by revoking.
+The signing secret is not an OAuth token and is unaffected by revoking.
 
 ## Verifying
 

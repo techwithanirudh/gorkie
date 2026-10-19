@@ -1,28 +1,35 @@
-import type {
-  ProcessOutputResultArgs,
-  ProcessOutputStreamArgs,
-} from '@mastra/core/processors';
+import type { Processor } from '@mastra/core/processors';
 import { formatDuration, intervalToDuration } from 'date-fns';
 import { slack } from '../chat/client';
 import { feedbackBlock } from '../chat/feedback';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
+import { runBackgroundTool } from '../tools/run-background';
 
 export const turnFooter = {
   id: 'turn-footer',
   name: 'Turn Footer',
   description:
     'Closes a turn with how long it took and a thumbs rating for the response.',
-  processOutputStream(args: ProcessOutputStreamArgs) {
+  processOutputStream(args) {
     args.state.startTime ??= Date.now();
-    return args.part;
+    if (args.part.type === 'text-delta' && args.part.payload.text.trim()) {
+      args.state.replySent = true;
+    }
+    if (
+      args.part.type === 'tool-call' &&
+      args.part.payload.toolName === runBackgroundTool.id
+    ) {
+      args.state.background = true;
+    }
+    return Promise.resolve(args.part);
   },
-  async processOutputResult(args: ProcessOutputResultArgs) {
+  async processOutputResult(args) {
     const { threadId } = channelContext(args.requestContext);
     const { startTime } = args.state;
 
     if (
-      !(threadId && args.result.text.trim()) ||
+      !(threadId && args.state.replySent === true) ||
       typeof startTime !== 'number'
     ) {
       return args.messages;
@@ -32,8 +39,18 @@ export const turnFooter = {
       intervalToDuration({ start: startTime, end: Date.now() }),
       { format: ['hours', 'minutes', 'seconds'] }
     );
-    const text = `done in ${elapsed || 'under a second'}`;
-    const traceId = args.tracingContext?.currentSpan?.traceId;
+    const background = args.state.background === true;
+    const text = background
+      ? "working in the background, I'll reply here when it's done…"
+      : `done in ${elapsed || 'under a second'}`;
+    const traceId = background
+      ? undefined
+      : args.tracingContext?.currentSpan?.traceId;
+    if (!(background || traceId)) {
+      logger.warn('[turn-footer] no trace id, posting without rating buttons', {
+        threadId,
+      });
+    }
     try {
       await slack.postBlocks({
         blocks: [
@@ -41,7 +58,7 @@ export const turnFooter = {
             type: 'context',
             elements: [{ type: 'mrkdwn', text: `_${text}_` }],
           },
-          feedbackBlock(traceId),
+          ...(traceId ? [feedbackBlock(traceId)] : []),
         ],
         text,
         threadId,
@@ -51,4 +68,4 @@ export const turnFooter = {
     }
     return args.messages;
   },
-};
+} satisfies Processor<'turn-footer'>;

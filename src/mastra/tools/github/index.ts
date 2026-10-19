@@ -1,9 +1,15 @@
-import { createGithubTools } from '@github-tools/sdk';
+import { createGithubTools, GITHUB_WRITE_TOOLS } from '@github-tools/sdk';
+import type { ToolsInput } from '@mastra/core/agent';
 import type { RequestContext } from '@mastra/core/request-context';
-import { githubAccess, githubAccessToken } from '../../lib/github';
+import { z } from 'zod';
+import { asksBefore } from '../../lib/approval';
+import {
+  githubAccess,
+  githubAccessToken,
+  recordGitHubUnauthorized,
+} from '../../lib/github';
 import { logger } from '../../lib/logger';
-import { asksBefore } from '../../types';
-import { ALLOWLIST, isWriteTool } from './allowlist';
+import { ALLOWLIST } from './allowlist';
 import { checkoutTool } from './checkout';
 import { handoff } from './handoff';
 import { pushTool } from './push';
@@ -20,13 +26,13 @@ export async function githubTools({
   requestContext?: RequestContext;
   threadId: string | undefined;
   userId: string;
-}): Promise<Record<string, unknown>> {
+}): Promise<ToolsInput> {
   try {
     const access = await githubAccess({ isDM, requestContext, userId });
     if (access.state !== 'connected') {
       return {};
     }
-    const { credential, direct, level } = access;
+    const { direct, level } = access;
 
     const built = createGithubTools({
       token: async () => {
@@ -40,23 +46,35 @@ export async function githubTools({
       },
     });
 
-    const tools: Record<string, unknown> = {};
+    const tools: ToolsInput = {};
     for (const name of ALLOWLIST) {
-      // An app structurally cannot fork a repository it is not installed on.
-      if (name === 'forkRepository' && credential.kind !== 'pat') {
+      const {
+        toModelOutput: format,
+        execute,
+        description,
+        ...tool
+      } = built[name];
+      // AI SDK tools may take a description function, Mastra tools only a
+      // string; every tool the SDK ships uses a string.
+      if (typeof description !== 'string') {
+        logger.warn('[github] skipped a tool with a non-string description', {
+          name,
+        });
         continue;
       }
-      // The SDK's formatter is AI SDK shaped; Mastra hands it the result alone.
-      const { toModelOutput: format, ...tool } = built[name];
+      // An explicit id: Mastra otherwise ids an AI SDK tool as
+      // `tool-<hash of description>`, and tool search returns and loads it
+      // under that id instead of this key.
       const id = `github_${name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()}`;
       if (!direct) {
         // Replace the tool outright rather than layering the handoff over the
         // SDK's formatter: those assume a GitHub API result, and
         // listPullRequestFiles maps over it unguarded, so a handoff message
-        // throws instead of reaching the model. Nothing here reaches GitHub, so
-        // there is nothing to approve either.
+        // throws instead of reaching the model.
         tools[id] = {
           ...tool,
+          description,
+          id,
           needsApproval: false,
           execute: () => handoff({ channelId, threadId, userId }),
         };
@@ -64,10 +82,24 @@ export async function githubTools({
       }
       tools[id] = {
         ...tool,
+        description,
+        id,
         needsApproval: asksBefore({
-          kind: isWriteTool(name) ? 'write' : 'read',
+          kind: name in GITHUB_WRITE_TOOLS ? 'write' : 'read',
           level,
         }),
+        execute: async (...args: Parameters<NonNullable<typeof execute>>) => {
+          try {
+            return await execute?.(...args);
+          } catch (error) {
+            if (z.object({ status: z.literal(401) }).safeParse(error).success) {
+              await recordGitHubUnauthorized(userId);
+            }
+            throw error;
+          }
+        },
+        // The SDK's formatters read only `output`; its own eve runtime adapter
+        // (modelOutputAdapter) fills input and toolCallId with the same blanks.
         ...(format && {
           toModelOutput: (result: unknown) =>
             result === undefined
@@ -79,11 +111,12 @@ export async function githubTools({
     if (direct && threadId) {
       tools.github_checkout = checkoutTool({
         approval: !isDM || asksBefore({ kind: 'read', level }),
+        threadId,
         userId,
       });
       tools.github_push_branch = pushTool({
         approval: asksBefore({ kind: 'write', level }),
-        canFork: credential.kind === 'pat',
+        threadId,
         userId,
       });
     }

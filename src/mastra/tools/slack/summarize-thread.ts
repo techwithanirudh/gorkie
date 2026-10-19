@@ -2,17 +2,17 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { summarizer } from '../../agents/summarizer';
 import { slack } from '../../chat/client';
+import { isComment } from '../../chat/message';
+import { slack as slackConfig } from '../../config';
 import { channelContext } from '../../lib/context';
-import { chatChannelId } from '../../lib/ids';
-import { spendSlackCall } from '../../lib/slack-budget';
-import { input, output } from '../../types/tools/index';
-import { assertReadableChannel, joinChannel, slackThreadId } from './utils';
+import { parseSlackInput } from '../../lib/ids';
+import { openReadableChannel } from './access';
+import { spendSlackCall } from './budget';
 
 export const summarizeThreadTool = createTool({
   id: 'summarize_thread',
-  description:
-    'Summarize up to 100 messages from one Slack thread without returning its full transcript to the caller. Defaults to the current thread. The current conversation is always readable; other threads must be in a public channel, which is joined automatically. Use read_conversation_history when exact wording or message metadata matters, and Slack code mode for exhaustive or cross-thread analysis.',
-  inputSchema: input({
+  description: `Summarize up to ${slackConfig.summarizeMaxMessages} messages from one Slack thread without returning its full transcript to the caller. Defaults to the current thread. The current conversation is always readable; other threads must be in a public channel, which is joined automatically. Messages starting with ## are side comments and are left out. Use read_conversation_history when exact wording or message metadata matters, and Slack code mode for exhaustive or cross-thread analysis.`,
+  inputSchema: z.strictObject({
     threadId: z
       .string()
       .optional()
@@ -24,7 +24,7 @@ export const summarizeThreadTool = createTool({
       .optional()
       .describe('Optional focus or format for the summary.'),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     messageCount: z.number().int().min(1),
     summary: z.string(),
   }),
@@ -36,28 +36,28 @@ export const summarizeThreadTool = createTool({
     },
   },
   execute: async ({ threadId, instructions }, context) => {
-    const ctx = channelContext(context?.requestContext);
-    const suppliedThreadId = threadId ?? ctx.threadId;
-    if (!suppliedThreadId) {
-      throw new Error('No thread to summarize.');
+    const ctx = channelContext(context.requestContext);
+    const { channel, threadTs } = parseSlackInput(threadId ?? ctx.threadId);
+    if (!(channel && threadTs)) {
+      throw new Error(
+        'Pass a thread id (slack:<conversation-id>:ts) or a message permalink, or run inside a thread.'
+      );
     }
-    const target = slackThreadId({ threadId: suppliedThreadId });
+    const target = slack.encodeThreadId({ channel, threadTs });
+    await openReadableChannel({ channelId: channel, ctx });
 
-    const channelId = chatChannelId(slack.channelIdFromThreadId(target));
-    await assertReadableChannel({ channelId, currentThreadId: ctx.threadId });
-    await joinChannel(channelId);
-
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
     const result = await slack.fetchMessages(target, {
-      limit: 100,
+      limit: slackConfig.summarizeMaxMessages,
       direction: 'backward',
     });
-    if (result.messages.length === 0) {
+    const messages = result.messages.filter((message) => !isComment(message));
+    if (messages.length === 0) {
       throw new Error('No messages found in the thread.');
     }
 
-    const lines = result.messages.map((message, index) => {
+    const lines = messages.map((message, index) => {
       const author =
         message.author.fullName ||
         message.author.userName ||
@@ -73,10 +73,13 @@ export const summarizeThreadTool = createTool({
     const transcript = lines.join('\n');
 
     const prompt = `${instructions ? `Focus requested by the user: ${instructions}\n\n` : ''}<transcript>\n${transcript}\n</transcript>`;
-    const { text } = await summarizer.generate(prompt);
+    const { text } = await summarizer.generate(prompt, {
+      requestContext: context.requestContext,
+      tracingContext: context.tracingContext,
+    });
 
     return {
-      messageCount: result.messages.length,
+      messageCount: messages.length,
       summary: text,
     };
   },

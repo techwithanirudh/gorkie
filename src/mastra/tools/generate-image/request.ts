@@ -3,7 +3,7 @@ import { APICallError, type FilePart, generateText } from 'ai';
 import { image } from '../../config';
 import { formatBytes, viewableImageType } from '../../lib/media';
 import { images } from '../../providers';
-import { E2BFilesystem } from '../../workspace/filesystem';
+import { confinePath } from '../../workspace/filesystem';
 
 export async function requestImages({
   abortSignal,
@@ -16,10 +16,9 @@ export async function requestImages({
   referenceImages: string[];
   sandbox: E2BSandbox;
 }): Promise<{ data: Buffer; mediaType: string }[]> {
-  const filesystem = new E2BFilesystem({ sandbox });
   const references = await Promise.all(
     referenceImages.map(async (path) => {
-      const filePath = await filesystem.realpath(path);
+      const filePath = confinePath({ inputPath: path });
       const { size } = await sandbox.retryOnDead(() =>
         sandbox.e2b.files.getInfo(filePath)
       );

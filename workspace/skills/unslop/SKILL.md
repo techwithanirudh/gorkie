@@ -1,6 +1,6 @@
 ---
 name: unslop
-description: Cut AI tells from any writing. Must always apply.
+description: Cut AI tells from writing. Use when polishing prose for a human, such as a write-up, announcement, email, doc, or page copy, or when someone asks to make text sound less like AI.
 ---
 
 # Unslop

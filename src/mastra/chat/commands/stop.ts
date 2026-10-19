@@ -1,46 +1,101 @@
+import { agent as agentConfig } from '../../config';
 import { logger } from '../../lib/logger';
-import { memoryThread } from '../../lib/memory';
 import type { CommandHandler } from '../../types';
+import { killJobs } from '../../workspace/jobs';
+import { getMastra } from '../mastra-instance';
+import { memoryThread } from '../memory-thread';
+import { notify } from '../notify';
+import { setThreadState } from '../state';
 
-// 'aborted' means a live run was cancelled, and the agent's own onAbort posts
-// about it; anything else is this command's to report. (Background-task
-// cancellation lives on the background branch, where backgroundTasks is
-// actually configured; this branch has no background tasks to stop.)
-export async function stopThread(
-  threadId: string
-): Promise<'aborted' | 'idle'> {
-  const { default: orchestrator } = await import('../../agents/orchestrator');
-  const threadMemory = await memoryThread({
-    agent: orchestrator,
-    externalThreadId: threadId,
-  }).catch(() => undefined);
-  const scope = threadMemory
-    ? { threadId: threadMemory.id, resourceId: threadMemory.resourceId }
-    : undefined;
-  const activeRunId = scope
-    ? orchestrator.getActiveThreadRunId(scope)
-    : undefined;
-  if (!(scope && activeRunId)) {
-    return 'idle';
+export async function stopThread({
+  threadId: slackThreadId,
+  stoppedAt = Date.now(),
+}: {
+  threadId: string;
+  stoppedAt?: number;
+}): Promise<'aborted' | 'cancelled' | 'idle'> {
+  await setThreadState({
+    thread: { id: slackThreadId },
+    patch: { dropMessagesBefore: stoppedAt },
+  });
+  const mastra = getMastra();
+  const orchestrator = mastra.getAgentById(agentConfig.id);
+  let threadId = slackThreadId;
+  try {
+    const found = await memoryThread(slackThreadId);
+    if (found) {
+      threadId = found.thread.id;
+    }
+  } catch (error) {
+    logger.warn('[commands] failed to look up the memory thread to stop', {
+      error,
+      threadId: slackThreadId,
+    });
   }
-  orchestrator.abortThreadStream(scope);
-  return 'aborted';
+
+  const runs = orchestrator
+    .listActiveThreadRuns()
+    .filter((run) => run.threadId === threadId);
+  const manager = mastra.backgroundTaskManager;
+  const backgroundTasks = manager
+    ? await manager
+        .listTasks({
+          agentId: agentConfig.id,
+          status: ['pending', 'running', 'suspended'],
+          threadId,
+        })
+        .then(({ tasks }) => tasks)
+        .catch((error: unknown) => {
+          logger.warn('[commands] failed to list background tasks to stop', {
+            error,
+            threadId,
+          });
+          return [];
+        })
+    : [];
+
+  const killed = await killJobs(slackThreadId);
+  for (const run of runs) {
+    orchestrator.abortThreadStream({
+      resourceId: run.resourceId,
+      threadId: run.threadId,
+    });
+  }
+  const cancellations = await Promise.allSettled(
+    backgroundTasks.map((task) => manager?.cancel(task.id))
+  );
+  if (cancellations.some(({ status }) => status === 'rejected')) {
+    logger.warn('[commands] some background tasks failed to stop', {
+      threadId,
+    });
+  }
+
+  if (runs.length > 0) {
+    return 'aborted';
+  }
+  return backgroundTasks.length > 0 || killed > 0 ? 'cancelled' : 'idle';
 }
 
 export const stop: CommandHandler = async ({ message, thread }) => {
-  const outcome = await stopThread(thread.id);
+  const outcome = await stopThread({
+    threadId: thread.id,
+    stoppedAt: message.metadata.dateSent.getTime(),
+  });
   if (outcome === 'aborted') {
     return;
   }
-  await thread
-    .postEphemeral(message.author, 'Nothing to stop right now.', {
-      fallbackToDM: false,
-    })
-    .catch((error: unknown) => {
-      logger.warn('[commands] Failed to post stop feedback', {
+  if (outcome === 'cancelled') {
+    await thread.post({ markdown: '_stopped._' }).catch((error: unknown) => {
+      logger.warn('[commands] failed to post stop confirmation', {
         error,
         threadId: thread.id,
-        userId: message.author.userId,
       });
     });
+    return;
+  }
+  await notify({
+    text: 'nothing to stop right now.',
+    thread,
+    user: message.author,
+  });
 };

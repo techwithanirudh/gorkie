@@ -1,7 +1,8 @@
 import type { RequestContext } from '@mastra/core/request-context';
 import { getGitHubCredential } from '../../db/queries/github';
-import { getGitHubSettings } from '../../db/queries/settings';
+import { getUserSettings } from '../../db/queries/settings';
 import type { GitHubCredential, GitHubPermission } from '../../types';
+import { levelOutsideDM } from '../approval';
 import { logger } from '../logger';
 
 type GitHubAccess =
@@ -14,10 +15,6 @@ type GitHubAccess =
       level: GitHubPermission;
     };
 
-export function levelsFor(outsideDM: boolean): GitHubPermission[] {
-  return outsideDM ? ['all', 'write'] : ['all', 'write', 'never'];
-}
-
 async function read({
   isDM,
   userId,
@@ -25,30 +22,24 @@ async function read({
   isDM: boolean;
   userId: string;
 }): Promise<GitHubAccess> {
-  let credential: GitHubCredential | undefined;
-  let settings: Awaited<ReturnType<typeof getGitHubSettings>>;
   try {
-    [credential, settings] = await Promise.all([
+    const [credential, { github }] = await Promise.all([
       getGitHubCredential(userId),
-      getGitHubSettings(userId),
+      getUserSettings(userId),
     ]);
+    if (!credential) {
+      return { state: 'disconnected' };
+    }
+    return {
+      state: 'connected',
+      credential,
+      direct: isDM || github.threads,
+      level: levelOutsideDM({ isDM, level: github.permission }),
+    };
   } catch (error) {
     logger.warn('[github] could not read the connection', { error, userId });
     return { state: 'unreadable' };
   }
-  if (!credential) {
-    return { state: 'disconnected' };
-  }
-
-  const direct = isDM || settings.threads;
-  return {
-    state: 'connected',
-    credential,
-    direct,
-    level: levelsFor(!isDM).includes(settings.permission)
-      ? settings.permission
-      : 'write',
-  };
 }
 
 const perRequest = new WeakMap<RequestContext, Promise<GitHubAccess>>();

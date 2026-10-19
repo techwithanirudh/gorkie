@@ -1,8 +1,21 @@
-import { CardText, Modal } from 'chat';
-import { coverageKey, unlabelledServers } from '../../../mcp/user-servers';
-import type { MCPServerConfig } from '../../../types';
+import { CardText, Modal, RadioSelect } from 'chat';
+import { knownUnlabelled } from '../../../mcp/user-servers/client';
+import { type MCPServerConfig, toolPermissionSchema } from '../../../types';
+import { presets, scopeSelect } from '../presets';
 import { ids } from './ids';
-import { presetRadio } from './presets';
+
+export function serverScopeSelect(threads: boolean) {
+  return scopeSelect({
+    descriptions: {
+      dm: "Shared threads get none of this server's tools.",
+      threads:
+        'Anyone in the thread can steer it, and it always asks at least before writing there.',
+    },
+    id: ids.scope,
+    label: 'Where can Gorkie use this server?',
+    threads,
+  });
+}
 
 export function configureModal({
   server,
@@ -11,18 +24,23 @@ export function configureModal({
   server: MCPServerConfig;
   userId: string;
 }) {
-  const unlabelled = unlabelledServers.has(
-    coverageKey({ serverName: server.name, userId })
-  );
+  const unlabelled = knownUnlabelled({ serverName: server.name, userId });
   return Modal({
     callbackId: ids.configureModal,
     title: `Configure ${server.name}`.slice(0, 24),
     submitLabel: 'Save',
+    privateMetadata: server.name,
     children: [
-      presetRadio({
+      serverScopeSelect(server.threads),
+      RadioSelect({
         id: 'permission',
-        permission: server.permission,
-        scope: server.name,
+        label: 'When should Gorkie stop and ask?',
+        initialOption: server.permission,
+        options: toolPermissionSchema.options.map((value) => ({
+          label: presets[value].label,
+          description: presets[value].description,
+          value,
+        })),
       }),
       ...(unlabelled
         ? [

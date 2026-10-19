@@ -1,39 +1,36 @@
 import { Agent } from '@mastra/core/agent';
-import {
-  ProviderHistoryCompat,
-  TokenLimiterProcessor,
-} from '@mastra/core/processors';
-import { InMemoryStore } from '@mastra/core/storage';
-import { Memory } from '@mastra/memory';
 import { agent as config } from '../config';
-import { defaultErrorProcessors } from '../lib/error-handling';
-import { stepCountIs } from '../lib/tools';
-import { sandbox } from '../processors/sandbox';
-import { moveToolImages } from '../processors/tool-media';
+import { stepGuard } from '../processors/step-guard';
 import { workingModel } from '../processors/working-model';
-import * as research from '../prompts/agents/research';
+import { description, prompt } from '../prompts/agents/research';
 import { slackToolPrompt } from '../prompts/slack';
-import { scout } from '../providers';
-import { slackCodeMode, slackCodeModePrompt } from '../tools/code-mode/slack';
+import { models } from '../providers';
+import { saveArtifactTool } from '../tools/artifacts';
+import { codeMode, codeModeInstructions } from '../tools/code-mode/slack';
 import { fetchUrlTool } from '../tools/fetch-url';
 import { searchWebTool } from '../tools/search-web';
 import { slackTools } from '../tools/slack';
+import {
+  agentDefaults,
+  delegationMemory,
+  historyProcessors,
+  runDefaults,
+} from './shared';
 
-export const researchAgent = new Agent({
+export const research = new Agent({
   id: 'research',
   name: 'Research',
-  description: research.description,
+  description,
   instructions: async () => [
-    research.prompt,
+    prompt,
     slackToolPrompt,
-    await slackCodeModePrompt(),
+    await codeModeInstructions({ workspaceAccess: false }),
   ],
-  model: scout,
-  errorProcessors: defaultErrorProcessors(),
-  maxProcessorRetries: 2,
-  memory: new Memory({ storage: new InMemoryStore() }),
+  model: models.research,
+  ...agentDefaults,
+  memory: delegationMemory,
   tools: async () => ({
-    slack: (await slackCodeMode()).tool,
+    slack: (await codeMode({ workspaceAccess: false })).tool,
     search_web: searchWebTool,
     fetch_url: fetchUrlTool,
     search_slack: slackTools.search_slack,
@@ -42,23 +39,10 @@ export const researchAgent = new Agent({
     get_channel_info: slackTools.get_channel_info,
     get_permalink: slackTools.get_permalink,
     summarize_thread: slackTools.summarize_thread,
+    call_slack_api: slackTools.call_slack_api,
+    save_artifact: saveArtifactTool,
   }),
-  inputProcessors: [
-    new TokenLimiterProcessor({
-      limit: config.maxTokens.input,
-      trimMode: 'contiguous',
-    }),
-    new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
-  ],
-  defaultOptions: {
-    modelSettings: {
-      maxOutputTokens: 16_384,
-      maxRetries: 5,
-      reasoning: 'medium',
-      timeout: config.modelTimeout,
-    },
-    stopWhen: stepCountIs(config.maxSteps),
-    autoResumeSuspendedTools: true,
-  },
-  outputProcessors: [sandbox, workingModel('research')],
+  inputProcessors: historyProcessors,
+  defaultOptions: runDefaults(config.maxTokens.subagentOutput),
+  outputProcessors: [stepGuard, workingModel('research')],
 });

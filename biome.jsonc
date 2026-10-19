@@ -81,5 +81,14 @@
       "interpolation": true
     }
   },
+  "overrides": [
+    {
+      // RTP and RTCP are bit-packed wire formats.
+      "includes": ["src/mastra/huddle/chime/rtp.ts"],
+      "linter": {
+        "rules": { "suspicious": { "noBitwiseOperators": "off" } }
+      }
+    }
+  ],
   "extends": ["ultracite/biome/core"]
 }

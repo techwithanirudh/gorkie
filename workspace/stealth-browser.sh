@@ -1,24 +1,22 @@
 #!/bin/bash
-SESSION="$AGENT_BROWSER_SESSION"
-ARGS=("$@")
-for ((i = 0; i < ${#ARGS[@]}; i++)); do
-  if [ "${ARGS[$i]}" = "--session" ]; then
-    SESSION="${ARGS[$((i + 1))]}"
-    break
-  fi
-done
-SESSION="${SESSION:-default}"
-STEALTH_CACHE="/tmp/cloakbrowser-${SESSION}"
+CACHE=/tmp/cloakbrowser-env
+LOG=/tmp/cloakbrowser-wrapper.log
 
-if BINARY_PATH=$(python3 -c "from cloakbrowser.download import ensure_binary; print(ensure_binary())" 2>/tmp/cloakbrowser-wrapper.log) \
-  && [ -x "$BINARY_PATH" ]; then
-  if [ ! -f "$STEALTH_CACHE" ]; then
-    python3 -c "from cloakbrowser.config import get_default_stealth_args; print(','.join(get_default_stealth_args()))" \
-      >"$STEALTH_CACHE" 2>>/tmp/cloakbrowser-wrapper.log
-  fi
+if [ ! -s "$CACHE" ]; then
+  python3 - >"$CACHE.tmp" 2>>"$LOG" <<'PY' && mv "$CACHE.tmp" "$CACHE" || rm -f "$CACHE.tmp"
+from cloakbrowser.config import get_default_stealth_args
+from cloakbrowser.download import ensure_binary
+print(ensure_binary())
+print(",".join(get_default_stealth_args()))
+PY
+fi
+
+{ read -r BINARY_PATH && read -r STEALTH_ARGS; } 2>/dev/null <"$CACHE"
+if [ -x "$BINARY_PATH" ]; then
   export AGENT_BROWSER_EXECUTABLE_PATH="$BINARY_PATH"
-  export AGENT_BROWSER_ARGS="$(cat "$STEALTH_CACHE")"
+  export AGENT_BROWSER_ARGS="$STEALTH_ARGS"
 else
-  echo "[agent-browser] CloakBrowser binary resolve failed, falling back to the non-stealth browser. See /tmp/cloakbrowser-wrapper.log" >&2
+  rm -f "$CACHE"
+  echo "[agent-browser] CloakBrowser binary resolve failed, falling back to the non-stealth browser. See $LOG" >&2
 fi
 exec agent-browser-real "$@"

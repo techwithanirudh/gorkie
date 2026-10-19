@@ -1,24 +1,12 @@
-import { z } from 'zod';
-import { asksBefore, type ToolKind, type ToolPermission } from '../../types';
+import type { RequireToolApprovalFn } from '@mastra/mcp';
+import { asksBefore, levelOutsideDM } from '../../lib/approval';
+import type { ToolKind, ToolPermission } from '../../types';
+import { channelSchema } from '../../types';
 
-export const unlabelledServers = new Set<string>();
-
-export const coverageKey = ({
-  serverName,
-  userId,
-}: {
-  serverName: string;
-  userId: string;
-}): string => `${userId}:${serverName}`;
-
-export function approvalFor(permission: ToolPermission) {
-  return ({
-    annotations,
-    toolName,
-  }: {
-    annotations?: { destructiveHint?: boolean; readOnlyHint?: boolean };
-    toolName: string;
-  }): boolean => {
+export function approvalFor(permission: ToolPermission): RequireToolApprovalFn {
+  return ({ annotations, requestContext, toolName }) => {
+    const isDM =
+      channelSchema.safeParse(requestContext?.channel).data?.isDM ?? false;
     let kind: ToolKind = 'write';
     if (
       annotations?.destructiveHint === true ||
@@ -29,16 +17,9 @@ export function approvalFor(permission: ToolPermission) {
     } else if (annotations?.readOnlyHint === true) {
       kind = 'read';
     }
-    return asksBefore({ kind, level: permission });
+    return asksBefore({
+      kind,
+      level: levelOutsideDM({ isDM, level: permission }),
+    });
   };
 }
-
-export const annotatedTool = z.object({
-  mcp: z
-    .object({
-      annotations: z
-        .object({ readOnlyHint: z.boolean().optional() })
-        .optional(),
-    })
-    .optional(),
-});

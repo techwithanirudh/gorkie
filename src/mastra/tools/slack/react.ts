@@ -2,15 +2,14 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
-import { chatChannelId, parseSlackId } from '../../lib/ids';
-import { input, output } from '../../types/tools/index';
-import { assertReadableChannel } from './utils';
+import { parseSlackInput } from '../../lib/ids';
+import { assertCanPostTo } from './access';
 
 export const reactTool = createTool({
   id: 'react',
   description:
-    'Add or remove an emoji reaction on a Slack message by current channel timestamp, channel/message id, or message URL.',
-  inputSchema: input({
+    'Add or remove an emoji reaction on a Slack message in the current conversation, by message timestamp or message URL. Messages in other channels or DMs cannot be reacted to. This does not end the turn: continue with a written answer when one is useful. For a reaction-only response, call skip after this tool.',
+  inputSchema: z.strictObject({
     channelId: z
       .string()
       .optional()
@@ -28,7 +27,7 @@ export const reactTool = createTool({
     action: z.enum(['add', 'remove']).default('add'),
     emoji: z.string().min(1).describe('Emoji name without colons.'),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     action: z.enum(['add', 'remove']),
     channelId: z.string(),
     messageId: z.string(),
@@ -45,42 +44,33 @@ export const reactTool = createTool({
     { channelId, messageId, url, action, emoji: emojiInput },
     context
   ) => {
-    const ctx = channelContext(context?.requestContext);
-    const target = parseSlackId(url ?? messageId ?? ctx.messageId, {
-      channel: channelId ?? ctx.channelId,
-    });
-    if (!target.channel) {
+    const ctx = channelContext(context.requestContext);
+    const message = parseSlackInput(url ?? messageId ?? ctx.messageId);
+    const channel =
+      message.channel ?? parseSlackInput(channelId ?? ctx.channelId).channel;
+    if (!channel) {
       throw new Error('No channel available for react.');
     }
-    if (!target.ts) {
+    if (!message.threadTs) {
       throw new Error('Pass messageId or url.');
     }
-    await assertReadableChannel({
-      channelId: chatChannelId(target.channel),
-      currentThreadId: ctx.threadId,
-    });
+    assertCanPostTo({ target: { type: 'channel', id: channel }, ctx });
 
     const emoji = emojiInput.replaceAll(':', '');
-    const request = {
-      channel: target.channel,
-      name: emoji,
-      timestamp: target.ts,
-    };
+    // Not slack.addReaction: its emoji resolver renames Slack names such as
+    // cry and cool to other emoji, and custom emoji with those names.
+    const request = { channel, name: emoji, timestamp: message.threadTs };
     if (action === 'remove') {
       await slack.webClient.reactions.remove(request);
-      return {
-        action,
-        channelId: chatChannelId(target.channel),
-        messageId: target.ts,
-        emoji,
-      };
+    } else {
+      await slack.webClient.reactions.add(request);
     }
-
-    await slack.webClient.reactions.add(request);
     return {
       action,
-      channelId: chatChannelId(target.channel),
-      messageId: target.ts,
+      channelId: slack.channelIdFromThreadId(
+        slack.encodeThreadId({ channel, threadTs: message.threadTs })
+      ),
+      messageId: message.threadTs,
       emoji,
     };
   },
