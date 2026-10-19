@@ -19,14 +19,14 @@
     },
     "slash_commands": [
       {
-        "command": "/dev-ban",
+        "command": "/gorkie-dev-ban",
         "url": "https://<YOUR-TUNNEL-URL>/api/agents/orchestrator/channels/slack/webhook",
         "description": "Ban someone from gorkie (moderators only)",
         "usage_hint": "@user [1h|1d|7d|30d|perm] [reason]",
         "should_escape": true
       },
       {
-        "command": "/dev-unban",
+        "command": "/gorkie-dev-unban",
         "url": "https://<YOUR-TUNNEL-URL>/api/agents/orchestrator/channels/slack/webhook",
         "description": "Lift a gorkie ban (moderators only)",
         "usage_hint": "@user [reason]",
