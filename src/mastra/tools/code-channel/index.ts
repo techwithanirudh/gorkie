@@ -295,6 +295,7 @@ export const setCodeChannelCommandsTool = createTool({
 
 export const archiveCodeChannelTool = createTool({
   id: 'archive_code_channel',
+  requireApproval: true,
   description:
     'Archive the current code channel for every member only when the user asks to archive or close it. Its history and tabs stay readable. Optionally identify an existing final summary message; do not archive after every answer.',
   inputSchema: z.strictObject({

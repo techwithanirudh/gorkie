@@ -254,7 +254,9 @@ export class HuddleSlack {
           return;
         }
         if (message.type === 'reconnect_url') {
-          this.reconnectUrl = message.url;
+          if (isSlackSocketUrl(message.url)) {
+            this.reconnectUrl = message.url;
+          }
           return;
         }
         const huddleEvent = toEvent(message);
@@ -312,5 +314,18 @@ export class HuddleSlack {
       batch_presence_aware: '1',
     }).toString();
     return url;
+  }
+}
+
+// The xoxd session cookie rides on every socket, so only Slack's own hosts get it.
+function isSlackSocketUrl(value: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(value);
+    return (
+      protocol === 'wss:' &&
+      (hostname === 'slack.com' || hostname.endsWith('.slack.com'))
+    );
+  } catch {
+    return false;
   }
 }

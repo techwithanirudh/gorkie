@@ -5,7 +5,7 @@ import { logger } from '../../lib/logger';
 import { banDurationSchema } from '../../types';
 import { slack } from '../client';
 import { userMention } from '../message';
-import { decide } from '.';
+import { decide, isBlocked } from '.';
 import { until } from './cards';
 import { isModerator } from './moderators';
 
@@ -56,7 +56,10 @@ export const onSlashCommand: SlashCommandChannelHandler = async (
   const isBan = ['/ban', '/gorkie-dev-ban'].includes(event.command);
   const isUnban = ['/unban', '/gorkie-dev-unban'].includes(event.command);
   if (!(isBan || isUnban)) {
-    if (await slack.isAssignedCodeChannel(event.channel.id)) {
+    if (
+      (await slack.isAssignedCodeChannel(event.channel.id)) &&
+      !(await isBlocked(event.user.userId))
+    ) {
       await defaultHandler();
     }
     return;
