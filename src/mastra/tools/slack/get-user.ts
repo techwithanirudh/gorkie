@@ -23,7 +23,7 @@ const userProfileSchema = userOutputSchema.omit({ userId: true });
 
 type UserProfile = z.infer<typeof userProfileSchema>;
 
-async function resolveUserProfile(
+export async function resolveUserProfile(
   userId: string
 ): Promise<UserProfile | undefined> {
   const cacheKey = `slack:user-profile:${userId}`;

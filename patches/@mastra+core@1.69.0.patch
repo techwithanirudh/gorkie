@@ -1124,3 +1124,27 @@
  		this.prefix = prefix;
  		this.callId = callId;
  		this.name = name;
+--- a/dist/storage-BkPsrBDT.js
++++ b/dist/storage-BkPsrBDT.js
+@@ -2818,7 +2818,8 @@
+ 			try {
+ 				const output = await agent.stream(signal, {
+ 					...target.ifIdle?.streamOptions,
+-					untilIdle: true,
++					// gorkie: let the caller opt out of the idle continuation loop.
++					untilIdle: target.ifIdle?.streamOptions?.untilIdle ?? true,
+ 					runId: reservedRunId,
+ 					memory: withThreadMemory(target.ifIdle?.streamOptions?.memory, resourceId, threadId)
+ 				});
+--- a/dist/storage-D_7U3kdo.cjs
++++ b/dist/storage-D_7U3kdo.cjs
+@@ -2818,7 +2818,8 @@
+ 			try {
+ 				const output = await agent.stream(signal, {
+ 					...target.ifIdle?.streamOptions,
+-					untilIdle: true,
++					// gorkie: let the caller opt out of the idle continuation loop.
++					untilIdle: target.ifIdle?.streamOptions?.untilIdle ?? true,
+ 					runId: reservedRunId,
+ 					memory: withThreadMemory(target.ifIdle?.streamOptions?.memory, resourceId, threadId)
+ 				});

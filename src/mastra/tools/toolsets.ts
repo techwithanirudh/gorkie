@@ -7,6 +7,7 @@ import { codeMode } from './code-mode/slack';
 import { submitFeedbackTool } from './feedback';
 import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
+import { joinHuddleTool, leaveHuddleTool } from './huddle';
 import { huddleDjReplyTool, huddleDjTool } from './huddlefm';
 import { replyTool } from './reply';
 import { runBackgroundTool } from './run-background';
@@ -50,6 +51,9 @@ export const deferredTools = {
   ...codeChannelTools,
   ...(env.HUDDLEFM_USER_ID
     ? { huddle_dj: huddleDjTool, huddle_dj_reply: huddleDjReplyTool }
+    : {}),
+  ...(env.HUDDLE_XOXC
+    ? { join_huddle: joinHuddleTool, leave_huddle: leaveHuddleTool }
     : {}),
   ...scheduledTaskTools,
   ...agentmailTools,

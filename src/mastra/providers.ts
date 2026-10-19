@@ -1,7 +1,7 @@
 import type { ModelWithRetries } from '@mastra/core/agent';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { env } from '@/env';
-import { agent as config } from './config';
+import { agent as config, huddle } from './config';
 import { channelContext } from './lib/context';
 import { recallModel } from './processors/working-model';
 
@@ -88,8 +88,8 @@ async function preferLastWorking(rungs: Rung[]): Promise<ModelWithRetries[]> {
   );
 }
 
-function ladder(agentKey: string): () => Promise<ModelWithRetries[]> {
-  const rungs = [
+function rungs(agentKey: string): Rung[] {
+  return [
     opencode({ modelId: 'deepseek-v4.1-flash', fallbackSession: agentKey }),
     opencode({ modelId: 'glm-5.3-flash', fallbackSession: agentKey }),
     opencode({
@@ -99,7 +99,11 @@ function ladder(agentKey: string): () => Promise<ModelWithRetries[]> {
     }),
     hackclub('deepseek/deepseek-v4.1-flash'),
   ];
-  return () => preferLastWorking(rungs);
+}
+
+function ladder(agentKey: string): () => Promise<ModelWithRetries[]> {
+  const agentRungs = rungs(agentKey);
+  return () => preferLastWorking(agentRungs);
 }
 
 export const models = {
@@ -107,6 +111,26 @@ export const models = {
   research: ladder('research'),
   explore: ladder('explore'),
 };
+
+// No preferLastWorking: the last working model is shared with the text agents,
+// so it would rank their slower ladder ahead of the voice model. The first
+// rung has no `url` on purpose: the registry sends minimax-m3 on OpenCode Go
+// through the Anthropic SDK, and a custom url would force the
+// OpenAI-compatible client instead.
+export const voice: ModelWithRetries[] = [
+  {
+    model: {
+      id: `opencode-go/${huddle.model}`,
+      apiKey: env.OPENCODE_API_KEY,
+      headers: {
+        'user-agent': 'gorkie/1.0',
+        'x-opencode-session': 'gorkie:voice',
+      },
+    },
+    maxRetries: config.modelRetries,
+  },
+  ...rungs('voice').map(({ model }) => model),
+];
 
 export const summarizer: ModelWithRetries[] = [
   opencode({ modelId: 'mimo-v2.6-flash', fallbackSession: 'summarizer' }).model,
