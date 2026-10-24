@@ -1,0 +1,232 @@
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1001,7 +1001,13 @@
+ var HTTP_URL_PREFIX_PATTERN = /^https?:\/\//;
+ var DEFAULT_STREAM_SEGMENT_MAX_AGE_MS = 24e4;
+ var STREAM_SEGMENT_ROTATION_GRACE_MS = 3e4;
++// Slack rejects a streamed message that grows too long (msg_too_long), so a
++// long reply also rolls into a new message by size, at a paragraph break when
++// it can.
++var STREAM_SEGMENT_MAX_CHARS = 8e3;
++var STREAM_SEGMENT_HARD_MAX_CHARS = 1e4;
+ var STREAM_EXPIRED_ERROR = "message_not_in_streaming_state";
++var STREAM_GONE_ERROR = "message_not_found";
+ var FENCE_LINE_PATTERN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+ var TABLE_ROW_PATTERN = /^\|.*\|$/;
+ var TABLE_SEPARATOR_PATTERN = /^\|[\s:]*-+[\s:]*(?:\|[\s:]*-+[\s:]*)*\|$/;
+@@ -4539,7 +4545,10 @@
+           raw: result2
+         };
+       }
+-      const payload = this.formatConverter.toSlackPayload(message);
++      const formatted = this.formatConverter.toSlackPayload(message);
++      const payload = message?.gorkieTransientActivity && "markdown_text" in formatted
++        ? { text: formatted.markdown_text, blocks: [{ type: "markdown", text: formatted.markdown_text }] }
++        : formatted;
+       this.logger.debug("Slack API: chat.update", {
+         channel,
+         messageId,
+@@ -4911,11 +4920,13 @@
+     });
+     const segment = {
+       streamer: createStreamer(),
++      text: "",
+       startedAt: void 0,
+       flushNextAppend: false,
+       reopenFence: "",
+       tableHeader: ""
+     };
++    const streamSegments = [];
+     let rotations = 0;
+     let lastAppended = "";
+     let lastFlushed = "";
+@@ -4989,6 +5000,19 @@
+       );
+     };
+     const isStreamExpired = (error) => slackPlatformErrorCode(error) === STREAM_EXPIRED_ERROR;
++    let segmentBase = "";
++    // An expired segment keeps the text Slack confirmed; a segment Slack
++    // reports as not found has lost everything since it started. Either way
++    // the reply resumes in a new message instead of vanishing.
++    const resumePoint = (error) => {
++      if (isStreamExpired(error)) {
++        return lastFlushed;
++      }
++      if (slackPlatformErrorCode(error) === STREAM_GONE_ERROR) {
++        return segmentBase;
++      }
++      return void 0;
++    };
+     const markSegmentStarted = () => {
+       segment.startedAt ??= Date.now();
+       segment.flushNextAppend = false;
+@@ -4998,6 +5022,10 @@
+     const rotationDue = (atBlockBoundary) => {
+       if (segment.startedAt === void 0) {
+         return false;
++      }
++      const size = lastAppended.length - segmentBase.length;
++      if (size >= STREAM_SEGMENT_MAX_CHARS) {
++        return atBlockBoundary || size >= STREAM_SEGMENT_HARD_MAX_CHARS;
+       }
+       const age = segmentAgeMs();
+       if (age < this.streamSegmentMaxAgeMs) {
+@@ -5027,7 +5055,12 @@
+       );
+     };
+     const startNextSegment = async (sent) => {
++      const previousTs = segment.streamer.ts;
++      if (previousTs) streamSegments.push({ id: previousTs, text: segment.text });
++      segment.text = "";
+       segment.streamer = createStreamer();
++      segmentBase = sent;
++      lastFlushed = sent;
+       segment.startedAt = void 0;
+       segment.flushNextAppend = true;
+       const fence = openFenceIn(sent);
+@@ -5085,6 +5118,7 @@
+           // next segment, and chat.stopStream defaults to "active".
+           ...this.agentView ? { session_status: "processing" } : {}
+         });
++        segment.text += finalText;
+         lastFlushed = sent;
+         this.logger.debug("Slack: rotated stream segment", {
+           channel,
+@@ -5092,15 +5126,16 @@
+           ageMs
+         });
+       } catch (error) {
+-        if (!isStreamExpired(error)) {
++        const resumed = resumePoint(error);
++        if (resumed === void 0) {
+           throw error;
+         }
+         this.logger.warn(
+-          "Slack: stream segment expired before rotation, continuing in a new message",
+-          { channel, ageMs }
++          "Slack: stream segment lost before rotation, continuing in a new message",
++          { channel, ageMs, error: slackPlatformErrorCode(error) }
+         );
+-        tail = lastAppended.slice(lastFlushed.length) + delta;
+-        sent = lastFlushed;
++        tail = lastAppended.slice(resumed.length) + delta;
++        sent = resumed;
+       }
+       await startNextSegment(sent);
+       return tail;
+@@ -5108,13 +5143,15 @@
+     const sendDelta = async (delta, atBlockBoundary) => {
+       const text = rotationDue(atBlockBoundary || delta.includes("\n\n")) ? await rotateSegment(delta) : delta;
+       if (text.length > 0) {
++        const markdownText = withSegmentPrefix(text);
+         const response = await segment.streamer.append({
+-          markdown_text: withSegmentPrefix(text),
++          markdown_text: markdownText,
+           token,
+           ...segment.flushNextAppend ? { chunks: [] } : {}
+         });
+         if (response) {
+-          markSegmentStarted();
++          segment.text += markdownText;
++        markSegmentStarted();
+           lastFlushed = resolvedCommitted;
+         }
+       }
+@@ -5134,7 +5171,18 @@
+         await sendDelta(delta, false);
+       } catch (error) {
+         if (fallback.nativeRendered) {
+-          throw error;
++          const resumed = resumePoint(error);
++          if (resumed === void 0) {
++            throw error;
++          }
++          this.logger.warn(
++            "Slack: stream segment lost mid-reply, continuing in a new message",
++            { channel, error: slackPlatformErrorCode(error) }
++          );
++          await startNextSegment(resumed);
++          lastAppended = resumed;
++          await sendDelta(resolvedCommitted.slice(resumed.length), false);
++          return;
+         }
+         switchToFallback(error);
+         await flushFallback(force);
+@@ -5159,7 +5207,20 @@
+         lastFlushed = lastAppended;
+         rememberStructuredChunk(chunk);
+       } catch (error) {
+-        disableStructuredChunks(chunk.type, error);
++        const resumed = resumePoint(error);
++        if (resumed === void 0) {
++          disableStructuredChunks(chunk.type, error);
++          return;
++        }
++        this.logger.warn(
++          "Slack: stream segment lost on a structured chunk, continuing in a new message",
++          { channel, chunkType: chunk.type, error: slackPlatformErrorCode(error) }
++        );
++        // Remembered first so the new segment's replay carries this chunk.
++        rememberStructuredChunk(chunk);
++        await startNextSegment(resumed);
++        lastAppended = resumed;
++        await sendDelta(resolvedCommitted.slice(resumed.length), false);
+       }
+     };
+     for await (const chunk of textStream) {
+@@ -5213,10 +5274,11 @@
+         await this.endTyping(threadId, options?.sessionStatus ?? "active");
+         return fallback.message;
+       }
+-      if (!isStreamExpired(error)) {
++      const resumed = resumePoint(error);
++      if (resumed === void 0) {
+         throw error;
+       }
+-      const unconfirmed = lastAppended.slice(lastFlushed.length);
++      const unconfirmed = lastAppended.slice(resumed.length);
+       if (unconfirmed.length === 0) {
+         const expiredTs = segment.streamer.ts;
+         if (!expiredTs) {
+@@ -5226,24 +5288,28 @@
+           "Slack: stream expired before stop, stream-end blocks skipped",
+           {
+             channel,
++            error: slackPlatformErrorCode(error),
+             messageId: expiredTs,
+             skippedBlocks: stopBlocks.length
+           }
+         );
+         await this.endTyping(threadId, options?.sessionStatus ?? "active");
+-        return { id: expiredTs, threadId, raw: { ts: expiredTs } };
++        return { id: expiredTs, threadId, raw: { ts: expiredTs, gorkieStreamSegments: [...streamSegments, { id: expiredTs, text: segment.text }] } };
+       }
+       this.logger.warn(
+         "Slack: stream expired before stop, delivering the rest in a new message",
+         {
+-          channel
++          channel,
++          error: slackPlatformErrorCode(error)
+         }
+       );
+-      await startNextSegment(lastFlushed);
++      await startNextSegment(resumed);
++      const markdownText = withSegmentPrefix(unconfirmed);
+       result = await segment.streamer.stop({
+         ...stopArgs,
+-        markdown_text: withSegmentPrefix(unconfirmed)
++        markdown_text: markdownText
+       });
++      segment.text += markdownText;
+     }
+     const messageTs = result.message?.ts ?? result.ts;
+     this.logger.debug("Slack: stream complete", {
+@@ -5253,7 +5319,7 @@
+     return {
+       id: messageTs,
+       threadId,
+-      raw: result
++      raw: { ...result, gorkieStreamSegments: [...streamSegments, { id: messageTs, text: segment.text }] }
+     };
+   }
+   /**

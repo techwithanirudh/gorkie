@@ -1,0 +1,1 @@
+ALTER TABLE "user_settings" ADD COLUMN "tool_display" text;

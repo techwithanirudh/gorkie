@@ -1,12 +1,36 @@
+import type { Duration } from '@mastra/core/storage';
 import { env } from '@/env';
 export const sandbox = {
-  template: 'gorkie-workspace:2.0',
+  template: 'gorkie-workspace:2.2',
+  gitAuthorName: 'gorkie-agent',
   executionTimeout: 15 * 60 * 1000,
   timeout: 16 * 60 * 1000,
+  extendThrottleMs: 2 * 60 * 1000,
+  // A job outlives its turn, so the VM lifetime is re-armed while one runs.
+  // The cap matches E2B Hobby's one-hour sandbox limit.
+  background: {
+    maxTimeoutSeconds: 60 * 60,
+    keepaliveMs: 10 * 60 * 1000,
+    outputTailChars: 10_000,
+    // Mastra's task timeout must outlast the command's own deadline, or the
+    // task fails before the tool can return the timed-out output.
+    taskTimeoutBufferSeconds: 120,
+    // E2B kills the process only if our own abort never reached it.
+    spawnBackstopSeconds: 60,
+  },
   // A cold clone or a large push runs well past E2B's 60s request default, and
   // a timeout there retries the whole clone inside the credential window.
+  cloneDepth: 50,
   gitTimeout: 5 * 60 * 1000,
   workdir: '/home/user',
+  cpuCount: 2,
+  memoryMB: 1024,
+};
+
+export const agentmail = {
+  inbox: 'gorkie@agentmail.to',
+  // Attachments travel base64-encoded inside one MCP request, a third larger.
+  maxAttachmentBytes: 10 * 1024 * 1024,
 };
 
 export const upload = {
@@ -14,41 +38,199 @@ export const upload = {
 };
 
 export const file = {
-  // Without a cap, `fallocate -l 8G x && read_file x` OOMs the host (reachable
-  // from injected repo content).
   maxReadBytes: 10 * 1024 * 1024,
+  maxGrepOutputBytes: 16 * 1024 * 1024,
+};
+
+export const canvas = {
+  maxReadChars: 200_000,
+};
+
+export const artifacts = {
+  maxChars: 200_000,
 };
 
 export const image = {
-  maxEditBytes: 8 * 1024 * 1024,
-  requestTimeoutMs: 5 * 60 * 1000,
-  // Cap on an image inlined into the model context, matching Mastra read_file's
-  // 10MB media default; a larger file is refused rather than blowing up context.
   maxViewBytes: 10 * 1024 * 1024,
+  maxEditBytes: 8 * 1024 * 1024,
   // Vision models cap inline images per request (GLM: 8 images, 64 MiB total,
   // non-retryable 400 over that). Keep only the most recent within these bounds.
   maxContextImages: 8,
   maxContextBytes: 60 * 1024 * 1024,
+  requestTimeoutMs: 5 * 60 * 1000,
 };
 
 export const agent = {
   id: 'orchestrator',
-  maxTokens: { input: 1_000_000, output: 65_536 },
+  // Every ladder rung must fit input plus output in its context window. The
+  // smallest on models.dev is 1,000,000 (DeepSeek v4.1 Flash):
+  // 850,000 + 65,536 leaves about 84,000 for
+  // tool schemas, which the limiter does not count, and for the gap between
+  // its tokenizer and the provider's. GPT-6 Luna also caps input at 922,000.
+  // Output must stay under the smallest
+  // output cap on the ladder, 128,000 (opencode-go GPT-6 Luna).
+  maxTokens: {
+    input: 850_000,
+    output: 65_536,
+    subagentOutput: 16_384,
+    history: 200_000,
+  },
   maxSteps: 1000,
   modelTimeout: { firstChunkMs: 2 * 60 * 1000, stepMs: 5 * 60 * 1000 },
+  modelRetries: 3,
+  quotaCooldownMs: 30 * 60 * 1000,
+  topP: 0.95,
+  reasoning: 'medium' as const,
+  toolCallConcurrency: 10,
+  maxProcessorRetries: 2,
 };
 
+// Output caps on models.dev: mimo-v2.6-flash 131,072; gemini-3.5-flash-lite
+// 65,536. Observational Memory defaults
+// observer and reflector to 100,000 output tokens, over the gemini cap, so
+// orchestrator.ts overrides it with this budget.
 export const summarizer = {
-  id: 'summarizer',
-  maxTokens: { output: 32_768 },
+  maxTokens: { output: 32_768, previousObserver: 1000 },
 };
 
 export const scheduledTasks = {
   minInterval: env.NODE_ENV === 'production' ? 30 * 60 * 1000 : 60 * 1000,
+  maxActivePerUser: 10,
 };
 
 export const workingModel = {
-  ttl: 30 * 60 * 1000,
+  ttl: 5 * 60 * 1000,
 };
 
-export const emoji = { listTtl: 5 * 60 * 1000 };
+export const github = {
+  requestTimeoutMs: 10_000,
+  installUrl: `https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`,
+  refreshBeforeExpiryMs: 5 * 60 * 1000,
+};
+
+export const mcp = {
+  maxServers: 10,
+  refreshBeforeExpiryMs: 60 * 1000,
+  oauthRequestTimeoutMs: 10_000,
+  probeTimeoutMs: 2000,
+};
+
+export const emoji = {
+  requestTimeoutMs: 60_000,
+  listTtl: 5 * 60 * 1000,
+  maxUploadBytes: 10 * 1024 * 1024,
+  proxyUrl: 'https://hackclub-slack-emoji-proxy.vercel.app/api/emoji',
+};
+
+export const usage = {
+  turnsPerHour: 40,
+  turnsPerDay: 300,
+  maxOutputTokensPerTurn: 200_000,
+};
+
+export const exa = {
+  timeoutMs: 30_000,
+  livecrawlTimeoutMs: 15_000,
+  fetchMaxChars: 8000,
+};
+
+export const search = {
+  snippetChars: 1200,
+  webResults: 8,
+  contextMessages: 3,
+  contextSnippetChars: 400,
+  slackPageSize: 10,
+};
+
+export const slack = {
+  maxCachedThreads: 10_000,
+  codeChannelCacheTtlMs: 5 * 60 * 1000,
+  recipientTtlMs: 30 * 24 * 60 * 60 * 1000,
+  userLookupConcurrency: 4,
+  channelLookupConcurrency: 4,
+  unresolvedUserTtlMs: 60 * 1000,
+  profileTtlMs: 24 * 60 * 60 * 1000,
+  failedProfileTtlMs: 60 * 1000,
+  callsPerTurn: 200,
+  apiPreviewChars: 16_384,
+  codeModeMaxResultChars: 60_000,
+  summarizeMaxMessages: 100,
+  membersPageSize: 200,
+  askAnswerLockMs: 24 * 60 * 60 * 1000,
+  webClient: { retry: { factor: 3.86, retries: 5 }, timeoutMs: 15_000 },
+};
+
+export const oauth = {
+  // Factory's state signer expires every signed link after 10 minutes.
+  linkTtlMs: 10 * 60 * 1000,
+};
+
+export const history = {
+  maxScannedMessages: 30,
+  maxUnseenMessages: 10,
+};
+
+export const shutdown = {
+  // How long SIGTERM waits for Slack turns to finish (TurnDrainWorker) before
+  // aborting them. systemd's TimeoutStopSec must exceed twice this plus 5s:
+  // Mastra spends up to one window on HTTP, then another on its own shutdown.
+  drainTimeoutMs: env.NODE_ENV === 'production' ? 120_000 : 10_000,
+  abortLeadMs: 10_000,
+};
+
+export const observability: {
+  traceRetention: Duration;
+  pruneIntervalMs: number;
+} = {
+  traceRetention: '7d',
+  pruneIntervalMs: 24 * 60 * 60 * 1000,
+};
+
+export const backgroundTasks = {
+  cleanupIntervalMs: 60 * 60 * 1000,
+};
+
+export const huddleFm = {
+  replyPageSize: 100,
+};
+
+export const database = {
+  connectAttemptTimeoutMs: 2000,
+};
+
+export const activity = {
+  updateIntervalMs: 1500,
+  maxPhases: 8,
+  maxTools: 32,
+  elapsedIntervalMs: 5000,
+  maxAnswerPreviewChars: 10_000,
+  answerChunkChars: 1000,
+  maxTitleChars: 96,
+  maxTargetChars: 48,
+};
+
+export const codeChannels = { maxViewBytes: 1_000_000 };
+
+export const huddle = {
+  model: 'minimax-m3',
+  voice: 'flux-alexis-en',
+  sttModel: 'flux-general-en',
+  eotThreshold: 0.7,
+  eotTimeoutMs: 5000,
+  // Flux dropped or misheard the name ("Gorky", nothing) without a keyterm.
+  keyterm: ['Gorkie', 'Gork'],
+  // Characters Flux must have heard before talking over gorkie cuts it off,
+  // so a cough or a click does not kill a reply.
+  bargeInChars: 4,
+  // Flux TTS closes a socket with no client message for 60 s.
+  ttsKeepAliveMs: 30 * 1000,
+  batchSttModel: 'nova-3',
+  maxOutputTokens: 1024,
+  maxSteps: 4,
+  lastMessages: 40,
+  task: { researchTimeout: 15 * 60 * 1000, exploreTimeout: 20 * 60 * 1000 },
+  unnamedReplyWindow: 20 * 1000,
+  goodbye: { afterLeaveMs: 2000, afterAudioMs: 1500, maxMs: 10 * 1000 },
+  aloneTimeout: 60 * 1000,
+  idleTimeout: 15 * 60 * 1000,
+};

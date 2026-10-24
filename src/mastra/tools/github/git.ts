@@ -1,9 +1,26 @@
 import type { E2BSandbox } from '@mastra/e2b';
 import { CommandExitError } from 'e2b';
 import { sandbox as sandboxConfig } from '../../config';
-import { githubAccessToken } from '../../lib/github';
+import { githubAccessToken, repoAccess } from '../../lib/github';
 import { logger } from '../../lib/logger';
-import { baseRules } from '../../workspace/network';
+import { sh } from '../../lib/shell';
+import { openCredentialWindow } from '../../workspace/jobs';
+
+export const checkoutPath = (repository: string): string =>
+  `${sandboxConfig.workdir}/${repository.replace('/', '__')}`;
+
+export const repoAccessFor = async ({
+  repository,
+  userId,
+}: {
+  repository: string;
+  userId: string;
+}): ReturnType<typeof repoAccess> => {
+  const token = await githubAccessToken(userId);
+  return token
+    ? await repoAccess({ repository, token })
+    : { error: 'GitHub is not connected.' };
+};
 
 export const git = async ({
   command,
@@ -15,10 +32,43 @@ export const git = async ({
   sandbox: E2BSandbox;
 }): Promise<string> => {
   try {
-    const { stdout } = await sandbox.e2b.commands.run(command, {
-      ...(cwd ? { cwd } : {}),
-      timeoutMs: sandboxConfig.gitTimeout,
-    });
+    // These run inside the credential window, so config the agent wrote must
+    // not run a program or redirect a push while GitHub auth is attached.
+    // Env config beats repo config and reaches every git in a compound command,
+    // unlike `-c`. Keys it cannot pin (url.<x>.insteadOf and filter.<x>.*,
+    // including ones pulled in by include.path) are refused instead.
+    const pins = [
+      ['core.hooksPath', '/dev/null'],
+      ['core.fsmonitor', 'false'],
+      // Empty stops git falling back to GIT_ASKPASS-style programs.
+      ['core.askPass', ''],
+      // Empty resets the helper list.
+      ['credential.helper', ''],
+      // Only https; ext::, file:// and ssh run programs or skip the proxy.
+      ['protocol.allow', 'never'],
+      ['protocol.https.allow', 'always'],
+      ['submodule.recurse', 'false'],
+      ['fetch.recurseSubmodules', 'false'],
+      ['push.recurseSubmodules', 'no'],
+    ];
+    const { stdout } = await sandbox.e2b.commands.run(
+      `if git config -z --list --name-only 2>/dev/null | grep -qizE ${sh(String.raw`^(url\..*\.(push)?insteadof|filter\.)`)}; then echo 'refused: git config sets url.*.insteadOf or filter.*, remove it first' >&2; exit 97; fi; ${command}`,
+      {
+        cwd,
+        envs: {
+          GIT_CONFIG_NOSYSTEM: '1',
+          GIT_CONFIG_GLOBAL: '/dev/null',
+          GIT_CONFIG_COUNT: `${pins.length}`,
+          ...Object.fromEntries(
+            pins.flatMap(([key, value], index) => [
+              [`GIT_CONFIG_KEY_${index}`, key],
+              [`GIT_CONFIG_VALUE_${index}`, value],
+            ])
+          ),
+        },
+        timeoutMs: sandboxConfig.gitTimeout,
+      }
+    );
     return stdout.trim();
   } catch (error) {
     if (error instanceof CommandExitError) {
@@ -31,99 +81,115 @@ export const git = async ({
   }
 };
 
-// One credential window per sandbox at a time. Two overlapping operations
-// interleave badly: the first's cleanup resets the firewall while the second is
-// still pushing, and each one's window stays open for the other's duration.
-const windows = new Map<string, Promise<unknown>>();
+const credentialWindows = new Map<string, Promise<unknown>>();
 
-const serialize = async <T>(
-  key: string,
-  work: () => Promise<T>
-): Promise<T> => {
-  const next = (windows.get(key) ?? Promise.resolve()).then(work, work);
+const oneWindowPerSandbox = async <T>({
+  sandboxId,
+  work,
+}: {
+  sandboxId: string;
+  work: () => Promise<T>;
+}): Promise<T> => {
+  const next = (credentialWindows.get(sandboxId) ?? Promise.resolve()).then(
+    work,
+    work
+  );
   const settled = next.then(
     () => undefined,
     () => undefined
   );
-  windows.set(key, settled);
+  credentialWindows.set(sandboxId, settled);
   try {
     return await next;
   } finally {
-    if (windows.get(key) === settled) {
-      windows.delete(key);
+    if (credentialWindows.get(sandboxId) === settled) {
+      credentialWindows.delete(sandboxId);
     }
   }
 };
 
+async function runWithToken<T>({
+  operation,
+  sandbox,
+  token,
+}: {
+  operation: () => Promise<T>;
+  sandbox: E2BSandbox;
+  token: string;
+}): Promise<T> {
+  try {
+    await sandbox.e2b.updateNetwork({
+      rules: {
+        'github.com': [
+          {
+            transform: {
+              headers: {
+                Authorization: `Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
+              },
+            },
+          },
+        ],
+      },
+    });
+  } catch {
+    // biome-ignore lint/style/useErrorCause: dropping the cause is the point; it can carry the token
+    throw new Error('Could not open the GitHub credential window.');
+  }
+  const [outcome] = await Promise.allSettled([operation()]);
+  let dropped = false;
+  for (let attempt = 1; attempt <= 3 && !dropped; attempt++) {
+    try {
+      // biome-ignore lint/performance/noAwaitInLoops: retries are sequential
+      await sandbox.e2b.updateNetwork({ rules: {} });
+      dropped = true;
+    } catch (error) {
+      logger.error('[github] failed to drop the credential', {
+        attempt,
+        error,
+      });
+    }
+  }
+  if (!dropped) {
+    await sandbox.e2b.kill().catch((error: unknown) => {
+      logger.error('[github] failed to kill a credentialed sandbox', {
+        error,
+      });
+    });
+    throw new Error(
+      'Could not close the GitHub credential window, so the sandbox was discarded. Files in it are gone; check out the repository again.'
+    );
+  }
+  if (outcome.status === 'rejected') {
+    throw outcome.reason;
+  }
+  return outcome.value;
+}
+
 export const withCredential = async <T>({
   operation,
   sandbox,
+  threadId,
   userId,
 }: {
   operation: () => Promise<T>;
   sandbox: E2BSandbox;
+  threadId: string;
   userId: string;
 }): Promise<T> => {
   const token = await githubAccessToken(userId);
   if (!token) {
     throw new Error('GitHub is not connected. Ask them to sign in again.');
   }
-  return await serialize(sandbox.e2b.sandboxId, () =>
-    sandbox.retryOnDead(async () => {
-      try {
-        await sandbox.e2b.updateNetwork({
-          rules: {
-            ...baseRules(),
-            'github.com': [
-              {
-                transform: {
-                  headers: {
-                    Authorization: `Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
-                  },
-                },
-              },
-            ],
-          },
-        });
-      } catch {
-        // The rules object holds the github token in an Authorization header, so
-        // never let a failure here propagate the raw error: it could carry the
-        // request body into a log. Throw a token-free error instead.
-        // biome-ignore lint/style/useErrorCause: dropping the cause is the point; it can carry the token
-        throw new Error('Could not open the GitHub credential window.');
-      }
-      try {
-        return await operation();
-      } finally {
-        // A failed drop leaves the token injected for everything in the
-        // sandbox, which is keyed on the thread and outlives this turn.
-        let dropped = false;
-        for (let attempt = 1; attempt <= 3 && !dropped; attempt++) {
-          try {
-            // biome-ignore lint/performance/noAwaitInLoops: retries are sequential
-            await sandbox.e2b.updateNetwork({ rules: baseRules() });
-            dropped = true;
-          } catch (error) {
-            logger.error('[github] failed to drop the credential', {
-              attempt,
-              error,
-            });
-          }
+  return await oneWindowPerSandbox({
+    sandboxId: sandbox.e2b.sandboxId,
+    work: () =>
+      sandbox.retryOnDead(async () => {
+        const closeWindow = openCredentialWindow(threadId);
+        try {
+          return await runWithToken({ operation, sandbox, token });
+        } finally {
+          closeWindow();
         }
-        if (!dropped) {
-          // Killing is the only way left to close the window; the next turn
-          // gets a fresh sandbox under the same id.
-          await sandbox.e2b.kill().catch((error: unknown) => {
-            logger.error('[github] failed to kill a credentialed sandbox', {
-              error,
-            });
-          });
-          // biome-ignore lint/correctness/noUnsafeFinally: a leaked credential must override the operation's result
-          throw new Error(
-            'Could not close the GitHub credential window, so the sandbox was discarded. Files in it are gone; check out the repository again.'
-          );
-        }
-      }
-    })
-  );
+      }),
+  });
 };

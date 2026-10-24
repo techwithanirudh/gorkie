@@ -1,22 +1,28 @@
 import { createHash } from 'node:crypto';
 import { MCPClient } from '@mastra/mcp';
-import { setMCPServerError } from '../../db/queries/mcps';
 import { logger } from '../../lib/logger';
-import type { MCPServerConfig } from '../../types';
-import { findMCPUrlError } from '../security';
+import { oauthRedirectUri } from '../../server/oauth-link';
+import type { MCPServerConfig, StoredMCPServer } from '../../types';
+import { MCPServerOAuth, mcpOAuthHosts } from '../oauth';
+import { checkMCPUrl } from '../security';
 import { approvalFor } from './approval';
 
 export function serverConnection({
+  oauth,
   server,
   url,
 }: {
+  oauth?: { hosts: string[]; provider: MCPServerOAuth };
   server: MCPServerConfig;
   url: URL;
 }) {
   return {
     url,
-    allowedHosts: [url.host],
-    ...(server.token
+    // The SDK sends OAuth discovery, refresh and token requests through the
+    // transport's fetch, so the authorization server hosts must be allowed too.
+    allowedHosts: oauth ? [url.host, ...oauth.hosts] : [url.host],
+    ...(oauth ? { authProvider: oauth.provider } : {}),
+    ...(server.token && !oauth
       ? {
           requestInit: {
             headers: { Authorization: `Bearer ${server.token}` },
@@ -26,90 +32,126 @@ export function serverConnection({
   };
 }
 
-const clients = new Map<string, { key: string; promise: Promise<MCPClient> }>();
+interface UserClient {
+  client: MCPClient;
+  rejected: Map<string, string>;
+  unlabelled: Set<string>;
+}
 
+const clients = new Map<
+  string,
+  { key: string; promise: Promise<UserClient>; unlabelled: Set<string> }
+>();
+
+// Re-check at connect: DNS can be re-pointed at an internal address after add.
+async function checkServer({
+  server,
+  userId,
+}: {
+  server: StoredMCPServer;
+  userId: string;
+}) {
+  if (server.credentialError) {
+    return { server, error: server.credentialError };
+  }
+  const urlCheck = await checkMCPUrl(server.url);
+  if (urlCheck.error !== undefined) {
+    return { server, error: urlCheck.error };
+  }
+  const { url } = urlCheck;
+  if (!server.oauth) {
+    return { server, url };
+  }
+  const redirectUri = oauthRedirectUri('mcp');
+  if (!redirectUri) {
+    return {
+      server,
+      error: 'Sign-in is unavailable: PUBLIC_BASE_URL is not set.',
+    };
+  }
+  if (server.oauth.status !== 'connected') {
+    return {
+      server,
+      error:
+        server.oauth.status === 'needs-auth'
+          ? 'Sign-in expired or was revoked. Press Reconnect on this server in the Home tab.'
+          : 'Not signed in yet. Press Connect on this server in the Home tab.',
+    };
+  }
+  const hosts = await mcpOAuthHosts({ name: server.name, userId });
+  const hostErrors = await Promise.all(
+    hosts.map(async (host) => (await checkMCPUrl(`https://${host}`)).error)
+  );
+  const hostError = hostErrors.find(Boolean);
+  if (hostError) {
+    return { server, error: `Sign-in server rejected: ${hostError}` };
+  }
+  const provider = new MCPServerOAuth({
+    redirectUri,
+    server,
+    userId,
+  });
+  return { server, url, oauth: { hosts, provider } };
+}
+
+// A new MCPClient under the same id disconnects the previous one itself,
+// because the fresh approval functions never compare equal.
 async function buildClient({
   userId,
   servers,
-  stale,
 }: {
   userId: string;
-  servers: MCPServerConfig[];
-  stale: Promise<MCPClient> | undefined;
-}): Promise<MCPClient> {
-  // A previous build that failed has nothing to disconnect.
-  const staleClient = await stale?.catch(() => undefined);
-  if (staleClient) {
-    await staleClient.disconnect().catch((error: unknown) => {
-      logger.debug('[mcp] failed to disconnect stale client', {
-        error,
-        userId,
-      });
-    });
-  }
-  // Re-run the SSRF URL check at connect, not just when the server was added:
-  // a hostname that resolved to a public address at add time can be re-pointed
-  // to an internal one (DNS rebinding), so re-resolve here and drop any that
-  // now fail, surfacing the reason in App Home via lastError.
+  servers: StoredMCPServer[];
+}): Promise<Omit<UserClient, 'unlabelled'>> {
   const checked = await Promise.all(
-    servers.map(async (server) => ({
-      server,
-      error: await findMCPUrlError(server.url),
-    }))
-  );
-  const valid = checked.filter((c) => !c.error).map((c) => c.server);
-  await Promise.all(
-    checked
-      .filter((c) => c.error)
-      .map(({ server, error }) => {
-        logger.warn('[mcp] server failed url revalidation at connect', {
-          error,
-          name: server.name,
-          userId,
-        });
-        return setMCPServerError({
-          userId,
-          name: server.name,
-          error: error ?? null,
-        }).catch((writeError: unknown) => {
-          logger.debug('[mcp] failed to record revalidation error', {
-            error: writeError,
-            name: server.name,
-            userId,
-          });
-        });
-      })
-  );
-
-  const client = new MCPClient({
-    id: `user-mcp-${userId}`,
-    servers: Object.fromEntries(
-      valid.flatMap((server) => {
-        let url: URL;
-        try {
-          url = new URL(server.url);
-        } catch (error) {
-          logger.debug('[mcp] skipping server with invalid url', {
+    servers.map((server) =>
+      checkServer({ server, userId }).catch(
+        (error: unknown): Awaited<ReturnType<typeof checkServer>> => {
+          logger.warn('[mcp] failed to prepare server', {
             error,
             name: server.name,
             userId,
           });
-          return [];
+          return {
+            server,
+            error: "Could not load this server's saved settings.",
+          };
         }
-        return [
-          [
-            server.name,
-            {
-              ...serverConnection({ server, url }),
-              requireToolApproval: approvalFor(server.permission),
-            },
-          ],
-        ] as const;
-      })
+      )
+    )
+  );
+  const rejected = new Map<string, string>();
+  for (const { server, error } of checked) {
+    if (error) {
+      logger.warn('[mcp] server not connected at build', {
+        error,
+        name: server.name,
+        userId,
+      });
+      rejected.set(server.name, error);
+    }
+  }
+
+  const client = new MCPClient({
+    id: `user-mcp-${userId}`,
+    servers: Object.fromEntries(
+      checked
+        .flatMap((check) => (check.url ? [check] : []))
+        .map(({ server, url, oauth }) => [
+          server.name,
+          {
+            ...serverConnection({
+              server,
+              url,
+              ...(oauth ? { oauth } : {}),
+            }),
+            requireToolApproval: approvalFor(server.permission),
+          },
+        ])
     ),
   });
   client.__setLogger(logger);
-  return client;
+  return { client, rejected };
 }
 
 export async function dropClient(userId: string): Promise<void> {
@@ -119,7 +161,7 @@ export async function dropClient(userId: string): Promise<void> {
   }
   clients.delete(userId);
   try {
-    const client = await cached.promise;
+    const { client } = await cached.promise;
     await client.disconnect();
   } catch (error) {
     logger.debug('[mcp] failed to disconnect client on removal', {
@@ -134,8 +176,8 @@ export function resolveClient({
   servers,
 }: {
   userId: string;
-  servers: MCPServerConfig[];
-}): Promise<MCPClient> {
+  servers: StoredMCPServer[];
+}): Promise<UserClient> {
   const key = servers
     .map((server) =>
       [
@@ -145,16 +187,24 @@ export function resolveClient({
         server.token
           ? createHash('sha256').update(server.token).digest('hex').slice(0, 16)
           : '',
+        server.oauth
+          ? `oauth:${server.oauth.status}:${server.oauth.connectedAt?.getTime() ?? ''}`
+          : '',
+        server.credentialError ? 'stopped' : '',
       ].join(' ')
     )
-    .sort((a, b) => (a < b ? -1 : 1))
+    .sort((a, b) => a.localeCompare(b))
     .join('\n');
   const cached = clients.get(userId);
   if (cached && cached.key === key) {
     return cached.promise;
   }
-  const promise = buildClient({ servers, stale: cached?.promise, userId });
-  const entry = { key, promise };
+  const unlabelled = new Set<string>();
+  const promise = buildClient({ servers, userId }).then((built) => ({
+    ...built,
+    unlabelled,
+  }));
+  const entry = { key, promise, unlabelled };
   clients.set(userId, entry);
 
   promise.catch(() => {
@@ -164,4 +214,14 @@ export function resolveClient({
   });
 
   return promise;
+}
+
+export function knownUnlabelled({
+  serverName,
+  userId,
+}: {
+  serverName: string;
+  userId: string;
+}): boolean {
+  return clients.get(userId)?.unlabelled.has(serverName) ?? false;
 }

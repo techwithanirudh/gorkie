@@ -1,16 +1,14 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { getMastra } from '../chat/mastra-instance';
 import { channelContext } from '../lib/context';
-import { rawId } from '../lib/ids';
+import { parseSlackInput } from '../lib/ids';
 import { logger } from '../lib/logger';
-import { input, output } from '../types/tools/index';
 
 export const submitFeedbackTool = createTool({
   id: 'submit_feedback',
   description:
     "Record feedback about gorkie itself so it reaches the maintainers. Use this when someone reports that you're broken or wrong, praises something you did, or asks for a change or new capability. Write the feedback in your own words as a clear, self-contained report: what they were doing, what happened, and what they expected. Do not use this for feedback about anything other than gorkie, and do not use it as a substitute for actually answering the person.",
-  inputSchema: input({
+  inputSchema: z.strictObject({
     kind: z
       .enum(['bug', 'praise', 'suggestion', 'other'])
       .describe(
@@ -23,7 +21,7 @@ export const submitFeedbackTool = createTool({
         'The feedback as a self-contained report: what they were doing, what happened, and what they expected.'
       ),
   }),
-  outputSchema: output({ kind: z.string() }),
+  outputSchema: z.strictObject({ kind: z.string() }),
   transform: {
     display: {
       output: ({ output: result }) => ({
@@ -43,23 +41,24 @@ export const submitFeedbackTool = createTool({
       throw new Error('No active trace to attach this feedback to.');
     }
 
-    const { observability } = getMastra();
-    if (!observability.addFeedback) {
+    const observability = context.mastra?.observability;
+    if (!observability?.addFeedback) {
       throw new Error('Feedback is not supported by this observability setup.');
     }
 
     await observability.addFeedback({
       correlationContext,
       feedback: {
+        comment: body,
         feedbackSource: 'user',
-        feedbackType: kind,
-        feedbackUserId: rawId(ctx.userId),
+        feedbackType: 'report',
+        feedbackUserId: ctx.userId,
         metadata: {
-          channelId: ctx.channelId ? rawId(ctx.channelId) : undefined,
+          channelId: parseSlackInput(ctx.channelId).channel,
           messageId: ctx.messageId,
           threadId: ctx.threadId,
         },
-        value: body,
+        value: kind,
       },
     });
 

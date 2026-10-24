@@ -4,8 +4,8 @@ import type { E2BSandbox } from '@mastra/e2b';
 import { slack } from '../../chat/client';
 import { emoji, image } from '../../config';
 import { viewableImageType } from '../../lib/media';
-import { spendSlackCall } from '../../lib/slack-budget';
 import { sandboxPath } from '../../workspace';
+import { spendSlackCall } from './budget';
 
 let cachedList:
   | { entries: Record<string, string>; expiresAt: number }

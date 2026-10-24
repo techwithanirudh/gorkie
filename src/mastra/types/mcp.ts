@@ -1,15 +1,15 @@
 import { z } from 'zod';
 import type { ApprovalLevel } from './approval';
 
-const TOOL_PERMISSIONS = [
+const toolPermissions = [
   'all',
   'write',
   'delete',
 ] as const satisfies readonly ApprovalLevel[];
 
-export type ToolPermission = (typeof TOOL_PERMISSIONS)[number];
+export type ToolPermission = (typeof toolPermissions)[number];
 
-export const toolPermissionSchema = z.enum(TOOL_PERMISSIONS).catch('write');
+export const toolPermissionSchema = z.enum(toolPermissions);
 
 export const mcpServerSchema = z.object({
   name: z
@@ -23,6 +23,21 @@ export const mcpServerSchema = z.object({
   url: z.url(),
   token: z.string().min(1).max(2000).optional(),
   permission: toolPermissionSchema.default('write'),
+  threads: z.boolean().default(true),
 });
 
 export type MCPServerConfig = z.infer<typeof mcpServerSchema>;
+
+export const mcpOAuthStatusSchema = z.enum([
+  'disconnected',
+  'connected',
+  'needs-auth',
+]);
+
+export type MCPOAuthStatus = z.infer<typeof mcpOAuthStatusSchema>;
+
+export type StoredMCPServer = MCPServerConfig & {
+  credentialError?: string;
+  lastError?: string;
+  oauth?: { connectedAt?: Date; status: MCPOAuthStatus };
+};

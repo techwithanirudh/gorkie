@@ -1,30 +1,45 @@
 import type { Message, Thread } from 'chat';
-import type { CommandHandler } from '../../types';
+import { logger } from '../../lib/logger';
+import type { CommandName } from '../../prompts/commands';
+import type { CommandHandler, ThreadState } from '../../types';
 import { rawText, withoutLeadingMentions } from '../message';
+import { sentBeforeStop } from '../state';
+import { compact } from './compact';
 import { connections } from './connections';
 import { help } from './help';
 import { stop } from './stop';
 
-const commands: Record<string, CommandHandler> = {
-  connections,
-  help,
-  mcps: connections,
-  stop,
-};
+const commands = new Map<string, CommandHandler>(
+  Object.entries({
+    compact,
+    connections,
+    help,
+    stop,
+  } satisfies Record<CommandName, CommandHandler>)
+);
 
 export async function handleCommand({
   message,
+  state,
   thread,
 }: {
   message: Message;
+  state: ThreadState | null;
   thread: Thread;
 }): Promise<boolean> {
   const body = withoutLeadingMentions(rawText(message)).trim();
-  const match = body.match(/^!(\w+)\b/i);
-  const command = match?.[1] ? commands[match[1].toLowerCase()] : undefined;
+  const name = body.match(/^!(\w+)\b/)?.[1]?.toLowerCase();
+  const command = name ? commands.get(name) : undefined;
   if (!command) {
     return false;
   }
-  await command({ message, thread });
+  if (command !== stop && sentBeforeStop({ message, state })) {
+    logger.debug('[commands] dropped, sent before a stop or leave', {
+      messageId: message.id,
+      threadId: thread.id,
+    });
+    return true;
+  }
+  await command({ message, state, thread });
   return true;
 }

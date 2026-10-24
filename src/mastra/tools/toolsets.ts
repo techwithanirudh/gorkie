@@ -1,19 +1,28 @@
+import { env } from '@/env';
+import { agentmailTools } from './agentmail';
+import { readArtifactTool } from './artifacts';
 import { canvasTools } from './canvas';
-import { workspaceCodeMode } from './code-mode/slack';
+import { codeChannelTools } from './code-channel';
+import { codeMode } from './code-mode/slack';
 import { submitFeedbackTool } from './feedback';
 import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
+import { joinHuddleTool, leaveHuddleTool } from './huddle';
+import { huddleDjReplyTool, huddleDjTool } from './huddlefm';
+import { replyTool } from './reply';
+import { runBackgroundTool } from './run-background';
 import { scheduledTaskTools } from './scheduled-tasks';
 import { searchWebTool } from './search-web';
 import { skipTool } from './skip';
 import { slackTools } from './slack';
+import { statusUpdateTool } from './status-update';
 import { uploadEmojiTool } from './upload-emoji';
 import { viewImageTool } from './view-image';
 import { waitTool } from './wait';
 
 export async function orchestratorTools() {
   return {
-    slack: (await workspaceCodeMode()).tool,
+    slack: (await codeMode({ workspaceAccess: true })).tool,
     react: slackTools.react,
     search_slack: slackTools.search_slack,
     read_conversation_history: slackTools.read_conversation_history,
@@ -28,18 +37,35 @@ export async function orchestratorTools() {
     view_image: viewImageTool,
     upload_file: slackTools.upload_file,
     post_message: slackTools.post_message,
+    ask_user: slackTools.ask_user,
+    run_background: runBackgroundTool,
+    read_artifact: readArtifactTool,
+    status_update: statusUpdateTool,
+    reply: replyTool,
     skip: skipTool,
     wait: waitTool,
   };
 }
 
 export const deferredTools = {
+  ...codeChannelTools,
+  ...(env.HUDDLEFM_USER_ID
+    ? { huddle_dj: huddleDjTool, huddle_dj_reply: huddleDjReplyTool }
+    : {}),
+  ...(env.HUDDLE_XOXC
+    ? { join_huddle: joinHuddleTool, leave_huddle: leaveHuddleTool }
+    : {}),
   ...scheduledTaskTools,
+  ...agentmailTools,
   get_channel_info: slackTools.get_channel_info,
   list_channels: slackTools.list_channels,
   list_threads: slackTools.list_threads,
   generate_image: generateImageTool,
-  upload_emoji: uploadEmojiTool,
+  call_slack_api: slackTools.call_slack_api,
+  post_card: slackTools.post_card,
+  ...(env.EMOJI_PROXY_TOKEN
+    ? { upload_emoji: uploadEmojiTool(env.EMOJI_PROXY_TOKEN) }
+    : {}),
   submit_feedback: submitFeedbackTool,
   ...canvasTools,
 };
