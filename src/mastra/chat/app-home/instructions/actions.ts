@@ -3,6 +3,7 @@ import {
   getUserSettings,
   updateUserSettings,
 } from '../../../db/queries/settings';
+import { isBlocked } from '../../moderation';
 import { publishHome, refreshHome } from '../view';
 import { ids } from './ids';
 
@@ -10,6 +11,9 @@ export function registerCustomInstructions(): void {
   const bot = Chat.getSingleton();
 
   bot.onAction(ids.edit, async (event) => {
+    if (await isBlocked(event.user.userId)) {
+      return;
+    }
     const { instructions } = await getUserSettings(event.user.userId);
     await event.openModal(
       Modal({
@@ -40,6 +44,9 @@ export function registerCustomInstructions(): void {
   });
 
   bot.onModalSubmit(ids.modal, async (event) => {
+    if (await isBlocked(event.user.userId)) {
+      return;
+    }
     const instructions = event.values.instructions?.trim();
     await updateUserSettings({
       set: { instructions: instructions || null },

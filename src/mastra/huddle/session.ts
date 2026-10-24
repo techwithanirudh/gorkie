@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { voiceAgent } from '../agents/voice';
 import { slack } from '../chat/client';
 import { getMastra } from '../chat/mastra-instance';
+import { isBlocked } from '../chat/moderation';
 import { huddle as config } from '../config';
 import { logger } from '../lib/logger';
 import { resolveUserProfile } from '../tools/slack/get-user';
@@ -516,20 +517,40 @@ export class HuddleSession implements LiveHuddle {
     if (!turn.transcript) {
       return;
     }
-    const name = this.lastSpeaker
-      ? this.names.get(this.lastSpeaker)
-      : undefined;
+    const speaker = this.lastSpeaker;
+    const { transcript } = turn;
+    // Everyone in the call runs as the inviter, so each speaker has to be
+    // someone gorkie would answer in text. An unattributed turn falls back to
+    // the inviter, who is re-checked here in case they were banned mid-call.
+    isBlocked(speaker ?? this.actingAs)
+      .then((blocked) => {
+        if (blocked) {
+          logger.info('[huddle] ignored a banned or non-opted-in speaker', {
+            callId: this.callId,
+            speaker,
+          });
+          return;
+        }
+        this.hear(transcript, speaker);
+      })
+      .catch((error: unknown) =>
+        logger.warn('[huddle] could not check the speaker', { error })
+      );
+  }
+
+  private hear(transcript: string, speaker: string | undefined) {
+    const name = speaker ? this.names.get(speaker) : undefined;
     const addressed =
       this.others <= 1 ||
-      wakeWord.test(turn.transcript) ||
+      wakeWord.test(transcript) ||
       Date.now() - this.lastSpokeAt < config.unnamedReplyWindow;
     if (addressed) {
-      this.unsaved.push(name ? `${name}: ${turn.transcript}` : turn.transcript);
+      this.unsaved.push(name ? `${name}: ${transcript}` : transcript);
     }
     voiceAgent
       .sendMessage(
         {
-          contents: turn.transcript,
+          contents: transcript,
           attributes: name ? { name } : undefined,
         },
         this.delivery(addressed)

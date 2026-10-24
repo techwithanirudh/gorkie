@@ -1,5 +1,5 @@
 import { env } from '@/env';
-import { optInStatus } from '../chat/allowed-users';
+import { isBlocked } from '../chat/moderation';
 import { parseSlackInput } from '../lib/ids';
 import { logger } from '../lib/logger';
 import type { HuddleEvent, JoinedHuddle } from '../types';
@@ -53,7 +53,7 @@ export async function joinHuddle({
   if ([...liveHuddles.values()].some((live) => live.channelId === channel)) {
     return false;
   }
-  if ((await optInStatus(requesterId)) !== 'allowed') {
+  if (await isBlocked(requesterId)) {
     throw new Error('Only opted-in members can bring gorkie into a huddle.');
   }
   const { slack, apiKey } = huddles;
@@ -89,9 +89,9 @@ export async function startHuddles(): Promise<void> {
     }
     joining.add(event.callId);
     try {
-      if ((await optInStatus(event.inviterId)) !== 'allowed') {
+      if (await isBlocked(event.inviterId)) {
         logger.info(
-          '[huddle] ignored invite from a user outside the allowlist',
+          '[huddle] ignored invite from a banned or non-opted-in user',
           { inviterId: event.inviterId }
         );
         return;
