@@ -28,7 +28,6 @@ import type {
 } from '../types';
 import { ChimeLink, opusFrameSamples } from './chime/link';
 import { DeepgramVoice } from './deepgram';
-import { splitSpeakable, toSpeech } from './speech';
 
 const frameMs = 20;
 const speakingAttenuation = 36;
@@ -92,9 +91,6 @@ export class HuddleSession implements LiveHuddle {
   // `flushing` covers the gap between the last text and Flux's first audio,
   // when nothing is queued yet but a reply is still coming.
   private ttsTurn: 'idle' | 'open' | 'flushing' = 'idle';
-  // Reply text held back until a line or sentence ends, so markdown is
-  // whole when it is stripped.
-  private unspoken = '';
   // Utterances sent to a run whose first step has not finished, which is
   // when `savePerStep` writes them. A barge-in before then loses them.
   private unsaved: string[] = [];
@@ -315,11 +311,7 @@ export class HuddleSession implements LiveHuddle {
       }
       if (chunk.type === 'text-delta') {
         if (chunk.payload.text) {
-          const { ready, rest } = splitSpeakable(
-            this.unspoken + chunk.payload.text
-          );
-          this.unspoken = rest;
-          this.say(ready);
+          this.voice.say(chunk.payload.text);
           this.ttsTurn = 'open';
         }
         continue;
@@ -332,18 +324,9 @@ export class HuddleSession implements LiveHuddle {
         (chunk.type === 'finish' || chunk.type === 'error') &&
         this.ttsTurn === 'open'
       ) {
-        this.say(this.unspoken);
-        this.unspoken = '';
         this.voice.flush();
         this.ttsTurn = 'flushing';
       }
-    }
-  }
-
-  private say(markdown: string) {
-    const speech = toSpeech(markdown);
-    if (speech) {
-      this.voice.say(`${speech} `);
     }
   }
 
@@ -570,7 +553,6 @@ export class HuddleSession implements LiveHuddle {
     this.playback = [];
     this.playbackOffset = 0;
     this.ttsTurn = 'idle';
-    this.unspoken = '';
     this.unheardTurns = this.unsaved.splice(0);
   }
 
