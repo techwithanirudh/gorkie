@@ -57,6 +57,10 @@ async function preferLastWorking(
 
 function ladder(agentKey: string): ModelWithRetries[] {
   return [
+    // Claude 5.1 first: strongest at agentic coding and long-horizon tool use,
+    // which is the shape of every task here. It is also the priciest rung by far
+    // ($10/$50 per MTok), so the cheap models below still absorb fallback traffic.
+    { model: hackclub(env.ANTHROPIC_MODEL), maxRetries: 3 },
     { ...opencode('deepseek-v4.1-flash', agentKey), maxRetries: 3 },
     { ...opencode('glm-5.3-flash', agentKey), maxRetries: 3 },
     { ...opencode('gpt-6-luna', agentKey), maxRetries: 3 },
@@ -69,6 +73,7 @@ const orchestratorModels = ladder('orchestrator');
 export const orchestrator = () => preferLastWorking(orchestratorModels);
 
 export const summarizer: ModelWithRetries[] = [
+  // Summarizing is a short, cheap job; Claude stays out of the fallback chain.
   { ...opencode('mimo-v2.6-flash', 'summarizer'), maxRetries: 3 },
   { model: hackclub('google/gemini-3.5-flash-lite'), maxRetries: 3 },
 ];
