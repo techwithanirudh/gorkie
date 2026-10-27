@@ -24,6 +24,12 @@ export const env = createEnv({
     HACKCLUB_API_KEY: z.string().min(1),
     OPENCODE_API_KEY: z.string().min(1),
 
+    // Claude 5.1 family, served through the OpenRouter-compatible proxy.
+    // Mythos 5.1 is invite-only (Project Glasswing / Cyber & Life Sciences
+    // verification), so the default is its publicly available twin, Fable 5.1.
+    // Operators with Mythos access can set 'anthropic/claude-mythos-5-1'.
+    ANTHROPIC_MODEL: z.string().default('anthropic/claude-fable-5-1'),
+
     DATABASE_URL: z.url(),
 
     LANGFUSE_BASE_URL: z.string().default('https://cloud.langfuse.com'),
