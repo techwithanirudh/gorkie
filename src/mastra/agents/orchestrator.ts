@@ -8,6 +8,7 @@ import { Memory } from '@mastra/memory';
 import { skillResultRedactor } from '@mastra/memory/hooks';
 import { Chat } from 'chat';
 import { toolDisplay } from '../chat/activity';
+import { FollowingStateAdapter } from '../chat/following-state';
 import { slack } from '../chat/client';
 import {
   onAction,
@@ -190,6 +191,7 @@ export const orchestrator = new Agent({
   }),
   channels: {
     tools: false,
+    state: new FollowingStateAdapter(),
     chatOptions: {
       fallbackStreamingPlaceholderText: 'working...',
       logger: chatLogger,
