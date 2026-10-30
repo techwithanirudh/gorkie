@@ -151,6 +151,12 @@ async function runTurn({
     context.requestContext.set('slackSearchActionToken', token);
   }
   await defaultHandler(thread, message);
+  // MastraStateAdapter.subscribe() does nothing until channels has created the
+  // memory thread, which happens inside defaultHandler, so the subscribe above
+  // is lost on a thread's first turn. Re-read state so leave_thread still wins.
+  if (follow && (await threadStateOrNull(thread))?.respondOnThreadMessages) {
+    await thread.subscribe();
+  }
   if (!thread.isDM) {
     await setThreadState({ thread, patch: { lastSeenMessage: message.id } });
   }
@@ -196,7 +202,16 @@ async function answer({
   if (await handleCommand({ message, state, thread })) {
     return;
   }
-  await runTurn({ context, defaultHandler, follow, message, state, thread });
+  // A thread we follow but are not subscribed to (the first-turn bug above)
+  // routes here; following it again heals the subscription.
+  await runTurn({
+    context,
+    defaultHandler,
+    follow: follow || state?.respondOnThreadMessages === true,
+    message,
+    state,
+    thread,
+  });
 }
 
 export const onMention: ChannelHandler = (
