@@ -5,11 +5,14 @@ import { threadState } from '../chat/state';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
 
-const slackMessage = z.object({
+const signalMessage = z.object({
   content: z.looseObject({
     metadata: z.looseObject({
       signal: z.looseObject({
-        attributes: z.looseObject({ messageId: z.string() }),
+        attributes: z.looseObject({
+          messageId: z.string().optional(),
+          status: z.string().optional(),
+        }),
       }),
     }),
   }),
@@ -36,17 +39,23 @@ export const staleMessages = {
         return null;
       })
     )?.dropMessagesBefore;
-    if (!cutoff) {
-      return messageList;
-    }
     const input = messageList.get.input.db();
     const stale = input
       .filter((message) => {
-        const ts =
-          slackMessage.safeParse(message).data?.content.metadata.signal
-            .attributes.messageId;
+        const attributes =
+          signalMessage.safeParse(message).data?.content.metadata.signal
+            .attributes;
+        // A cancelled task was stopped on purpose, so waking for it would only
+        // restart the work.
+        if (attributes?.status === 'cancelled') {
+          return true;
+        }
         // Slack message ids are the message timestamp in epoch seconds.
-        return ts !== undefined && Number(ts) * 1000 < cutoff;
+        return (
+          cutoff !== undefined &&
+          attributes?.messageId !== undefined &&
+          Number(attributes.messageId) * 1000 < cutoff
+        );
       })
       .map((message) => message.id);
     if (stale.length === 0) {

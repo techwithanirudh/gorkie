@@ -1,5 +1,9 @@
 --- a/dist/agent-BP9OWM6D.js
 +++ b/dist/agent-BP9OWM6D.js
+@@ -4504,2 +4504,3 @@
+ async function isWorkflowRunCanceled(engine, workflowId, runId) {
++	if (/-(input|output)-processor$/.test(workflowId) || !Object.values(engine.mastra?.listWorkflows?.() ?? {}).some((workflow) => workflow.id === workflowId)) return false;
+ 	try {
 @@ -17153,6 +17153,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
@@ -428,6 +432,10 @@
  								if (chunk.type === "text-delta") fullText += chunk.textDelta;
 --- a/dist/agent-3djrMSaa.cjs
 +++ b/dist/agent-3djrMSaa.cjs
+@@ -4507,2 +4507,3 @@
+ async function isWorkflowRunCanceled(engine, workflowId, runId) {
++	if (/-(input|output)-processor$/.test(workflowId) || !Object.values(engine.mastra?.listWorkflows?.() ?? {}).some((workflow) => workflow.id === workflowId)) return false;
+ 	try {
 @@ -17156,6 +17156,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0

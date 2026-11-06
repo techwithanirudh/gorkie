@@ -23,6 +23,7 @@ const markers = [
   'rendersToolsInPlan || toolDisplayFn',
   'stepIsContinued',
   'id: "continued"',
+  '-(input|output)-processor$/.test(workflowId)',
 ];
 
 const stockContracts = ['"__mastra_chat_channel_render"'];
