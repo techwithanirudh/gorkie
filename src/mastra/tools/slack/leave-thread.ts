@@ -23,7 +23,10 @@ export const leaveThreadTool = createTool({
       throw new Error('No current thread.');
     }
     const thread = chat().thread(threadId);
-    await thread.setState({ respondOnThreadMessages: false });
+    await thread.setState({
+      dropMessagesBefore: Date.now(),
+      respondOnThreadMessages: false,
+    });
     await thread.unsubscribe();
     return { threadId };
   },

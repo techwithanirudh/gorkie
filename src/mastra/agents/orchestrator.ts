@@ -23,6 +23,7 @@ import { stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
 import { delegatedTools } from '../processors/delegated-tools';
 import { sandbox } from '../processors/sandbox';
+import { staleMessages } from '../processors/stale-messages';
 import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
@@ -137,6 +138,7 @@ const orchestrator = new Agent({
   }),
   workspace,
   inputProcessors: [
+    staleMessages,
     new ToolSearchProcessor({
       tools: deferredTools,
       storage: 'context',

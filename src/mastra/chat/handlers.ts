@@ -80,6 +80,14 @@ export async function onSubscribedMessage(
     return;
   }
   const state = await threadState(thread);
+  // A stop or leave_thread sets the cutoff, so anything sent before it was
+  // meant for the turn that got stopped.
+  if (
+    state?.dropMessagesBefore &&
+    message.metadata.dateSent.getTime() < state.dropMessagesBefore
+  ) {
+    return;
+  }
   const isFollowingThread = state?.respondOnThreadMessages === true;
   if (!(isFollowingThread || message.isMention)) {
     return;
