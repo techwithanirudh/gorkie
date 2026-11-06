@@ -45,6 +45,10 @@ runs commands and inspects files without touching the host machine.
 - [Observational Memory][om] compresses a long conversation into an
   observation log instead of carrying the full raw history.
 - Mastra Observability tracing, stored locally in DuckDB.
+- Optional huddle voice: invite gorkie's huddle user to a Slack huddle and
+  talk to it. Deepgram handles speech both ways, a small voice agent with a
+  short prompt does the talking, and research or explore run in the
+  background when a question needs real work. See [docs/huddles.md](./docs/huddles.md).
 
 See [TODO.md](./TODO.md) for open work and known issues.
 
@@ -119,6 +123,11 @@ local database named `gorkie`. Mastra creates its tables on first run.
 | `GITHUB_APP_CLIENT_SECRET` | yes | GitHub App client secret, used to refresh expiring user tokens |
 | `EXA_API_KEY` | yes | Exa key, powers `search_web`/`fetch_url` |
 | `AGENTMAIL_API_KEY` | no | Lets the sandbox reach the AgentMail API as `gorkie@agentmail.to`, without the key entering the sandbox |
+| `DEEPGRAM_API_KEY` | no | Huddle voice: Deepgram key for speech to text and text to speech. See [docs/huddles.md](./docs/huddles.md) |
+| `HUDDLE_WORKSPACE_URL` | no | Huddle voice: workspace URL, e.g. `https://example.slack.com` |
+| `HUDDLE_XOXC` | no | Huddle voice: browser session token of the dedicated huddle user |
+| `HUDDLE_XOXD` | no | Huddle voice: that session's `d` cookie |
+| `HUDDLE_MEDIA_REGION` | no | Huddle voice: Chime media region, defaults to `us-east-1` |
 
 See [`.env.example`](./.env.example) for the full annotated list.
 

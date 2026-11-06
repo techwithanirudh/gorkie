@@ -232,3 +232,27 @@
  		this.prefix = prefix;
  		this.callId = callId;
  		this.name = name;
+--- a/dist/storage-IfYkgmov.js
++++ b/dist/storage-IfYkgmov.js
+@@ -2057,7 +2057,8 @@
+ 			try {
+ 				const output = await agent.stream(signal, {
+ 					...target.ifIdle?.streamOptions,
+-					untilIdle: true,
++					// gorkie: let the caller opt out of the idle continuation loop.
++					untilIdle: target.ifIdle?.streamOptions?.untilIdle ?? true,
+ 					runId: reservedRunId,
+ 					memory: withThreadMemory(target.ifIdle?.streamOptions?.memory, resourceId, threadId)
+ 				});
+--- a/dist/storage-yiLXpgHV.cjs
++++ b/dist/storage-yiLXpgHV.cjs
+@@ -2057,7 +2057,8 @@
+ 			try {
+ 				const output = await agent.stream(signal, {
+ 					...target.ifIdle?.streamOptions,
+-					untilIdle: true,
++					// gorkie: let the caller opt out of the idle continuation loop.
++					untilIdle: target.ifIdle?.streamOptions?.untilIdle ?? true,
+ 					runId: reservedRunId,
+ 					memory: withThreadMemory(target.ifIdle?.streamOptions?.memory, resourceId, threadId)
+ 				});
