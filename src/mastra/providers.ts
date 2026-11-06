@@ -1,24 +1,12 @@
 import type { ModelWithRetries } from '@mastra/core/agent';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { env } from '@/env';
-import { channelContext } from './lib/context';
 import { recallModel, slugOf } from './lib/working-model';
 
 export const hackclub = createOpenRouter({
   apiKey: env.HACKCLUB_API_KEY,
   baseURL: 'https://ai.hackclub.com/proxy/v1',
 });
-
-function opencode(modelId: string, fallbackSession: string): ModelWithRetries {
-  return {
-    model: `opencode-go/${modelId}`,
-    headers: ({ requestContext }) => ({
-      'user-agent': 'gorkie/1.0',
-      'x-opencode-session':
-        channelContext(requestContext).threadId ?? `gorkie:${fallbackSession}`,
-    }),
-  };
-}
 
 function modelSlug(entry: ModelWithRetries): string | undefined {
   const { model } = entry;
@@ -55,31 +43,21 @@ async function preferLastWorking(
   return matches.length ? [...matches, ...rest] : models;
 }
 
-function ladder(agentKey: string): ModelWithRetries[] {
-  return [
-    { ...opencode('deepseek-v4.1-flash', agentKey), maxRetries: 3 },
-    { ...opencode('glm-5.3-flash', agentKey), maxRetries: 3 },
-    { ...opencode('gpt-6-luna', agentKey), maxRetries: 3 },
-    { model: hackclub('deepseek/deepseek-v4.1-flash'), maxRetries: 3 },
-  ];
-}
+const agentModels: ModelWithRetries[] = [
+  { model: 'vercel/vmc/gorkie', maxRetries: 3 },
+  { model: hackclub('deepseek/deepseek-v4.1-flash'), maxRetries: 3 },
+];
 
-const orchestratorModels = ladder('orchestrator');
-
-export const orchestrator = () => preferLastWorking(orchestratorModels);
+export const orchestrator = () => preferLastWorking(agentModels);
 
 export const summarizer: ModelWithRetries[] = [
-  { ...opencode('mimo-v2.6-flash', 'summarizer'), maxRetries: 3 },
+  { model: 'vercel/vmc/gorkie', maxRetries: 3 },
   { model: hackclub('google/gemini-3.5-flash-lite'), maxRetries: 3 },
 ];
 
-const scoutModels = ladder('research');
+export const scout = () => preferLastWorking(agentModels);
 
-export const scout = () => preferLastWorking(scoutModels);
-
-const explorerModels = ladder('explore');
-
-export const explorer = () => preferLastWorking(explorerModels);
+export const explorer = () => preferLastWorking(agentModels);
 
 export const images = {
   model: hackclub('google/gemini-3.1-flash-image', {

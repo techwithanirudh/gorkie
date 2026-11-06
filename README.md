@@ -53,8 +53,8 @@ See [TODO.md](./TODO.md) for open work and known issues.
 - [Bun][bun] and TypeScript
 - [Mastra][mastra], agent runtime + [channels][channels]
 - [Vercel Chat SDK][chat-sdk] with `@chat-adapter/slack` (via Mastra channels)
-- Model routing across the [Hack Club][hackclub] proxy and opencode.ai, which
-  falls back per gateway when one fails
+- Model routing through the [Vercel AI Gateway][ai-gateway] `vmc/gorkie` config,
+  falling back to the [Hack Club][hackclub] proxy when the gateway fails
 - [E2B][e2b] sandbox sessions
 - [Exa][exa] for web search and page fetching
 - [PostgreSQL][postgres] via `@mastra/pg`
@@ -66,7 +66,7 @@ Create a new [Slack app](https://api.slack.com/apps) from a manifest using
 [`slack-manifest.json`](./slack-manifest.json), which turns on Socket Mode,
 the App Home, scopes, and event subscriptions. You also need [Bun][bun], a
 [PostgreSQL][postgres] database, an [E2B][e2b] API key, an [Exa][exa] API key,
-and model keys for both [Hack Club][hackclub] and [OpenCode][opencode].
+and model keys for both [Vercel AI Gateway][ai-gateway] and [Hack Club][hackclub].
 
 ```bash
 # Clone this repository
@@ -106,8 +106,8 @@ local database named `gorkie`. Mastra creates its tables on first run.
 | `SLACK_APP_TOKEN` | yes | App-level token with `connections:write` (`xapp-…`) |
 | `SLACK_USER_TOKEN` | yes | Slack user token, not the bot token, used for public-channel search. Mint it with `search:read.public` only; gorkie verifies the granted scopes on first use and refuses the token if it also carries `search:read.im`, `search:read.mpim`, or `search:read.private`. See [docs/slack-search.md](docs/slack-search.md) |
 | `OPT_IN_CHANNEL` | no | Slack channel id gating access to members only (opt-in allowlist); unset means everyone is allowed |
-| `HACKCLUB_API_KEY` | yes | Hack Club AI proxy key, tried for every model |
-| `OPENCODE_API_KEY` | yes | opencode.ai/zen gateway key, tried alongside Hack Club |
+| `AI_GATEWAY_API_KEY` | yes | Vercel AI Gateway key, used for the `vmc/gorkie` model config |
+| `HACKCLUB_API_KEY` | yes | Hack Club AI proxy key, the fallback and the image model |
 | `DATABASE_URL` | yes | Postgres connection string |
 | `LANGFUSE_PUBLIC_KEY` | yes | Langfuse public key. Tracing is the only production exporter, so the agent refuses to start without it |
 | `LANGFUSE_SECRET_KEY` | yes | Langfuse secret key |
@@ -167,7 +167,7 @@ bun run check:spelling
 [e2b]: https://e2b.dev
 [exa]: https://exa.ai
 [hackclub]: https://ai.hackclub.com
-[opencode]: https://opencode.ai/docs/zen
+[ai-gateway]: https://vercel.com/docs/ai-gateway
 [postgres]: https://www.postgresql.org
 [duckdb]: https://duckdb.org
 [bun]: https://bun.sh

@@ -33,7 +33,7 @@ export const image = {
 
 export const agent = {
   id: 'orchestrator',
-  maxTokens: { input: 1_000_000, output: 65_536 },
+  maxTokens: { input: 1_000_000, output: 64_000 },
   maxSteps: 1000,
   modelTimeout: { firstChunkMs: 2 * 60 * 1000, stepMs: 5 * 60 * 1000 },
 };

@@ -22,7 +22,7 @@ export const env = createEnv({
     OPT_IN_CHANNEL: z.string().optional(),
 
     HACKCLUB_API_KEY: z.string().min(1),
-    OPENCODE_API_KEY: z.string().min(1),
+    AI_GATEWAY_API_KEY: z.string().min(1),
 
     DATABASE_URL: z.url(),
 
