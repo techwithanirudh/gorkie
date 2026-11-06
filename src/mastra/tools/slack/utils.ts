@@ -94,9 +94,11 @@ export function assertCanPostTo({
     throw new Error('No current Slack channel to compare against.');
   }
 
+  // parseSlackId is what the tools post with, so a permalink inside a thread id
+  // cannot pass this check and then post somewhere else.
   const destination =
     target.type === 'thread'
-      ? slack.decodeThreadId(target.id).channel
+      ? (parseSlackId(target.id).channel ?? '')
       : target.id;
   if (rawId(destination) !== rawId(ctx.channelId)) {
     throw new Error(
@@ -162,4 +164,15 @@ export function formatMessage(message: Message) {
       url: a.url,
     })),
   };
+}
+
+// A remote file's url_private can be any host, and must never get a Slack token.
+export function assertSlackFileHost(url: string): void {
+  const { hostname, protocol } = new URL(url);
+  if (
+    protocol !== 'https:' ||
+    !(hostname === 'slack.com' || hostname.endsWith('.slack.com'))
+  ) {
+    throw new Error('That file is hosted outside Slack, so it cannot be read.');
+  }
 }

@@ -1,11 +1,9 @@
-import { usage } from '../../lib/limits';
+import { usage, usageLine } from '../../lib/limits';
 import { logger } from '../../lib/logger';
 import type { CommandHandler } from '../../types';
 
 export const limits: CommandHandler = async ({ message, thread }) => {
-  const lines = (await usage(message.author.userId)).map(
-    ({ max, noun, used }) => `• ${noun}: ${used} of ${max}`
-  );
+  const lines = (await usage(message.author.userId)).map(usageLine);
   await thread
     .postEphemeral(
       message.author,

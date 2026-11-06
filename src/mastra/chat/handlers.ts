@@ -97,7 +97,7 @@ async function refusedByLimit({
   thread: Thread;
 }): Promise<boolean> {
   const refused = await overLimit({
-    kind: 'messages',
+    kind: 'tokens',
     userId: message.author.userId,
   });
   if (!refused) {
@@ -106,7 +106,7 @@ async function refusedByLimit({
   logger.info('[chat] message limit reached', { threadId: thread.id });
   await thread.postEphemeral(
     message.author,
-    "You've hit the hourly message limit, so I'm skipping this one. Try again later.",
+    "You've hit your hourly usage limit, so I'm skipping this one. See `!limits`, and try again later.",
     { fallbackToDM: false }
   );
   return true;

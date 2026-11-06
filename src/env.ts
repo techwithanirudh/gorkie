@@ -16,6 +16,7 @@ export const env = createEnv({
     // Anything anchored to it lands in the wrong directory.
     PROJECT_ROOT: z.string().default(process.cwd()),
 
+    HOST: z.string().default('127.0.0.1'),
     SLACK_BOT_TOKEN: z.string().min(1),
     SLACK_APP_TOKEN: z.string().min(1),
     SLACK_USER_TOKEN: z.string().min(1),

@@ -69,7 +69,7 @@ export const onSlashCommand: SlashCommandChannelHandler = async (
       await reply({ raw: event.raw, text: "You can't use Gorkie right now." });
       return;
     }
-    if (await overLimit({ kind: 'messages', userId: actorId })) {
+    if (await overLimit({ kind: 'tokens', userId: actorId })) {
       await reply({
         raw: event.raw,
         text: "You've hit the hourly message limit. Try again later.",

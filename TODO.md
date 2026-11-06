@@ -87,6 +87,12 @@ Three surfaces that are shipped, reachable by real people, and never verified en
 
 ## Customization
 
+- [x] **Token limits replace message limits.** `processors/token-usage.ts` counts uncached input plus output per run against the requester, on the orchestrator and both subagents, with a limit of 1M per hour. For scale, one 30 minute, 42 step run used 3.25M input (2.87M cached) and 67k output, so about 445k by this count. Sends are no longer limited. App Home and `!limits` show text progress bars. Totals reset on restart.
+
+- [x] **Audit fixes.** `read_canvas` and `get_slack_file` refuse non-Slack hosts before sending the bot token. `upload_file` checks the channel it will actually post to and neutralizes group pings in its comment. Sandbox ports are no longer public. The API binds to `HOST`, default loopback. Scheduled fires now check opt-in and usage. A reconnecting sandbox now clears leftover GitHub credential rules. Not yet fixed: approval cards when no requester is known, schedule tools scoped to the thread owner, git hooks and default branch checks, opt-in manifest gaps, `PROJECT_ROOT` startup crash, stale docs.
+
+- [x] **Prompt encourages charts, tables, cards and images** in `prompts/slack.ts`.
+
 - [x] **Thread state survives restarts (issue #38).** `chat/state.ts` stores it in Mastra's `threadState` domain under the type `gorkie:chat`, with a write-through cache because one process serves Slack. `rootMentionsBot` stays only for threads from before this. The domain is internal and typed for `task` and `goal`, so a Mastra upgrade could break it. Hourly limits and pending sends remain in memory. `skillResultRedactor` is on Observational Memory, the other half of the issue.
 
 - [x] **Turns finish before shutdown.** `chat/turn-drain.ts` from `development`, because `server.drainTimeout` only covers HTTP and evented workflows. 120s in production, 10s in dev. Mastra cancels background tasks on shutdown, so a running subagent still dies on deploy. A process manager's stop timeout must exceed twice the window. `toolApprovers` needed no change: it defaults to the requester.

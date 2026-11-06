@@ -34,7 +34,8 @@ const isProduction = env.NODE_ENV === 'production';
 export const mastra = new Mastra({
   agents: { orchestrator, summarizer, research, explore },
   workers: [new TurnDrainWorker()],
-  server: { drainTimeout: shutdown.drainTimeoutMs },
+  // Socket Mode needs no inbound traffic, and this API has no auth of its own.
+  server: { drainTimeout: shutdown.drainTimeoutMs, host: env.HOST },
   backgroundTasks: {
     enabled: true,
     backpressure: 'queue',

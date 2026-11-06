@@ -6,7 +6,6 @@ import { assertCanSendTo, deliver, offerSend } from '../../chat/send';
 import { targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
 import { parseSlackId, rawId } from '../../lib/ids';
-import { assertWithinLimit } from '../../lib/limits';
 import { input, output } from '../../types/tools/index';
 
 function destinationOf(target: z.infer<typeof targetSchema>) {
@@ -57,10 +56,6 @@ The message goes out with the person's avatar, named "Name [gorkie]", with a "Se
     if (!(ctx.userId && ctx.channelId)) {
       throw new Error('Sending on behalf needs a person here to confirm it.');
     }
-    await assertWithinLimit({
-      kind: 'send',
-      requestContext: context?.requestContext,
-    });
     const destination = destinationOf(target);
     const previewChannel = rawId(ctx.channelId);
     if (destination.channel) {

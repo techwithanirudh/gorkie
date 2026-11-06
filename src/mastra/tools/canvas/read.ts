@@ -5,7 +5,7 @@ import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
-import { assertReadableResource } from '../slack/utils';
+import { assertReadableResource, assertSlackFileHost } from '../slack/utils';
 import { canvasIdSchema } from './utils';
 
 export const readCanvasTool = createTool({
@@ -45,6 +45,7 @@ export const readCanvasTool = createTool({
         `Could not resolve a content URL for canvas ${canvasId}. It may have been deleted, or the bot may not have access to it.`
       );
     }
+    assertSlackFileHost(url);
     const response = await fetch(url, {
       headers: { authorization: `Bearer ${env.SLACK_BOT_TOKEN}` },
     });

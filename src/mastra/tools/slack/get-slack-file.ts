@@ -9,7 +9,7 @@ import { sh } from '../../lib/utils';
 import { input, output } from '../../types/tools/index';
 import { sandboxPath as p, requireSandbox } from '../../workspace';
 import { downloadEmoji } from './emoji';
-import { assertReadableResource } from './utils';
+import { assertReadableResource, assertSlackFileHost } from './utils';
 
 function formatBytes(value: number): string {
   if (value < 1024 * 1024) {
@@ -172,6 +172,7 @@ export const getSlackFileTool = createTool({
         url,
       });
     };
+    assertSlackFileHost(url);
     const expectedSize =
       fileInfo?.size ??
       (await fetch(url, {

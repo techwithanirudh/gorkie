@@ -37,6 +37,7 @@ import { progress } from '../processors/progress';
 import { sandbox } from '../processors/sandbox';
 import { staleMessages } from '../processors/stale-messages';
 import { stepGuard } from '../processors/step-guard';
+import { tokenUsage } from '../processors/token-usage';
 import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
@@ -188,6 +189,7 @@ const orchestrator = new Agent({
     delegatedTools,
     progress,
     sandbox,
+    tokenUsage,
     turnFooter,
     workingModel(config.id),
   ],

@@ -2,7 +2,9 @@ import type { Mastra } from '@mastra/core/mastra';
 import type { SchedulePrepareContext } from '@mastra/core/schedules';
 import { z } from 'zod';
 import { banStatus } from './chat/moderation/gate';
+import { isUserAllowed } from './lib/allowed-users';
 import { rawId } from './lib/ids';
+import { overLimit } from './lib/limits';
 import { logger } from './lib/logger';
 
 const slackUserId = z.string().regex(/^[UW][A-Z0-9]+$/);
@@ -41,6 +43,16 @@ export async function prepareScheduledFire({
   // schedule fires again on its next tick.
   if ((await banStatus(creator)).status !== 'clear') {
     logger.info("[schedules] skipped a banned user's fire", {
+      scheduleId: schedule.id,
+      userId: creator,
+    });
+    return null;
+  }
+  if (
+    !(await isUserAllowed(creator)) ||
+    (await overLimit({ kind: 'tokens', userId: creator }))
+  ) {
+    logger.info('[schedules] skipped a fire for opt-in or usage', {
       scheduleId: schedule.id,
       userId: creator,
     });

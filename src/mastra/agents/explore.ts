@@ -11,6 +11,7 @@ import { stepCountIs } from '../lib/tools';
 import { runLimits } from '../processors/run-limits';
 import { sandbox } from '../processors/sandbox';
 import { stepGuard } from '../processors/step-guard';
+import { tokenUsage } from '../processors/token-usage';
 import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
 import * as explore from '../prompts/agents/explore';
@@ -64,5 +65,5 @@ export const exploreAgent = new Agent({
     stopWhen: stepCountIs(subagent.maxSteps + 1),
     autoResumeSuspendedTools: true,
   },
-  outputProcessors: [stepGuard, sandbox, workingModel('explore')],
+  outputProcessors: [stepGuard, tokenUsage, sandbox, workingModel('explore')],
 });
