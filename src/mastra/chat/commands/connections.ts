@@ -9,11 +9,16 @@ export const connections: CommandHandler = async ({ message, thread }) => {
 
   try {
     const github = await githubAccess({ isDM: thread.isDM, userId });
-    items.push(
-      `• github: ${github.state === 'connected' ? `connected via ${github.credential.kind}` : 'not connected'}`
-    );
+    let status = 'could not read it right now';
+    if (github.state === 'connected') {
+      status = `connected via ${github.credential.kind}`;
+    } else if (github.state === 'disconnected') {
+      status = 'not connected';
+    }
+    items.push(`• github: ${status}`);
   } catch (error) {
     logger.warn('[commands] failed to read github status', { error, userId });
+    items.push('• github: could not read it right now');
   }
 
   try {

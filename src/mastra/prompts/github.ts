@@ -21,5 +21,5 @@ export async function githubPrompt({
     return '<github>\nGitHub is not connected for the person asking, so no github_ tool can run. Point them at Home in App Home to sign in.\n</github>';
   }
 
-  return `<github>\nGitHub is connected for the person asking, as ${access.credential.login}. Every github_ tool is already loaded; do not search for one and do not suggest connecting. A tool that refuses explains why and what to do instead, so follow what it hands back rather than looking for another way through.\n</github>`;
+  return `<github>\nGitHub is connected for the person asking, as ${access.credential.login}. Every github_ tool is already loaded; do not search for one and do not suggest connecting. If you have no github_ tools despite this, they failed to load: say GitHub tools could not load just now and to try again shortly. A tool that refuses explains why and what to do instead, so follow what it hands back rather than looking for another way through.\n</github>`;
 }

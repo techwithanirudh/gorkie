@@ -29,6 +29,7 @@ export const listChannelsTool = createTool({
       })
     ),
     nextCursor: z.string().optional(),
+    note: z.string().optional(),
   }),
   transform: {
     display: {
@@ -70,9 +71,14 @@ export const listChannelsTool = createTool({
           )
         )
       : channels;
+    const nextCursor = response.response_metadata?.next_cursor || undefined;
     return {
       channels: matches,
-      nextCursor: response.response_metadata?.next_cursor || undefined,
+      nextCursor,
+      note:
+        normalizedQuery && nextCursor
+          ? `The query only searched this page of ${channels.length} channels. More pages remain, so a missing channel may still exist. Call this again with nextCursor to keep searching.`
+          : undefined,
     };
   },
 });

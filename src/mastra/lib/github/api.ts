@@ -1,5 +1,6 @@
 import { request } from '@octokit/request';
 import { z } from 'zod';
+import { logger } from '../logger';
 
 async function githubApi({
   path,
@@ -43,15 +44,18 @@ export async function githubUser(
     : { error: "GitHub didn't return an account for that token." };
 }
 
-export async function countInstallations(token: string): Promise<number> {
+export async function countInstallations(
+  token: string
+): Promise<number | undefined> {
   const body = await githubApi({ path: '/user/installations', token });
   if ('error' in body) {
-    return 0;
+    logger.warn('[github] could not count installations', {
+      error: body.error,
+    });
+    return;
   }
-  return (
-    z.object({ total_count: z.number() }).safeParse(body.data).data
-      ?.total_count ?? 0
-  );
+  return z.object({ total_count: z.number() }).safeParse(body.data).data
+    ?.total_count;
 }
 
 export async function repoAccess({
