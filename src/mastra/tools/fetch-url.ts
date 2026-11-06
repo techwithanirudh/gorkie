@@ -35,13 +35,15 @@ This extracts readable article content, so it fails on anything that isn't a pla
         livecrawl: 'preferred',
       })
     ).results;
-    if (!result) {
-      throw new Error(`Could not fetch content from ${url}.`);
+    if (!result?.text) {
+      throw new Error(
+        `Could not fetch content from ${url}. This says nothing about what the page contains: it may block crawlers or need a browser.`
+      );
     }
     return {
       url: result.url,
       title: result.title ?? result.url,
-      text: result.text ?? '',
+      text: result.text,
     };
   },
 });
