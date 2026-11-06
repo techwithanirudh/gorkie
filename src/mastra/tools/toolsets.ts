@@ -1,3 +1,4 @@
+import { agentmailTools } from './agentmail';
 import { canvasTools } from './canvas';
 import { workspaceCodeMode } from './code-mode/slack';
 import { submitFeedbackTool } from './feedback';
@@ -22,6 +23,7 @@ export async function orchestratorTools() {
     join_thread: slackTools.join_thread,
     leave_thread: slackTools.leave_thread,
     summarize_thread: slackTools.summarize_thread,
+    ...agentmailTools,
     search_web: searchWebTool,
     fetch_url: fetchUrlTool,
     get_slack_file: slackTools.get_slack_file,

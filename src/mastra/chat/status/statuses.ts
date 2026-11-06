@@ -64,6 +64,13 @@ export const statuses: Record<string, (args: Args) => string> = {
   },
   get_slack_file: () => 'is downloading a Slack file…',
   get_user: () => 'is looking up a user…',
+  agentmail_list_threads: () => 'is checking email threads…',
+  agentmail_get_thread: () => 'is reading an email thread…',
+  agentmail_list_messages: () => 'is checking sent emails…',
+  agentmail_get_message: () => 'is reading an email…',
+  agentmail_get_attachment: () => 'is getting an email attachment…',
+  agentmail_send_message: () => 'is sending an email…',
+  agentmail_reply_to_message: () => 'is replying to an email…',
   grep: (args) => {
     const pattern = str(args, 'pattern');
     return pattern

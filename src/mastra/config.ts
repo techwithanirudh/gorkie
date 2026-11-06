@@ -31,6 +31,12 @@ export const image = {
   maxContextBytes: 60 * 1024 * 1024,
 };
 
+export const agentmail = {
+  inbox: 'gorkie@agentmail.to',
+  // Attachments travel base64-encoded inside one MCP request, a third larger.
+  maxAttachmentBytes: 10 * 1024 * 1024,
+};
+
 export const agent = {
   id: 'orchestrator',
   maxTokens: { input: 1_000_000, output: 64_000 },

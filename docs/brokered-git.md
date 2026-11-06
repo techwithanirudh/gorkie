@@ -24,7 +24,7 @@ Against `gorkie-workspace:2.0` and a real private repository:
 
 - A clone with no `github.com` rule fails (`could not read Username`); with the rule it succeeds.
 - `git push` authenticates, and `.git/config` and the sandbox environment hold no credential.
-- Clearing the rule mid-run revokes access immediately, and the `api.agentmail.to` rule survives the reset.
+- Clearing the rule mid-run revokes access immediately.
 - Re-running checkout reuses the existing clone and fetches a branch that exists only on the remote.
 
 Git never sees the header the firewall adds: a failing clone, a `GIT_TRACE_CURL=1` run producing 3.7MB of trace, and `curl -v` all come back with nothing credential-shaped, so git output needs no scrubbing before it is quoted back.
