@@ -20,6 +20,10 @@ runs commands and inspects files without touching the host machine.
 
 - Slack-native replies for mentions, DMs, and subscribed thread follow-ups,
   streamed as they generate, with a typing indicator.
+- Moderator bans: `/ban @user [1h|1d|7d|30d|perm] [reason]` and `/unban`,
+  limited to `MODERATORS`, logged as cards with an Unban button in the logs
+  channel (`LOGS_CHANNEL`). A banned person is turned away everywhere,
+  including tool approval buttons, App Home, and their scheduled tasks.
 - Optional opt-in allowlist (`OPT_IN_CHANNEL`): gate access to members of one
   channel, with an in-Slack opt-in card for everyone else.
 - Per-thread [E2B][e2b] sandbox sessions: isolated cloud VMs, never the host.
@@ -106,6 +110,8 @@ local database named `gorkie`. Mastra creates its tables on first run.
 | `SLACK_APP_TOKEN` | yes | App-level token with `connections:write` (`xapp-…`) |
 | `SLACK_USER_TOKEN` | yes | Slack user token, not the bot token, used for public-channel search. Mint it with `search:read.public` only; gorkie verifies the granted scopes on first use and refuses the token if it also carries `search:read.im`, `search:read.mpim`, or `search:read.private`. See [docs/slack-search.md](docs/slack-search.md) |
 | `OPT_IN_CHANNEL` | no | Slack channel id gating access to members only (opt-in allowlist); unset means everyone is allowed |
+| `LOGS_CHANNEL` | no | Slack channel id where ban and unban cards are posted (invite the bot); unset means no card is posted |
+| `MODERATORS` | no | Comma-separated Slack user ids allowed to `/ban` and `/unban`. Empty means nobody can ban |
 | `AI_GATEWAY_API_KEY` | yes | Vercel AI Gateway key, used for the `vmc/gorkie` model config |
 | `HACKCLUB_API_KEY` | yes | Hack Club AI proxy key, the fallback and the image model |
 | `DATABASE_URL` | yes | Postgres connection string |

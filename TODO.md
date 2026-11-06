@@ -87,6 +87,8 @@ Three surfaces that are shipped, reachable by real people, and never verified en
 
 ## Customization
 
+- [x] **Moderation and bans.** Ported from `development`: `chat/moderation/*`, `db/queries/moderation.ts`, `schedule-hooks.ts`, `/ban` and `/unban` with expiry and a log card, optional `MODERATORS` and `LOGS_CHANNEL`. A ban blocks mentions, followed threads, DMs, buttons, modals, App Home and scheduled fires, and fails closed if the lookup errors, except that the App Home page still renders because its buttons re-check. Dev's turn limits were left out because `lib/limits.ts` covers them. The idempotent migration has not been run. The manifest needs re-applying for the slash commands. Not tested live.
+
 - [x] **Images and link cards in replies.** `reply` takes `images` (up to 6, public https URLs) and `cards` (up to 10; one shows alone, more use a carousel), in `chat/rich-blocks.ts`. Slack accepted both when posted directly, with one warning, `ignored_extra_attributes_for_image_block`, which needs a visual check. Images from sandbox files keep using `upload_file`. Marker placement inside the text was not added.
 
 - [x] **One App Home format.** Every section is now a heading, a sentence-case note, then a row of buttons, built from `chat/app-home/blocks.ts`. Add buttons moved out of the header accessory, Cancel moved out of the row accessory, GitHub status moved into the note, errors became a note, and `Connect GitHub` became a plain `Connect`.

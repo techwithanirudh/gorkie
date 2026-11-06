@@ -11,6 +11,7 @@ import {
 import { logger } from '../../../lib/logger';
 import { slack } from '../../client';
 import { chat } from '../../instance';
+import { guarded } from '../../moderation/gate';
 import { ids } from './ids';
 import {
   connectedModal,
@@ -169,13 +170,19 @@ export function registerConnect({
 }): void {
   const bot = chat();
 
-  bot.onAction(ids.connect, (event) =>
-    openConnect({
-      publishHome,
-      triggerId: event.triggerId ?? '',
-      userId: event.user.userId,
-    })
+  bot.onAction(
+    ids.connect,
+    guarded((event) =>
+      openConnect({
+        publishHome,
+        triggerId: event.triggerId ?? '',
+        userId: event.user.userId,
+      })
+    )
   );
 
-  bot.onModalSubmit(ids.modal, (event) => finishDeviceLogin(event.user.userId));
+  bot.onModalSubmit(
+    ids.modal,
+    guarded((event) => finishDeviceLogin(event.user.userId))
+  );
 }

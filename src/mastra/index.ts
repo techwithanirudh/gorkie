@@ -19,6 +19,7 @@ import { buildAllowlist } from './lib/allowed-users';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
+import { prepareScheduledFire } from './schedule-hooks';
 
 process.on('unhandledRejection', (err: unknown) => {
   logger.error('[process] unhandled rejection', { err });
@@ -40,14 +41,7 @@ export const mastra = new Mastra({
     untilIdleMaxIdleMs: backgroundTaskConfig.untilIdleMaxIdleMs,
     cleanup: { cleanupIntervalMs: backgroundTaskConfig.cleanupIntervalMs },
   },
-  schedules: {
-    prepare: async ({ mastra: runtime, schedule }) => {
-      const current = await runtime.schedules.get(schedule.id);
-      if (current?.metadata?.kind === 'wait') {
-        await runtime.schedules.delete(schedule.id);
-      }
-    },
-  },
+  schedules: { prepare: prepareScheduledFire },
   storage: isProduction
     ? postgresStore
     : new MastraCompositeStore({

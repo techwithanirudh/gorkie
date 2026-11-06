@@ -20,6 +20,21 @@ export const env = createEnv({
     SLACK_APP_TOKEN: z.string().min(1),
     SLACK_USER_TOKEN: z.string().min(1),
     OPT_IN_CHANNEL: z.string().optional(),
+    LOGS_CHANNEL: z
+      .string()
+      .regex(/^[CG][A-Z0-9]+$/, 'must be a Slack channel id')
+      .optional(),
+    MODERATORS: z
+      .string()
+      .optional()
+      .transform(
+        (value) =>
+          value
+            ?.split(',')
+            .map((id) => id.trim())
+            .filter(Boolean) ?? []
+      )
+      .pipe(z.array(z.string().regex(/^[UW][A-Z0-9]+$/))),
 
     HACKCLUB_API_KEY: z.string().min(1),
     AI_GATEWAY_API_KEY: z.string().min(1),

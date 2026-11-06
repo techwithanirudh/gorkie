@@ -12,6 +12,9 @@ import { env } from '@/env';
 import { addAllowedUser } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
 import { slack } from './client';
+import { banRefusal } from './moderation/cards';
+import { banStatus } from './moderation/gate';
+import { notify } from './notify';
 
 const slackErrorSchema = z.looseObject({
   data: z
@@ -67,6 +70,15 @@ export async function acceptOptIn(event: ActionEvent): Promise<void> {
     user: { userId },
     thread,
   } = event;
+  const ban = await banStatus(userId);
+  if (ban.status !== 'clear') {
+    await notify({
+      text: banRefusal(ban),
+      thread,
+      user,
+    });
+    return;
+  }
   await addAllowedUser(userId);
   await inviteToOptInChannel(userId);
   if (!thread) {

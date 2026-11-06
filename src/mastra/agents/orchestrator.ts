@@ -8,11 +8,13 @@ import { Memory } from '@mastra/memory';
 import { toolDisplay } from '../chat/activity';
 import { slack } from '../chat/client';
 import {
+  onAction,
   onDirectMessage,
   onMention,
   onSubscribedMessage,
 } from '../chat/handlers';
 import { chat } from '../chat/instance';
+import { onSlashCommand } from '../chat/moderation/commands';
 import { status } from '../chat/status';
 import {
   backgroundTasks,
@@ -265,7 +267,13 @@ const orchestrator = new Agent({
       },
     },
     threadContext: { maxMessages: 0 },
-    handlers: { onMention, onSubscribedMessage, onDirectMessage },
+    handlers: {
+      onMention,
+      onSubscribedMessage,
+      onDirectMessage,
+      onSlashCommand,
+      onAction,
+    },
   },
 });
 

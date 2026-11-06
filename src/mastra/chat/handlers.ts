@@ -1,4 +1,7 @@
-import type { ChannelHandlerContext } from '@mastra/core/channels';
+import type {
+  ActionChannelHandler,
+  ChannelHandlerContext,
+} from '@mastra/core/channels';
 import type { Message, Thread } from 'chat';
 import { isUserAllowed } from '../lib/allowed-users';
 import { overLimit } from '../lib/limits';
@@ -9,6 +12,9 @@ import { handleCommand } from './commands';
 import { shouldRespond } from './gate';
 import { withHistory } from './history';
 import { isComment } from './message';
+import { banRefusal } from './moderation/cards';
+import { banStatus, isBanned } from './moderation/gate';
+import { notify } from './notify';
 import { offerOptIn } from './onboarding';
 import { threadState } from './state';
 
@@ -106,6 +112,43 @@ async function refusedByLimit({
   return true;
 }
 
+// Fails closed: a ban that cannot be checked refuses the message. Every author
+// in the batch is checked, though a batch comes from one sender.
+async function refusedByBan({
+  message,
+  skipped,
+  speak,
+  thread,
+}: {
+  message: Message;
+  skipped: readonly Message[];
+  speak: boolean;
+  thread: Thread;
+}): Promise<boolean> {
+  const authors = new Set(
+    [...skipped, message].map(({ author }) => author.userId)
+  );
+  const statuses = await Promise.all(
+    [...authors].map(async (userId) => ({
+      userId,
+      result: await banStatus(userId),
+    }))
+  );
+  if (statuses.every(({ result }) => result.status === 'clear')) {
+    return false;
+  }
+  logger.info('[chat] message refused for a ban', { threadId: thread.id });
+  const own = statuses.find(({ userId }) => userId === message.author.userId);
+  if (speak && own && own.result.status !== 'clear') {
+    await notify({
+      text: banRefusal(own.result),
+      thread,
+      user: message.author,
+    });
+  }
+  return true;
+}
+
 // Chat state is in memory, so a restart forgets who gorkie follows. A subscribed
 // thread whose root mentions gorkie was followed by that mention; only a
 // join_thread on some other thread is lost.
@@ -141,6 +184,9 @@ export async function onMention(
   }
   // A batch that mentions gorkie routes every sender here, including bystanders.
   if (![...skipped, message].some(({ isMention }) => isMention)) {
+    return;
+  }
+  if (await refusedByBan({ message, skipped, speak: true, thread })) {
     return;
   }
   if (!(await isUserAllowed(message.author.userId))) {
@@ -184,6 +230,9 @@ export async function onSubscribedMessage(
   if (!(isFollowingThread || mentioned)) {
     return;
   }
+  if (await refusedByBan({ message, skipped, speak: mentioned, thread })) {
+    return;
+  }
   if (!(await isUserAllowed(message.author.userId))) {
     return;
   }
@@ -208,6 +257,9 @@ export async function onDirectMessage(
   if (isFromBot(message)) {
     return;
   }
+  if (await refusedByBan({ message, skipped, speak: true, thread })) {
+    return;
+  }
   if (!(await isUserAllowed(message.author.userId))) {
     await offerOptIn({ thread, user: message.author });
     return;
@@ -220,3 +272,16 @@ export async function onDirectMessage(
   }
   startTurn({ defaultHandler, message, skipped, thread });
 }
+
+// defaultHandler is Mastra's tool approve and deny button handler.
+export const onAction: ActionChannelHandler = async (event, defaultHandler) => {
+  if (!(await isBanned(event.user.userId))) {
+    await defaultHandler();
+    return;
+  }
+  await notify({
+    text: "You're banned from Gorkie.",
+    thread: event.thread,
+    user: event.user,
+  });
+};

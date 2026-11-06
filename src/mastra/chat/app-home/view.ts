@@ -7,6 +7,9 @@ import { logger } from '../../lib/logger';
 import type { GitHubCredential } from '../../types';
 import { slack } from '../client';
 import { content } from '../content';
+import { banNotice } from '../moderation/cards';
+import { banStatus } from '../moderation/gate';
+import { heading, note } from './blocks';
 import { githubBlocks } from './github';
 import { customInstructionsBlocks } from './instructions';
 import { fitHome, type HomeSection } from './limit';
@@ -31,6 +34,18 @@ async function settled<T>({
 }
 
 async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
+  // A failed lookup still renders the page: every button on it checks the ban
+  // again before it does anything.
+  const ban = await banStatus(userId);
+  if (ban.status === 'banned') {
+    return {
+      type: 'home',
+      blocks: [
+        heading('Banned From Gorkie'),
+        note(banNotice(ban.ban.expiresAt)),
+      ],
+    };
+  }
   const credentialResult: Promise<{
     credential: GitHubCredential | undefined;
     unreadable: boolean;
