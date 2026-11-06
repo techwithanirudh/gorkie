@@ -5,6 +5,7 @@ import {
   ToolSearchProcessor,
 } from '@mastra/core/processors';
 import { Memory } from '@mastra/memory';
+import { toolDisplay } from '../chat/activity';
 import { slack } from '../chat/client';
 import {
   onDirectMessage,
@@ -22,13 +23,13 @@ import { logger } from '../lib/logger';
 import { stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
 import { delegatedTools } from '../processors/delegated-tools';
+import { progress } from '../processors/progress';
 import { sandbox } from '../processors/sandbox';
 import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
 import { instructions } from '../prompts';
 import { githubPrompt } from '../prompts/github';
-import { reasoningPrompt } from '../prompts/reasoning';
 import {
   orchestrator as orchestratorModel,
   summarizer as summarizerModel,
@@ -89,13 +90,13 @@ const orchestrator = new Agent({
         content: `<mcps>The user's MCP server(s) ${failedServers.join(', ')} failed to connect. If they ask about missing tools or the request calls for one of these servers, mention casually that it looks down and they may want to check it in App Home.</mcps>`,
       });
     }
-    messages.push({ role: 'system' as const, content: reasoningPrompt });
     return messages;
   },
   model: orchestratorModel,
   errorProcessors: defaultErrorProcessors(),
   maxProcessorRetries: 2,
   defaultOptions: ({ requestContext }) => ({
+    toolChoice: 'required',
     modelSettings: {
       maxOutputTokens: config.maxTokens.output,
       maxRetries: 5,
@@ -108,6 +109,7 @@ const orchestrator = new Agent({
         messages.filter(({ role }) => role === 'user').slice(-1),
     },
     stopWhen: [
+      toolCall('reply'),
       toolCall('skip'),
       toolCall('wait'),
       stepCountIs(config.maxSteps),
@@ -153,6 +155,7 @@ const orchestrator = new Agent({
   ],
   outputProcessors: [
     delegatedTools,
+    progress,
     sandbox,
     turnFooter,
     workingModel(config.id),
@@ -219,7 +222,7 @@ const orchestrator = new Agent({
       slack: {
         adapter: slack,
         streaming: true,
-        toolDisplay: 'hidden',
+        toolDisplay,
         typingStatus: status,
         formatError: (error) =>
           `*Oops, something went wrong.*\n\n> ${error.message}`,

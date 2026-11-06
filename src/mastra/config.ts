@@ -52,3 +52,14 @@ export const workingModel = {
 };
 
 export const emoji = { listTtl: 5 * 60 * 1000 };
+
+export const activity = {
+  updateIntervalMs: 1500,
+  maxPhases: 8,
+  maxTools: 32,
+  elapsedIntervalMs: 5000,
+  maxAnswerPreviewChars: 10_000,
+  answerChunkChars: 1000,
+  maxTitleChars: 96,
+  maxTargetChars: 48,
+};
