@@ -7,7 +7,7 @@ import { input, output } from '../../types/tools/index';
 export const getUserTool = createTool({
   id: 'get_user',
   description:
-    "Look up one Slack user's profile by raw user id, such as U0123ABCD. Returns names, pronouns, timezone, title, status, and custom profile fields. Use search_slack instead when you only know the person's name.",
+    "Look up one Slack user's profile by raw user id, such as U0123ABCD. Returns names, pronouns, timezone, title, status, and custom profile fields. A missing field means the profile has none set; a failed lookup returns an error instead. Use search_slack instead when you only know the person's name.",
   inputSchema: input({
     userId: z.string().min(1).describe('Slack user id, e.g. U123ABC'),
   }),

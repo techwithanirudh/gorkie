@@ -87,6 +87,8 @@ Three surfaces that are shipped, reachable by real people, and never verified en
 
 ## Customization
 
+- [x] **Stop `get_user` reporting failed reads as empty profiles (asked 2026-11-06).** In a #hq thread gorkie told people Rowan's pronoun field was empty when it was set to she/her. `resolveUserProfile` in `src/mastra/chat/names.ts` had a bare `catch` that logged nothing and cached `{ fields: [] }` for 60 seconds. The cache-hit path returned that stub without merging names, which matches what gorkie saw: right id, no name, no pronouns, no fields. A later sequential read got the real profile. It now logs and throws, so the model sees a lookup error, and only successful reads are cached. The original Slack error is unknown because nothing logged it, and Langfuse via the `.env` keys in `/workspaces/gorkie` returned no observations for that window, so rate limiting or a timeout is a guess. Reads after this log the real cause.
+
 
 
 
