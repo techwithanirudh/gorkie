@@ -3,6 +3,7 @@ import {
   PrefillErrorHandler,
   StreamErrorRetryProcessor,
 } from '@mastra/core/processors';
+import { modelErrors } from '../observability/model-errors';
 
 function messageOf(error: unknown): string {
   if (typeof error === 'string') {
@@ -45,6 +46,8 @@ function isRateLimitError(error: unknown): boolean {
 
 export function defaultErrorProcessors() {
   return [
+    // First: Mastra stops calling error processors at the first retry result.
+    modelErrors,
     new StreamErrorRetryProcessor({
       retryUnknownErrors: true,
       maxRetries: 2,

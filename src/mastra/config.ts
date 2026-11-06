@@ -40,6 +40,20 @@ export const agentmail = {
 export const agent = {
   id: 'orchestrator',
   maxTokens: { input: 1_000_000, output: 64_000 },
+  maxOutputTokensPerTurn: 200_000,
+  maxSteps: 1000,
+  modelTimeout: { firstChunkMs: 2 * 60 * 1000, stepMs: 5 * 60 * 1000 },
+};
+
+export const exa = {
+  timeoutMs: 30_000,
+  livecrawlTimeoutMs: 15_000,
+};
+
+export const agent = {
+  id: 'orchestrator',
+  maxTokens: { input: 1_000_000, output: 64_000 },
+  maxOutputTokensPerTurn: 200_000,
   maxSteps: 1000,
   modelTimeout: { firstChunkMs: 2 * 60 * 1000, stepMs: 5 * 60 * 1000 },
 };

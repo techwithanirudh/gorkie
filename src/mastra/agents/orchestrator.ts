@@ -23,8 +23,10 @@ import { logger } from '../lib/logger';
 import { stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
 import { delegatedTools } from '../processors/delegated-tools';
+import { outputBudget } from '../processors/output-budget';
 import { progress } from '../processors/progress';
 import { sandbox } from '../processors/sandbox';
+import { stepGuard } from '../processors/step-guard';
 import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
@@ -139,6 +141,7 @@ const orchestrator = new Agent({
   }),
   workspace,
   inputProcessors: [
+    outputBudget,
     new ToolSearchProcessor({
       tools: deferredTools,
       storage: 'context',
@@ -154,6 +157,7 @@ const orchestrator = new Agent({
     new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
   ],
   outputProcessors: [
+    stepGuard,
     delegatedTools,
     progress,
     sandbox,

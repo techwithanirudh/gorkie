@@ -9,6 +9,7 @@ import { agent as config } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
 import { sandbox } from '../processors/sandbox';
+import { stepGuard } from '../processors/step-guard';
 import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
 import * as research from '../prompts/agents/research';
@@ -60,5 +61,5 @@ export const researchAgent = new Agent({
     stopWhen: stepCountIs(config.maxSteps),
     autoResumeSuspendedTools: true,
   },
-  outputProcessors: [sandbox, workingModel('research')],
+  outputProcessors: [stepGuard, sandbox, workingModel('research')],
 });
