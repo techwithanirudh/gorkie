@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { rawId } from '../lib/ids';
+import { logger } from '../lib/logger';
 import type { UserProfile } from '../types';
 import { slack } from './client';
 import { chat } from './instance';
@@ -16,9 +17,7 @@ const userInfoSchema = z.looseObject({
     })
     .optional(),
 });
-export async function resolveUserProfile(
-  id: string
-): Promise<UserProfile | undefined> {
+export async function resolveUserProfile(id: string): Promise<UserProfile> {
   const userId = rawId(id);
   const cacheKey = `slack:user-profile:${userId}`;
   const bot = chat();
@@ -28,52 +27,54 @@ export async function resolveUserProfile(
   }
 
   const user = await bot.getUser(userId);
-  let profile: UserProfile | undefined;
-  try {
-    const [{ profile: raw }, rawUser] = await Promise.all([
-      slack.webClient.users.profile.get({
-        include_labels: true,
-        user: userId,
-      }),
-      slack.webClient.users.info({ user: userId }),
-    ]);
-    const info = userInfoSchema.parse(rawUser);
-    if (!(raw || user)) {
-      return;
-    }
-    const fields = profileFieldsSchema.parse(raw?.fields ?? {});
-    profile = {
-      displayName: raw?.display_name || undefined,
-      fields: Object.values(fields).flatMap((field) =>
-        field.value && field.label
-          ? [{ label: field.label, value: field.value }]
-          : []
-      ),
-      pronouns: raw?.pronouns || undefined,
-      realName: raw?.real_name || undefined,
-      status: raw?.status_text || undefined,
-      timezone: info.user?.tz || undefined,
-      timezoneLabel: info.user?.tz_label || undefined,
-      title: raw?.title || undefined,
-    };
+  const [profileResult, infoResult] = await Promise.allSettled([
+    slack.webClient.users.profile.get({ include_labels: true, user: userId }),
+    slack.webClient.users.info({ user: userId }),
+  ]);
+  const raw =
+    profileResult.status === 'fulfilled'
+      ? profileResult.value.profile
+      : undefined;
+  if (!raw) {
+    const cause =
+      profileResult.status === 'rejected' ? profileResult.reason : undefined;
+    logger.warn('[names] users.profile.get failed', { error: cause, userId });
+    throw new Error(
+      `Slack profile lookup failed for ${userId}. This says nothing about what the profile contains, so retry before concluding anything.`,
+      { cause }
+    );
+  }
+  if (infoResult.status === 'rejected') {
+    logger.warn('[names] users.info failed', {
+      error: infoResult.reason,
+      userId,
+    });
+  }
+  const info =
+    infoResult.status === 'fulfilled'
+      ? userInfoSchema.parse(infoResult.value)
+      : undefined;
+  const fields = profileFieldsSchema.parse(raw.fields ?? {});
+  const profile: UserProfile = {
+    displayName: user?.userName ?? (raw.display_name || undefined),
+    fields: Object.values(fields).flatMap((field) =>
+      field.value && field.label
+        ? [{ label: field.label, value: field.value }]
+        : []
+    ),
+    pronouns: raw.pronouns || undefined,
+    realName: user?.fullName ?? (raw.real_name || undefined),
+    status: raw.status_text || undefined,
+    timezone: info?.user?.tz || undefined,
+    timezoneLabel: info?.user?.tz_label || undefined,
+    title: raw.title || undefined,
+  };
+  // A profile without users.info has no timezone, which a day of caching would hide.
+  if (info) {
     await bot
       .getState()
       .set(cacheKey, profile, 86_400_000)
       .catch(() => undefined);
-  } catch {
-    if (!user) {
-      return;
-    }
-    profile = { fields: [] };
-    await bot
-      .getState()
-      .set(cacheKey, profile, 60_000)
-      .catch(() => undefined);
   }
-
-  return {
-    ...profile,
-    displayName: user?.userName ?? profile.displayName,
-    realName: user?.fullName ?? profile.realName,
-  };
+  return profile;
 }
