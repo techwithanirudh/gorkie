@@ -21,6 +21,17 @@ export class SlackAgentAdapter extends SlackAdapter {
     ...args: Parameters<SlackAdapter['handleMessageEvent']>
   ): ReturnType<SlackAdapter['handleMessageEvent']> {
     const [event] = args;
+    const text = event.text ?? '';
+    // Slack escapes a typed <> in event text. Dropped here, before the recipient
+    // cache, so a side conversation cannot retarget a stream already running.
+    if (
+      /^\s*(?:<>|&lt;&gt;)/.test(text) &&
+      ![...text.matchAll(mentionPattern)].some(
+        ([, id]) => id === this.botUserId
+      )
+    ) {
+      return;
+    }
     const { chat } = this;
     const userId = event.user;
     const teamId = event.team_id ?? event.team;
