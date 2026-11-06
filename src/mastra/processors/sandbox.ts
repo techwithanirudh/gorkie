@@ -14,6 +14,7 @@ import {
   usedSandbox,
   workspaceToolNames,
 } from '../workspace';
+import { runningJobs } from '../workspace/jobs';
 
 async function hasRunningBackgroundTask(
   requestContext: RequestContext
@@ -64,9 +65,13 @@ export const sandbox = {
   },
   async processOutputResult(args: ProcessOutputResultArgs) {
     const { requestContext, messages } = args;
-    // A background child may still be using the box. It times out by itself if
-    // nothing pauses it later.
-    if (requestContext && !(await hasRunningBackgroundTask(requestContext))) {
+    // A child or a command may still be using the box. Its own timeout caps how
+    // long that can run unattended.
+    if (
+      requestContext &&
+      runningJobs(channelContext(requestContext).threadId) === 0 &&
+      !(await hasRunningBackgroundTask(requestContext))
+    ) {
       await pauseSandbox(requestContext);
     }
     return messages;

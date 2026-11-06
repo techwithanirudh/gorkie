@@ -87,6 +87,8 @@ Three surfaces that are shipped, reachable by real people, and never verified en
 
 ## Customization
 
+- [x] **Commands background themselves.** `workspace/tools.ts` spawns every `execute_command` as a process, waits 2 minutes, then returns its pid and output so far. Mastra offers `background: true`, `get_process_output` and `kill_process` but no automatic switch. `workspace/jobs.ts` tracks running commands per thread: at most 3, killed by `!stop`, and the sandbox is not paused while one runs. A command dies at 15 minutes and an idle sandbox at its 16 minute timeout, which caps unattended work. Foreground output no longer streams to tool output. Tracking is in memory, so a restart loses it.
+
 - [x] **Token limits replace message limits.** `processors/token-usage.ts` counts uncached input plus output per run against the requester, on the orchestrator and both subagents, with a limit of 1M per hour. For scale, one 30 minute, 42 step run used 3.25M input (2.87M cached) and 67k output, so about 445k by this count. Sends are no longer limited. App Home and `!limits` show text progress bars. Totals reset on restart.
 
 - [x] **Audit fixes.** `read_canvas` and `get_slack_file` refuse non-Slack hosts before sending the bot token. `upload_file` checks the channel it will actually post to and neutralizes group pings in its comment. Sandbox ports are no longer public. The API binds to `HOST`, default loopback. Scheduled fires now check opt-in and usage. A reconnecting sandbox now clears leftover GitHub credential rules. Not yet fixed: approval cards when no requester is known, schedule tools scoped to the thread owner, git hooks and default branch checks, opt-in manifest gaps, `PROJECT_ROOT` startup crash, stale docs.

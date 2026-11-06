@@ -1,6 +1,7 @@
 import { logger } from '../../lib/logger';
 import { memoryThread } from '../../lib/memory';
 import type { CommandHandler } from '../../types';
+import { killJobs } from '../../workspace/jobs';
 import { getMastra } from '../mastra-instance';
 import { setThreadState } from '../state';
 
@@ -31,12 +32,13 @@ export async function stopThread(
   threadId: string
 ): Promise<'aborted' | 'cancelled' | 'idle'> {
   const { default: orchestrator } = await import('../../agents/orchestrator');
+  const killed = await killJobs(threadId);
   const threadMemory = await memoryThread({
     agent: orchestrator,
     externalThreadId: threadId,
   }).catch(() => undefined);
   if (!threadMemory) {
-    return 'idle';
+    return killed > 0 ? 'cancelled' : 'idle';
   }
   const scope = {
     threadId: threadMemory.id,
@@ -58,7 +60,7 @@ export async function stopThread(
   if (active) {
     return 'aborted';
   }
-  return cancelled > 0 ? 'cancelled' : 'idle';
+  return cancelled > 0 || killed > 0 ? 'cancelled' : 'idle';
 }
 
 export const stop: CommandHandler = async ({ message, thread }) => {

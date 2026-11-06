@@ -2,6 +2,9 @@ import { env } from '@/env';
 export const sandbox = {
   template: 'gorkie-workspace:2.0',
   executionTimeout: 15 * 60 * 1000,
+  // A command still running after this returns its pid so the turn can go on.
+  autoBackgroundMs: 2 * 60 * 1000,
+  maxJobs: 3,
   timeout: 16 * 60 * 1000,
   // A cold clone or a large push runs well past E2B's 60s request default, and
   // a timeout there retries the whole clone inside the credential window.
