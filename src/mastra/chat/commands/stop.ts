@@ -2,6 +2,7 @@ import { logger } from '../../lib/logger';
 import { memoryThread } from '../../lib/memory';
 import type { CommandHandler } from '../../types';
 import { getMastra } from '../mastra-instance';
+import { setThreadState } from '../state';
 
 async function cancelBackgroundTasks(threadId: string): Promise<number> {
   const manager = getMastra().backgroundTaskManager;
@@ -61,15 +62,10 @@ export async function stopThread(
 }
 
 export const stop: CommandHandler = async ({ message, thread }) => {
-  // A failed write must not keep the stop from happening.
-  await thread
-    .setState({ dropMessagesBefore: message.metadata.dateSent.getTime() })
-    .catch((error: unknown) => {
-      logger.warn('[commands] failed to record the stop cutoff', {
-        error,
-        threadId: thread.id,
-      });
-    });
+  await setThreadState({
+    thread,
+    patch: { dropMessagesBefore: message.metadata.dateSent.getTime() },
+  });
   const outcome = await stopThread(thread.id);
   if (outcome === 'aborted') {
     return;

@@ -5,6 +5,7 @@ import {
   ToolSearchProcessor,
 } from '@mastra/core/processors';
 import { Memory } from '@mastra/memory';
+import { skillResultRedactor } from '@mastra/memory/hooks';
 import { toolDisplay } from '../chat/activity';
 import { slack } from '../chat/client';
 import {
@@ -246,6 +247,7 @@ const orchestrator = new Agent({
         },
         temporalMarkers: true,
         scope: 'thread',
+        hooks: { beforeObservation: skillResultRedactor() },
       },
     },
   }),

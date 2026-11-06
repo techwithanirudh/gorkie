@@ -16,7 +16,7 @@ import { banRefusal } from './moderation/cards';
 import { banStatus, isBanned } from './moderation/gate';
 import { notify } from './notify';
 import { offerOptIn } from './onboarding';
-import { threadState } from './state';
+import { setThreadState, threadState } from './state';
 
 type DefaultHandler = (thread: Thread, message: Message) => Promise<void>;
 
@@ -76,7 +76,7 @@ async function runTurn({
   );
   // Only a turn that finished has seen the backfill; a failed one retries it.
   if (!thread.isDM) {
-    await thread.setState({ lastSeenMessage: message.id });
+    await setThreadState({ thread, patch: { lastSeenMessage: message.id } });
   }
 }
 
@@ -149,9 +149,8 @@ async function refusedByBan({
   return true;
 }
 
-// Chat state is in memory, so a restart forgets who gorkie follows. A subscribed
-// thread whose root mentions gorkie was followed by that mention; only a
-// join_thread on some other thread is lost.
+// Threads from before thread state was stored have no flag. A subscribed thread
+// whose root mentions gorkie was followed by that mention.
 async function rootMentionsBot(thread: Thread): Promise<boolean> {
   const { channel, threadTs } = slack.decodeThreadId(thread.id);
   const replies = await slack.webClient.conversations
@@ -168,7 +167,10 @@ async function rootMentionsBot(thread: Thread): Promise<boolean> {
       replies?.messages?.[0]?.text?.includes(`<@${slack.botUserId}`)
   );
   if (replies) {
-    await thread.setState({ respondOnThreadMessages: following });
+    await setThreadState({
+      thread,
+      patch: { respondOnThreadMessages: following },
+    });
   }
   return following;
 }
@@ -195,7 +197,7 @@ export async function onMention(
   }
   const { threadTs } = slack.decodeThreadId(message.threadId);
   if ([...skipped, message].some(({ id }) => id === threadTs)) {
-    await thread.setState({ respondOnThreadMessages: true });
+    await setThreadState({ thread, patch: { respondOnThreadMessages: true } });
   }
   if (
     (await runCommands({ message, skipped, thread })) ||

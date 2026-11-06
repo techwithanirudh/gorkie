@@ -87,6 +87,10 @@ Three surfaces that are shipped, reachable by real people, and never verified en
 
 ## Customization
 
+- [x] **Thread state survives restarts (issue #38).** `chat/state.ts` stores it in Mastra's `threadState` domain under the type `gorkie:chat`, with a write-through cache because one process serves Slack. `rootMentionsBot` stays only for threads from before this. The domain is internal and typed for `task` and `goal`, so a Mastra upgrade could break it. Hourly limits and pending sends remain in memory. `skillResultRedactor` is on Observational Memory, the other half of the issue.
+
+- [x] **Turns finish before shutdown.** `chat/turn-drain.ts` from `development`, because `server.drainTimeout` only covers HTTP and evented workflows. 120s in production, 10s in dev. Mastra cancels background tasks on shutdown, so a running subagent still dies on deploy. A process manager's stop timeout must exceed twice the window. `toolApprovers` needed no change: it defaults to the requester.
+
 - [x] **Moderation and bans.** Ported from `development`: `chat/moderation/*`, `db/queries/moderation.ts`, `schedule-hooks.ts`, `/ban` and `/unban` with expiry and a log card, optional `MODERATORS` and `LOGS_CHANNEL`. A ban blocks mentions, followed threads, DMs, buttons, modals, App Home and scheduled fires, and fails closed if the lookup errors, except that the App Home page still renders because its buttons re-check. Dev's turn limits were left out because `lib/limits.ts` covers them. The idempotent migration has not been run. The manifest needs re-applying for the slash commands. Not tested live.
 
 - [x] **Images and link cards in replies.** `reply` takes `images` (up to 6, public https URLs) and `cards` (up to 10; one shows alone, more use a carousel), in `chat/rich-blocks.ts`. Slack accepted both when posted directly, with one warning, `ignored_extra_attributes_for_image_block`, which needs a visual check. Images from sandbox files keep using `upload_file`. Marker placement inside the text was not added.

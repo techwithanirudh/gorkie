@@ -1,6 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { chat } from '../../chat/instance';
+import { setThreadState } from '../../chat/state';
 import { channelContext } from '../../lib/context';
 import { input, output } from '../../types/tools/index';
 
@@ -24,7 +25,7 @@ export const joinThreadTool = createTool({
     }
     const thread = chat().thread(threadId);
     await thread.subscribe();
-    await thread.setState({ respondOnThreadMessages: true });
+    await setThreadState({ thread, patch: { respondOnThreadMessages: true } });
     return { threadId };
   },
 });

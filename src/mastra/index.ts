@@ -13,7 +13,8 @@ import { summarizer } from './agents/summarizer';
 import { registerEvents } from './chat/events';
 import { setChat } from './chat/instance';
 import { setMastra } from './chat/mastra-instance';
-import { backgroundTasks as backgroundTaskConfig } from './config';
+import { TurnDrainWorker } from './chat/turn-drain';
+import { backgroundTasks as backgroundTaskConfig, shutdown } from './config';
 import { postgresStore, runMigrations } from './db';
 import { buildAllowlist } from './lib/allowed-users';
 import { logger } from './lib/logger';
@@ -32,6 +33,8 @@ const isProduction = env.NODE_ENV === 'production';
 
 export const mastra = new Mastra({
   agents: { orchestrator, summarizer, research, explore },
+  workers: [new TurnDrainWorker()],
+  server: { drainTimeout: shutdown.drainTimeoutMs },
   backgroundTasks: {
     enabled: true,
     backpressure: 'queue',

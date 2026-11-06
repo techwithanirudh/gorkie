@@ -85,6 +85,13 @@ export const send = {
   maxMemberPages: 20,
 };
 
+export const shutdown = {
+  // How long SIGTERM waits for Slack turns before aborting them. Mastra can
+  // spend this twice, so a process manager's stop timeout must exceed double it.
+  drainTimeoutMs: env.NODE_ENV === 'production' ? 120_000 : 10_000,
+  abortLeadMs: 10_000,
+};
+
 export const subagent = {
   maxSteps: 50,
   maxTokens: 1_000_000,
