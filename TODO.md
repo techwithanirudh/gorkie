@@ -89,7 +89,7 @@ Three surfaces that are shipped, reachable by real people, and never verified en
 
 - [x] **Emoji search.** `tools/search-emojis.ts` asks `emojis.raygen.dev/v1/search` (no key needed, 3s timeout) and returns custom emoji names and summaries. On failure it returns standard emoji suggestions instead of an error. Name and wildcard search through `emoji.list` was not added. Not tested live.
 
-- [x] **`summarize_thread` can answer one question.** New `question` input, using the same summarizer model and citing message ids. It reads at most 100 messages, so long threads lose older messages. No per-turn call cap. Not tested live.
+- [x] **`summarize_thread` can answer one question.** New `question` input, using the same summarizer model and naming who said what and when. It reads at most 100 messages, so long threads lose older messages. No per-turn call cap. Not tested live.
 
 - [ ] **Send on someone's behalf with a preview.** `post_message` only reaches the current channel or the requester's DM (`assertCanPostTo` in `tools/slack/utils.ts`). Plan: private preview with Send and Cancel, requester-only clicks, pending send with an expiry kept in Chat state so no schema change, attribution with a `Sent by` line, per-user hourly limit, and a turn that reports the outcome. Before the preview: archived channels are refused, and private channels need both the bot and the requester as members. On Send: join public channels on `not_in_channel`, and map `restricted_action`, `restricted_action_read_only_channel` and `ekm_access_denied` to a plain refusal. Not built.
 
