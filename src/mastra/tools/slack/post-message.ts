@@ -32,7 +32,7 @@ Never use this to answer the current conversation or to report progress: use rep
 
 This only prepares the message. The person sees a private preview with Send and Cancel buttons, and nothing goes out until they click Send. The result is "awaiting_confirmation": don't say it was sent or describe the preview. If nothing else needs an answer, call skip. You are not told the outcome; the preview itself shows it.
 
-The message goes out with the person's avatar, named "gorkie on behalf of Name", with a "Sent by" line. Don't add attribution yourself. Find channel ids with list_channels.`,
+The message goes out with the person's avatar, named "Name [gorkie]", with a "Sent by" line. Don't add attribution yourself. Find channel ids with list_channels.`,
   inputSchema: input({
     target: targetSchema.describe('Destination outside this conversation.'),
     message: z.string().min(1).max(6000).describe('Markdown message body.'),
@@ -73,7 +73,7 @@ The message goes out with the person's avatar, named "gorkie on behalf of Name",
         ...destination,
         message,
         requesterId: ctx.userId,
-        username: `gorkie on behalf of ${name ?? 'someone'}`.slice(0, 80),
+        username: `${name ?? 'someone'} [gorkie]`.slice(0, 80),
         avatarUrl: requester?.avatarUrl,
       },
       previewChannel,
