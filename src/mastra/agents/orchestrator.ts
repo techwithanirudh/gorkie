@@ -28,7 +28,6 @@ import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
 import { instructions } from '../prompts';
 import { githubPrompt } from '../prompts/github';
-import { reasoningPrompt } from '../prompts/reasoning';
 import {
   orchestrator as orchestratorModel,
   summarizer as summarizerModel,
@@ -89,7 +88,6 @@ const orchestrator = new Agent({
         content: `<mcps>The user's MCP server(s) ${failedServers.join(', ')} failed to connect. If they ask about missing tools or the request calls for one of these servers, mention casually that it looks down and they may want to check it in App Home.</mcps>`,
       });
     }
-    messages.push({ role: 'system' as const, content: reasoningPrompt });
     return messages;
   },
   model: orchestratorModel,
