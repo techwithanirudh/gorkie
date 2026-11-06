@@ -87,6 +87,8 @@ Three surfaces that are shipped, reachable by real people, and never verified en
 
 ## Customization
 
+- [x] **Respect people's pronouns (asked 2026-11-06).** A live summary of a #hq thread wrote "he'd" and "her" for people whose pronouns it had not checked. `get_user` already returned Slack profile pronouns (`chat/names.ts:52`), but no prompt told the model to use them or to avoid guessing. Added a `<pronouns>` block to `prompts/core.ts`, placed there and not in `personality.ts` because a user's custom instructions override the personality block. Added matching rules to `prompts/agents/research.ts` and the summarizer in `agents/summarizer.ts`, which has no tools, so it relies on the transcript. Prompt only, not tested live. Deliberately not done: loading every author's profile into context, which would cost a Slack call per person per turn.
+
 
 
 
