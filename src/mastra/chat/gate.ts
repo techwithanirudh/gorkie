@@ -6,6 +6,7 @@ import { gatePrompt } from '../prompts/gate';
 import { gate as gateModel } from '../providers';
 import { isComment, rawText } from './message';
 
+const connectorFooter = /\s*\*Sent using\* <@[A-Z0-9_]+(?:\|[^>]*)?>\s*$/;
 const offerPattern =
   /\b(want me to|should i|shall i|if you want|if you'd like|if you like|say the word|lmk if|let me know if)\b/i;
 
@@ -37,7 +38,12 @@ export async function shouldRespond({
   skipped: readonly Message[];
   thread: Thread;
 }): Promise<boolean> {
-  if (/<@[A-Z0-9_]+/.test(rawText(message))) {
+  // Slack folds a connector's footer into text, which is not the sender mentioning anyone.
+  const body = rawText(message).replace(connectorFooter, '');
+  if (/<@[A-Z0-9_]+/.test(body)) {
+    logger.debug('[chat] followed-thread message mentions someone else', {
+      threadId: thread.id,
+    });
     return false;
   }
   const newest = [...skipped, message];
