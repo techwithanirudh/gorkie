@@ -7,7 +7,6 @@ import { LangfuseExporter } from '@mastra/langfuse';
 import { MastraStorageExporter, Observability } from '@mastra/observability';
 import { env } from '@/env';
 import { exploreAgent as explore } from './agents/explore';
-import { gate } from './agents/gate';
 import orchestrator from './agents/orchestrator';
 import { researchAgent as research } from './agents/research';
 import { summarizer } from './agents/summarizer';
@@ -31,7 +30,7 @@ process.on('uncaughtException', (err: Error) => {
 const isProduction = env.NODE_ENV === 'production';
 
 export const mastra = new Mastra({
-  agents: { orchestrator, gate, summarizer, research, explore },
+  agents: { orchestrator, summarizer, research, explore },
   backgroundTasks: {
     enabled: true,
     backpressure: 'queue',

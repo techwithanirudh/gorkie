@@ -52,7 +52,6 @@ export const exa = {
 };
 
 export const gate = {
-  id: 'gate',
   maxTokens: { output: 16 },
   contextMessages: 8,
   maxMessageChars: 1200,

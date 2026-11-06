@@ -35,7 +35,7 @@ import { stepGuard } from '../processors/step-guard';
 import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
-import { instructions } from '../prompts';
+import { contextPrompt, instructions } from '../prompts';
 import { githubPrompt } from '../prompts/github';
 import {
   orchestrator as orchestratorModel,
@@ -53,7 +53,7 @@ const orchestrator = new Agent({
   name: 'Orchestrator',
   instructions: async ({ requestContext }) => {
     const messages = [
-      ...instructions(requestContext),
+      ...instructions(),
       { role: 'system' as const, content: await workspaceCodeModePrompt() },
     ];
     const { isDM, userId } = channelContext(requestContext);
@@ -96,6 +96,11 @@ const orchestrator = new Agent({
         role: 'system' as const,
         content: `<mcps>The user's MCP server(s) ${failedServers.join(', ')} failed to connect. If they ask about missing tools or the request calls for one of these servers, mention casually that it looks down and they may want to check it in App Home.</mcps>`,
       });
+    }
+    // Last, because this changes per thread and would break the prompt cache.
+    const context = contextPrompt(requestContext);
+    if (context) {
+      messages.push({ role: 'system' as const, content: context });
     }
     return messages;
   },

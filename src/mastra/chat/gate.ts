@@ -1,7 +1,9 @@
+import { generateText } from 'ai';
 import type { Message, Thread } from 'chat';
-import { gate } from '../agents/gate';
 import { gate as config } from '../config';
 import { logger } from '../lib/logger';
+import { gatePrompt } from '../prompts/gate';
+import { gate as gateModel } from '../providers';
 import { isComment, rawText } from './message';
 
 const offerPattern =
@@ -64,7 +66,13 @@ ${newest.map(render).join('\n')}
 
 Should gorkie respond to the newest messages? Answer yes or no.`;
   try {
-    const { text } = await gate.generate(prompt, {
+    // Direct, because an Agent run costs several database round trips per step.
+    const { text } = await generateText({
+      model: gateModel,
+      system: gatePrompt,
+      prompt,
+      maxOutputTokens: config.maxTokens.output,
+      maxRetries: 1,
       abortSignal: AbortSignal.timeout(config.timeoutMs),
     });
     const respond = text.trim().toLowerCase().startsWith('yes');

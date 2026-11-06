@@ -60,6 +60,10 @@ async function runTurn({
     text: message.text,
   });
 
+  // Channels spends seconds on memory and setup before it sets a status itself.
+  thread.startTyping('is thinking…').catch((error: unknown) => {
+    logger.debug('[chat] could not set the first status', { error });
+  });
   await defaultHandler(
     thread,
     await withHistory({ message: attachments(message), skipped, thread })
