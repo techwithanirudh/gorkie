@@ -1,22 +1,98 @@
-import type { MCPServerConfig } from '../../../types';
-import type { HomeSection } from '../limit';
-import { PRESETS } from '../presets';
+import { mcp } from '../../../config';
+import { levelOutsideDM } from '../../../lib/approval';
+import { oauthStartLink } from '../../../server/oauth-link';
+import type {
+  HomeSection,
+  MCPOAuthStatus,
+  StoredMCPServer,
+} from '../../../types';
+import { presets } from '../presets';
 import { ids } from './ids';
 
-export function mcpServersBlocks(
-  servers: (MCPServerConfig & { lastError?: string })[]
-): HomeSection {
+const oauthStatus = {
+  connected: 'signed in with OAuth',
+  disconnected: 'not signed in',
+  'needs-auth': 'sign-in expired',
+} satisfies Record<MCPOAuthStatus, string>;
+
+function oauthButtons({
+  server,
+  userId,
+}: {
+  server: StoredMCPServer;
+  userId: string;
+}) {
+  if (!server.oauth) {
+    return [];
+  }
+  const link = oauthStartLink({
+    provider: 'mcp',
+    slackUserId: userId,
+    target: server.name,
+  });
+  const connected = server.oauth.status === 'connected';
+  return [
+    ...(link
+      ? [
+          {
+            type: 'button',
+            text: {
+              type: 'plain_text',
+              text:
+                server.oauth.status === 'disconnected'
+                  ? 'Connect'
+                  : 'Reconnect',
+            },
+            action_id: ids.connect,
+            url: link,
+            ...(connected ? {} : { style: 'primary' }),
+          },
+        ]
+      : []),
+    ...(connected
+      ? [
+          {
+            type: 'button',
+            text: { type: 'plain_text', text: 'Disconnect' },
+            action_id: ids.disconnect,
+            value: server.name,
+          },
+        ]
+      : []),
+  ];
+}
+
+function access({ permission, threads }: StoredMCPServer): string {
+  if (!threads) {
+    return `${presets[permission].status}  \u00b7  \`DMs only\``;
+  }
+  const threadLevel = levelOutsideDM({ isDM: false, level: permission });
+  if (threadLevel !== permission) {
+    return `${presets[permission].status} in DMs  \u00b7  ${presets[threadLevel].status} in shared threads`;
+  }
+  return `${presets[permission].status}  \u00b7  \`runs in shared threads\``;
+}
+
+export function mcpServersBlocks({
+  servers,
+  userId,
+}: {
+  servers: StoredMCPServer[];
+  userId: string;
+}): HomeSection {
   const header = {
     type: 'section',
     text: {
       type: 'mrkdwn',
-      text: `*MCP Servers*${servers.length > 0 ? ` (${servers.length})` : ''}`,
+      text: `*MCP Servers*${servers.length > 0 ? ` (${servers.length} of ${mcp.maxServers})` : ''}`,
     },
-    accessory: {
-      type: 'button',
-      text: { type: 'plain_text', text: 'Add' },
-      action_id: ids.add,
-    },
+    ...(servers.length < mcp.maxServers && {
+      accessory: {
+        type: 'button',
+        text: { type: 'plain_text', text: 'Add' },
+        action_id: ids.add,
+      },
+    }),
   };
 
   if (servers.length === 0) {
@@ -50,7 +126,7 @@ export function mcpServersBlocks(
         elements: [
           {
             type: 'mrkdwn',
-            text: `${PRESETS[server.permission].status}  \u00b7  \`${server.url}\``,
+            text: `${access(server)}${server.oauth ? `  \u00b7  ${oauthStatus[server.oauth.status]}` : ''}  \u00b7  \`${server.url}\``,
           },
         ],
       },
@@ -68,6 +144,7 @@ export function mcpServersBlocks(
       {
         type: 'actions',
         elements: [
+          ...oauthButtons({ server, userId }),
           {
             type: 'button',
             text: { type: 'plain_text', text: 'Configure' },
@@ -84,7 +161,7 @@ export function mcpServersBlocks(
               title: { type: 'plain_text', text: 'Remove server?' },
               text: {
                 type: 'plain_text',
-                text: `This removes ${server.name} and its stored token.`,
+                text: `This removes ${server.name} and signs Gorkie out of it.`,
               },
               confirm: { type: 'plain_text', text: 'Remove' },
               deny: { type: 'plain_text', text: 'Keep' },

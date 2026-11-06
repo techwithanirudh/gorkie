@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { exa } from '../lib/exa';
-import { input, output } from '../types/tools/index';
+import { exa as exaConfig } from '../config';
+import { exa, withExaTimeout } from '../lib/exa';
 
 export const fetchUrlTool = createTool({
   id: 'fetch_url',
@@ -13,10 +13,10 @@ This extracts readable article content, so it fails on anything that isn't a pla
 - Slack URLs; use Slack tools instead.
 - Search result or directory listing pages.
 - Raw/binary file downloads: PDFs, images, zips.`,
-  inputSchema: input({
+  inputSchema: z.strictObject({
     url: z.url().describe('The exact URL to fetch.'),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     url: z.url(),
     title: z.string(),
     text: z.string(),
@@ -28,11 +28,15 @@ This extracts readable article content, so it fails on anything that isn't a pla
       }),
     },
   },
-  execute: async ({ url }) => {
+  execute: async ({ url }, { abortSignal }) => {
     const [result] = (
-      await exa.getContents([url], {
-        text: { maxCharacters: 8000 },
-        livecrawl: 'preferred',
+      await withExaTimeout({
+        request: exa.getContents([url], {
+          text: { maxCharacters: exaConfig.fetchMaxChars },
+          livecrawl: 'preferred',
+          livecrawlTimeout: exaConfig.livecrawlTimeoutMs,
+        }),
+        signal: abortSignal,
       })
     ).results;
     if (!result) {

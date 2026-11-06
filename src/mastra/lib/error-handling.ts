@@ -3,6 +3,7 @@ import {
   PrefillErrorHandler,
   StreamErrorRetryProcessor,
 } from '@mastra/core/processors';
+import { modelErrors } from '../observability/model-errors';
 
 function messageOf(error: unknown): string {
   if (typeof error === 'string') {
@@ -14,59 +15,39 @@ function messageOf(error: unknown): string {
   return '';
 }
 
-const terminalPattern =
-  /is not supported|unknown model|model[_ ]not[_ ]found|insufficient credits|no endpoints found/i;
-
-function isTerminalModelError(error: unknown): boolean {
-  return terminalPattern.test(messageOf(error));
-}
-
-const econnresetMaxRetries = 2;
-const econnresetRetryInitialDelayMs = 1000;
-const econnresetRetryMaxDelayMs = 30_000;
-const econnresetMessagePattern = /econnreset|socket hang up/i;
-
-function isEconnresetError(error: unknown): boolean {
-  const code =
-    error && typeof error === 'object' && 'code' in error
-      ? error.code
-      : undefined;
-  if (typeof code === 'string' && code.toUpperCase() === 'ECONNRESET') {
-    return true;
-  }
-  return econnresetMessagePattern.test(messageOf(error));
-}
-
-const rateLimitPattern = /temporarily rate-limited upstream|too many requests/i;
-
-function isRateLimitError(error: unknown): boolean {
-  return rateLimitPattern.test(messageOf(error));
-}
-
-export function defaultErrorProcessors() {
-  return [
-    new StreamErrorRetryProcessor({
-      retryUnknownErrors: true,
-      maxRetries: 2,
-      delayMs: 3000,
-      matchers: [
-        { match: isTerminalModelError, maxRetries: 0 },
-        // A 400 is deterministic (a malformed/oversized request), so retrying
-        // the same model is a guaranteed second failure. Stop, so the run falls
-        // through to the next model in the ladder instead.
-        { match: isBadRequestError, maxRetries: 0 },
-        {
-          match: isEconnresetError,
-          maxRetries: econnresetMaxRetries,
-          delayMs: ({ retryCount }) =>
-            Math.min(
-              econnresetRetryInitialDelayMs * 2 ** retryCount,
-              econnresetRetryMaxDelayMs
-            ),
+export const errorProcessors = [
+  // First: Mastra stops calling error processors at the first retry request.
+  modelErrors,
+  new StreamErrorRetryProcessor({
+    retryUnknownErrors: true,
+    maxRetries: 2,
+    delayMs: 3000,
+    matchers: [
+      {
+        match: (error) =>
+          /is not supported|unknown model|model[_ ]not[_ ]found|insufficient credits|usage limit exceeded|no endpoints found/i.test(
+            messageOf(error)
+          ),
+        maxRetries: 0,
+      },
+      // Not `abort`: it throws a TripWire out of the llm-execution step, which
+      // ends the run as `tripwire` with no error or tripwire chunk, so Slack
+      // gets no reply and `onError` never runs.
+      { match: isBadRequestError, maxRetries: 0 },
+      {
+        match: (error) => {
+          const code =
+            error && typeof error === 'object' && 'code' in error
+              ? error.code
+              : undefined;
+          if (typeof code === 'string' && code.toUpperCase() === 'ECONNRESET') {
+            return true;
+          }
+          return /econnreset|socket hang up/i.test(messageOf(error));
         },
-        { match: isRateLimitError, maxRetries: 2, delayMs: 3000 },
-      ],
-    }),
-    new PrefillErrorHandler(),
-  ];
-}
+        delayMs: ({ retryCount }) => 1000 * 2 ** retryCount,
+      },
+    ],
+  }),
+  new PrefillErrorHandler(),
+];

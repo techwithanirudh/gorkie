@@ -1,0 +1,104 @@
+{
+  "display_information": {
+    "name": "gorkie (dev)",
+    "description": "Local development copy of gorkie, reached over a dev tunnel (bun run dev:e2e).",
+    "background_color": "#000000"
+  },
+  "features": {
+    "app_home": {
+      "home_tab_enabled": true,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "bot_user": {
+      "display_name": "gorkie-dev",
+      "always_online": true
+    },
+    "agent_view": {
+      "agent_description": "Your AI assistant for Slack. Searches the web, writes and runs code, generates images, browses websites, manages scheduled tasks, and more."
+    },
+    "slash_commands": [
+      {
+        "command": "/gorkie-dev-ban",
+        "url": "https://<YOUR-TUNNEL-URL>/api/agents/orchestrator/channels/slack/webhook",
+        "description": "Ban someone from gorkie (moderators only)",
+        "usage_hint": "@user [1h|1d|7d|30d|perm] [reason]",
+        "should_escape": true
+      },
+      {
+        "command": "/gorkie-dev-unban",
+        "url": "https://<YOUR-TUNNEL-URL>/api/agents/orchestrator/channels/slack/webhook",
+        "description": "Lift a gorkie ban (moderators only)",
+        "usage_hint": "@user [reason]",
+        "should_escape": true
+      }
+    ],
+    "code_channels": {
+      "enabled": true,
+      "slash_command_url": "https://<YOUR-TUNNEL-URL>/api/agents/orchestrator/channels/slack/webhook"
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "app_mentions:read",
+        "assistant:write",
+        "bookmarks:read",
+        "canvases:read",
+        "canvases:write",
+        "channels:history",
+        "channels:join",
+        "channels:read",
+        "chat:write",
+        "chat:write.customize",
+        "code_channels:manage",
+        "commands",
+        "emoji:read",
+        "files:read",
+        "files:write",
+        "groups:history",
+        "groups:read",
+        "im:history",
+        "im:read",
+        "im:write",
+        "mpim:history",
+        "mpim:read",
+        "pins:read",
+        "reactions:read",
+        "reactions:write",
+        "search:read.public",
+        "team:read",
+        "usergroups:read",
+        "users.profile:read",
+        "users:read"
+      ],
+      "user": ["search:read.public"]
+    },
+    "pkce_enabled": false
+  },
+  "settings": {
+    "event_subscriptions": {
+      "request_url": "https://<YOUR-TUNNEL-URL>/api/agents/orchestrator/channels/slack/webhook",
+      "bot_events": [
+        "agent_session_stopped",
+        "app_context_changed",
+        "app_home_opened",
+        "app_mention",
+        "member_joined_channel",
+        "member_left_channel",
+        "message.channels",
+        "message.groups",
+        "message.im",
+        "message.mpim"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": true,
+      "request_url": "https://<YOUR-TUNNEL-URL>/api/agents/orchestrator/channels/slack/webhook"
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false,
+    "is_mcp_enabled": true
+  }
+}

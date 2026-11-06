@@ -1,19 +1,46 @@
 import { MCPClient } from '@mastra/mcp';
 import { logger } from '../lib/logger';
+import { agentmailEnabled } from './agentmail';
 
-const client = new MCPClient({
-  id: 'mcp',
-  servers: {
-    context7: {
-      url: new URL('https://mcp.context7.com/mcp'),
-    },
+const servers = {
+  context7: {
+    url: new URL('https://mcp.context7.com/mcp'),
+    allowedHosts: ['mcp.context7.com'],
   },
-});
+};
+
+export const builtInMCPServers = [
+  ...Object.keys(servers),
+  ...(agentmailEnabled ? ['agentmail'] : []),
+];
+
+const client = new MCPClient({ id: 'mcp', servers });
 client.__setLogger(logger);
 
-let listed: ReturnType<MCPClient['listTools']> | undefined;
+type MCPTools = Awaited<ReturnType<MCPClient['listTools']>>;
 
-export function mcpTools(): ReturnType<MCPClient['listTools']> {
-  listed ??= client.listTools();
-  return listed;
+let listed: Promise<MCPTools> | undefined;
+
+export function mcpTools(): Promise<MCPTools> {
+  if (listed) {
+    return listed;
+  }
+  const listing = client.listToolsWithErrors().then(
+    ({ tools, errors }) => {
+      // A server that fails to list is dropped from `tools`, not thrown, so
+      // leave a partial listing uncached and retry it next turn.
+      if (Object.keys(errors).length > 0 && listed === listing) {
+        listed = undefined;
+      }
+      return tools;
+    },
+    (error: unknown) => {
+      if (listed === listing) {
+        listed = undefined;
+      }
+      throw error;
+    }
+  );
+  listed = listing;
+  return listing;
 }

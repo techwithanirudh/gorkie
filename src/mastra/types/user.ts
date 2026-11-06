@@ -1,10 +1,7 @@
-export interface UserProfile {
-  displayName?: string;
-  fields: { label: string; value: string }[];
-  pronouns?: string;
-  realName?: string;
-  status?: string;
-  timezone?: string;
-  timezoneLabel?: string;
-  title?: string;
-}
+import { z } from 'zod';
+
+export const slackUserIdSchema = z.string().regex(/^[UW][A-Z0-9]+$/);
+
+export const slackChannelIdSchema = z
+  .string()
+  .regex(/^[CG][A-Z0-9]+$/, 'must be a Slack channel id');

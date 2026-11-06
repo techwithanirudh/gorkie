@@ -94,7 +94,7 @@ Only extract to a named function when called in multiple places or genuinely com
 Prefer schema parsing or narrower signatures over `as`. A cast is acceptable only at a real validated external boundary.
 
 ### 12. Config for tuneable values
-Magic numbers and strings that could change per deployment belong in `apps/bot/src/config.ts`.
+Magic numbers and strings that could change per deployment belong in `src/mastra/config.ts`.
 
 ---
 

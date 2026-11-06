@@ -3,15 +3,28 @@ import { channelContext } from '../lib/context';
 
 export function contextPrompt(requestContext: RequestContext): string {
   const ctx = channelContext(requestContext);
-  if (!(ctx.channelId || ctx.threadId)) {
-    return '';
-  }
   const lines: string[] = [];
+  if (ctx.botUserId) {
+    lines.push(
+      `You are <@${ctx.botUserId}> on Slack; messages that mention it are directed at you.`
+    );
+  }
+  lines.push(
+    ctx.isDM
+      ? 'This is a direct message with one person.'
+      : 'This is a shared channel or thread: not every message is directed at you.'
+  );
   if (ctx.channelId) {
     lines.push(`The current channel id is ${ctx.channelId}.`);
   }
   if (ctx.threadId) {
     lines.push(`The current thread id is ${ctx.threadId}.`);
   }
-  return `<context>\n${lines.join('\n')}\n</context>`;
+  if (ctx.userId) {
+    const named = ctx.userName ? ` (${ctx.userName})` : '';
+    lines.push(
+      `The message being answered was sent by Slack user ${ctx.userId}${named}; "me", "my" and "mine" refer to them. Other people may speak later in this thread, so re-read the sender rather than assuming it is still this person.`
+    );
+  }
+  return lines.length > 0 ? `<context>\n${lines.join('\n')}\n</context>` : '';
 }

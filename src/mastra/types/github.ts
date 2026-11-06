@@ -1,7 +1,8 @@
+import { isValidGitRef } from '@mastra/factory/sandbox/git-ref';
 import { z } from 'zod';
 import type { ApprovalLevel } from './approval';
 
-const GITHUB_PERMISSIONS = [
+const githubPermissions = [
   'all',
   'write',
   'never',
@@ -9,16 +10,22 @@ const GITHUB_PERMISSIONS = [
 
 export interface GitHubCredential {
   expiresAt: Date | undefined;
-  kind: 'app' | 'pat';
+  lastError: string | undefined;
   login: string;
   refreshToken: string | undefined;
-  scopes: string[];
   token: string;
 }
 
-export type GitHubPermission = (typeof GITHUB_PERMISSIONS)[number];
+export type GitHubAccount = Omit<GitHubCredential, 'lastError' | 'login'>;
 
-export const githubPermissionSchema = z.enum(GITHUB_PERMISSIONS).catch('all');
+export type GitHubPermission = (typeof githubPermissions)[number];
+
+export interface GitHubSettings {
+  permission: GitHubPermission;
+  threads: boolean;
+}
+
+export const githubPermissionSchema = z.enum(githubPermissions);
 
 export const repositorySchema = z
   .string()
@@ -33,14 +40,7 @@ export const repositorySchema = z
 
 export const branchSchema = z
   .string()
-  .regex(
-    /^[A-Za-z0-9](?:[A-Za-z0-9._/-]*[A-Za-z0-9])?$/,
-    'Not a valid branch name.'
-  )
-  .refine(
-    (value) => !(value.includes('..') || value.includes('//')),
-    'Not a valid branch name.'
-  )
+  .refine(isValidGitRef, 'Not a valid branch name.')
   .refine(
     (value) => !(value.startsWith('refs/') || value === 'HEAD'),
     'Pass the branch name without a refs/ prefix.'

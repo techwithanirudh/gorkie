@@ -1,37 +1,44 @@
+import { randomUUID } from 'node:crypto';
 import { MCPClient } from '@mastra/mcp';
+import { mcp as mcpConfig } from '../../config';
 import { logger } from '../../lib/logger';
 import type { MCPServerConfig } from '../../types';
-import { cleanMCPErrorMessage } from '../errors';
+import { describeMCPError } from '../errors';
 import { serverConnection } from './client';
 
-export async function findMCPConnectionError({
+export async function probeMCPConnection({
   userId,
   server,
 }: {
   userId: string;
   server: MCPServerConfig;
-}): Promise<string | undefined> {
+}): Promise<{ error: string | null; httpStatus: number | undefined }> {
   const url = new URL(server.url);
+  // MCPClient hands back, or disconnects, a live instance under the same id,
+  // so two overlapping probes of one server need their own.
   const probe = new MCPClient({
-    id: `mcp-probe-${userId}-${server.name}`,
+    id: `mcp-probe-${userId}-${server.name}-${randomUUID()}`,
     servers: {
       [server.name]: {
-        connectTimeout: 2000,
+        connectTimeout: mcpConfig.probeTimeoutMs,
         ...serverConnection({ server, url }),
       },
     },
   });
   probe.__setLogger(logger);
   try {
-    const { errors } = await probe.listToolsWithErrors();
-    const error = errors[server.name];
-    if (error) {
+    const { errorDetails } = await probe.listToolsWithErrors();
+    const details = errorDetails[server.name];
+    if (details) {
       logger.debug('[mcp] connection check failed', {
-        error,
+        error: details,
         name: server.name,
         userId,
       });
-      return cleanMCPErrorMessage({ serverName: server.name, raw: error });
+      return {
+        error: await describeMCPError({ server, details }),
+        httpStatus: details.httpStatus,
+      };
     }
   } catch (error) {
     logger.debug('[mcp] connection check failed', {
@@ -39,10 +46,15 @@ export async function findMCPConnectionError({
       name: server.name,
       userId,
     });
-    return cleanMCPErrorMessage({
-      serverName: server.name,
-      raw: error instanceof Error ? error.message : String(error),
-    });
+    return {
+      error: await describeMCPError({
+        server,
+        details: {
+          message: error instanceof Error ? error.message : String(error),
+        },
+      }),
+      httpStatus: undefined,
+    };
   } finally {
     await probe
       .disconnect()
@@ -50,4 +62,5 @@ export async function findMCPConnectionError({
         logger.debug('[mcp] probe disconnect failed', { error })
       );
   }
+  return { error: null, httpStatus: undefined };
 }

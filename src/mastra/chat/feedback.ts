@@ -1,30 +1,35 @@
 import { buildFeedbackButtonsBlock } from '@chat-adapter/slack';
+import type { SlackBlock } from '@chat-adapter/slack/blocks';
 import type { ActionEvent, ModalCloseEvent, ModalSubmitEvent } from 'chat';
 import { Modal, TextInput } from 'chat';
 import { z } from 'zod';
 import { logger } from '../lib/logger';
+import { storedJson } from '../types';
 import { getMastra } from './mastra-instance';
+import { isBlocked } from './moderation';
 
 export const feedbackIds = {
   action: 'message_feedback',
   modal: 'message_feedback_modal',
 };
 
+const directionSchema = z.enum(['up', 'down']);
+
 const metadataSchema = z.object({
-  messageId: z.string().optional(),
+  messageId: z.string(),
   threadId: z.string(),
-  traceId: z.string().optional(),
+  traceId: z.string().min(1),
 });
 
-export function feedbackBlock(
-  traceId: string | undefined
-): Record<string, unknown> {
-  const suffix = traceId ?? '';
-  return buildFeedbackButtonsBlock({
-    actionId: feedbackIds.action,
-    positiveValue: `up:${suffix}`,
-    negativeValue: `down:${suffix}`,
-  });
+export function feedbackBlock(traceId: string): SlackBlock {
+  return {
+    ...buildFeedbackButtonsBlock({
+      actionId: feedbackIds.action,
+      positiveValue: `up:${traceId}`,
+      negativeValue: `down:${traceId}`,
+    }),
+    type: 'context_actions',
+  };
 }
 
 async function recordFeedback({
@@ -34,12 +39,9 @@ async function recordFeedback({
   threadId,
   traceId,
   userId,
-}: {
+}: z.infer<typeof metadataSchema> & {
   comment?: string;
-  direction: 'up' | 'down';
-  messageId?: string;
-  threadId: string;
-  traceId?: string;
+  direction: z.infer<typeof directionSchema>;
   userId: string;
 }): Promise<void> {
   const { observability } = getMastra();
@@ -64,22 +66,29 @@ async function recordFeedback({
 
 export async function onFeedbackClick(event: ActionEvent): Promise<void> {
   const [prefix, traceId] = (event.value ?? '').split(':');
-  const direction = z.enum(['up', 'down']).safeParse(prefix).data;
-  if (!direction) {
-    logger.warn('[feedback] click carried no rating', {
-      raw: event.raw,
+  const direction = directionSchema.safeParse(prefix).data;
+  if (!(direction && traceId)) {
+    logger.warn('[feedback] click carried no rating or trace', {
+      actionId: event.actionId,
+      userId: event.user.userId,
       value: event.value,
     });
     return;
   }
+  if (await isBlocked(event.user.userId)) {
+    logger.info('[feedback] ignored a rating from a blocked user', {
+      threadId: event.threadId,
+      userId: event.user.userId,
+    });
+    return;
+  }
 
-  const rating = {
-    direction,
+  const metadata = {
     messageId: event.messageId,
     threadId: event.threadId,
-    traceId: traceId || undefined,
-    userId: event.user.userId,
+    traceId,
   };
+  const rating = { ...metadata, direction, userId: event.user.userId };
   if (direction === 'up') {
     await recordFeedback(rating);
     return;
@@ -99,7 +108,7 @@ export async function onFeedbackClick(event: ActionEvent): Promise<void> {
           }),
         ],
         notifyOnClose: true,
-        privateMetadata: JSON.stringify(rating),
+        privateMetadata: JSON.stringify(metadata),
         submitLabel: 'Send',
         title: 'Bad response',
       })
@@ -119,9 +128,9 @@ export async function recordFeedbackDetails({
   comment?: string;
   event: ModalCloseEvent | ModalSubmitEvent;
 }): Promise<void> {
-  const metadata = metadataSchema.safeParse(
-    JSON.parse(event.privateMetadata || '{}')
-  );
+  const metadata = storedJson
+    .pipe(metadataSchema)
+    .safeParse(event.privateMetadata);
   if (!metadata.success) {
     logger.warn('[feedback] modal carried no thread to attribute it to');
     return;

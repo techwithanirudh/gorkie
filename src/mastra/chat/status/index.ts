@@ -1,65 +1,35 @@
-import {
-  defaultTypingStatus,
-  type TypingStatusFn,
-} from '@mastra/core/channels';
-import { z } from 'zod';
-import { label } from '../../lib/label';
-import { truncate } from './format';
-import { statuses } from './statuses';
-
-const argsSchema = z.record(z.string(), z.unknown());
-
-const delegationAgentIds = new Set(['research', 'explore']);
-
-function delegatedChildTool(
-  rest: string
-): { agentId: string; childToolName: string } | undefined {
-  for (const agentId of delegationAgentIds) {
-    const prefix = `${agentId}_`;
-    if (rest.startsWith(prefix)) {
-      return { agentId, childToolName: rest.slice(prefix.length) };
-    }
-  }
-}
+import type { TypingStatusFn } from '@mastra/core/channels';
+import { statusUpdateInputSchema } from '../../types';
+import { activitySchema } from '../../types/progress';
+import { fit } from './format';
 
 export const status: TypingStatusFn = (chunk, context) => {
-  // Slack caps a status at 50 characters and the built-in approval text is 28
-  // plus the tool name, which the longer github_ names overflow.
+  const activity = activitySchema.safeParse(chunk.metadata?.gorkieActivity);
+  if (
+    activity.success &&
+    chunk.type !== 'finish' &&
+    chunk.type !== 'error' &&
+    chunk.type !== 'abort'
+  ) {
+    return fit({ prefix: 'is ', content: activity.data.status, suffix: '…' });
+  }
   if (chunk.type === 'tool-call-approval') {
-    return truncate(`is asking about ${label(chunk.payload.toolName)}…`);
+    return 'is waiting for your approval…';
   }
-  if (chunk.type !== 'tool-call') {
-    const fallback = defaultTypingStatus(chunk, context);
-    return typeof fallback === 'string' ? truncate(fallback) : fallback;
+  if (
+    chunk.type === 'tool-call' &&
+    chunk.payload.toolName === 'status_update'
+  ) {
+    const parsed = statusUpdateInputSchema.safeParse(chunk.payload.args);
+    return parsed.success
+      ? fit({ prefix: 'is ', content: parsed.data.status, suffix: '…' })
+      : false;
   }
-
-  const { toolName } = chunk.payload;
-  if (toolName === 'skip') {
-    return false;
+  if (
+    chunk.type === 'start' ||
+    (chunk.type === 'step-start' && !context.currentStatus)
+  ) {
+    return 'is working…';
   }
-
-  if (toolName.startsWith('agent-')) {
-    const rest = toolName.slice(6);
-    const delegated = delegatedChildTool(rest);
-    if (delegated) {
-      return truncate(
-        `is using ${delegated.agentId}: ${label(delegated.childToolName).toLowerCase()}…`
-      );
-    }
-    return truncate(`is spawning a ${label(rest).toLowerCase()} agent…`);
-  }
-
-  if (toolName.startsWith('github_')) {
-    return truncate(
-      `is using github: ${label(toolName.slice('github_'.length)).toLowerCase()}…`
-    );
-  }
-
-  const args = argsSchema.safeParse(chunk.payload.args).data ?? {};
-  const known = statuses[toolName]?.(args);
-  if (known) {
-    return truncate(known);
-  }
-
-  return truncate(`is using ${label(toolName).toLowerCase()}…`);
+  return false;
 };

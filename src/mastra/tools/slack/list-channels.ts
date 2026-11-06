@@ -1,28 +1,25 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
-import { chatChannelId } from '../../lib/ids';
-import { spendSlackCall } from '../../lib/slack-budget';
-import { input, optionalCursor, output } from '../../types/tools/index';
+import { spendSlackCall } from './budget';
 
 export const listChannelsTool = createTool({
   id: 'list_channels',
   description:
-    'List or filter Slack channels visible to the bot. Search applies to channel names, topics, and purposes within each paginated Slack result page.',
-  inputSchema: input({
+    'List or filter public Slack channels. Private channels, DMs, and group DMs are never listed. Search applies to channel names, topics, and purposes within each paginated Slack result page.',
+  inputSchema: z.strictObject({
     query: z.string().min(1).optional(),
     includeArchived: z.boolean().default(false),
     limit: z.coerce.number().int().min(1).max(200).default(100),
-    cursor: optionalCursor,
+    cursor: z.string().min(1).optional(),
   }),
-  outputSchema: output({
+  outputSchema: z.strictObject({
     channels: z.array(
       z.strictObject({
         channelId: z.string(),
         name: z.string().optional(),
         archived: z.boolean(),
         member: z.boolean(),
-        private: z.boolean(),
         memberCount: z.number().optional(),
         purpose: z.string().optional(),
         topic: z.string().optional(),
@@ -38,23 +35,24 @@ export const listChannelsTool = createTool({
     },
   },
   execute: async ({ query, includeArchived, limit, cursor }, context) => {
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
     const response = await slack.webClient.conversations.list({
       cursor,
       exclude_archived: !includeArchived,
       limit,
-      types: 'public_channel,private_channel',
+      types: 'public_channel',
     });
     const channels = (response.channels ?? []).flatMap((channel) =>
       channel.id
         ? [
             {
-              channelId: chatChannelId(channel.id),
+              channelId: slack.channelIdFromThreadId(
+                slack.encodeThreadId({ channel: channel.id, threadTs: '' })
+              ),
               name: channel.name,
               archived: channel.is_archived ?? false,
               member: channel.is_member ?? false,
-              private: channel.is_private ?? false,
               memberCount: channel.num_members,
               purpose: channel.purpose?.value || undefined,
               topic: channel.topic?.value || undefined,

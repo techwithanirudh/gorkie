@@ -1,6 +1,8 @@
+import { RadioSelect } from 'chat';
+import { z } from 'zod';
 import type { ApprovalLevel } from '../../types';
 
-export const PRESETS = {
+export const presets = {
   all: {
     description: 'Even reading waits.',
     label: 'Ask for everything',
@@ -25,3 +27,35 @@ export const PRESETS = {
   ApprovalLevel,
   { description: string; label: string; status: string }
 >;
+
+export const scopeSchema = z.enum(['dm', 'threads']).catch('dm');
+
+type Scope = z.infer<typeof scopeSchema>;
+
+const scopeLabels = {
+  dm: 'Only in a DM with you',
+  threads: 'Anywhere, including shared threads',
+} satisfies Record<Scope, string>;
+
+export function scopeSelect({
+  descriptions,
+  id,
+  label,
+  threads,
+}: {
+  descriptions: Record<Scope, string>;
+  id: string;
+  label: string;
+  threads: boolean;
+}) {
+  return RadioSelect({
+    id,
+    label,
+    initialOption: threads ? 'threads' : 'dm',
+    options: scopeSchema.unwrap().options.map((value) => ({
+      label: scopeLabels[value],
+      description: descriptions[value],
+      value,
+    })),
+  });
+}

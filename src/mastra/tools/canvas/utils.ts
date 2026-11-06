@@ -1,28 +1,35 @@
 import { z } from 'zod';
-import type { channelContext } from '../../lib/context';
-import { rawId } from '../../lib/ids';
+import { parseSlackInput, slackFileId } from '../../lib/ids';
+import type { ChannelContext } from '../../types';
 
 export const canvasIdSchema = z
   .string()
-  .regex(
-    /^F[A-Z0-9]+$/,
+  .refine(
+    (value) => slackFileId(value) === value,
     'Must be a bare Slack file id (e.g. F0123ABCD), not a URL or permalink.'
   )
   .describe('Slack canvas id, e.g. F0123ABCD.');
 
 export function assertCanManageChannel({
-  channelId,
+  channelIds,
   ctx,
 }: {
-  channelId: string;
-  ctx: ReturnType<typeof channelContext>;
-}): void {
-  if (!ctx.channelId) {
+  channelIds: string[];
+  ctx: ChannelContext;
+}): string {
+  const current = ctx.channelId;
+  if (!current) {
     throw new Error('No current Slack channel to compare against.');
   }
-  if (rawId(channelId) !== rawId(ctx.channelId)) {
+  const { channel } = parseSlackInput(current);
+  if (
+    !channelIds.some(
+      (channelId) => parseSlackInput(channelId).channel === channel
+    )
+  ) {
     throw new Error(
       'Can only manage canvases for the current channel, not other channels.'
     );
   }
+  return current;
 }

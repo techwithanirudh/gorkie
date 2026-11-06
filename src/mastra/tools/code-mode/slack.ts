@@ -2,18 +2,38 @@ import type { ToolsInput } from '@mastra/core/agent';
 import type { RequestContext } from '@mastra/core/request-context';
 import { createCodeMode, createCodeModeTool } from '@mastra/core/tools';
 import { E2BCodeModeTransport } from '@mastra/e2b';
-import { sandbox as sandboxConfig } from '../../config';
+import { toolActivity } from '../../chat/status/tool-activity';
+import { sandbox as sandboxConfig, slack as slackConfig } from '../../config';
+import { channelContext } from '../../lib/context';
+import { logger } from '../../lib/logger';
 import { mcpTools } from '../../mcp';
 import { codeModePrompt } from '../../prompts/features/code-mode';
-import { codeModeToolNames, getSandbox } from '../../workspace';
+import { requireSandbox } from '../../workspace';
+import { codeModeToolNames } from '../../workspace/tool-names';
 import { workspaceTools } from '../../workspace/tools';
 import { canvasTools } from '../canvas';
 import { slackTools } from '../slack';
+import { describeWorkSchema } from '../work-description';
 
 const transport = new E2BCodeModeTransport();
 
-function codeTools(mcp: Awaited<ReturnType<typeof mcpTools>>) {
-  return {
+async function getSandboxTools(
+  requestContext?: RequestContext
+): Promise<ToolsInput> {
+  const tools = await workspaceTools(requestContext);
+  return Object.fromEntries(
+    Object.entries(tools).filter(([name]) => codeModeToolNames.has(name))
+  );
+}
+
+async function createCodeModeInstance({
+  mcp,
+  workspaceAccess,
+}: {
+  mcp: Awaited<ReturnType<typeof mcpTools>>;
+  workspaceAccess: boolean;
+}) {
+  const slackCodeTools = {
     ...mcp,
     search_slack: slackTools.search_slack,
     read_conversation_history: slackTools.read_conversation_history,
@@ -24,81 +44,87 @@ function codeTools(mcp: Awaited<ReturnType<typeof mcpTools>>) {
     get_permalink: slackTools.get_permalink,
     get_slack_file: slackTools.get_slack_file,
     summarize_thread: slackTools.summarize_thread,
+    call_slack_api: slackTools.call_slack_api,
     list_canvases: canvasTools.list_canvases,
     read_canvas: canvasTools.read_canvas,
     lookup_canvas_sections: canvasTools.lookup_canvas_sections,
   };
-}
-
-async function getSandboxTools(
-  requestContext?: RequestContext
-): Promise<ToolsInput> {
-  const tools = await workspaceTools(requestContext);
-  return {
-    ...Object.fromEntries(
-      Object.entries(tools).filter(([name]) => codeModeToolNames.has(name))
-    ),
-  };
-}
-
-const RESULT_LIMIT = 60_000;
-
-function capResult(outcome: unknown): unknown {
-  const size = JSON.stringify(outcome ?? null)?.length ?? 0;
-  if (size <= RESULT_LIMIT) {
-    return outcome;
-  }
-  return {
-    success: false,
-    error: {
-      message: `The program returned ${size} characters, over the ${RESULT_LIMIT} limit, so nothing was kept. Return a summary computed inside the program (counts, the few records that matter, a written answer) rather than the rows you read, or write the full data to a file and return its path.`,
-      name: 'ResultTooLarge',
-    },
-  };
-}
-
-async function createCodeModeInstance({
-  workspaceAccess,
-}: {
-  workspaceAccess: boolean;
-}) {
-  const slackCodeTools = codeTools(await mcpTools());
-  const tools = workspaceAccess
-    ? { ...slackCodeTools, ...(await getSandboxTools()) }
-    : slackCodeTools;
+  const toolsFor = async (
+    requestContext?: RequestContext
+  ): Promise<ToolsInput> =>
+    workspaceAccess
+      ? { ...slackCodeTools, ...(await getSandboxTools(requestContext)) }
+      : slackCodeTools;
   const modeConfig = {
     id: 'slack',
     timeout: sandboxConfig.executionTimeout,
-    tools,
+    tools: await toolsFor(),
   };
   const mode = createCodeMode(modeConfig, transport);
+  mode.tool.inputSchema = describeWorkSchema(mode.tool.inputSchema);
 
   mode.tool.execute = async (input, context) => {
     if (!context.requestContext) {
       throw new Error('No request context available for Slack code mode.');
     }
-    const sandbox = await getSandbox(context.requestContext);
-    if (!sandbox) {
-      throw new Error('No E2B sandbox available for Slack code mode.');
-    }
+    const sandbox = await requireSandbox(context.requestContext);
+    let coveredAction = toolActivity({ toolName: 'slack', args: input });
 
     const { execute } = createCodeModeTool(
       {
         ...modeConfig,
         sandbox,
-        tools: workspaceAccess
-          ? {
-              ...slackCodeTools,
-              ...(await getSandboxTools(context.requestContext)),
-            }
-          : slackCodeTools,
+        tools: await toolsFor(context.requestContext),
       },
-      transport
+      {
+        run: (options) =>
+          transport.run({
+            ...options,
+            dispatch: async (toolName, args) => {
+              const status = toolActivity({ toolName, args });
+              if (status === coveredAction) {
+                coveredAction = null;
+              } else if (status) {
+                await context.writer?.custom({
+                  type: 'data-code-mode-activity',
+                  data: { status },
+                });
+              }
+              return options.dispatch(toolName, args);
+            },
+          }),
+      }
     );
     if (!execute) {
       throw new Error('Slack code mode is not executable.');
     }
-    return capResult(await execute(input, context));
+    const outcome = await execute(input, context);
+    const size = JSON.stringify(outcome ?? null).length;
+    const result =
+      size <= slackConfig.codeModeMaxResultChars
+        ? outcome
+        : {
+            success: false,
+            error: {
+              message: `The program returned ${size} characters, over the ${slackConfig.codeModeMaxResultChars} limit, so nothing was kept. Return a summary computed inside the program (counts, the few records that matter, a written answer) rather than the rows you read, or write the full data to a file and return its path.`,
+              name: 'ResultTooLarge',
+            },
+          };
+    if (result?.success === false) {
+      // A failed program is returned, not thrown, so the tool span would
+      // otherwise end clean and never show up under an ERROR filter.
+      const message = result.error?.message ?? 'Code mode program failed.';
+      logger.error('[code-mode] program failed', {
+        error: result.error,
+        logs: result.logs,
+        threadId: channelContext(context.requestContext).threadId,
+      });
+      context.tracingContext?.currentSpan?.error({
+        error: new Error(message),
+        endSpan: false,
+      });
+    }
+    return result;
   };
 
   return mode;
@@ -108,35 +134,35 @@ type CodeModeInstance = Awaited<ReturnType<typeof createCodeModeInstance>>;
 
 const instances = new Map<string, Promise<CodeModeInstance>>();
 
-function codeMode(workspaceAccess: boolean): Promise<CodeModeInstance> {
-  const key = workspaceAccess ? 'workspace' : 'slack';
+export async function codeMode({
+  workspaceAccess,
+}: {
+  workspaceAccess: boolean;
+}): Promise<CodeModeInstance> {
+  // Code mode calls tool.execute() directly, which skips Mastra's
+  // requireApproval check, so only tools the server labels read-only go in.
+  const mcp = Object.fromEntries(
+    Object.entries(await mcpTools()).filter(
+      ([, tool]) => tool.mcp?.annotations?.readOnlyHint === true
+    )
+  );
+  const key = `${workspaceAccess ? 'workspace' : 'slack'}:${Object.keys(mcp).sort().join(',')}`;
   const existing = instances.get(key);
   if (existing) {
     return existing;
   }
-  const started = createCodeModeInstance({ workspaceAccess });
+  const started = createCodeModeInstance({ mcp, workspaceAccess });
   instances.set(key, started);
   return started;
 }
 
-export function workspaceCodeMode(): Promise<CodeModeInstance> {
-  return codeMode(true);
-}
-
-export function slackCodeMode(): Promise<CodeModeInstance> {
-  return codeMode(false);
-}
-
-export async function workspaceCodeModePrompt(): Promise<string> {
+export async function codeModeInstructions({
+  workspaceAccess,
+}: {
+  workspaceAccess: boolean;
+}): Promise<string> {
   return codeModePrompt({
-    instructions: (await workspaceCodeMode()).instructions,
-    files: true,
-  });
-}
-
-export async function slackCodeModePrompt(): Promise<string> {
-  return codeModePrompt({
-    instructions: (await slackCodeMode()).instructions,
-    files: false,
+    instructions: (await codeMode({ workspaceAccess })).instructions,
+    files: workspaceAccess,
   });
 }

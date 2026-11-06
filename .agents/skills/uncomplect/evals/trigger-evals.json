@@ -1,0 +1,22 @@
+[
+  {"query":"What would Rich Hickey do with this persisted state machine? The status field has become the whole domain model.","should_trigger":true},
+  {"query":"Treat this working prototype as behavior evidence, then replace it without preserving the accidental architecture.","should_trigger":true},
+  {"query":"Use the Hickey and Ousterhout lens. I want fewer concepts, not merely fewer lines.","should_trigger":true},
+  {"query":"Can we optimize this module for deletion instead of predicting every future requirement?","should_trigger":true},
+  {"query":"Define this recovery error out of existence with a deeper interface.","should_trigger":true},
+  {"query":"Review this state machine. Historical facts keep regaining current authority after restoration.","should_trigger":true},
+  {"query":"This Effect plus XState workflow feels like ceremony. Is it simpler overall or just more machinery?","should_trigger":true},
+  {"query":"Map the DDD boundaries here. A dashboard projection is acting like the aggregate authority.","should_trigger":true},
+  {"query":"Design this architecture twice and compare change amplification, hidden knowledge, and what each option deletes.","should_trigger":true},
+  {"query":"We have retry policy, operator policy, lifecycle, and business failure braided into one failed status. Unbraid it.","should_trigger":true},
+  {"query":"Fix the spelling mistakes in this README and keep the wording otherwise unchanged.","should_trigger":false},
+  {"query":"Implement this already-specified XState machine from the attached transition table.","should_trigger":false},
+  {"query":"Debug why this HTTP request times out in production.","should_trigger":false},
+  {"query":"Refactor this React component to remove boolean prop proliferation.","should_trigger":false},
+  {"query":"Write the SQL migration that adds contract_version to the bindings table.","should_trigger":false},
+  {"query":"Explain bounded contexts and aggregates to a junior developer.","should_trigger":false},
+  {"query":"Reduce the JavaScript bundle size on this Next.js page.","should_trigger":false},
+  {"query":"Add exponential backoff to this Effect request using the project's existing retry policy.","should_trigger":false},
+  {"query":"Turn this product brief into a PRD and issue breakdown.","should_trigger":false},
+  {"query":"Make this pure function shorter without changing its behavior.","should_trigger":false}
+]

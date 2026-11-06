@@ -1,16 +1,21 @@
 import { getGitHubCredential } from '../../db/queries/github';
 import { listMCPServers } from '../../db/queries/mcps';
-import { getGitHubSettings, getInstructions } from '../../db/queries/settings';
-import { countInstallations } from '../../lib/github';
+import { activeBan } from '../../db/queries/moderation';
+import { getUserSettings } from '../../db/queries/settings';
+import { turnUsage } from '../../db/queries/usage';
 import { logger } from '../../lib/logger';
-import type { GitHubCredential } from '../../types';
+import type { GitHubCredential, HomeSection, TurnUsage } from '../../types';
 import { slack } from '../client';
 import { content } from '../content';
-import { githubBlocks } from './github';
-import { customInstructionsBlocks } from './instructions';
-import { fitHome, type HomeSection } from './limit';
-import { mcpServersBlocks } from './mcp';
-import { scheduledTasksBlocks } from './scheduled-tasks';
+import { banNotice } from '../moderation/cards';
+import { isModerator } from '../moderation/moderators';
+import { githubBlocks } from './github/blocks';
+import { githubInstallations } from './github/installations';
+import { customInstructionsBlocks } from './instructions/blocks';
+import { fitHome } from './limit';
+import { mcpServersBlocks } from './mcp/blocks';
+import { scheduledTasksBlocks } from './scheduled-tasks/blocks';
+import { usageBlocks } from './usage';
 
 async function settled<T>({
   label,
@@ -28,7 +33,20 @@ async function settled<T>({
   }
 }
 
-async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
+export async function publishHome(userId: string): Promise<void> {
+  const ban = await settled({ label: 'ban', userId, work: activeBan(userId) });
+  if (ban) {
+    await slack.publishHomeView(userId, {
+      type: 'home',
+      blocks: [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: banNotice(ban.expiresAt) },
+        },
+      ],
+    });
+    return;
+  }
   const credentialResult: Promise<{
     credential: GitHubCredential | undefined;
     unreadable: boolean;
@@ -45,42 +63,66 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
   );
 
   const [
-    instructions,
+    settings,
     mcpServers,
     { credential, unreadable },
-    github,
+    installations,
     scheduled,
+    usage,
   ] = await Promise.all([
-    settled({ label: 'instructions', userId, work: getInstructions(userId) }),
+    settled({ label: 'settings', userId, work: getUserSettings(userId) }),
     settled({ label: 'mcp', userId, work: listMCPServers(userId) }),
     credentialResult,
-    settled({ label: 'settings', userId, work: getGitHubSettings(userId) }),
+    settled({
+      label: 'installations',
+      userId,
+      work: credentialResult.then(({ credential }) =>
+        githubInstallations({ credential, userId })
+      ),
+    }),
     settled({
       label: 'scheduled',
       userId,
       work: scheduledTasksBlocks(userId),
     }),
+    settled<TurnUsage | 'unlimited'>({
+      label: 'usage',
+      userId,
+      work: isModerator(userId)
+        ? Promise.resolve('unlimited')
+        : turnUsage(userId),
+    }),
   ]);
-  const installations =
-    credential?.kind === 'app' ? await countInstallations(credential.token) : 0;
 
   const sections: HomeSection[] = [
-    { fixed: [...content.home.blocks, { type: 'divider' }] },
-    customInstructionsBlocks(instructions),
+    { fixed: [...content.home, { type: 'divider' }] },
+    customInstructionsBlocks(settings?.instructions),
+    ...(usage ? [usageBlocks(usage)] : []),
     githubBlocks({
       credential,
-      installations,
-      permission: github?.permission ?? 'write',
-      threads: github?.threads === true,
+      installations: installations ?? 0,
+      permission: settings?.github.permission ?? 'all',
+      threads: settings?.github.threads === true,
       unreadable,
+      userId,
     }),
-    mcpServersBlocks(mcpServers ?? []),
+    mcpServersBlocks({
+      servers: mcpServers ?? [],
+      userId,
+    }),
     ...(scheduled ? [scheduled] : []),
   ];
 
-  return { type: 'home', blocks: fitHome(sections) };
+  await slack.publishHomeView(userId, {
+    type: 'home',
+    blocks: fitHome(sections),
+  });
 }
 
-export async function publishHome(userId: string): Promise<void> {
-  await slack.publishHomeView(userId, await buildHomeView(userId));
+// The Home refresh reads the DB and calls GitHub, so it must not hold a Slack
+// ack: Chat SDK answers view_submission only after the submit handler returns.
+export function refreshHome(userId: string): void {
+  publishHome(userId).catch((error: unknown) =>
+    logger.warn('[app-home] could not refresh the Home tab', { error, userId })
+  );
 }

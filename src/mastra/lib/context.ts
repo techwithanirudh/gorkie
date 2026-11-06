@@ -1,33 +1,22 @@
 import type { RequestContext } from '@mastra/core/request-context';
-import { z } from 'zod';
-import type { ChannelContext } from '../types';
+import { type ChannelContext, channelSchema } from '../types';
 import { logger } from './logger';
-
-const channelSchema = z.looseObject({
-  botUserId: z.string().optional(),
-  channelId: z.string().optional(),
-  isDM: z.boolean().optional(),
-  messageId: z.string().optional(),
-  threadId: z.string().optional(),
-  userId: z.string().optional(),
-  userName: z.string().optional(),
-});
 
 export function channelContext(
   requestContext?: RequestContext
 ): ChannelContext {
   const raw = requestContext?.get('channel');
   if (!raw) {
-    return {};
+    return { isDM: false };
   }
-  // Slack sets `channel` as an object, but the Studio/API request-context
-  // boundary serializes it to a JSON string, so parse that back first.
   let value: unknown = raw;
+  // Studio's request-context presets reach the server with nested objects JSON-stringified.
   if (typeof value === 'string') {
     try {
       value = JSON.parse(value);
-    } catch {
-      return {};
+    } catch (error) {
+      logger.warn('[context] channel context was not valid JSON', { error });
+      return { isDM: false };
     }
   }
   const parsed = channelSchema.safeParse(value);
@@ -35,7 +24,7 @@ export function channelContext(
     logger.warn('[context] channel context did not match its shape', {
       issues: parsed.error.issues,
     });
-    return {};
+    return { isDM: false };
   }
   return parsed.data;
 }

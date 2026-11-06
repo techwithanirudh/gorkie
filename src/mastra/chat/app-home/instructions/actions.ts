@@ -1,17 +1,20 @@
-import { Modal, TextInput } from 'chat';
-import { getInstructions, setInstructions } from '../../../db/queries/settings';
-import { chat } from '../../instance';
+import { Chat, Modal, TextInput } from 'chat';
+import {
+  getUserSettings,
+  updateUserSettings,
+} from '../../../db/queries/settings';
+import { isBlocked } from '../../moderation';
+import { publishHome, refreshHome } from '../view';
 import { ids } from './ids';
 
-export function registerCustomInstructions({
-  publishHome,
-}: {
-  publishHome: (userId: string) => Promise<void>;
-}): void {
-  const bot = chat();
+export function registerCustomInstructions(): void {
+  const bot = Chat.getSingleton();
 
   bot.onAction(ids.edit, async (event) => {
-    const instructions = await getInstructions(event.user.userId);
+    if (await isBlocked(event.user.userId)) {
+      return;
+    }
+    const { instructions } = await getUserSettings(event.user.userId);
     await event.openModal(
       Modal({
         callbackId: ids.modal,
@@ -33,19 +36,22 @@ export function registerCustomInstructions({
   });
 
   bot.onAction(ids.clear, async (event) => {
-    await setInstructions({
+    await updateUserSettings({
+      set: { instructions: null },
       userId: event.user.userId,
-      instructions: undefined,
     });
     await publishHome(event.user.userId);
   });
 
   bot.onModalSubmit(ids.modal, async (event) => {
+    if (await isBlocked(event.user.userId)) {
+      return;
+    }
     const instructions = event.values.instructions?.trim();
-    await setInstructions({
+    await updateUserSettings({
+      set: { instructions: instructions || null },
       userId: event.user.userId,
-      instructions: instructions || undefined,
     });
-    await publishHome(event.user.userId);
+    refreshHome(event.user.userId);
   });
 }

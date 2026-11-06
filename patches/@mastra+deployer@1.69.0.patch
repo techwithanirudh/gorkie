@@ -1,0 +1,36 @@
+--- a/dist/server/index.js
++++ b/dist/server/index.js
+@@ -4522,6 +4522,15 @@
+ 		prefix: apiPrefix,
+ 		mcpOptions: server?.mcpOptions
+ 	});
++	// The context middleware below buffers every JSON POST/PUT body before
++	// routing and auth, and custom and channel routes get no bodyLimit of
++	// their own, so cap every body first. Unauthenticated (framework-public)
++	// routes, such as channel webhooks and OAuth pages, get at most 1 MiB.
++	const preContextIsPublic = honoServerAdapter.getFrameworkPublicMatcher();
++	app.use("*", (c, next) => bodyLimit({
++		maxSize: preContextIsPublic(c.req.path, c.req.method) ? Math.min(1024 * 1024, bodyLimitOptions.maxSize) : bodyLimitOptions.maxSize,
++		onError: (ctx) => ctx.json(bodyLimitOptions.onError(), 413)
++	})(c, next));
+ 	honoServerAdapter.registerContextMiddleware();
+ 	const serverMiddleware = mastra.getServerMiddleware?.();
+ 	if (serverMiddleware && serverMiddleware.length > 0) for (const m of serverMiddleware) app.use(m.path, skipIfFrameworkPublic(m.handler));
+--- a/dist/server/index.cjs
++++ b/dist/server/index.cjs
+@@ -4527,6 +4527,15 @@
+ 		prefix: apiPrefix,
+ 		mcpOptions: server?.mcpOptions
+ 	});
++	// The context middleware below buffers every JSON POST/PUT body before
++	// routing and auth, and custom and channel routes get no bodyLimit of
++	// their own, so cap every body first. Unauthenticated (framework-public)
++	// routes, such as channel webhooks and OAuth pages, get at most 1 MiB.
++	const preContextIsPublic = honoServerAdapter.getFrameworkPublicMatcher();
++	app.use("*", (c, next) => (0, hono_body_limit.bodyLimit)({
++		maxSize: preContextIsPublic(c.req.path, c.req.method) ? Math.min(1024 * 1024, bodyLimitOptions.maxSize) : bodyLimitOptions.maxSize,
++		onError: (ctx) => ctx.json(bodyLimitOptions.onError(), 413)
++	})(c, next));
+ 	honoServerAdapter.registerContextMiddleware();
+ 	const serverMiddleware = mastra.getServerMiddleware?.();
+ 	if (serverMiddleware && serverMiddleware.length > 0) for (const m of serverMiddleware) app.use(m.path, skipIfFrameworkPublic(m.handler));

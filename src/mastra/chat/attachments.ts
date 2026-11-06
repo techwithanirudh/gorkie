@@ -1,31 +1,63 @@
-import type { Message } from 'chat';
-import { parseMarkdown } from 'chat';
+import type { Attachment, Message } from 'chat';
+import { slackFileId } from '../lib/ids';
+import { formatBytes } from '../lib/media';
+import { turnContext } from '../prompts/turn-context';
+import { setMessageText } from './message';
 
-export function attachments(message: Message): Message {
+// Channels' default inlineMedia list (DEFAULT_INLINE_MEDIA_TYPES in
+// @mastra/core, not exported). Those files already reach the model as file
+// parts.
+const inlinedTypes = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'application/pdf',
+]);
+
+// Chat SDK attachments carry no Slack file id, but url_private embeds it.
+export function attachmentLabel({
+  attachment,
+  index,
+}: {
+  attachment: Attachment;
+  index: number;
+}): string {
+  const id = attachment.url ? slackFileId(attachment.url) : undefined;
+  return [
+    attachment.name ?? `file-${index + 1}`,
+    id ? `file id ${id}` : attachment.url,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+export function appendAttachments(message: Message): void {
   if (message.attachments.length === 0) {
-    return message;
+    return;
   }
 
   const text = [
     message.text,
-    'Slack attachments, not downloaded yet:',
-    ...message.attachments.map((attachment, i) => {
-      const size = attachment.size
-        ? `${Math.ceil(attachment.size / 1024 / 1024)} MB`
-        : undefined;
+    turnContext.attachments,
+    ...message.attachments.map((attachment, index) => {
+      const size = attachment.size ? formatBytes(attachment.size) : undefined;
+      const mimeType =
+        attachment.mimeType ||
+        // Channels inlines an untyped image as image/png the same way.
+        (attachment.type === 'image' ? 'image/png' : undefined);
       const details = [
-        attachment.name ?? `file-${i + 1}`,
+        attachmentLabel({ attachment, index }),
         attachment.mimeType,
         size,
-        attachment.url ?? attachment.fetchMetadata?.url,
+        mimeType && inlinedTypes.has(mimeType)
+          ? turnContext.attachmentInlined
+          : turnContext.attachmentNotDownloaded,
       ].filter(Boolean);
       return `- ${details.join(', ')}`;
     }),
-    'Call get_slack_file with a Slack file id to download it into the workspace.',
+    turnContext.getSlackFile,
   ]
     .filter(Boolean)
     .join('\n\n');
-  message.text = text;
-  message.formatted = parseMarkdown(text);
-  return message;
+  setMessageText({ message, text });
 }

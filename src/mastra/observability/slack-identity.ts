@@ -1,25 +1,6 @@
 import type { AnySpan, SpanOutputProcessor } from '@mastra/core/observability';
 import { SpanType } from '@mastra/core/observability';
-import { z } from 'zod';
-
-// Mastra stashes its live channel render context under this key, and that object
-// holds the Slack adapter carrying SLACK_BOT_TOKEN and SLACK_APP_TOKEN.
-// `RequestContext.serializeForSpan` passes plain objects through by reference, so
-// the render context reaches the span exporters: drop the whole entry here rather
-// than trust field-name redaction to catch every token nested in the adapter.
-// Mirrors `@mastra/core`'s CHAT_CHANNEL_RENDER_CONTEXT_KEY, which is not
-// re-exported from a public entry point, so the literal is duplicated.
-const RENDER_KEY = '__mastra_chat_channel_render';
-
-const channel = z.object({
-  channelId: z.string().optional(),
-  eventType: z.string().optional(),
-  isDM: z.boolean().optional(),
-  messageId: z.string().optional(),
-  threadId: z.string().optional(),
-  userId: z.string().optional(),
-  userName: z.string().optional(),
-});
+import { channelSchema } from '../types';
 
 export const slackIdentity: SpanOutputProcessor = {
   name: 'slack-identity',
@@ -28,21 +9,22 @@ export const slackIdentity: SpanOutputProcessor = {
       return span;
     }
 
-    const context = span.requestContext;
-    if (context && typeof context === 'object' && RENDER_KEY in context) {
-      // Export a copy without the adapter rather than mutating the live
-      // context, which a running turn still needs to render under realtime
-      // export. Keeps requestContext.channel for the identity below.
-      const sanitized = { ...context };
-      Reflect.deleteProperty(sanitized, RENDER_KEY);
-      span.requestContext = sanitized;
-    }
-
-    if (span.type !== SpanType.AGENT_RUN || span.getParentSpanId()) {
-      return span;
-    }
-    const parsed = channel.safeParse(span.requestContext?.channel);
-    if (!parsed.success) {
+    // A resumed or woken run starts a new root span that links back to the
+    // suspended one through `parentSpanId`, so `getParentSpanId()` is set even
+    // though nothing in this process parents it. `isRootSpan` covers both, and
+    // without the stamp Langfuse falls back to the Mastra thread UUID and the
+    // resumed turn overwrites the trace's Slack session.
+    const parsed =
+      span.type === SpanType.AGENT_RUN && span.isRootSpan
+        ? channelSchema.safeParse(span.requestContext?.channel)
+        : undefined;
+    // Request context carries Mastra's channel render entry, whose Slack adapter
+    // holds SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET, and anything else a turn stashes
+    // there later. Drop it from every exported span rather than trust key- or
+    // field-name redaction. Only the span's reference goes: the running turn
+    // reads its own RequestContext, not this snapshot.
+    Reflect.deleteProperty(span, 'requestContext');
+    if (!parsed?.success) {
       return span;
     }
     const slack = parsed.data;

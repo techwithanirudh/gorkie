@@ -1,14 +1,184 @@
 import type { CompatRule } from '@mastra/core/processors';
 import { image as imageLimits } from '../config';
+import {
+  attachedMediaNote,
+  imageAttachedNote,
+  imageOmittedNote,
+} from '../prompts/processors';
 
-interface MediaPart {
-  data: string;
-  mediaType: string;
-  type: 'media';
+type Prompt = Parameters<NonNullable<CompatRule['applyToPrompt']>>[0]['prompt'];
+type FilePart = Extract<
+  Extract<Prompt[number], { role: 'user' }>['content'][number],
+  { type: 'file' }
+>;
+type MediaPart = Extract<
+  Extract<
+    Extract<
+      Extract<Prompt[number], { role: 'tool' }>['content'][number],
+      { type: 'tool-result' }
+    >['output'],
+    { type: 'content' }
+  >['value'][number],
+  { type: 'media' }
+>;
+
+function decodedBytes(data: FilePart['data']): number {
+  if (data instanceof Uint8Array) {
+    return data.byteLength;
+  }
+  const text = data instanceof URL ? data.href : data;
+  // A remote URL is fetched by the provider, so it costs nothing inline here.
+  if (/^https?:/i.test(text)) {
+    return 0;
+  }
+  return Math.ceil((text.slice(text.indexOf(',') + 1).length * 3) / 4);
 }
 
-function byteLength(base64: string): number {
-  return Math.ceil((base64.length * 3) / 4);
+type Image = MediaPart | FilePart;
+type ToolMessage = Extract<Prompt[number], { role: 'tool' }>;
+
+const isImage = (part: { mediaType: string }) =>
+  part.mediaType.startsWith('image/');
+
+function collectImages(prompt: Prompt): {
+  found: { part: Image; size: number }[];
+  toolImages: number;
+} {
+  const found: { part: Image; size: number }[] = [];
+  let toolImages = 0;
+  for (const message of prompt) {
+    if (message.role === 'user') {
+      for (const part of message.content) {
+        if (part.type === 'file' && isImage(part)) {
+          found.push({ part, size: decodedBytes(part.data) });
+        }
+      }
+      continue;
+    }
+    if (message.role !== 'tool') {
+      continue;
+    }
+    for (const part of message.content) {
+      if (part.type !== 'tool-result' || part.output.type !== 'content') {
+        continue;
+      }
+      for (const item of part.output.value) {
+        if (item.type === 'media' && isImage(item)) {
+          found.push({ part: item, size: decodedBytes(item.data) });
+          toolImages++;
+        }
+      }
+    }
+  }
+  return { found, toolImages };
+}
+
+// Relocation concentrates every tool image into one request, next to the
+// Slack uploads already inline, and vision models cap inline images (GLM:
+// 8 / 64 MiB, a non-retryable 400), so keep only the most recent images
+// within budget, whichever route they came in by.
+function keepWithinBudget(found: { part: Image; size: number }[]): Set<Image> {
+  const keep = new Set<Image>();
+  let bytes = 0;
+  for (let i = found.length - 1; i >= 0; i--) {
+    const { part, size } = found[i];
+    if (
+      keep.size >= imageLimits.maxContextImages ||
+      bytes + size > imageLimits.maxContextBytes
+    ) {
+      break;
+    }
+    keep.add(part);
+    bytes += size;
+  }
+  return keep;
+}
+
+function rewriteToolMessage({
+  keep,
+  message,
+}: {
+  keep: Set<Image>;
+  message: ToolMessage;
+}): Prompt {
+  const relocated: MediaPart[] = [];
+  const content = message.content.map((part) => {
+    if (part.type !== 'tool-result' || part.output.type !== 'content') {
+      return part;
+    }
+    let keptImage = false;
+    let droppedImage = false;
+    const kept = part.output.value.filter((item) => {
+      if (item.type === 'media' && isImage(item)) {
+        if (keep.has(item)) {
+          relocated.push(item);
+          keptImage = true;
+        } else {
+          droppedImage = true;
+        }
+        return false;
+      }
+      return true;
+    });
+    if (kept.length === part.output.value.length) {
+      return part;
+    }
+    if (keptImage) {
+      kept.push({
+        type: 'text',
+        text: imageAttachedNote,
+      });
+    }
+    if (droppedImage) {
+      kept.push({ type: 'text', text: imageOmittedNote });
+    }
+    return { ...part, output: { ...part.output, value: kept } };
+  });
+  if (relocated.length === 0) {
+    return [{ ...message, content }];
+  }
+  return [
+    { ...message, content },
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: attachedMediaNote },
+        ...relocated.map(
+          (media): FilePart => ({
+            type: 'file',
+            data: media.data,
+            mediaType: media.mediaType,
+          })
+        ),
+      ],
+    },
+  ];
+}
+
+function rewritePrompt({
+  keep,
+  prompt,
+}: {
+  keep: Set<Image>;
+  prompt: Prompt;
+}): Prompt {
+  return prompt.flatMap((message): Prompt => {
+    if (message.role === 'user') {
+      return [
+        {
+          ...message,
+          content: message.content.map((part) =>
+            part.type === 'file' && isImage(part) && !keep.has(part)
+              ? { type: 'text', text: imageOmittedNote }
+              : part
+          ),
+        },
+      ];
+    }
+    return message.role === 'tool'
+      ? rewriteToolMessage({ keep, message })
+      : [message];
+  });
 }
 
 // Every gateway gorkie routes through is OpenAI-compatible, and none of them
@@ -21,111 +191,20 @@ function byteLength(base64: string): number {
 // branches on `image/*`, `audio/*` and `application/pdf` and throws
 // `UnsupportedFunctionalityError` for anything else, which crashes the turn
 // rather than merely not working.
-//
-// The relocation also concentrates every tool image into the request, and
-// vision models cap inline images (GLM: 8 / 64 MiB, non-retryable 400). So keep
-// only the most recent images within that budget and drop the older ones.
+function relocateToolImages({
+  prompt,
+}: {
+  prompt: Prompt;
+}): Prompt | undefined {
+  const { found, toolImages } = collectImages(prompt);
+  const keep = keepWithinBudget(found);
+  if (toolImages === 0 && keep.size === found.length) {
+    return;
+  }
+  return rewritePrompt({ keep, prompt });
+}
+
 export const moveToolImages: CompatRule = {
   name: 'move-tool-images',
-  applyToPrompt({ prompt }) {
-    const found: MediaPart[] = [];
-    for (const message of prompt) {
-      if (message.role !== 'tool') {
-        continue;
-      }
-      for (const part of message.content) {
-        if (part.type !== 'tool-result' || part.output.type !== 'content') {
-          continue;
-        }
-        for (const item of part.output.value) {
-          if (item.type === 'media' && item.mediaType.startsWith('image/')) {
-            found.push(item);
-          }
-        }
-      }
-    }
-    if (found.length === 0) {
-      return;
-    }
-
-    const keep = new Set<MediaPart>();
-    let bytes = 0;
-    for (let i = found.length - 1; i >= 0; i--) {
-      const media = found[i];
-      const size = byteLength(media.data);
-      if (
-        keep.size >= imageLimits.maxContextImages ||
-        bytes + size > imageLimits.maxContextBytes
-      ) {
-        break;
-      }
-      keep.add(media);
-      bytes += size;
-    }
-    const next: typeof prompt = [];
-    for (const message of prompt) {
-      if (message.role !== 'tool') {
-        next.push(message);
-        continue;
-      }
-      const relocated: MediaPart[] = [];
-      // The note lives on the tool result the image was stripped from, not as a
-      // trailing message: appending one would make a synthetic user message the
-      // most recent thing said, displacing the real request.
-      const content = message.content.map((part) => {
-        if (part.type !== 'tool-result' || part.output.type !== 'content') {
-          return part;
-        }
-        let keptImage = false;
-        let droppedImage = false;
-        const kept = part.output.value.filter((item) => {
-          if (item.type === 'media' && item.mediaType.startsWith('image/')) {
-            if (keep.has(item)) {
-              relocated.push(item);
-              keptImage = true;
-            } else {
-              droppedImage = true;
-            }
-            return false;
-          }
-          return true;
-        });
-        if (kept.length === part.output.value.length) {
-          return part;
-        }
-        if (keptImage) {
-          kept.push({
-            type: 'text',
-            text: 'Image attached in the following message.',
-          });
-        }
-        if (droppedImage) {
-          kept.push({
-            type: 'text',
-            text: "Image omitted to stay within the model's image limit. Call view_image on the file again if you still need it.",
-          });
-        }
-        return { ...part, output: { ...part.output, value: kept } };
-      });
-
-      next.push({ ...message, content });
-      if (relocated.length > 0) {
-        next.push({
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Attached media from tool result:' },
-            ...relocated.map(
-              (media): { type: 'file'; data: string; mediaType: string } => ({
-                type: 'file',
-                data: media.data,
-                mediaType: media.mediaType,
-              })
-            ),
-          ],
-        });
-      }
-    }
-
-    return next;
-  },
+  applyToPrompt: relocateToolImages,
 };

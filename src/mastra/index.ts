@@ -1,54 +1,80 @@
-import { join } from 'node:path';
 import { Mastra } from '@mastra/core/mastra';
 import { SpanType } from '@mastra/core/observability';
+import { SimpleAuth } from '@mastra/core/server';
 import { MastraCompositeStore } from '@mastra/core/storage';
-import { DuckDBStore } from '@mastra/duckdb';
 import { LangfuseExporter } from '@mastra/langfuse';
 import { MastraStorageExporter, Observability } from '@mastra/observability';
 import { env } from '@/env';
-import { exploreAgent as explore } from './agents/explore';
-import orchestrator from './agents/orchestrator';
-import { researchAgent as research } from './agents/research';
+import { explore } from './agents/explore';
+import { orchestrator } from './agents/orchestrator';
+import { research } from './agents/research';
 import { summarizer } from './agents/summarizer';
+import { voiceAgent as voice } from './agents/voice';
+import { buildAllowlist } from './chat/allowed-users';
 import { registerEvents } from './chat/events';
-import { setChat } from './chat/instance';
 import { setMastra } from './chat/mastra-instance';
-import { postgresStore, runMigrations } from './db';
-import { buildAllowlist } from './lib/allowed-users';
+import { TurnDrainWorker } from './chat/turn-drain';
+import { backgroundTasks, shutdown } from './config';
+import { runMigrations } from './db';
+import { postgresStore } from './db/client';
+import { startHuddles } from './huddle';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
+import { trimPayloads } from './observability/trim-payloads';
+import { deleteFiredWait, gateScheduledFire } from './schedule-hooks';
+import { oauthRoutes } from './server/oauth';
+import { traceStore } from './trace-store';
 
 process.on('unhandledRejection', (err: unknown) => {
   logger.error('[process] unhandled rejection', { err });
 });
-process.on('uncaughtException', (err: Error) => {
-  logger.error('[process] uncaught exception', { err });
+// Before the Mastra constructor, which starts channels without awaiting them:
+// a Slack message handled mid-migration would read and write threads the
+// migration is renaming.
+await runMigrations();
+
+const langfuse = new LangfuseExporter({
+  baseUrl: env.LANGFUSE_BASE_URL,
+  environment: env.NODE_ENV,
+  publicKey: env.LANGFUSE_PUBLIC_KEY,
+  realtime: env.NODE_ENV !== 'production',
+  secretKey: env.LANGFUSE_SECRET_KEY,
 });
 
-const isProduction = env.NODE_ENV === 'production';
-
 export const mastra = new Mastra({
-  agents: { orchestrator, summarizer, research, explore },
-  schedules: {
-    prepare: async ({ mastra: runtime, schedule }) => {
-      const current = await runtime.schedules.get(schedule.id);
-      if (current?.metadata?.kind === 'wait') {
-        await runtime.schedules.delete(schedule.id);
-      }
-    },
+  agents: { orchestrator, summarizer, research, explore, voice },
+  server: {
+    host: env.HOST,
+    port: env.PORT,
+    cors: false,
+    drainTimeout: shutdown.drainTimeoutMs,
+    build: { openAPIDocs: false, swaggerUI: false },
+    apiRoutes: oauthRoutes,
+    auth: new SimpleAuth({
+      tokens: {
+        [env.GORKIE_API_TOKEN]: { id: 'operator', name: 'operator' },
+      },
+    }),
   },
-  storage: isProduction
-    ? postgresStore
-    : new MastraCompositeStore({
+  schedules: {
+    prepare: gateScheduledFire,
+    onFinish: deleteFiredWait,
+    onError: deleteFiredWait,
+    onAbort: deleteFiredWait,
+  },
+  backgroundTasks: {
+    enabled: true,
+    cleanup: { cleanupIntervalMs: backgroundTasks.cleanupIntervalMs },
+  },
+  workers: [new TurnDrainWorker()],
+  storage: traceStore
+    ? new MastraCompositeStore({
         id: 'composite-storage',
         default: postgresStore,
-        domains: {
-          observability: await new DuckDBStore({
-            path: join(env.PROJECT_ROOT, 'observability.duckdb'),
-          }).getStore('observability'),
-        },
-      }),
+        domains: { observability: traceStore },
+      })
+    : postgresStore,
   observability: new Observability({
     configs: {
       default: {
@@ -62,39 +88,74 @@ export const mastra = new Mastra({
         ],
         serviceName: 'orchestrator',
         exporters: [
-          ...(isProduction ? [] : [new MastraStorageExporter()]),
-          new LangfuseFeedbackExporter(),
-          new LangfuseExporter({
-            baseUrl: env.LANGFUSE_BASE_URL,
-            environment: env.NODE_ENV,
-            publicKey: env.LANGFUSE_PUBLIC_KEY,
-            realtime: !isProduction,
-            secretKey: env.LANGFUSE_SECRET_KEY,
-          }),
+          ...(traceStore ? [new MastraStorageExporter()] : []),
+          new LangfuseFeedbackExporter(langfuse.client),
+          langfuse,
         ],
-        spanOutputProcessors: [slackIdentity],
+        spanOutputProcessors: [slackIdentity, trimPayloads],
       },
     },
   }),
   logger,
 });
 
-await runMigrations();
-await mastra.startWorkers();
-setMastra(mastra);
+// Registered once `mastra` exists: a failure during migrations above is a
+// top-level rejection and already exits. Node does not support resuming after
+// an uncaught exception, so drain the turns in flight, then exit non-zero so
+// systemd restarts the process.
+process.once('uncaughtException', (err: Error) => {
+  logger.error('[process] uncaught exception, shutting down', { err });
+  mastra
+    .shutdown({ drainTimeout: shutdown.drainTimeoutMs })
+    .catch((error: unknown) => {
+      logger.error('[process] shutdown after an uncaught exception failed', {
+        error,
+      });
+    })
+    .finally(() => process.exit(1));
+});
 
-orchestrator
-  .getChannels()
+// Operator routes are for the host, never for anything that arrived through the
+// tunnel or a proxy. Mastra skips this for public routes (the Slack webhook and
+// OAuth pages).
+mastra.setServerMiddleware([
+  {
+    path: '*',
+    handler: async (c, next) => {
+      const proxied =
+        c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for');
+      if (proxied && c.req.path !== '/health') {
+        return c.text('Not found', 404);
+      }
+      await next();
+    },
+  },
+]);
+
+// Before anything awaits: channels may already be handing Slack messages to
+// handlers that call getMastra().
+setMastra(mastra);
+await mastra.startWorkers();
+
+// Mastra starts channels itself without awaiting them. initialize() is
+// idempotent and returns that same promise, so this hooks the post-init wiring
+// onto it without holding module load.
+const channels = orchestrator.getChannels();
+channels
   ?.initialize(mastra)
   .then(async () => {
-    const sdk = orchestrator.getChannels()?.sdk;
-    if (!sdk) {
+    if (!channels.sdk) {
       return;
     }
-    setChat(sdk);
+    channels.sdk.registerSingleton();
     registerEvents();
     await buildAllowlist();
     logger.info('[agent] online');
+    try {
+      await startHuddles();
+    } catch (err) {
+      logger.error('[huddle] failed to start', { err });
+    }
   })
   .catch((err: unknown) =>
     logger.error('[agent] initialization failed', { err })

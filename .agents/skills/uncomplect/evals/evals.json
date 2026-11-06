@@ -1,0 +1,53 @@
+{
+  "skill_name": "uncomplect",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Review this design. A document-sync service persists one status field: ready, applying, held, or failed. A v1 validator wrote held when a target lacked a required field. Contract v2 intentionally permits that target shape and the binding has a known v1-to-v2 migration. On restart, the poller restores held and returns before migration or current validation. New revisions arrive but never apply. Operators must still approve release from a real current safety hold. Propose the smallest safe replacement architecture. Do not merely patch branch order.",
+      "expected_output": "A source-grounded replacement that separates historical facts, current decisions, contract versions, lifecycle, and operator policy while preserving the real safety boundary.",
+      "files": [],
+      "expectations": [
+        "The response leads with an explicit verdict about whether local machinery produces overall simplification.",
+        "The response includes a complection table that separates the historical observation from current authority.",
+        "The response preserves the operator release boundary for a real current violation.",
+        "The response proposes one deep operation that normalizes or migrates the binding before deriving the current decision.",
+        "The response compares old and proposed state or representation counts and explains why any added local types reduce invalid combinations.",
+        "The response includes a deletion list and a shadow or staged cutover path.",
+        "The response includes an unknowns ledger that distinguishes at least a known unknown from a suspected unknown unknown.",
+        "The response applies the one-week rewrite horizon as a coupling test rather than recommending arbitrary microservices."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Our webhook worker has booleans isPaused, isRetrying, isDelivering, hasFailed, and needsOperatorReview plus a status string that repeats some of them. Provider 429s, invalid customer payloads, an operator pause, and exhausted retries all flow through the same failed state. The database row is restored directly into the worker after deploys. Review the model and propose a simpler typed-effects plus state-machine design with cancellation and resumability.",
+      "expected_output": "A smaller lifecycle machine fed by validated domain values, with typed failures and operator policy separated from retry mechanics.",
+      "files": [],
+      "expectations": [
+        "The response leads with an explicit verdict about whether local machinery produces overall simplification.",
+        "The response includes a complection table separating domain failure, transient provider failure, retry exhaustion, lifecycle, and operator policy.",
+        "The response removes duplicate boolean and status representations.",
+        "The response keeps guards pure and puts provider calls in invoked actors or effectful services.",
+        "The response normalizes persisted state before it receives current authority.",
+        "The response compares the old combinatorial state space with the proposed explicit state count.",
+        "The response names states by legal event modes and includes cancellation and resumability.",
+        "The response includes a deletion list plus an unknowns ledger and one material question."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "A working feature-access prototype checks plan, trial, manual override, regional policy, and account suspension in six API handlers. Each handler has slightly different precedence. The UI caches an accessAllowed boolean and support staff sometimes edit it directly. We need a replacement without a flag-day rewrite. Pressure-test the architecture, design two interfaces, choose one, and give us an adoption path.",
+      "expected_output": "Two materially different interfaces, a clear authority boundary, a pure decision model, and a staged replacement that deletes duplicated policy.",
+      "files": [],
+      "expectations": [
+        "The response leads with an explicit verdict about whether local machinery produces overall simplification.",
+        "The response includes a complection table separating policy, projection, transport, and authority.",
+        "The response designs two materially different interfaces and compares caller burden, hidden knowledge, dependencies, failure semantics, and deletion enabled.",
+        "The chosen interface centralizes precedence and returns explicit reasons or facts rather than only a boolean.",
+        "The response prevents the UI cache or support projection from becoming aggregate authority.",
+        "The response compares old and proposed state or representation counts and gives a rewrite horizon.",
+        "The adoption path uses shadow comparison before one-authority cutover and names what becomes deletable.",
+        "The response includes an unknowns ledger and one unresolved material question."
+      ]
+    }
+  ]
+}

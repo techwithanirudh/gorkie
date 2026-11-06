@@ -1,27 +1,21 @@
-import { agent as agentConfig } from '../../../config';
-import { chatChannelId } from '../../../lib/ids';
-import { isAgentSchedule } from '../../../tools/scheduled-tasks/queries';
-import { chat } from '../../instance';
+import { Chat } from 'chat';
+import { isScheduledTask } from '../../../tools/scheduled-tasks/schedules';
+import { slack } from '../../client';
 import { getMastra } from '../../mastra-instance';
+import { publishHome } from '../view';
 import { ids } from './ids';
 
-export function registerScheduledTasks({
-  publishHome,
-}: {
-  publishHome: (userId: string) => Promise<void>;
-}): void {
-  chat().onAction(ids.cancel, async (event) => {
+export function registerScheduledTasks(): void {
+  Chat.getSingleton().onAction(ids.cancel, async (event) => {
     const id = event.value;
     if (!id) {
       return;
     }
     const mastra = getMastra();
     const schedule = await mastra.schedules.get(id);
-    const resourceId = chatChannelId(event.user.userId);
     if (
-      !(schedule && isAgentSchedule(schedule)) ||
-      schedule.agentId !== agentConfig.id ||
-      schedule.resourceId !== resourceId
+      !(schedule && isScheduledTask(schedule)) ||
+      schedule.resourceId !== `${slack.name}:${event.user.userId}`
     ) {
       return;
     }

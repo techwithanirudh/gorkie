@@ -1,8 +1,9 @@
+import { formatSlackDate } from '@chat-adapter/slack/format';
 import { agent as agentConfig } from '../../../config';
-import { chatChannelId } from '../../../lib/ids';
-import { isAgentSchedule } from '../../../tools/scheduled-tasks/queries';
+import { isScheduledTask } from '../../../tools/scheduled-tasks/schedules';
+import type { HomeSection } from '../../../types';
+import { slack } from '../../client';
 import { getMastra } from '../../mastra-instance';
-import type { HomeSection } from '../limit';
 import { ids } from './ids';
 
 export async function scheduledTasksBlocks(
@@ -10,9 +11,9 @@ export async function scheduledTasksBlocks(
 ): Promise<HomeSection> {
   const schedules = await getMastra().schedules.list({
     agentId: agentConfig.id,
-    resourceId: chatChannelId(userId),
+    resourceId: `${slack.name}:${userId}`,
   });
-  const tasks = schedules.filter(isAgentSchedule);
+  const tasks = schedules.filter(isScheduledTask);
   const header = {
     type: 'section',
     text: { type: 'mrkdwn', text: '*Scheduled Tasks*' },
@@ -43,13 +44,17 @@ export async function scheduledTasksBlocks(
         (task.prompt.length > 60
           ? `${task.prompt.slice(0, 60)}\u2026`
           : task.prompt);
-      const nextFire = Math.floor(task.nextFireAt / 1000);
+      const nextFire = formatSlackDate(
+        new Date(task.nextFireAt),
+        '{date_short_pretty} at {time}',
+        'soon'
+      );
       return [
         {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `*${title}*\n\`${task.cron}\`${task.timezone ? ` (${task.timezone})` : ''} \u00b7 next run <!date^${nextFire}^{date_short_pretty} at {time}|soon>`,
+            text: `*${title}*\n\`${task.cron}\`${task.timezone ? ` (${task.timezone})` : ''} \u00b7 next run ${nextFire}`,
           },
           accessory: {
             type: 'button',

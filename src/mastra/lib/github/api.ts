@@ -1,5 +1,6 @@
 import { request } from '@octokit/request';
 import { z } from 'zod';
+import { github } from '../../config';
 
 async function githubApi({
   path,
@@ -7,31 +8,25 @@ async function githubApi({
 }: {
   path: string;
   token: string;
-}): Promise<{ data: unknown; scopes: string[] } | { error: string }> {
+}): Promise<{ data: unknown } | { error: string; status?: number }> {
   try {
     const response = await request(`GET ${path}`, {
       headers: { authorization: `Bearer ${token}`, 'user-agent': 'gorkie' },
-      request: { signal: AbortSignal.timeout(10_000) },
+      request: { signal: AbortSignal.timeout(github.requestTimeoutMs) },
     });
-    return {
-      data: response.data,
-      scopes: (response.headers['x-oauth-scopes'] ?? '')
-        .split(',')
-        .map((scope) => scope.trim())
-        .filter(Boolean),
-    };
+    return { data: response.data };
   } catch (error) {
     const status = z.object({ status: z.number() }).safeParse(error)
       .data?.status;
-    return {
-      error: status ? `GitHub returned ${status}.` : "Couldn't reach GitHub.",
-    };
+    return status
+      ? { error: `GitHub returned ${status}.`, status }
+      : { error: "Couldn't reach GitHub." };
   }
 }
 
 export async function githubUser(
   token: string
-): Promise<{ login: string; scopes: string[] } | { error: string }> {
+): Promise<{ login: string } | { error: string }> {
   const body = await githubApi({ path: '/user', token });
   if ('error' in body) {
     return body;
@@ -39,19 +34,22 @@ export async function githubUser(
   const login = z.object({ login: z.string().min(1) }).safeParse(body.data)
     .data?.login;
   return login
-    ? { login, scopes: body.scopes }
+    ? { login }
     : { error: "GitHub didn't return an account for that token." };
 }
 
-export async function countInstallations(token: string): Promise<number> {
+export async function countInstallations(
+  token: string
+): Promise<{ count: number } | { error: string; status?: number }> {
   const body = await githubApi({ path: '/user/installations', token });
   if ('error' in body) {
-    return 0;
+    return body;
   }
-  return (
-    z.object({ total_count: z.number() }).safeParse(body.data).data
-      ?.total_count ?? 0
-  );
+  const count = z.object({ total_count: z.number() }).safeParse(body.data)
+    .data?.total_count;
+  return count === undefined
+    ? { error: "GitHub didn't return an installation count." }
+    : { count };
 }
 
 export async function repoAccess({
@@ -60,24 +58,24 @@ export async function repoAccess({
 }: {
   repository: string;
   token: string;
-}): Promise<{ private: boolean; push: boolean } | { error: string }> {
+}): Promise<
+  | { defaultBranch?: string; needsCredential: boolean; push: boolean }
+  | { error: string }
+> {
   const body = await githubApi({ path: `/repos/${repository}`, token });
   if ('error' in body) {
     return body;
   }
-  // `permissions` is present only on an authenticated read, and `push` is the
-  // flag that decides push-a-branch-here vs fork-first. `private` decides
-  // whether the clone needs the ambient credential window at all: a public repo
-  // clones anonymously. Treat an absent `private` as private, so anything we
-  // can't positively confirm public stays gated and credentialed.
   const parsed = z
     .object({
+      default_branch: z.string().min(1).optional(),
       private: z.boolean().optional(),
       permissions: z.object({ push: z.boolean() }).optional(),
     })
     .safeParse(body.data).data;
   return {
-    private: parsed?.private !== false,
+    ...(parsed?.default_branch ? { defaultBranch: parsed.default_branch } : {}),
+    needsCredential: parsed?.private !== false,
     push: parsed?.permissions?.push === true,
   };
 }
