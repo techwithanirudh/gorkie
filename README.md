@@ -110,8 +110,8 @@ See [TODO.md](./TODO.md) for open work and known issues.
 - [Bun][bun] and TypeScript
 - [Mastra][mastra], agent runtime + [channels][channels]
 - [Vercel Chat SDK][chat-sdk] with `@chat-adapter/slack` (via Mastra channels)
-- Model routing across the [Hack Club][hackclub] proxy and opencode.ai, which
-  falls back per gateway when one fails
+- Model routing through the [Vercel AI Gateway][ai-gateway] `vmc/gorkie` config,
+  falling back to the [Hack Club][hackclub] proxy when the gateway fails
 - [E2B][e2b] sandbox sessions
 - [Exa][exa] for web search and page fetching
 - [PostgreSQL][postgres] via `@mastra/pg`
@@ -161,7 +161,7 @@ URLs, the App Home, scopes, and event subscriptions. Replace `<your-host>` with
 the public hostname in front of the bot (see [docs/webhook-mode.md](docs/webhook-mode.md)). You also need [Bun][bun],
 Node 24+ (`package.json` engines; `bun run check:spelling` fails on older
 Node), a [PostgreSQL][postgres] database, an [E2B][e2b] API key, an [Exa][exa] API key,
-and model keys for both [Hack Club][hackclub] and [OpenCode][opencode].
+and model keys for both [Vercel AI Gateway][ai-gateway] and [Hack Club][hackclub].
 
 ```bash
 # Clone this repository
@@ -231,8 +231,8 @@ them without starting the bot, run `bun run db:migrate`.
 | `OPT_IN_CHANNEL` | no | Slack channel id gating access to members only (opt-in allowlist); unset means everyone is allowed |
 | `LOGS_CHANNEL` | no | Slack channel id of gorkie-logs, where ban and unban cards are posted. Unset still bans, but posts no cards |
 | `MODERATORS` | no | Comma-separated Slack user ids allowed to `/ban` and `/unban`. Empty means nobody can ban |
-| `HACKCLUB_API_KEY` | yes | Hack Club AI proxy key, tried for every model |
-| `OPENCODE_API_KEY` | yes | opencode.ai/zen gateway key, tried alongside Hack Club |
+| `AI_GATEWAY_API_KEY` | yes | Vercel AI Gateway key, used for the `vmc/gorkie` model config |
+| `HACKCLUB_API_KEY` | yes | Hack Club AI proxy key, the fallback and the image model |
 | `DATABASE_URL` | yes | Postgres connection string |
 | `LANGFUSE_PUBLIC_KEY` | yes | Langfuse public key. Tracing is the only production exporter, so the agent refuses to start without it |
 | `LANGFUSE_SECRET_KEY` | yes | Langfuse secret key |
@@ -431,7 +431,7 @@ bun run check:spelling
 [e2b]: https://e2b.dev
 [exa]: https://exa.ai
 [hackclub]: https://ai.hackclub.com
-[opencode]: https://opencode.ai/docs/zen
+[ai-gateway]: https://vercel.com/docs/ai-gateway
 [postgres]: https://www.postgresql.org
 [duckdb]: https://duckdb.org
 [langfuse]: https://langfuse.com

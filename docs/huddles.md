@@ -48,9 +48,7 @@ Once in the call:
    when it is removed, when it has been alone for a minute, or after 15
    minutes without anyone speaking.
 
-The voice agent leads with `minimax-m3` (`huddle.model` in
-`src/mastra/config.ts`) with thinking off, then falls back to gorkie's normal
-model ladder. Replies are capped at 1024 tokens and 4 steps, and the prompt is
+The voice agent uses gorkie's normal model ladder with reasoning off. Replies are capped at 1024 tokens and 4 steps, and the prompt is
 short, so the first spoken word is not waiting on a long generation.
 
 ## Setup
