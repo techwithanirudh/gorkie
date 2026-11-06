@@ -1,6 +1,7 @@
 import type { ModelWithRetries } from '@mastra/core/agent';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { env } from '@/env';
+import { huddle } from './config';
 import { channelContext } from './lib/context';
 import { recallModel, slugOf } from './lib/working-model';
 
@@ -69,7 +70,6 @@ const orchestratorModels = ladder('orchestrator');
 export const orchestrator = () => preferLastWorking(orchestratorModels);
 
 export const summarizer: ModelWithRetries[] = [
-  { ...opencode('mimo-v2.6-flash', 'summarizer'), maxRetries: 3 },
   { model: hackclub('google/gemini-3.5-flash-lite'), maxRetries: 3 },
 ];
 
@@ -80,6 +80,15 @@ export const scout = () => preferLastWorking(scoutModels);
 const explorerModels = ladder('explore');
 
 export const explorer = () => preferLastWorking(explorerModels);
+
+// Huddle replies are spoken, so time to first token beats everything else.
+// The configured model leads, the shared ladder is only the fallback, and the
+// shared last-working memory is skipped: it costs a state read per turn and a
+// text turn's pick could put a slower model first.
+export const voice: ModelWithRetries[] = [
+  { ...opencode(huddle.model, 'voice'), maxRetries: 1 },
+  ...ladder('voice'),
+];
 
 export const images = {
   model: hackclub('google/gemini-3.1-flash-image', {

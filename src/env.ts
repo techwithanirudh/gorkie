@@ -45,6 +45,15 @@ export const env = createEnv({
 
     EXA_API_KEY: z.string().min(1),
 
+    // Huddle voice. Slack gives apps no way into a huddle, so gorkie joins as
+    // a dedicated Slack user through that user's browser session token and
+    // `d` cookie. All four must be set or huddles stay off.
+    DEEPGRAM_API_KEY: z.string().min(1).optional(),
+    HUDDLE_WORKSPACE_URL: z.url().optional(),
+    HUDDLE_XOXC: z.string().startsWith('xoxc-').optional(),
+    HUDDLE_XOXD: z.string().startsWith('xoxd-').optional(),
+    HUDDLE_MEDIA_REGION: z.string().default('us-east-1'),
+
     AGENTMAIL_API_KEY: z.string().min(1).optional(),
     EMOJI_PROXY_TOKEN: z.string().min(1).optional(),
   },
