@@ -24,6 +24,7 @@ interface Phase {
 }
 
 interface Turn {
+  background: Set<string>;
   calls: Map<string, Phase>;
   delegationParents: Map<string, Phase>;
   delegations: Map<string, Phase>;
@@ -70,6 +71,7 @@ export const progress = {
       calls: new Map(),
       delegations: new Map(),
       delegationParents: new Map(),
+      background: new Set(),
       replied: false,
       startedAt: Date.now(),
     };
@@ -231,7 +233,8 @@ export const progress = {
             }
           }
           const parent = turn.delegationParents.get(part.payload.toolCallId);
-          if (parent) {
+          // A background child has only been started, so it has not completed.
+          if (parent && !turn.background.has(part.payload.toolCallId)) {
             const agent = part.payload.toolName.replace(/^agent-/, '');
             const elapsed = Math.max(
               0,
@@ -246,6 +249,9 @@ export const progress = {
         }
         chunks.push(task({ phase, calls: turn.calls }));
       }
+    }
+    if (part.type === 'background-task-started') {
+      turn.background.add(part.payload.toolCallId);
     }
     if (part.type === 'tool-call-approval') {
       advance({ title: 'waiting for your approval', automatic: false });

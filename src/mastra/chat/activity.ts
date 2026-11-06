@@ -1,7 +1,8 @@
 import { Readable } from 'node:stream';
 import type { ToolDisplayFn } from '@mastra/core/channels';
 import type { Adapter, PlanModel, PlanModelTask, Thread } from 'chat';
-import { activity as config } from '../config';
+import { z } from 'zod';
+import { backgroundTasks, activity as config } from '../config';
 import { logger } from '../lib/logger';
 import {
   type ActivityOutcome,
@@ -9,6 +10,8 @@ import {
   activityPlanSchema,
   activityTaskSchema,
 } from '../types/progress';
+import { getMastra } from './mastra-instance';
+import { toolActivity } from './status/tool-activity';
 
 interface Step extends PlanModelTask {
   completedAt?: number;
@@ -24,6 +27,97 @@ function elapsed(ms: number): string {
 
 function sentenceCase(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+const delegatedStepPrefix = 'subagent-';
+
+const taskChunkSchema = z.looseObject({
+  type: z.string(),
+  payload: z
+    .looseObject({
+      payload: z
+        .looseObject({
+          output: z
+            .looseObject({
+              type: z.string(),
+              payload: z
+                .looseObject({ args: z.unknown(), toolName: z.string() })
+                .optional(),
+            })
+            .optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+});
+
+type TaskEnd = 'completed' | 'failed' | 'cancelled';
+
+const isTaskEnd = (status: string): status is TaskEnd =>
+  ['completed', 'failed', 'cancelled'].includes(status);
+
+// Shows each tool the child calls and resolves to how the task ended. Status is
+// read directly too, because the stream can miss a cancel.
+async function followTask({
+  onChange,
+  step,
+}: {
+  onChange: () => void;
+  step: Step;
+}): Promise<TaskEnd> {
+  const manager = getMastra().backgroundTaskManager;
+  const toolCallId = step.id.slice(delegatedStepPrefix.length);
+  const { tasks } = (await manager?.listTasks({ toolCallId })) ?? { tasks: [] };
+  const [task] = tasks;
+  if (!(manager && task)) {
+    step.status = 'complete';
+    return 'completed';
+  }
+  const controller = new AbortController();
+  const signal = AbortSignal.any([
+    controller.signal,
+    AbortSignal.timeout(backgroundTasks.untilIdleMaxIdleMs),
+  ]);
+  const watchActions = async () => {
+    for await (const value of manager.stream({
+      abortSignal: signal,
+      includeExisting: true,
+      taskId: task.id,
+    })) {
+      const nested =
+        taskChunkSchema.safeParse(value).data?.payload?.payload?.output;
+      if (nested?.type === 'tool-call' && nested.payload) {
+        const action = toolActivity({
+          toolName: nested.payload.toolName,
+          args: nested.payload.args,
+        });
+        if (action) {
+          const details = typeof step.details === 'string' ? step.details : '';
+          step.details = [...details.split('\n').filter(Boolean), action]
+            .slice(-config.maxTools)
+            .join('\n');
+          onChange();
+        }
+      }
+    }
+  };
+  watchActions().catch((error: unknown) => {
+    logger.debug('[activity] task stream ended', { error, taskId: task.id });
+  });
+  let status: string = task.status;
+  while (!(isTaskEnd(status) || signal.aborted)) {
+    // biome-ignore lint/performance/noAwaitInLoops: this polls until the task ends
+    await new Promise((resolve) => {
+      setTimeout(resolve, config.elapsedIntervalMs);
+    });
+    status = (await manager.getTask(task.id))?.status ?? 'failed';
+  }
+  controller.abort();
+  const end: TaskEnd = isTaskEnd(status) ? status : 'failed';
+  step.status = end === 'failed' ? 'error' : 'complete';
+  step.completedAt = Date.now();
+  onChange();
+  return end;
 }
 
 async function showActivity({
@@ -113,6 +207,44 @@ async function showActivity({
       enqueue();
     }, delay);
   };
+  // Runs detached, because the turn that handed off has to end for the thread to
+  // take other messages. The child's result arrives in a later turn.
+  const followDelegations = () => {
+    const delegated = [...steps.values()].filter(({ id }) =>
+      id.startsWith(delegatedStepPrefix)
+    );
+    title = 'Working';
+    completedAt = undefined;
+    for (const step of delegated) {
+      step.status = 'in_progress';
+      step.completedAt = undefined;
+    }
+    const timer = setInterval(enqueue, config.elapsedIntervalMs);
+    timer.unref();
+    enqueue();
+    Promise.all(
+      delegated.map((step) => followTask({ step, onChange: enqueue }))
+    )
+      .then((ends) => {
+        if (ends.includes('failed')) {
+          title = 'Failed';
+        } else {
+          title = ends.includes('cancelled') ? 'Stopped' : 'Completed';
+        }
+      })
+      .catch((error: unknown) => {
+        title = 'Failed';
+        logger.warn('[activity] lost track of a background task', {
+          error,
+          threadId: thread.id,
+        });
+      })
+      .finally(() => {
+        clearInterval(timer);
+        completedAt = Date.now();
+        return enqueue();
+      });
+  };
   const ticker = setInterval(schedule, config.elapsedIntervalMs);
   ticker.unref();
   try {
@@ -177,7 +309,11 @@ async function showActivity({
       }
       step.completedAt ??= completedAt;
     }
-    await enqueue();
+    if (title === 'Handed off') {
+      followDelegations();
+    } else {
+      await enqueue();
+    }
     if (!answer.trim()) {
       if (messageId && !hasDetails()) {
         await adapter.deleteMessage(thread.id, messageId);

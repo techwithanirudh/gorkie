@@ -50,8 +50,11 @@ export async function stopThread(
       return 0;
     }
   );
-  if (orchestrator.getActiveThreadRunId(scope)) {
-    orchestrator.abortThreadStream(scope);
+  const active = Boolean(orchestrator.getActiveThreadRunId(scope));
+  // Also between turns: the open untilIdle stream starts a follow-up turn when a
+  // task ends, even a cancelled one, unless it is closed too.
+  orchestrator.abortThreadStream(scope);
+  if (active) {
     return 'aborted';
   }
   return cancelled > 0 ? 'cancelled' : 'idle';
