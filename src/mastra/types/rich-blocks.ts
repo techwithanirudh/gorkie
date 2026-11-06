@@ -49,5 +49,24 @@ export const tableSchema = z
     { error: 'Every row needs exactly one cell per column.' }
   );
 
+const httpsUrl = z.url({ protocol: /^https$/ }).max(3000);
+
+export const imageSchema = z.strictObject({
+  url: httpsUrl.describe('Public https URL of a PNG, JPEG or GIF.'),
+  alt: z.string().trim().min(1).max(300),
+  title: z.string().trim().min(1).max(150).optional(),
+});
+
+export const cardSchema = z.strictObject({
+  title: z.string().trim().min(1).max(150),
+  subtitle: z.string().trim().min(1).max(150).optional(),
+  body: z.string().trim().min(1).max(200).optional(),
+  imageUrl: httpsUrl.optional(),
+  url: httpsUrl.optional(),
+  button: z.string().trim().min(1).max(30).optional(),
+});
+
+export type Card = z.infer<typeof cardSchema>;
+export type Image = z.infer<typeof imageSchema>;
 export type Chart = z.infer<typeof chartSchema>;
 export type Table = z.infer<typeof tableSchema>;

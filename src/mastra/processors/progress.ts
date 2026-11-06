@@ -237,7 +237,12 @@ export const progress = {
         type: 'text-delta',
         payload: { id: 'reply', text: parsed.data.message },
       };
-      replyExtras = { charts: parsed.data.charts, tables: parsed.data.tables };
+      replyExtras = {
+        cards: parsed.data.cards,
+        charts: parsed.data.charts,
+        images: parsed.data.images,
+        tables: parsed.data.tables,
+      };
     }
     if (['finish', 'error', 'abort'].includes(part.type)) {
       turns.delete(state);

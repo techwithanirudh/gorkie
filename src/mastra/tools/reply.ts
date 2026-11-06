@@ -11,15 +11,21 @@ export const replyTool = createTool({
   inputSchema: replyInputSchema,
   outputSchema: z.strictObject({ queued: z.boolean() }),
   transform: { display: { output: () => ({ summary: 'Reply queued' }) } },
-  execute: async ({ message, charts, tables }, context) => {
+  execute: async ({ message, cards, charts, images, tables }, context) => {
     // Thrown here so the model can fix it while the turn is still open.
-    richBlocks({ charts, tables });
+    richBlocks({ cards, charts, images, tables });
     if (!context.writer) {
       throw new Error('Reply requires the agent output stream.');
     }
     await context.writer.custom({
       type: 'data-reply',
-      data: { message: neutralizeBroadcasts(message), charts, tables },
+      data: {
+        message: neutralizeBroadcasts(message),
+        cards,
+        charts,
+        images,
+        tables,
+      },
     });
     return { queued: true };
   },

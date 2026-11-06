@@ -1,4 +1,4 @@
-import type { Chart, Table } from '../types/rich-blocks';
+import type { Card, Chart, Image, Table } from '../types/rich-blocks';
 import { neutralizeBroadcasts } from './message';
 
 // Slack refuses a message whose data_table cells pass about 20k characters.
@@ -86,11 +86,76 @@ function tableFallback(table: Table): string {
   return `*${table.caption}*\n${[table.columns.join(' | '), ...rows].join('\n')}`;
 }
 
+function imageBlock({ alt, title, url }: Image) {
+  return {
+    type: 'image',
+    image_url: url,
+    alt_text: neutralizeBroadcasts(alt),
+    ...(title
+      ? { title: { type: 'plain_text', text: neutralizeBroadcasts(title) } }
+      : {}),
+  };
+}
+
+function cardBlock(card: Card, index: number) {
+  const plain = (text: string) => ({
+    type: 'plain_text',
+    text: neutralizeBroadcasts(text),
+  });
+  return {
+    type: 'card',
+    title: plain(card.title),
+    ...(card.subtitle ? { subtitle: plain(card.subtitle) } : {}),
+    ...(card.body
+      ? { body: { type: 'mrkdwn', text: neutralizeBroadcasts(card.body) } }
+      : {}),
+    ...(card.imageUrl
+      ? {
+          hero_image: {
+            type: 'image',
+            image_url: card.imageUrl,
+            alt_text: neutralizeBroadcasts(card.title),
+          },
+        }
+      : {}),
+    ...(card.url
+      ? {
+          actions: [
+            {
+              type: 'button',
+              action_id: `link:card_${index + 1}`,
+              text: plain(card.button ?? 'Open'),
+              url: card.url,
+            },
+          ],
+        }
+      : {}),
+  };
+}
+
+function cardsBlocks(cards: Card[]): unknown[] {
+  if (cards.length === 0) {
+    return [];
+  }
+  const blocks = cards.map(cardBlock);
+  return blocks.length === 1
+    ? blocks
+    : [{ type: 'carousel', elements: blocks }];
+}
+
+function cardFallback({ body, title, url }: Card): string {
+  return [`*${title}*`, body, url].filter(Boolean).join('\n');
+}
+
 export function richBlocks({
+  cards = [],
   charts = [],
+  images = [],
   tables = [],
 }: {
+  cards?: Card[];
   charts?: Chart[];
+  images?: Image[];
   tables?: Table[];
 }): { blocks: unknown[]; fallback: string } {
   const tableChars = tables
@@ -102,9 +167,19 @@ export function richBlocks({
     );
   }
   return {
-    blocks: [...charts.map(chartBlock), ...tables.map(tableBlock)],
+    blocks: [
+      ...charts.map(chartBlock),
+      ...images.map(imageBlock),
+      ...tables.map(tableBlock),
+      ...cardsBlocks(cards),
+    ],
     fallback: neutralizeBroadcasts(
-      [...charts.map(chartFallback), ...tables.map(tableFallback)]
+      [
+        ...charts.map(chartFallback),
+        ...images.map(({ alt, url }) => `${alt}: ${url}`),
+        ...tables.map(tableFallback),
+        ...cards.map(cardFallback),
+      ]
         .join('\n\n')
         .slice(0, 3000)
     ),

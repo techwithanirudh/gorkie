@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { chartSchema, tableSchema } from './rich-blocks';
+import {
+  cardSchema,
+  chartSchema,
+  imageSchema,
+  tableSchema,
+} from './rich-blocks';
 
 export const activitySchema = z.object({ status: z.string() });
 
@@ -83,9 +88,28 @@ export const replyInputSchema = z.strictObject({
     .describe(
       'Sortable, paged Slack tables shown below the message. Use one for data with several columns or more than a handful of rows, instead of a markdown table.'
     ),
+  images: z
+    .array(imageSchema)
+    .max(6)
+    .optional()
+    .describe(
+      'Images shown below the message, from public URLs. Use when the reply is about the picture. For a file in the sandbox, use upload_file instead.'
+    ),
+  cards: z
+    .array(cardSchema)
+    .max(10)
+    .optional()
+    .describe(
+      'Link cards shown below the message, for a few options or results to pick from. One shows alone, and more scroll in a carousel. Not for plain answers.'
+    ),
 });
 
-const replyExtrasSchema = replyInputSchema.pick({ charts: true, tables: true });
+const replyExtrasSchema = replyInputSchema.pick({
+  cards: true,
+  charts: true,
+  images: true,
+  tables: true,
+});
 
 export type ReplyExtras = z.infer<typeof replyExtrasSchema>;
 
