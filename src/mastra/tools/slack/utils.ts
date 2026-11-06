@@ -1,5 +1,6 @@
 import type { Message } from 'chat';
 import { z } from 'zod';
+import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import type { Target } from '../../chat/target';
@@ -21,6 +22,9 @@ export async function assertReadableChannel({
   currentThreadId?: string;
 }) {
   const id = chatChannelId(channelId);
+  if (env.BLOCKED_CHANNELS.includes(rawId(id))) {
+    throw new Error(notReadable);
+  }
   const metadata = await chat().channel(id).fetchMetadata();
   if (currentThreadId && id === chatChannelId(currentThreadId)) {
     return metadata;

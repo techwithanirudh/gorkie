@@ -183,7 +183,10 @@ async function toOutput({
   response: SearchResponse;
   threadId?: string;
 }) {
-  const messages = response.results?.messages ?? [];
+  const messages = (response.results?.messages ?? []).filter(
+    ({ channelId }) =>
+      !(channelId && env.BLOCKED_CHANNELS.includes(rawId(channelId)))
+  );
   const channelIds = new Set<string>();
   for (const message of messages) {
     if (message.channelId) {

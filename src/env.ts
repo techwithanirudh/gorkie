@@ -25,6 +25,18 @@ export const env = createEnv({
       .string()
       .regex(/^[CG][A-Z0-9]+$/, 'must be a Slack channel id')
       .optional(),
+    // Slack channel ids the bot may not read or search, for benchmarks that must
+    // not find an earlier answer.
+    BLOCKED_CHANNELS: z
+      .string()
+      .optional()
+      .transform(
+        (value) =>
+          value
+            ?.split(',')
+            .map((id) => id.trim())
+            .filter(Boolean) ?? []
+      ),
     MODERATORS: z
       .string()
       .optional()
