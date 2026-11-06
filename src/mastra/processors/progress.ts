@@ -1,4 +1,5 @@
 import type { Processor } from '@mastra/core/processors';
+import { z } from 'zod';
 import { toolActivity, toolTitle } from '../chat/status/tool-activity';
 import { activity as config } from '../config';
 import { channelContext } from '../lib/context';
@@ -11,7 +12,6 @@ import {
   replyInputSchema,
 } from '../types/progress';
 import { statusUpdateInputSchema } from '../types/tools/status-update';
-import { waitInputSchema } from '../types/tools/wait';
 
 interface Phase {
   actions: string[];
@@ -24,9 +24,7 @@ interface Phase {
 }
 
 interface Turn {
-  background: Set<string>;
   calls: Map<string, Phase>;
-  delegationParents: Map<string, Phase>;
   delegations: Map<string, Phase>;
   outcome?: ActivityOutcome;
   phases: Phase[];
@@ -35,6 +33,13 @@ interface Turn {
 }
 
 const turns = new WeakMap<object, Turn>();
+
+function delegationTitle({ agent, args }: { agent: string; args: unknown }) {
+  const prompt = z.looseObject({ prompt: z.string() }).safeParse(args)
+    .data?.prompt;
+  const named = prompt?.match(/^Title: (.+)$/m)?.[1]?.trim();
+  return named ? `${agent}: ${named}` : agent;
+}
 
 function task({ phase, calls }: { phase: Phase; calls: Turn['calls'] }) {
   let status: ActivityTask['status'] = 'complete';
@@ -70,8 +75,6 @@ export const progress = {
       phases: [],
       calls: new Map(),
       delegations: new Map(),
-      delegationParents: new Map(),
-      background: new Set(),
       replied: false,
       startedAt: Date.now(),
     };
@@ -134,7 +137,7 @@ export const progress = {
           const agent = toolName.slice('agent-'.length);
           const phase: Phase = {
             id: `subagent-${toolCallId}`,
-            title: agent,
+            title: delegationTitle({ agent, args: part.payload.args }),
             automatic: false,
             current: true,
             error: false,
@@ -142,23 +145,6 @@ export const progress = {
             startedAt: Date.now(),
           };
           turn.delegations.set(toolCallId, phase);
-          const parent =
-            current() ?? advance({ title: 'delegating work', automatic: true });
-          parent.actions = [...parent.actions, `started ${agent} agent`].slice(
-            -config.maxTools
-          );
-          turn.delegationParents.set(toolCallId, parent);
-          turn.calls.set(toolCallId, phase);
-          chunks.push(task({ phase: parent, calls: turn.calls }));
-          chunks.push(task({ phase, calls: turn.calls }));
-        }
-      } else if (toolName === 'wait' && !delegation) {
-        const waiting = waitInputSchema.safeParse(part.payload.args);
-        if (waiting.success) {
-          const label = `waiting ${waiting.data.seconds}s: ${waiting.data.reason}`;
-          const phase =
-            current() ?? advance({ title: 'waiting', automatic: true });
-          phase.actions = [...phase.actions, label].slice(-config.maxTools);
           turn.calls.set(toolCallId, phase);
           chunks.push(task({ phase, calls: turn.calls }));
         }
@@ -176,8 +162,6 @@ export const progress = {
           delegatedPhase ??
           current() ??
           advance({ title: toolTitle(toolName), automatic: true });
-        if (delegatedPhase && delegation) {
-        }
         if (!turn.calls.has(toolCallId)) {
           turn.calls.set(toolCallId, phase);
           phase.actions = [...phase.actions, label].slice(-config.maxTools);
@@ -193,8 +177,6 @@ export const progress = {
           delegatedPhase ??
           current() ??
           advance({ title: label, automatic: true });
-        if (delegatedPhase && delegation) {
-        }
         phase.actions = [...phase.actions, label].slice(-config.maxTools);
         chunks.push(task({ phase, calls: turn.calls }));
       }
@@ -230,26 +212,9 @@ export const progress = {
               turn.calls.delete(id);
             }
           }
-          const parent = turn.delegationParents.get(part.payload.toolCallId);
-          // A background child has only been started, so it has not completed.
-          if (parent && !turn.background.has(part.payload.toolCallId)) {
-            const agent = part.payload.toolName.replace(/^agent-/, '');
-            const elapsed = Math.max(
-              0,
-              Math.floor((Date.now() - phase.startedAt) / 1000)
-            );
-            parent.actions = [
-              ...parent.actions,
-              `${agent} agent ${phase.error ? 'failed' : 'completed'} in ${elapsed}s`,
-            ].slice(-config.maxTools);
-            chunks.push(task({ phase: parent, calls: turn.calls }));
-          }
         }
         chunks.push(task({ phase, calls: turn.calls }));
       }
-    }
-    if (part.type === 'background-task-started') {
-      turn.background.add(part.payload.toolCallId);
     }
     if (part.type === 'tool-call-approval') {
       advance({ title: 'waiting for your approval', automatic: false });
