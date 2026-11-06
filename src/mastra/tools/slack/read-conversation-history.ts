@@ -30,7 +30,7 @@ export const readConversationHistoryTool = createTool({
       .describe(
         'Thread id (slack:<conversation-id>:ts), Slack message permalink, or message timestamp paired with channelId. Omit for the current conversation.'
       ),
-    limit: z.coerce.number().int().min(1).max(200).default(40),
+    limit: z.coerce.number().int().min(1).max(1000).default(40),
     cursor: z
       .string()
       .optional()

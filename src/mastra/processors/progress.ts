@@ -7,6 +7,7 @@ import {
   type ActivityTask,
   activitySchema,
   delegationActivitySchema,
+  type ReplyExtras,
   replyInputSchema,
 } from '../types/progress';
 import { statusUpdateInputSchema } from '../types/tools/status-update';
@@ -249,6 +250,7 @@ export const progress = {
     if (part.type === 'tool-call-approval') {
       advance({ title: 'waiting for your approval', automatic: false });
     }
+    let replyExtras: ReplyExtras | undefined;
     if (part.type === 'data-reply') {
       const parsed = replyInputSchema.safeParse(part.data);
       if (!parsed.success || turn.replied) {
@@ -266,6 +268,7 @@ export const progress = {
         type: 'text-delta',
         payload: { id: 'reply', text: parsed.data.message },
       };
+      replyExtras = { charts: parsed.data.charts, tables: parsed.data.tables };
     }
     if (['finish', 'error', 'abort'].includes(part.type)) {
       turns.delete(state);
@@ -274,6 +277,7 @@ export const progress = {
       ...part,
       metadata: {
         ...part.metadata,
+        ...(replyExtras ? { gorkieReplyExtras: replyExtras } : {}),
         gorkieActivity: {
           chunks,
           replied: turn.replied,

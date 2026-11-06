@@ -5,6 +5,7 @@ import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, rawId } from '../../lib/ids';
+import { assertWithinLimit } from '../../lib/limits';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
 
@@ -296,6 +297,10 @@ export const searchSlackTool = createTool({
   },
   execute: async ({ query, cursor }, context) => {
     spendSlackCall(context?.requestContext);
+    await assertWithinLimit({
+      kind: 'slackSearch',
+      requestContext: context?.requestContext,
+    });
     const { channelId, messageId, threadId } = channelContext(
       context?.requestContext
     );

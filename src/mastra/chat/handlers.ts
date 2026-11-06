@@ -1,6 +1,7 @@
 import type { ChannelHandlerContext } from '@mastra/core/channels';
 import type { Message, Thread } from 'chat';
 import { isUserAllowed } from '../lib/allowed-users';
+import { overLimit } from '../lib/limits';
 import { logger } from '../lib/logger';
 import { attachments } from './attachments';
 import { slack } from './client';
@@ -72,9 +73,23 @@ async function runTurn({
 // Channels awaits the whole run in defaultHandler, and batching holds the thread
 // lock until this handler returns. Waiting would queue !stop behind the very run
 // it should stop.
-function startTurn(args: Parameters<typeof runTurn>[0]): void {
+async function startTurn(args: Parameters<typeof runTurn>[0]): Promise<void> {
+  const { message, thread } = args;
+  const refused = await overLimit({
+    kind: 'messages',
+    userId: message.author.userId,
+  });
+  if (refused) {
+    logger.info('[chat] message limit reached', { threadId: thread.id });
+    await thread.postEphemeral(
+      message.author,
+      "You've hit the hourly message limit, so I'm skipping this one. Try again later.",
+      { fallbackToDM: false }
+    );
+    return;
+  }
   runTurn(args).catch((error: unknown) => {
-    logger.error('[chat] turn failed', { error, threadId: args.thread.id });
+    logger.error('[chat] turn failed', { error, threadId: thread.id });
   });
 }
 
@@ -97,7 +112,7 @@ export async function onMention(
   if (await runCommands({ message, skipped, thread })) {
     return;
   }
-  startTurn({ defaultHandler, message, skipped, thread });
+  await startTurn({ defaultHandler, message, skipped, thread });
 }
 
 export async function onSubscribedMessage(
@@ -133,7 +148,7 @@ export async function onSubscribedMessage(
   ) {
     return;
   }
-  startTurn({ defaultHandler, message, skipped, thread });
+  await startTurn({ defaultHandler, message, skipped, thread });
 }
 
 export async function onDirectMessage(
@@ -152,5 +167,5 @@ export async function onDirectMessage(
   if (await runCommands({ message, skipped, thread })) {
     return;
   }
-  startTurn({ defaultHandler, message, skipped, thread });
+  await startTurn({ defaultHandler, message, skipped, thread });
 }

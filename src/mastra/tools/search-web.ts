@@ -1,6 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { exa, withExaTimeout } from '../lib/exa';
+import { assertWithinLimit } from '../lib/limits';
 import { input, output } from '../types/tools/index';
 
 export const searchWebTool = createTool({
@@ -32,7 +33,8 @@ export const searchWebTool = createTool({
       }),
     },
   },
-  execute: async ({ query }, { abortSignal }) => {
+  execute: async ({ query }, { abortSignal, requestContext }) => {
+    await assertWithinLimit({ kind: 'webSearch', requestContext });
     const { results } = await withExaTimeout({
       request: exa.search(query, {
         type: 'auto',

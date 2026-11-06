@@ -1,7 +1,9 @@
 import { createTool } from '@mastra/core/tools';
+import type { Message } from 'chat';
 import { z } from 'zod';
 import { summarizer } from '../../agents/summarizer';
 import { slack } from '../../chat/client';
+import { threadReads } from '../../config';
 import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
@@ -11,7 +13,7 @@ import { assertReadableChannel, joinChannel, slackThreadId } from './utils';
 export const summarizeThreadTool = createTool({
   id: 'summarize_thread',
   description:
-    'Summarize up to 100 messages from one Slack thread without returning its full transcript to the caller. Defaults to the current thread. The current conversation is always readable; other threads must be in a public channel, which is joined automatically. Use read_conversation_history when exact wording or message metadata matters, and Slack code mode for exhaustive or cross-thread analysis.',
+    'Summarize, or answer one question from, up to 2000 messages from one Slack thread without returning its full transcript to the caller. Defaults to the current thread. The current conversation is always readable; other threads must be in a public channel, which is joined automatically. Use read_conversation_history when exact wording or message metadata matters, and Slack code mode for exhaustive or cross-thread analysis.',
   inputSchema: input({
     threadId: z
       .string()
@@ -53,17 +55,24 @@ export const summarizeThreadTool = createTool({
     await assertReadableChannel({ channelId, currentThreadId: ctx.threadId });
     await joinChannel(channelId);
 
-    spendSlackCall(context?.requestContext);
-
-    const result = await slack.fetchMessages(target, {
-      limit: 100,
-      direction: 'backward',
-    });
-    if (result.messages.length === 0) {
+    const messages: Message[] = [];
+    let cursor: string | undefined;
+    do {
+      spendSlackCall(context?.requestContext);
+      // biome-ignore lint/performance/noAwaitInLoops: each page needs the previous cursor
+      const page = await slack.fetchMessages(target, {
+        limit: 200,
+        direction: 'backward',
+        cursor,
+      });
+      messages.unshift(...page.messages);
+      cursor = page.nextCursor;
+    } while (cursor && messages.length < threadReads.maxMessages);
+    if (messages.length === 0) {
       throw new Error('No messages found in the thread.');
     }
 
-    const lines = result.messages.map((message, index) => {
+    const lines = messages.map((message, index) => {
       const author =
         message.author.fullName ||
         message.author.userName ||
@@ -76,7 +85,8 @@ export const summarizeThreadTool = createTool({
         .join(' ');
       return `${index + 1}. [${message.metadata.dateSent.toISOString()}] ${author} (${message.author.userId}): ${message.text}${attachments ? ` ${attachments}` : ''}`;
     });
-    const transcript = lines.join('\n');
+    // Keeps the newest messages when a thread outgrows what one call should read.
+    const transcript = lines.join('\n').slice(-threadReads.maxTranscriptChars);
 
     const prompt = `${instructions ? `Focus requested by the user: ${instructions}\n\n` : ''}<transcript>\n${transcript}\n</transcript>`;
     const { text } = question
@@ -90,7 +100,7 @@ export const summarizeThreadTool = createTool({
       : await summarizer.generate(prompt);
 
     return {
-      messageCount: result.messages.length,
+      messageCount: messages.length,
       summary: text,
     };
   },

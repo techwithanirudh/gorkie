@@ -87,11 +87,17 @@ Three surfaces that are shipped, reachable by real people, and never verified en
 
 ## Customization
 
+- [x] **Send on someone's behalf with a preview.** `chat/send.ts`, `tools/slack/post-message.ts`. Any destination now gets a private preview with Send and Cancel, requester only, kept in Chat state for 10 minutes with a claim key against double clicks. Posted with the bot token as `gorkie on behalf of Name` with their avatar and a `Sent by` line, plus `chat:write.customize` already in the manifest. Before the preview: archived refused, private needs both bot and requester as members, a DM channel only if it is the current one. On Send: join on `not_in_channel`, and `restricted_action`, `restricted_action_read_only_channel`, `ekm_access_denied`, `channel_not_found`, `is_archived` become a plain refusal in the preview. Not built: a Report button, stored send records, and a turn that tells the agent the outcome, so the preview alone shows it. `upload_file` still only reaches the current channel. Not tested live.
+
+- [x] **Hourly limits.** `lib/limits.ts`, values in `config.limits`: messages 500, Slack searches 500, web searches 100, page fetches 100, sends 100, emoji uploads 5. Fixed clock-hour counters in Chat state, not sliding windows, and without atomic increment, so simultaneous calls can both pass. Message limit answers privately and skips the turn. Canvas, sandbox and subagent limits were not added.
+
+- [x] **Charts and tables in replies.** `types/rich-blocks.ts`, `chat/rich-blocks.ts`. `reply` takes `charts` (pie, bar, line, area, at most 2) and `tables` (at most 2, 20 columns, 200 rows, about 19k cell characters). Invalid input fails the tool call so the model can fix it. They post as a second message under the text from `processors/turn-footer.ts`, with a plain text fallback if Slack rejects the blocks. Marker placement inside the text was not added. Not tested live.
+
+- [x] **Read more messages.** `read_conversation_history` limit 200 to 1000. `summarize_thread` pages up to 2000 messages and keeps the newest 400k characters. Automatic backfill 10 to 30 messages, scanning 60. Not tested live.
+
 - [x] **Emoji search.** `tools/search-emojis.ts` asks `emojis.raygen.dev/v1/search` (no key needed, 3s timeout) and returns custom emoji names and summaries. On failure it returns standard emoji suggestions instead of an error. Name and wildcard search through `emoji.list` was not added. Not tested live.
 
 - [x] **`summarize_thread` can answer one question.** New `question` input, using the same summarizer model and naming who said what and when. It reads at most 100 messages, so long threads lose older messages. No per-turn call cap. Not tested live.
-
-- [ ] **Send on someone's behalf with a preview.** `post_message` only reaches the current channel or the requester's DM (`assertCanPostTo` in `tools/slack/utils.ts`). Plan: private preview with Send and Cancel, requester-only clicks, pending send with an expiry kept in Chat state so no schema change, attribution with a `Sent by` line, per-user hourly limit, and a turn that reports the outcome. Before the preview: archived channels are refused, and private channels need both the bot and the requester as members. On Send: join public channels on `not_in_channel`, and map `restricted_action`, `restricted_action_read_only_channel` and `ekm_access_denied` to a plain refusal. Not built.
 
 - [x] **Relevance check for followed threads.** `chat/gate.ts`, `agents/gate.ts`, `prompts/gate.ts`. An unmentioned message in a followed thread now gets a yes or no from `google/gemini-3.5-flash-lite` (16 output tokens, 10s timeout) before the full agent runs. No model call when the message mentions someone else (ignored) or when gorkie's latest message asked a question or made an offer (answered). A failed check stays quiet and logs a warning. There are no probabilities or per-thread thresholds, since a chat model only answers yes or no. Not tested live.
 

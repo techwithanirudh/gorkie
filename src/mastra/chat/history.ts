@@ -3,8 +3,8 @@ import { parseMarkdown, stringifyMarkdown } from 'chat';
 import { isComment } from './message';
 import { threadState } from './state';
 
-const MAX_MESSAGES = 10;
-const MAX_SCANNED = 30;
+const MAX_MESSAGES = 30;
+const MAX_SCANNED = 60;
 
 export async function withHistory({
   message,

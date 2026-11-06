@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { chartSchema, tableSchema } from './rich-blocks';
 
 export const activitySchema = z.object({ status: z.string() });
 
@@ -67,4 +68,26 @@ export type ActivityTask = z.infer<typeof activityTaskSchema>;
 
 export const replyInputSchema = z.strictObject({
   message: z.string().trim().min(1),
+  charts: z
+    .array(chartSchema)
+    .max(2)
+    .optional()
+    .describe(
+      'Native Slack charts shown below the message. Use one for a comparison or a trend over a few categories, and still state the takeaway in the message.'
+    ),
+  tables: z
+    .array(tableSchema)
+    .max(2)
+    .optional()
+    .describe(
+      'Sortable, paged Slack tables shown below the message. Use one for data with several columns or more than a handful of rows, instead of a markdown table.'
+    ),
+});
+
+const replyExtrasSchema = replyInputSchema.pick({ charts: true, tables: true });
+
+export type ReplyExtras = z.infer<typeof replyExtrasSchema>;
+
+export const replyExtrasMetadataSchema = z.looseObject({
+  gorkieReplyExtras: replyExtrasSchema,
 });

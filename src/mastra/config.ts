@@ -72,6 +72,25 @@ export const workingModel = {
   ttl: 30 * 60 * 1000,
 };
 
+export const limits = {
+  messages: { max: 500, noun: 'messages' },
+  slackSearch: { max: 500, noun: 'Slack searches' },
+  webSearch: { max: 100, noun: 'web searches' },
+  fetch: { max: 100, noun: 'page fetches' },
+  send: { max: 100, noun: 'messages sent on their behalf' },
+  emojiUpload: { max: 5, noun: 'custom emoji uploads' },
+};
+
+export const send = {
+  pendingTtlMs: 10 * 60 * 1000,
+  maxMemberPages: 20,
+};
+
+export const threadReads = {
+  maxMessages: 2000,
+  maxTranscriptChars: 400_000,
+};
+
 export const emoji = {
   listTtl: 5 * 60 * 1000,
   searchUrl: 'https://emojis.raygen.dev',
