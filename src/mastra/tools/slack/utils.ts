@@ -7,6 +7,12 @@ import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 import type { ChannelContext } from '../../types';
 
+const slackErrorSchema = z.looseObject({
+  data: z.looseObject({ error: z.string().optional() }).optional(),
+});
+const notReadable =
+  'Reading DMs, private channels, or external conversations is not allowed.';
+
 export async function assertReadableChannel({
   channelId,
   currentThreadId,
@@ -24,9 +30,7 @@ export async function assertReadableChannel({
     return metadata;
   }
 
-  throw new Error(
-    'Reading DMs, private channels, or external conversations is not allowed.'
-  );
+  throw new Error(notReadable);
 }
 
 export async function assertReadableResource({
@@ -47,6 +51,22 @@ export async function assertReadableResource({
   );
   if (checks.some((check) => check.status === 'fulfilled')) {
     return;
+  }
+
+  // Still refused either way. A rate limit or timeout just must not read as
+  // "this conversation is private".
+  const failed = checks.find(
+    (check) =>
+      check.status === 'rejected' &&
+      check.reason?.message !== notReadable &&
+      slackErrorSchema.safeParse(check.reason).data?.data?.error !==
+        'channel_not_found'
+  );
+  if (failed?.status === 'rejected') {
+    throw new Error(
+      'Could not check whether this Slack resource is readable, so it was not opened. This says nothing about whether it is private. Retry before concluding anything.',
+      { cause: failed.reason }
+    );
   }
 
   throw new Error(
@@ -86,9 +106,6 @@ export function assertCanPostTo({
 }
 
 const joinedChannels = new Set<string>();
-const slackErrorSchema = z.looseObject({
-  data: z.looseObject({ error: z.string().optional() }).optional(),
-});
 
 export async function joinChannel(channelId: string): Promise<void> {
   const id = rawId(channelId);

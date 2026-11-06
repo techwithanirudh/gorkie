@@ -24,9 +24,12 @@ async function botDisplayName(botUserId: string | undefined): Promise<string> {
     .info({ user: botUserId })
     .catch(() => null);
   const profile = info?.user?.profile;
-  cachedBotName =
-    profile?.display_name || profile?.real_name || info?.user?.name || 'gorkie';
-  return cachedBotName;
+  const name = profile?.display_name || profile?.real_name || info?.user?.name;
+  if (!name) {
+    return 'gorkie';
+  }
+  cachedBotName = name;
+  return name;
 }
 
 async function resolveChannelAndThread(resolved: {
