@@ -1,7 +1,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { chat } from '../../chat/instance';
-import { assertCanSendTo, offerSend } from '../../chat/send';
+import { neutralizeBroadcasts } from '../../chat/message';
+import { assertCanSendTo, deliver, offerSend } from '../../chat/send';
 import { targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
 import { parseSlackId, rawId } from '../../lib/ids';
@@ -18,7 +19,7 @@ function destinationOf(target: z.infer<typeof targetSchema>) {
     return { channel, label: `<#${channel}>` };
   }
   const { channel, ts } = parseSlackId(target.id);
-  if (!channel) {
+  if (!(channel && ts)) {
     throw new Error(`${target.id} is not a Slack thread id.`);
   }
   return { channel, threadTs: ts, label: `a thread in <#${channel}>` };
@@ -30,7 +31,7 @@ export const postMessageTool = createTool({
 
 Never use this to answer the current conversation or to report progress: use reply and status_update.
 
-This only prepares the message. The person sees a private preview with Send and Cancel buttons, and nothing goes out until they click Send. The result is "awaiting_confirmation": don't say it was sent or describe the preview. If nothing else needs an answer, call skip. You are not told the outcome; the preview itself shows it.
+A DM to the person asking, or a post in this channel, goes out directly with status "sent". Anything else only prepares the message: the person sees a private preview with Send and Cancel buttons, nothing goes out until they click Send, and the status is "awaiting_confirmation". In that case don't say it was sent or describe the preview, and if nothing else needs an answer, call skip. You are not told the outcome; the preview itself shows it.
 
 The message goes out with the person's avatar, named "Name [gorkie]", with a "Sent by" line. Don't add attribution yourself. Find channel ids with list_channels.`,
   inputSchema: input({
@@ -38,12 +39,17 @@ The message goes out with the person's avatar, named "Name [gorkie]", with a "Se
     message: z.string().min(1).max(6000).describe('Markdown message body.'),
   }),
   outputSchema: output({
-    status: z.literal('awaiting_confirmation'),
+    status: z.enum(['sent', 'awaiting_confirmation']),
     destination: z.string(),
   }),
   transform: {
     display: {
-      output: () => ({ summary: 'Waiting for the person to confirm' }),
+      output: ({ output }) => ({
+        summary:
+          output?.status === 'sent'
+            ? 'Message sent'
+            : 'Waiting for the person to confirm',
+      }),
     },
   },
   execute: async ({ target, message }, context) => {
@@ -64,18 +70,28 @@ The message goes out with the person's avatar, named "Name [gorkie]", with a "Se
         requesterId: ctx.userId,
       });
     }
+    const isOwnDestination =
+      destination.userId === rawId(ctx.userId) ||
+      destination.channel === previewChannel;
     const requester = await chat()
       .getUser(ctx.userId)
       .catch(() => null);
     const name = requester?.fullName || requester?.userName || ctx.userName;
+    const pending = {
+      ...destination,
+      message: neutralizeBroadcasts(message),
+      requesterId: ctx.userId,
+      username: `${name ?? 'someone'} [gorkie]`.slice(0, 80),
+      avatarUrl: requester?.avatarUrl,
+    };
+    // Scheduled runs deliver here with nobody around to click Send, and posting
+    // to the requester or where they already are needs no second confirmation.
+    if (isOwnDestination) {
+      await deliver(pending);
+      return { status: 'sent' as const, destination: destination.label };
+    }
     await offerSend({
-      pending: {
-        ...destination,
-        message,
-        requesterId: ctx.userId,
-        username: `${name ?? 'someone'} [gorkie]`.slice(0, 80),
-        avatarUrl: requester?.avatarUrl,
-      },
+      pending,
       previewChannel,
       previewThreadTs: ctx.threadId ? parseSlackId(ctx.threadId).ts : undefined,
     });

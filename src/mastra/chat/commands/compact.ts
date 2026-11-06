@@ -43,17 +43,22 @@ async function compactThread(slackThreadId: string): Promise<string> {
     : `compacted this thread's memory to about ${after.toLocaleString()} tokens.`;
 }
 
-export const compact: CommandHandler = async ({ message, thread }) => {
-  const text = await compactThread(thread.id).catch((error: unknown) => {
-    logger.error('[commands] compact failed', { error, threadId: thread.id });
-    return "i couldn't compact this thread just now. try again in a minute.";
-  });
-  await thread
-    .postEphemeral(message.author, text, { fallbackToDM: false })
+// Runs detached because compaction makes slow model calls, and awaiting here
+// would hold the thread lock and queue !stop behind it.
+export const compact: CommandHandler = ({ message, thread }) => {
+  compactThread(thread.id)
+    .catch((error: unknown) => {
+      logger.error('[commands] compact failed', { error, threadId: thread.id });
+      return "i couldn't compact this thread just now. try again in a minute.";
+    })
+    .then((text) =>
+      thread.postEphemeral(message.author, text, { fallbackToDM: false })
+    )
     .catch((error: unknown) => {
       logger.warn('[commands] failed to post compact result', {
         error,
         threadId: thread.id,
       });
     });
+  return Promise.resolve();
 };

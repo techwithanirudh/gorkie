@@ -38,8 +38,8 @@ behind tool search, so search for them before saying they are unavailable.
 ## Deliver it
 
 - **In the thread:** the normal reply. This is the default.
-- **Somewhere else:** `post_message` to another thread in this channel, or a
-  DM to the requester, only when asked. It cannot post to another channel.
+- **Somewhere else:** `post_message`, only when asked. Another channel or
+  person gets a private preview the requester has to confirm.
 - **Something that should stay put:** a canvas. `create_canvas` with
   `mode: channel` makes the channel's Canvas tab (fails if one exists; then use
   `edit_canvas` on it). Canvas mentions use `![](@U...)` and `![](#C...)`, not

@@ -73,24 +73,33 @@ async function runTurn({
 // Channels awaits the whole run in defaultHandler, and batching holds the thread
 // lock until this handler returns. Waiting would queue !stop behind the very run
 // it should stop.
-async function startTurn(args: Parameters<typeof runTurn>[0]): Promise<void> {
-  const { message, thread } = args;
+function startTurn(args: Parameters<typeof runTurn>[0]): void {
+  runTurn(args).catch((error: unknown) => {
+    logger.error('[chat] turn failed', { error, threadId: args.thread.id });
+  });
+}
+
+async function refusedByLimit({
+  message,
+  thread,
+}: {
+  message: Message;
+  thread: Thread;
+}): Promise<boolean> {
   const refused = await overLimit({
     kind: 'messages',
     userId: message.author.userId,
   });
-  if (refused) {
-    logger.info('[chat] message limit reached', { threadId: thread.id });
-    await thread.postEphemeral(
-      message.author,
-      "You've hit the hourly message limit, so I'm skipping this one. Try again later.",
-      { fallbackToDM: false }
-    );
-    return;
+  if (!refused) {
+    return false;
   }
-  runTurn(args).catch((error: unknown) => {
-    logger.error('[chat] turn failed', { error, threadId: thread.id });
-  });
+  logger.info('[chat] message limit reached', { threadId: thread.id });
+  await thread.postEphemeral(
+    message.author,
+    "You've hit the hourly message limit, so I'm skipping this one. Try again later.",
+    { fallbackToDM: false }
+  );
+  return true;
 }
 
 export async function onMention(
@@ -106,13 +115,21 @@ export async function onMention(
     await offerOptIn({ thread, user: message.author });
     return;
   }
-  if (slack.decodeThreadId(message.threadId).threadTs === message.id) {
-    await thread.setState({ respondOnThreadMessages: true });
-  }
-  if (await runCommands({ message, skipped, thread })) {
+  // A batch that mentions gorkie routes every sender here, including bystanders.
+  if (![...skipped, message].some(({ isMention }) => isMention)) {
     return;
   }
-  await startTurn({ defaultHandler, message, skipped, thread });
+  const { threadTs } = slack.decodeThreadId(message.threadId);
+  if ([...skipped, message].some(({ id }) => id === threadTs)) {
+    await thread.setState({ respondOnThreadMessages: true });
+  }
+  if (
+    (await runCommands({ message, skipped, thread })) ||
+    (await refusedByLimit({ message, thread }))
+  ) {
+    return;
+  }
+  startTurn({ defaultHandler, message, skipped, thread });
 }
 
 export async function onSubscribedMessage(
@@ -134,21 +151,23 @@ export async function onSubscribedMessage(
     return;
   }
   const isFollowingThread = state?.respondOnThreadMessages === true;
-  if (!(isFollowingThread || message.isMention)) {
+  const mentioned = [...skipped, message].some(({ isMention }) => isMention);
+  if (!(isFollowingThread || mentioned)) {
     return;
   }
   if (!(await isUserAllowed(message.author.userId))) {
     return;
   }
-  if (await runCommands({ message, skipped, thread })) {
-    return;
-  }
   if (
-    !(message.isMention || (await shouldRespond({ message, skipped, thread })))
+    (await runCommands({ message, skipped, thread })) ||
+    (await refusedByLimit({ message, thread }))
   ) {
     return;
   }
-  await startTurn({ defaultHandler, message, skipped, thread });
+  if (!(mentioned || (await shouldRespond({ message, skipped, thread })))) {
+    return;
+  }
+  startTurn({ defaultHandler, message, skipped, thread });
 }
 
 export async function onDirectMessage(
@@ -164,8 +183,11 @@ export async function onDirectMessage(
     await offerOptIn({ thread, user: message.author });
     return;
   }
-  if (await runCommands({ message, skipped, thread })) {
+  if (
+    (await runCommands({ message, skipped, thread })) ||
+    (await refusedByLimit({ message, thread }))
+  ) {
     return;
   }
-  await startTurn({ defaultHandler, message, skipped, thread });
+  startTurn({ defaultHandler, message, skipped, thread });
 }

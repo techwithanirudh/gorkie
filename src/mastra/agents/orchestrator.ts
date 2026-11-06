@@ -225,6 +225,7 @@ const orchestrator = new Agent({
     chatOptions: {
       fallbackStreamingPlaceholderText: 'working...',
       concurrency: { strategy: 'burst', debounceMs: config.batchWindowMs },
+      logger: 'warn',
     },
     adapters: {
       slack: {

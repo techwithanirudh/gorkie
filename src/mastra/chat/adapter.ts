@@ -2,6 +2,7 @@ import { SlackAdapter } from '@chat-adapter/slack';
 import type { PlanModel } from 'chat';
 import { z } from 'zod';
 import { activityPlanMarkerSchema } from '../types/progress';
+import { withoutLeadingMentions } from './message';
 
 const mentionPattern = /<@([A-Z0-9_]+)(?:\|([^<>]+))?>/g;
 
@@ -35,7 +36,8 @@ export class SlackAgentAdapter extends SlackAdapter {
     if (
       !mentionsBot &&
       (/^\s*(?:<>|&lt;&gt;)/.test(text) ||
-        (event.channel_type !== 'im' && /^\s*##/.test(text)))
+        (event.channel_type !== 'im' &&
+          /^\s*##/.test(withoutLeadingMentions(text))))
     ) {
       return;
     }

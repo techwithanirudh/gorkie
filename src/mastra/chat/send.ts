@@ -6,7 +6,6 @@ import { rawId } from '../lib/ids';
 import { logger } from '../lib/logger';
 import { slack } from './client';
 import { chat } from './instance';
-import { neutralizeBroadcasts } from './message';
 
 export const sendIds = { confirm: 'send_confirm', cancel: 'send_cancel' };
 
@@ -111,6 +110,11 @@ export async function assertCanSendTo({
   if (details?.is_archived) {
     throw new Error('That channel is archived.');
   }
+  if (details?.is_ext_shared) {
+    throw new Error(
+      "That channel is shared with another organization, so I won't post there for someone."
+    );
+  }
   if (details?.is_im || details?.is_mpim) {
     if (channel === currentChannelId) {
       return;
@@ -141,10 +145,8 @@ export async function offerSend({
   previewThreadTs?: string;
 }): Promise<void> {
   const id = randomUUID();
-  const message = neutralizeBroadcasts(pending.message);
-  await chat()
-    .getState()
-    .set(pendingKey(id), { ...pending, message }, config.pendingTtlMs);
+  const { message } = pending;
+  await chat().getState().set(pendingKey(id), pending, config.pendingTtlMs);
   await slack.webClient.chat.postEphemeral({
     channel: previewChannel,
     user: pending.requesterId,
@@ -222,7 +224,9 @@ async function respond({
   });
 }
 
-async function deliver(pending: PendingSend): Promise<string | undefined> {
+export async function deliver(
+  pending: PendingSend
+): Promise<string | undefined> {
   const channel = pending.userId
     ? rawId((await chat().openDM(pending.userId)).channelId)
     : pending.channel;

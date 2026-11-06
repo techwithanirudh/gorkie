@@ -66,6 +66,7 @@ async function showActivity({
               .split('\n')
               .filter((line) => line !== step.title)
               .map(sentenceCase)
+              .reverse()
           : [];
         return {
           id: step.id,

@@ -45,7 +45,8 @@ export async function shouldRespond({
     if (recent.length >= config.contextMessages) {
       break;
     }
-    if (!(newestIds.has(previous.id) || isComment(previous))) {
+    const isFooter = previous.author.isMe && /^_?done in /.test(previous.text);
+    if (!(newestIds.has(previous.id) || isComment(previous) || isFooter)) {
       recent.push(previous);
     }
   }
