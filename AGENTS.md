@@ -29,6 +29,10 @@ is what is finished, and it is where the reasoning lives.
 - Record the things that did not work too. An item that was built and reverted,
   or a premise that turned out false, belongs in `IMPLEMENTED.md` saying so,
   because the next person will otherwise propose it again.
+- This repo is public, so `TODO.md`, `IMPLEMENTED.md`, commit messages and PR text
+  describe the change and its technical reasons only. Never quote the owner's
+  requests, state their goals or plans, or say where an idea or text came from.
+  Licence notices the code needs still stay.
 - Before saying you are finished, re-read `TODO.md` and confirm nothing asked
   is left unlogged.
 
