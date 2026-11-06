@@ -1,4 +1,5 @@
 import { CardText, Modal } from 'chat';
+import type { DeviceLogin } from '../../../../lib/github';
 import { ids } from '../ids';
 
 export const failedModal = (reason: string) => {
@@ -19,7 +20,7 @@ export const failedModal = (reason: string) => {
   });
 };
 
-export const pendingModal = () =>
+export const pendingModal = (device: DeviceLogin) =>
   Modal({
     callbackId: ids.modal,
     title: 'Not confirmed yet',
@@ -27,8 +28,9 @@ export const pendingModal = () =>
     closeLabel: 'Close',
     children: [
       CardText(
-        'GitHub has not confirmed yet. Finish both steps, and this updates once it does.'
+        `GitHub has not confirmed yet. Open ${device.verificationUri} and enter this code. This updates once it does.`
       ),
+      CardText(`\`${device.userCode}\``),
     ],
   });
 

@@ -8,6 +8,7 @@ const activityOutcomeSchema = z.enum([
   'Waiting',
   'Failed',
   'Stopped',
+  'Handed off',
 ]);
 
 export const activityEndSchema = z.object({

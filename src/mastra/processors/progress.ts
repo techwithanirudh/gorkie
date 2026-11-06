@@ -211,7 +211,7 @@ export const progress = {
           !part.payload.isError &&
           part.payload.toolName === 'skip'
         ) {
-          turn.outcome = 'Stopped';
+          turn.outcome = turn.delegations.size > 0 ? 'Handed off' : 'Stopped';
         }
       }
       const phase = turn.calls.get(part.payload.toolCallId);

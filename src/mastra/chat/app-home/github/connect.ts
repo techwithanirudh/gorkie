@@ -152,17 +152,14 @@ async function openConnect({
 }
 
 async function finishDeviceLogin(userId: string) {
-  const account = await getGitHubCredential(userId);
-  if (account) {
-    polling.get(userId)?.controller.abort();
-    polling.delete(userId);
+  const pending = polling.get(userId);
+  if (pending?.device) {
+    return { action: 'update' as const, modal: pendingModal(pending.device) };
+  }
+  if (await getGitHubCredential(userId)) {
     return { action: 'clear' as const };
   }
-  const pending = polling.get(userId);
-  if (!pending?.device) {
-    return { action: 'update' as const, modal: failedModal('interrupted') };
-  }
-  return { action: 'update' as const, modal: pendingModal() };
+  return { action: 'update' as const, modal: failedModal('interrupted') };
 }
 
 export function registerConnect({

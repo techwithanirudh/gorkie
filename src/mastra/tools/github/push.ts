@@ -66,7 +66,7 @@ export const pushTool = ({
               await push();
             } else if (/denied|permission|403|forbidden/i.test(message)) {
               throw new Error(
-                `${message}\n\nThis GitHub App connection cannot push to ${repository} and cannot fork it, because an app only reaches repositories it is installed on. Say so, and offer a classic token from the Home tab or a pull request they open themselves.`,
+                `${message}\n\nThis GitHub App connection cannot push to ${repository} and cannot fork it, because an app only reaches repositories it is installed on. Say so, and offer to hand over the patch or have them install the app on that repository.`,
                 { cause: error }
               );
             } else {

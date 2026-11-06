@@ -1,30 +1,60 @@
 import { logger } from '../../lib/logger';
 import { memoryThread } from '../../lib/memory';
 import type { CommandHandler } from '../../types';
+import { getMastra } from '../mastra-instance';
+
+async function cancelBackgroundTasks(threadId: string): Promise<number> {
+  const manager = getMastra().backgroundTaskManager;
+  if (!manager) {
+    return 0;
+  }
+  const { tasks } = await manager.listTasks({
+    status: ['pending', 'running', 'suspended'],
+    threadId,
+  });
+  const cancelled = await Promise.allSettled(
+    tasks.map((task) => manager.cancel(task.id))
+  );
+  if (cancelled.some(({ status }) => status === 'rejected')) {
+    logger.warn('[commands] some background tasks failed to stop', {
+      threadId,
+    });
+  }
+  return tasks.length;
+}
 
 // 'aborted' means a live run was cancelled, and the agent's own onAbort posts
-// about it; anything else is this command's to report. (Background-task
-// cancellation lives on the background branch, where backgroundTasks is
-// actually configured; this branch has no background tasks to stop.)
+// about it. 'cancelled' means only background work was running, so nothing else
+// tells the person it stopped.
 export async function stopThread(
   threadId: string
-): Promise<'aborted' | 'idle'> {
+): Promise<'aborted' | 'cancelled' | 'idle'> {
   const { default: orchestrator } = await import('../../agents/orchestrator');
   const threadMemory = await memoryThread({
     agent: orchestrator,
     externalThreadId: threadId,
   }).catch(() => undefined);
-  const scope = threadMemory
-    ? { threadId: threadMemory.id, resourceId: threadMemory.resourceId }
-    : undefined;
-  const activeRunId = scope
-    ? orchestrator.getActiveThreadRunId(scope)
-    : undefined;
-  if (!(scope && activeRunId)) {
+  if (!threadMemory) {
     return 'idle';
   }
-  orchestrator.abortThreadStream(scope);
-  return 'aborted';
+  const scope = {
+    threadId: threadMemory.id,
+    resourceId: threadMemory.resourceId,
+  };
+  const cancelled = await cancelBackgroundTasks(threadMemory.id).catch(
+    (error: unknown) => {
+      logger.warn('[commands] failed to stop background tasks', {
+        error,
+        threadId,
+      });
+      return 0;
+    }
+  );
+  if (orchestrator.getActiveThreadRunId(scope)) {
+    orchestrator.abortThreadStream(scope);
+    return 'aborted';
+  }
+  return cancelled > 0 ? 'cancelled' : 'idle';
 }
 
 export const stop: CommandHandler = async ({ message, thread }) => {
@@ -39,6 +69,15 @@ export const stop: CommandHandler = async ({ message, thread }) => {
     });
   const outcome = await stopThread(thread.id);
   if (outcome === 'aborted') {
+    return;
+  }
+  if (outcome === 'cancelled') {
+    await thread.post('_stopped._').catch((error: unknown) => {
+      logger.warn('[commands] Failed to post stop confirmation', {
+        error,
+        threadId: thread.id,
+      });
+    });
     return;
   }
   await thread

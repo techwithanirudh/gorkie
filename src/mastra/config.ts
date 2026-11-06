@@ -86,6 +86,15 @@ export const send = {
   maxMemberPages: 20,
 };
 
+export const backgroundTasks = {
+  globalConcurrency: 10,
+  perAgentConcurrency: 5,
+  timeoutMs: 15 * 60 * 1000,
+  // Has to outlast the slowest task so its result still reaches the open stream.
+  untilIdleMaxIdleMs: 20 * 60 * 1000,
+  cleanupIntervalMs: 60 * 60 * 1000,
+};
+
 export const threadReads = {
   maxMessages: 2000,
   maxTranscriptChars: 400_000,

@@ -14,7 +14,11 @@ import {
 } from '../chat/handlers';
 import { chat } from '../chat/instance';
 import { status } from '../chat/status';
-import { agent as config, summarizer as summarizerConfig } from '../config';
+import {
+  backgroundTasks,
+  agent as config,
+  summarizer as summarizerConfig,
+} from '../config';
 import { listMCPServers } from '../db/queries/mcps';
 import { getInstructions } from '../db/queries/settings';
 import { channelContext } from '../lib/context';
@@ -189,6 +193,12 @@ const orchestrator = new Agent({
   agents: {
     research: researchAgent,
     explore: exploreAgent,
+  },
+  backgroundTasks: {
+    tools: {
+      research: { enabled: true, timeoutMs: backgroundTasks.timeoutMs },
+      explore: { enabled: true, timeoutMs: backgroundTasks.timeoutMs },
+    },
   },
   memory: new Memory({
     options: {

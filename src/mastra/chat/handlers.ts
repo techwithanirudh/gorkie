@@ -120,7 +120,9 @@ async function rootMentionsBot(thread: Thread): Promise<boolean> {
     slack.botUserId &&
       replies?.messages?.[0]?.text?.includes(`<@${slack.botUserId}`)
   );
-  await thread.setState({ respondOnThreadMessages: following });
+  if (replies) {
+    await thread.setState({ respondOnThreadMessages: following });
+  }
   return following;
 }
 
@@ -133,12 +135,12 @@ export async function onMention(
   if (isFromBot(message)) {
     return;
   }
-  if (!(await isUserAllowed(message.author.userId))) {
-    await offerOptIn({ thread, user: message.author });
-    return;
-  }
   // A batch that mentions gorkie routes every sender here, including bystanders.
   if (![...skipped, message].some(({ isMention }) => isMention)) {
+    return;
+  }
+  if (!(await isUserAllowed(message.author.userId))) {
+    await offerOptIn({ thread, user: message.author });
     return;
   }
   const { threadTs } = slack.decodeThreadId(message.threadId);

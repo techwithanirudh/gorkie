@@ -31,7 +31,7 @@ export const postMessageTool = createTool({
 
 Never use this to answer the current conversation or to report progress: use reply and status_update.
 
-A DM to the person asking, or a post in this channel, goes out directly with status "sent". Anything else only prepares the message: the person sees a private preview with Send and Cancel buttons, nothing goes out until they click Send, and the status is "awaiting_confirmation". In that case don't say it was sent or describe the preview, and if nothing else needs an answer, call skip. You are not told the outcome; the preview itself shows it.
+A DM to the person asking goes out directly with status "sent". Anything else only prepares the message: the person sees a private preview with Send and Cancel buttons, nothing goes out until they click Send, and the status is "awaiting_confirmation". In that case don't say it was sent or describe the preview, and if nothing else needs an answer, call skip. You are not told the outcome; the preview itself shows it.
 
 The message goes out with the person's avatar, named "Name [gorkie]", with a "Sent by" line. Don't add attribution yourself. Find channel ids with list_channels.`,
   inputSchema: input({
@@ -70,9 +70,7 @@ The message goes out with the person's avatar, named "Name [gorkie]", with a "Se
         requesterId: ctx.userId,
       });
     }
-    const isOwnDestination =
-      destination.userId === rawId(ctx.userId) ||
-      destination.channel === previewChannel;
+    const isOwnDestination = destination.userId === rawId(ctx.userId);
     const requester = await chat()
       .getUser(ctx.userId)
       .catch(() => null);
@@ -84,8 +82,8 @@ The message goes out with the person's avatar, named "Name [gorkie]", with a "Se
       username: `${name ?? 'someone'} [gorkie]`.slice(0, 80),
       avatarUrl: requester?.avatarUrl,
     };
-    // Scheduled runs deliver here with nobody around to click Send, and posting
-    // to the requester or where they already are needs no second confirmation.
+    // Scheduled runs deliver here with nobody around to click Send, and a DM to
+    // the requester speaks for no one else.
     if (isOwnDestination) {
       await deliver(pending);
       return { status: 'sent' as const, destination: destination.label };
