@@ -61,7 +61,12 @@ async function showActivity({
       title: `${sentenceCase(title)} · ${elapsed((completedAt ?? now) - startedAt)}`,
       tasks: [...steps.values()].map((step) => {
         const details = typeof step.details === 'string' ? step.details : '';
-        const lines = details ? details.split('\n').map(sentenceCase) : [];
+        const lines = details
+          ? details
+              .split('\n')
+              .filter((line) => line !== step.title)
+              .map(sentenceCase)
+          : [];
         return {
           id: step.id,
           title: `${sentenceCase(step.title)} · ${elapsed((step.completedAt ?? now) - step.startedAt)}`,

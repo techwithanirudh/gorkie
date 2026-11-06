@@ -127,6 +127,23 @@ function shortTarget(text: string): string {
   return clean(text).slice(0, config.maxTargetChars);
 }
 
+function baseName(toolName: string): string {
+  return toolName
+    .replace(/^agent-(?:research|explore)_/, '')
+    .replace(/^mastra_workspace_/, '');
+}
+
+function toolLabel(name: string): string | null {
+  const key = name === 'delete' ? 'delete_file' : name;
+  return Object.hasOwn(toolActions, key) ? toolActions[key] : 'working';
+}
+
+// The step title when the model named no phase. It stays generic so the row's
+// details, which carry the target, say something the title does not.
+export function toolTitle(toolName: string): string {
+  return toolLabel(baseName(toolName)) ?? 'working';
+}
+
 export function toolActivity({
   toolName,
   args,
@@ -134,11 +151,8 @@ export function toolActivity({
   toolName: string;
   args: unknown;
 }): string | null {
-  const name = toolName
-    .replace(/^agent-(?:research|explore)_/, '')
-    .replace(/^mastra_workspace_/, '');
-  const key = name === 'delete' ? 'delete_file' : name;
-  const label = Object.hasOwn(toolActions, key) ? toolActions[key] : 'working';
+  const name = baseName(toolName);
+  const label = toolLabel(name);
   if (label === null) {
     return null;
   }

@@ -1,5 +1,5 @@
 import type { Processor } from '@mastra/core/processors';
-import { toolActivity } from '../chat/status/tool-activity';
+import { toolActivity, toolTitle } from '../chat/status/tool-activity';
 import { activity as config } from '../config';
 import { channelContext } from '../lib/context';
 import {
@@ -153,7 +153,8 @@ export const progress = {
         const waiting = waitInputSchema.safeParse(part.payload.args);
         if (waiting.success) {
           const label = `waiting ${waiting.data.seconds}s: ${waiting.data.reason}`;
-          const phase = current() ?? advance({ title: label, automatic: true });
+          const phase =
+            current() ?? advance({ title: 'waiting', automatic: true });
           phase.actions = [...phase.actions, label].slice(-config.maxTools);
           turn.calls.set(toolCallId, phase);
           chunks.push(task({ phase, calls: turn.calls }));
@@ -171,7 +172,7 @@ export const progress = {
         const phase =
           delegatedPhase ??
           current() ??
-          advance({ title: label, automatic: true });
+          advance({ title: toolTitle(toolName), automatic: true });
         if (delegatedPhase && delegation) {
           phase.title = `${delegation.toolName.replace(/^agent-/, '')}: ${label}`;
         }
