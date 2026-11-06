@@ -12,7 +12,7 @@ export function githubBlocks({
   unreadable,
 }: {
   credential: GitHubCredential | undefined;
-  installations: number;
+  installations: number | undefined;
   permission: GitHubPermission;
   threads: boolean;
   unreadable: boolean;
@@ -30,7 +30,10 @@ export function githubBlocks({
   } else if (credential?.kind === 'pat') {
     status = `*${credential.login}*`;
     detail = `${PRESETS[permission].status}${scope}  ·  using your personal token`;
-  } else if (credential && installations > 0) {
+  } else if (credential && installations === undefined) {
+    status = `*${credential.login}*`;
+    detail = `${PRESETS[permission].status}${scope}  ·  Gorkie could not check which repositories it can reach just now`;
+  } else if (credential && installations) {
     status = `*${credential.login}*`;
     detail = `${PRESETS[permission].status}${scope}  ·  Gorkie uses your GitHub account`;
   } else if (credential) {
