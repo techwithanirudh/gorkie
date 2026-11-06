@@ -51,10 +51,6 @@ export const voiceAgent = new Agent({
       maxRetries: 2,
       reasoning: 'none',
     },
-    // `reasoning` above only reaches providers that read it. minimax-m3 goes
-    // through the Anthropic SDK (see `voice` in providers.ts), which thinks
-    // adaptively unless told not to, costing seconds before the first word.
-    providerOptions: { anthropic: { thinking: { type: 'disabled' } } },
     // A barge-in aborts the run, and an aborted run skips the end-of-run
     // save. Saving per step keeps a delegation call made in an earlier
     // step, which is where its background result is written back.

@@ -20,7 +20,7 @@ runs:
         SLACK_BOT_TOKEN=xoxb-dummy
         SLACK_APP_TOKEN=xapp-dummy
         HACKCLUB_API_KEY=dummy
-        OPENCODE_API_KEY=dummy
+        AI_GATEWAY_API_KEY=dummy
         DATABASE_URL=postgresql://user:pass@localhost:5432/db
         MASTRA_PLATFORM_ACCESS_TOKEN=dummy
         MASTRA_PROJECT_ID=dummy
