@@ -113,6 +113,6 @@ export const activity = {
   elapsedIntervalMs: 5000,
   maxAnswerPreviewChars: 10_000,
   answerChunkChars: 1000,
-  maxTitleChars: 96,
+  maxTitleChars: 48,
   maxTargetChars: 48,
 };

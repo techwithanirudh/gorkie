@@ -134,7 +134,7 @@ export const progress = {
           const agent = toolName.slice('agent-'.length);
           const phase: Phase = {
             id: `subagent-${toolCallId}`,
-            title: `${agent}: working`,
+            title: agent,
             automatic: false,
             current: true,
             error: false,
@@ -177,7 +177,6 @@ export const progress = {
           current() ??
           advance({ title: toolTitle(toolName), automatic: true });
         if (delegatedPhase && delegation) {
-          phase.title = `${delegation.toolName.replace(/^agent-/, '')}: ${label}`;
         }
         if (!turn.calls.has(toolCallId)) {
           turn.calls.set(toolCallId, phase);
@@ -195,7 +194,6 @@ export const progress = {
           current() ??
           advance({ title: label, automatic: true });
         if (delegatedPhase && delegation) {
-          phase.title = `${delegation.toolName.replace(/^agent-/, '')}: ${label}`;
         }
         phase.actions = [...phase.actions, label].slice(-config.maxTools);
         chunks.push(task({ phase, calls: turn.calls }));
