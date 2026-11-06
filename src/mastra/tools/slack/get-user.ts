@@ -33,9 +33,6 @@ export const getUserTool = createTool({
     spendSlackCall(context?.requestContext);
 
     const profile = await resolveUserProfile(userId);
-    if (!profile) {
-      throw new Error(`Could not find a user with id ${userId}.`);
-    }
     return {
       userId,
       userName: profile.displayName,
