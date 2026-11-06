@@ -1,4 +1,5 @@
 import type { MCPServerConfig } from '../../../types';
+import { heading, note } from '../blocks';
 import type { HomeSection } from '../limit';
 import { PRESETS } from '../presets';
 import { ids } from './ids';
@@ -6,65 +7,39 @@ import { ids } from './ids';
 export function mcpServersBlocks(
   servers: (MCPServerConfig & { lastError?: string })[]
 ): HomeSection {
-  const header = {
-    type: 'section',
-    text: {
-      type: 'mrkdwn',
-      text: `*MCP Servers*${servers.length > 0 ? ` (${servers.length})` : ''}`,
-    },
-    accessory: {
-      type: 'button',
-      text: { type: 'plain_text', text: 'Add' },
-      action_id: ids.add,
-    },
+  const add = {
+    type: 'actions',
+    elements: [
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: 'Add' },
+        action_id: ids.add,
+      },
+    ],
   };
 
   if (servers.length === 0) {
     return {
       fixed: [
-        header,
-        {
-          type: 'context',
-          elements: [
-            {
-              type: 'mrkdwn',
-              text: 'none yet. add one to give gorkie extra tools, just for you.',
-            },
-          ],
-        },
+        heading('MCP Servers'),
+        note(
+          'None yet. Add a server to give Gorkie extra tools, just for you.'
+        ),
+        add,
       ],
       trailing: [{ type: 'divider' }],
     };
   }
 
   return {
-    fixed: [header],
-    rows: servers.map((server, index) => [
-      ...(index > 0 ? [{ type: 'divider' }] : []),
+    fixed: [heading('MCP Servers'), add],
+    rows: servers.map((server) => [
       {
         type: 'section',
         text: { type: 'mrkdwn', text: `*${server.name}*` },
       },
-      {
-        type: 'context',
-        elements: [
-          {
-            type: 'mrkdwn',
-            text: `${PRESETS[server.permission].status}  \u00b7  \`${server.url}\``,
-          },
-        ],
-      },
-      ...(server.lastError
-        ? [
-            {
-              type: 'section',
-              text: {
-                type: 'mrkdwn',
-                text: `*Error*\n\`\`\`${server.lastError}\`\`\``,
-              },
-            },
-          ]
-        : []),
+      note(`${PRESETS[server.permission].status}  ·  \`${server.url}\``),
+      ...(server.lastError ? [note(`:warning: ${server.lastError}`)] : []),
       {
         type: 'actions',
         elements: [

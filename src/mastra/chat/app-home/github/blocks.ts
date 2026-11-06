@@ -1,5 +1,6 @@
 import { env } from '@/env';
 import type { GitHubCredential, GitHubPermission } from '../../../types';
+import { heading, note } from '../blocks';
 import type { HomeSection } from '../limit';
 import { PRESETS } from '../presets';
 import { ids } from './ids';
@@ -22,17 +23,17 @@ export function githubBlocks({
   let detail =
     'Sign in with the app for access scoped to the repositories you pick.';
   if (unreadable) {
-    status = '*Unavailable*';
+    status = 'Unavailable';
     detail =
       'Gorkie could not read your stored connection, so GitHub tools will not run. Disconnect and sign in again to replace it.';
   } else if (credential && installations === undefined) {
-    status = `*${credential.login}*`;
+    status = `Connected as *${credential.login}*`;
     detail = `${PRESETS[permission].status}${scope}  ·  Gorkie could not check which repositories it can reach just now`;
   } else if (credential && installations) {
-    status = `*${credential.login}*`;
+    status = `Connected as *${credential.login}*`;
     detail = `${PRESETS[permission].status}${scope}  ·  Gorkie uses your GitHub account`;
   } else if (credential) {
-    status = `*${credential.login}*`;
+    status = `Connected as *${credential.login}*`;
     detail = `Not installed on any repositories, so Gorkie cannot reach code${scope}  ·  <${`https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`}|choose repositories>`;
   }
 
@@ -43,14 +44,8 @@ export function githubBlocks({
 
   return {
     fixed: [
-      {
-        type: 'section',
-        text: { type: 'mrkdwn', text: `*GitHub*\n${status}` },
-      },
-      {
-        type: 'context',
-        elements: [{ type: 'mrkdwn', text: detail }],
-      },
+      heading('GitHub'),
+      note(`${status}. ${detail}`),
       {
         type: 'actions',
         elements: connected
@@ -84,9 +79,8 @@ export function githubBlocks({
           : [
               {
                 type: 'button',
-                text: { type: 'plain_text', text: 'Connect GitHub' },
+                text: { type: 'plain_text', text: 'Connect' },
                 action_id: ids.connect,
-                style: 'primary',
               },
             ],
       },

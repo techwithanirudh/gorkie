@@ -17,12 +17,14 @@ import { status } from '../chat/status';
 import {
   backgroundTasks,
   agent as config,
+  quotaWarningAt,
   summarizer as summarizerConfig,
 } from '../config';
 import { listMCPServers } from '../db/queries/mcps';
 import { getInstructions } from '../db/queries/settings';
 import { channelContext } from '../lib/context';
 import { defaultErrorProcessors } from '../lib/error-handling';
+import { usage } from '../lib/limits';
 import { logger } from '../lib/logger';
 import { reactionEndsTurn, stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
@@ -38,6 +40,7 @@ import { workingModel } from '../processors/working-model';
 import { instructions } from '../prompts';
 import { contextPrompt } from '../prompts/context';
 import { githubPrompt } from '../prompts/github';
+import { lowQuotaPrompt } from '../prompts/processors';
 import {
   orchestrator as orchestratorModel,
   summarizer as summarizerModel,
@@ -97,6 +100,14 @@ const orchestrator = new Agent({
         role: 'system' as const,
         content: `<mcps>The user's MCP server(s) ${failedServers.join(', ')} failed to connect. If they ask about missing tools or the request calls for one of these servers, mention casually that it looks down and they may want to check it in App Home.</mcps>`,
       });
+    }
+    const low = userId
+      ? (await usage(userId).catch(() => []))
+          .filter(({ max, used }) => used >= max * quotaWarningAt)
+          .map(({ max, noun, used }) => `${noun}: ${used} of ${max}`)
+      : [];
+    if (low.length > 0) {
+      messages.push({ role: 'system' as const, content: lowQuotaPrompt(low) });
     }
     // Last, because this changes per thread and would break the prompt cache.
     const context = contextPrompt(requestContext);

@@ -11,6 +11,7 @@ const COMMANDS: [string, string][] = [
     '!compact',
     "condense this thread's memory now instead of waiting for it to fill up.",
   ],
+  ['!limits', 'show how much of your hourly limits you have used.'],
   [
     '!connections',
     'list your mcp servers, integrations, and github, with status.',

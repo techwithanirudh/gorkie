@@ -4,12 +4,14 @@ import { rawText, withoutLeadingMentions } from '../message';
 import { compact } from './compact';
 import { connections } from './connections';
 import { help } from './help';
+import { limits } from './limits';
 import { stop } from './stop';
 
 const commands: Record<string, CommandHandler> = {
   compact,
   connections,
   help,
+  limits,
   mcps: connections,
   stop,
 };

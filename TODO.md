@@ -87,6 +87,14 @@ Three surfaces that are shipped, reachable by real people, and never verified en
 
 ## Customization
 
+- [x] **One App Home format.** Every section is now a heading, a sentence-case note, then a row of buttons, built from `chat/app-home/blocks.ts`. Add buttons moved out of the header accessory, Cancel moved out of the row accessory, GitHub status moved into the note, errors became a note, and `Connect GitHub` became a plain `Connect`.
+
+- [x] **Graceful limits.** `processors/run-limits.ts` turns a subagent's tools off at 50 steps, 1M tokens or 90 seconds before its timeout, and tells it to report what it has. Orchestrator turns get a `<low_quota>` note when a person passes 80% of an hourly limit, so no tool is needed. `!limits` shows the numbers. Not tested at a real limit.
+
+- [x] **Specific MCP errors (issue #37).** `mcp/errors.ts` now uses `describeMCPError` from `development`: phase, upstream message, HTTP and MCP codes, secrets redacted, and an auth hint based on the status and whether the server advertises OAuth. Used by `mcp/user-servers/probe.ts` and `tools.ts` through `errorDetails`. The hint for OAuth servers says Gorkie does not support them yet, since MCP OAuth is not on this branch.
+
+- [x] **Hourly usage in App Home.** `chat/app-home/usage.ts`. It reflects the in-memory counters, so it refreshes when Home is opened and resets on restart.
+
 - [x] **Shorter Plan step titles.** A subagent's step title is now its name plus the title the model gives it on a `Title:` line of the prompt (`Research: runtime comparison`), since Mastra's agent tools take no title field. Its tool calls stay in the details, the "started" and "completed in 0s" lines are gone, and all step titles cap at 48 characters instead of 96.
 
 - [x] **Plan keeps updating while a subagent runs.** `followDelegations` in `chat/activity.ts` keeps the handed-off Plan live, with its timer and the child's tool calls, until the task ends, then closes it as Completed, Failed or Stopped, reading task status directly because the stream did not report the cancel. `!stop` now also closes the open `untilIdle` stream, which otherwise started a follow-up turn when the cancelled task ended.

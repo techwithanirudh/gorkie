@@ -2,6 +2,7 @@ import { getGitHubCredential } from '../../db/queries/github';
 import { listMCPServers } from '../../db/queries/mcps';
 import { getGitHubSettings, getInstructions } from '../../db/queries/settings';
 import { countInstallations } from '../../lib/github';
+import { usage } from '../../lib/limits';
 import { logger } from '../../lib/logger';
 import type { GitHubCredential } from '../../types';
 import { slack } from '../client';
@@ -11,6 +12,7 @@ import { customInstructionsBlocks } from './instructions';
 import { fitHome, type HomeSection } from './limit';
 import { mcpServersBlocks } from './mcp';
 import { scheduledTasksBlocks } from './scheduled-tasks';
+import { usageBlocks } from './usage';
 
 async function settled<T>({
   label,
@@ -50,6 +52,7 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
     { credential, unreadable },
     github,
     scheduled,
+    hourly,
   ] = await Promise.all([
     settled({ label: 'instructions', userId, work: getInstructions(userId) }),
     settled({ label: 'mcp', userId, work: listMCPServers(userId) }),
@@ -60,6 +63,7 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
       userId,
       work: scheduledTasksBlocks(userId),
     }),
+    settled({ label: 'usage', userId, work: usage(userId) }),
   ]);
   const installations = credential
     ? await countInstallations(credential.token)
@@ -77,6 +81,7 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
     }),
     mcpServersBlocks(mcpServers ?? []),
     ...(scheduled ? [scheduled] : []),
+    usageBlocks(hourly ?? []),
   ];
 
   return { type: 'home', blocks: fitHome(sections) };

@@ -85,6 +85,14 @@ export const send = {
   maxMemberPages: 20,
 };
 
+export const subagent = {
+  maxSteps: 50,
+  maxTokens: 1_000_000,
+  wrapUpBeforeTimeoutMs: 90 * 1000,
+};
+
+export const quotaWarningAt = 0.8;
+
 export const backgroundTasks = {
   globalConcurrency: 10,
   perAgentConcurrency: 5,
