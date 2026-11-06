@@ -20,7 +20,7 @@ import { getInstructions } from '../db/queries/settings';
 import { channelContext } from '../lib/context';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { logger } from '../lib/logger';
-import { stepCountIs, toolCall } from '../lib/tools';
+import { reactionEndsTurn, stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
 import { delegatedTools } from '../processors/delegated-tools';
 import { outputBudget } from '../processors/output-budget';
@@ -114,6 +114,7 @@ const orchestrator = new Agent({
     stopWhen: [
       toolCall('reply'),
       toolCall('skip'),
+      reactionEndsTurn,
       toolCall('wait'),
       stepCountIs(config.maxSteps),
     ],
@@ -223,6 +224,7 @@ const orchestrator = new Agent({
     tools: false,
     chatOptions: {
       fallbackStreamingPlaceholderText: 'working...',
+      concurrency: { strategy: 'burst', debounceMs: config.batchWindowMs },
     },
     adapters: {
       slack: {

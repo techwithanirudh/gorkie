@@ -25,13 +25,17 @@ export class SlackAgentAdapter extends SlackAdapter {
   ): ReturnType<SlackAdapter['handleMessageEvent']> {
     const [event] = args;
     const text = event.text ?? '';
+    const mentionsBot = [...text.matchAll(mentionPattern)].some(
+      ([, id]) => id === this.botUserId
+    );
     // Slack escapes a typed <> in event text. Dropped here, before the recipient
     // cache, so a side conversation cannot retarget a stream already running.
+    // Side comments go too, since a batch reaches the model without the handler
+    // seeing each of its messages.
     if (
-      /^\s*(?:<>|&lt;&gt;)/.test(text) &&
-      ![...text.matchAll(mentionPattern)].some(
-        ([, id]) => id === this.botUserId
-      )
+      !mentionsBot &&
+      (/^\s*(?:<>|&lt;&gt;)/.test(text) ||
+        (event.channel_type !== 'im' && /^\s*##/.test(text)))
     ) {
       return;
     }

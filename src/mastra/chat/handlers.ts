@@ -1,9 +1,11 @@
+import type { ChannelHandlerContext } from '@mastra/core/channels';
 import type { Message, Thread } from 'chat';
 import { isUserAllowed } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
 import { attachments } from './attachments';
 import { slack } from './client';
 import { handleCommand } from './commands';
+import { shouldRespond } from './gate';
 import { withHistory } from './history';
 import { isComment } from './message';
 import { offerOptIn } from './onboarding';
@@ -19,13 +21,30 @@ function isFromBot(message: Message): boolean {
   );
 }
 
+async function runCommands({
+  message,
+  skipped,
+  thread,
+}: {
+  message: Message;
+  skipped: readonly Message[];
+  thread: Thread;
+}): Promise<boolean> {
+  await Promise.all(
+    skipped.map((earlier) => handleCommand({ message: earlier, thread }))
+  );
+  return handleCommand({ message, thread });
+}
+
 async function runTurn({
   defaultHandler,
   message,
+  skipped,
   thread,
 }: {
   defaultHandler: DefaultHandler;
   message: Message;
+  skipped: readonly Message[];
   thread: Thread;
 }): Promise<void> {
   logger.info('[chat] turn started', {
@@ -42,7 +61,7 @@ async function runTurn({
 
   await defaultHandler(
     thread,
-    await withHistory({ message: attachments(message), thread })
+    await withHistory({ message: attachments(message), skipped, thread })
   );
   // Only a turn that finished has seen the backfill; a failed one retries it.
   if (!thread.isDM) {
@@ -50,10 +69,20 @@ async function runTurn({
   }
 }
 
+// Channels awaits the whole run in defaultHandler, and batching holds the thread
+// lock until this handler returns. Waiting would queue !stop behind the very run
+// it should stop.
+function startTurn(args: Parameters<typeof runTurn>[0]): void {
+  runTurn(args).catch((error: unknown) => {
+    logger.error('[chat] turn failed', { error, threadId: args.thread.id });
+  });
+}
+
 export async function onMention(
   thread: Thread,
   message: Message,
-  defaultHandler: DefaultHandler
+  defaultHandler: DefaultHandler,
+  { skipped }: ChannelHandlerContext
 ): Promise<void> {
   if (isFromBot(message)) {
     return;
@@ -65,16 +94,17 @@ export async function onMention(
   if (slack.decodeThreadId(message.threadId).threadTs === message.id) {
     await thread.setState({ respondOnThreadMessages: true });
   }
-  if (await handleCommand({ message, thread })) {
+  if (await runCommands({ message, skipped, thread })) {
     return;
   }
-  await runTurn({ defaultHandler, message, thread });
+  startTurn({ defaultHandler, message, skipped, thread });
 }
 
 export async function onSubscribedMessage(
   thread: Thread,
   message: Message,
-  defaultHandler: DefaultHandler
+  defaultHandler: DefaultHandler,
+  { skipped }: ChannelHandlerContext
 ): Promise<void> {
   if (isFromBot(message) || isComment(message)) {
     return;
@@ -95,16 +125,22 @@ export async function onSubscribedMessage(
   if (!(await isUserAllowed(message.author.userId))) {
     return;
   }
-  if (await handleCommand({ message, thread })) {
+  if (await runCommands({ message, skipped, thread })) {
     return;
   }
-  await runTurn({ defaultHandler, message, thread });
+  if (
+    !(message.isMention || (await shouldRespond({ message, skipped, thread })))
+  ) {
+    return;
+  }
+  startTurn({ defaultHandler, message, skipped, thread });
 }
 
 export async function onDirectMessage(
   thread: Thread,
   message: Message,
-  defaultHandler: DefaultHandler
+  defaultHandler: DefaultHandler,
+  { skipped }: ChannelHandlerContext
 ): Promise<void> {
   if (isFromBot(message)) {
     return;
@@ -113,8 +149,8 @@ export async function onDirectMessage(
     await offerOptIn({ thread, user: message.author });
     return;
   }
-  if (await handleCommand({ message, thread })) {
+  if (await runCommands({ message, skipped, thread })) {
     return;
   }
-  await runTurn({ defaultHandler, message, thread });
+  startTurn({ defaultHandler, message, skipped, thread });
 }

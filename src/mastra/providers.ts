@@ -50,6 +50,10 @@ const agentModels: ModelWithRetries[] = [
 
 export const orchestrator = () => preferLastWorking(agentModels);
 
+export const gate: ModelWithRetries[] = [
+  { model: hackclub('google/gemini-3.5-flash-lite'), maxRetries: 1 },
+];
+
 export const summarizer: ModelWithRetries[] = [
   { model: 'vercel/vmc/gorkie', maxRetries: 3 },
   { model: hackclub('google/gemini-3.5-flash-lite'), maxRetries: 3 },

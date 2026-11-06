@@ -1,5 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+import { neutralizeBroadcasts } from '../chat/message';
 import { replyInputSchema } from '../types/progress';
 
 export const replyTool = createTool({
@@ -13,7 +14,10 @@ export const replyTool = createTool({
     if (!context.writer) {
       throw new Error('Reply requires the agent output stream.');
     }
-    await context.writer.custom({ type: 'data-reply', data: { message } });
+    await context.writer.custom({
+      type: 'data-reply',
+      data: { message: neutralizeBroadcasts(message) },
+    });
     return { queued: true };
   },
 });

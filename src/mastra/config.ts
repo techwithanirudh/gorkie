@@ -41,6 +41,7 @@ export const agent = {
   id: 'orchestrator',
   maxTokens: { input: 1_000_000, output: 64_000 },
   maxOutputTokensPerTurn: 200_000,
+  batchWindowMs: 500,
   maxSteps: 1000,
   modelTimeout: { firstChunkMs: 2 * 60 * 1000, stepMs: 5 * 60 * 1000 },
 };
@@ -48,6 +49,14 @@ export const agent = {
 export const exa = {
   timeoutMs: 30_000,
   livecrawlTimeoutMs: 15_000,
+};
+
+export const gate = {
+  id: 'gate',
+  maxTokens: { output: 16 },
+  contextMessages: 8,
+  maxMessageChars: 1200,
+  timeoutMs: 10_000,
 };
 
 export const summarizer = {
