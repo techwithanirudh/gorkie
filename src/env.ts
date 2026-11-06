@@ -37,6 +37,7 @@ export const env = createEnv({
             .map((id) => id.trim())
             .filter(Boolean) ?? []
       ),
+    HOURLY_TOKEN_LIMIT: z.coerce.number().int().positive().default(1_000_000),
     MODERATORS: z
       .string()
       .optional()

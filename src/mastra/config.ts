@@ -75,7 +75,7 @@ export const workingModel = {
 };
 
 export const limits = {
-  tokens: { max: 1_000_000, noun: 'tokens' },
+  tokens: { max: env.HOURLY_TOKEN_LIMIT, noun: 'tokens' },
   slackSearch: { max: 500, noun: 'Slack searches' },
   webSearch: { max: 100, noun: 'web searches' },
   fetch: { max: 100, noun: 'page fetches' },
