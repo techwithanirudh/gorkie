@@ -1,4 +1,7 @@
 import { SlackAdapter } from '@chat-adapter/slack';
+import type { PlanModel } from 'chat';
+import { z } from 'zod';
+import { activityPlanMarkerSchema } from '../types/progress';
 
 const mentionPattern = /<@([A-Z0-9_]+)(?:\|([^<>]+))?>/g;
 
@@ -122,6 +125,16 @@ export class SlackAgentAdapter extends SlackAdapter {
   private activeLookups = 0;
   private readonly waitingLookups: (() => void)[] = [];
 
+  protected override planToBlockKit(plan: PlanModel): unknown[] {
+    if (!activityPlanMarkerSchema.safeParse(plan).success) {
+      return super.planToBlockKit(plan);
+    }
+    return super.planToBlockKit(plan).map((block, index) => ({
+      ...z.looseObject({ type: z.string() }).parse(block),
+      block_id: `gorkie_plan_${index}`,
+    }));
+  }
+
   protected override lookupUser(
     ...args: Parameters<SlackAdapter['lookupUser']>
   ): ReturnType<SlackAdapter['lookupUser']> {
@@ -163,21 +176,13 @@ export class SlackAgentAdapter extends SlackAdapter {
     return lookup;
   }
 
-  protected override async resolveInlineMentions(
-    text: string,
-    skipSelfMention: boolean
-  ) {
+  protected override async resolveInlineMentions(text: string) {
     const mentionNames = new Map<string, string>();
     const missingIds = new Set<string>();
-    const { botUserId } = this;
 
     for (const mention of text.matchAll(mentionPattern)) {
       const [, userId, label] = mention;
-      if (
-        !userId ||
-        mentionNames.has(userId) ||
-        (skipSelfMention && userId === botUserId)
-      ) {
+      if (!userId || mentionNames.has(userId)) {
         continue;
       }
       if (label) {

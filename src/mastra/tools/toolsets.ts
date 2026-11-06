@@ -3,10 +3,12 @@ import { workspaceCodeMode } from './code-mode/slack';
 import { submitFeedbackTool } from './feedback';
 import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
+import { replyTool } from './reply';
 import { scheduledTaskTools } from './scheduled-tasks';
 import { searchWebTool } from './search-web';
 import { skipTool } from './skip';
 import { slackTools } from './slack';
+import { statusUpdateTool } from './status-update';
 import { uploadEmojiTool } from './upload-emoji';
 import { viewImageTool } from './view-image';
 import { waitTool } from './wait';
@@ -28,6 +30,8 @@ export async function orchestratorTools() {
     view_image: viewImageTool,
     upload_file: slackTools.upload_file,
     post_message: slackTools.post_message,
+    status_update: statusUpdateTool,
+    reply: replyTool,
     skip: skipTool,
     wait: waitTool,
   };

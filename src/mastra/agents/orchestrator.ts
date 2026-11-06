@@ -5,6 +5,7 @@ import {
   ToolSearchProcessor,
 } from '@mastra/core/processors';
 import { Memory } from '@mastra/memory';
+import { toolDisplay } from '../chat/activity';
 import { slack } from '../chat/client';
 import {
   onDirectMessage,
@@ -22,6 +23,7 @@ import { logger } from '../lib/logger';
 import { stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
 import { delegatedTools } from '../processors/delegated-tools';
+import { progress } from '../processors/progress';
 import { sandbox } from '../processors/sandbox';
 import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
@@ -94,6 +96,7 @@ const orchestrator = new Agent({
   errorProcessors: defaultErrorProcessors(),
   maxProcessorRetries: 2,
   defaultOptions: ({ requestContext }) => ({
+    toolChoice: 'required',
     modelSettings: {
       maxOutputTokens: config.maxTokens.output,
       maxRetries: 5,
@@ -106,6 +109,7 @@ const orchestrator = new Agent({
         messages.filter(({ role }) => role === 'user').slice(-1),
     },
     stopWhen: [
+      toolCall('reply'),
       toolCall('skip'),
       toolCall('wait'),
       stepCountIs(config.maxSteps),
@@ -151,6 +155,7 @@ const orchestrator = new Agent({
   ],
   outputProcessors: [
     delegatedTools,
+    progress,
     sandbox,
     turnFooter,
     workingModel(config.id),
@@ -217,7 +222,7 @@ const orchestrator = new Agent({
       slack: {
         adapter: slack,
         streaming: true,
-        toolDisplay: 'hidden',
+        toolDisplay,
         typingStatus: status,
         formatError: (error) =>
           `*Oops, something went wrong.*\n\n> ${error.message}`,
