@@ -1,6 +1,5 @@
 import type { CoreSystemMessage } from '@mastra/core/llm';
 import { commandsPrompt } from './commands';
-import { contextPrompt } from './context';
 import { corePrompt } from './core';
 import { guardrailsPrompt } from './guardrails';
 import { personalityPrompt } from './personality';
@@ -22,5 +21,3 @@ export function instructions(): CoreSystemMessage[] {
     },
   ];
 }
-
-export { contextPrompt };

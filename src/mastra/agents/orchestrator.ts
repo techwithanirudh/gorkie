@@ -35,7 +35,8 @@ import { stepGuard } from '../processors/step-guard';
 import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
-import { contextPrompt, instructions } from '../prompts';
+import { instructions } from '../prompts';
+import { contextPrompt } from '../prompts/context';
 import { githubPrompt } from '../prompts/github';
 import {
   orchestrator as orchestratorModel,
