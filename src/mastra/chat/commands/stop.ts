@@ -28,6 +28,15 @@ export async function stopThread(
 }
 
 export const stop: CommandHandler = async ({ message, thread }) => {
+  // A failed write must not keep the stop from happening.
+  await thread
+    .setState({ dropMessagesBefore: message.metadata.dateSent.getTime() })
+    .catch((error: unknown) => {
+      logger.warn('[commands] failed to record the stop cutoff', {
+        error,
+        threadId: thread.id,
+      });
+    });
   const outcome = await stopThread(thread.id);
   if (outcome === 'aborted') {
     return;

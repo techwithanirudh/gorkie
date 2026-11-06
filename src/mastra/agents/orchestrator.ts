@@ -26,6 +26,7 @@ import { delegatedTools } from '../processors/delegated-tools';
 import { outputBudget } from '../processors/output-budget';
 import { progress } from '../processors/progress';
 import { sandbox } from '../processors/sandbox';
+import { staleMessages } from '../processors/stale-messages';
 import { stepGuard } from '../processors/step-guard';
 import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
@@ -142,6 +143,7 @@ const orchestrator = new Agent({
   workspace,
   inputProcessors: [
     outputBudget,
+    staleMessages,
     new ToolSearchProcessor({
       tools: deferredTools,
       storage: 'context',
