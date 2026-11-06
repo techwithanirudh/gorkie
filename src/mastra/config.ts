@@ -72,7 +72,12 @@ export const workingModel = {
   ttl: 30 * 60 * 1000,
 };
 
-export const emoji = { listTtl: 5 * 60 * 1000 };
+export const emoji = {
+  listTtl: 5 * 60 * 1000,
+  searchUrl: 'https://emojis.raygen.dev',
+  searchResults: 8,
+  searchTimeoutMs: 3000,
+};
 
 export const activity = {
   updateIntervalMs: 1500,

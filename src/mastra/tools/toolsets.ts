@@ -6,6 +6,7 @@ import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
 import { replyTool } from './reply';
 import { scheduledTaskTools } from './scheduled-tasks';
+import { searchEmojisTool } from './search-emojis';
 import { searchWebTool } from './search-web';
 import { skipTool } from './skip';
 import { slackTools } from './slack';
@@ -18,6 +19,7 @@ export async function orchestratorTools() {
   return {
     slack: (await workspaceCodeMode()).tool,
     react: slackTools.react,
+    search_emojis: searchEmojisTool,
     search_slack: slackTools.search_slack,
     read_conversation_history: slackTools.read_conversation_history,
     get_user: slackTools.get_user,

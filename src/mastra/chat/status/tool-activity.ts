@@ -18,6 +18,7 @@ const toolActions: Record<string, string | null> = {
   upload_file: 'uploading a file',
   view_image: 'looking at an image',
   generate_image: 'creating an image',
+  search_emojis: 'looking for an emoji',
   upload_emoji: 'uploading an emoji',
   call_slack_api: 'checking Slack',
   post_card: 'preparing a response card',
