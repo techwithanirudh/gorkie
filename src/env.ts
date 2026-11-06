@@ -16,10 +16,39 @@ export const env = createEnv({
     // Anything anchored to it lands in the wrong directory.
     PROJECT_ROOT: z.string().default(process.cwd()),
 
+    HOST: z.string().default('127.0.0.1'),
     SLACK_BOT_TOKEN: z.string().min(1),
     SLACK_APP_TOKEN: z.string().min(1),
     SLACK_USER_TOKEN: z.string().min(1),
     OPT_IN_CHANNEL: z.string().optional(),
+    LOGS_CHANNEL: z
+      .string()
+      .regex(/^[CG][A-Z0-9]+$/, 'must be a Slack channel id')
+      .optional(),
+    // Slack channel ids the bot may not read or search, for benchmarks that must
+    // not find an earlier answer.
+    BLOCKED_CHANNELS: z
+      .string()
+      .optional()
+      .transform(
+        (value) =>
+          value
+            ?.split(',')
+            .map((id) => id.trim())
+            .filter(Boolean) ?? []
+      ),
+    HOURLY_TOKEN_LIMIT: z.coerce.number().int().positive().default(1_000_000),
+    MODERATORS: z
+      .string()
+      .optional()
+      .transform(
+        (value) =>
+          value
+            ?.split(',')
+            .map((id) => id.trim())
+            .filter(Boolean) ?? []
+      )
+      .pipe(z.array(z.string().regex(/^[UW][A-Z0-9]+$/))),
 
     HACKCLUB_API_KEY: z.string().min(1),
     AI_GATEWAY_API_KEY: z.string().min(1),

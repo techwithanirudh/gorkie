@@ -1,4 +1,4 @@
-import { cardToSlackBlocks } from '@chat-adapter/slack/blocks';
+import { cardToBlockKit } from '@chat-adapter/slack';
 import { Card, Section } from 'chat';
 
 export const content = {
@@ -26,7 +26,7 @@ export const content = {
   ],
   home: {
     type: 'home',
-    blocks: cardToSlackBlocks(
+    blocks: cardToBlockKit(
       Card({
         title: "I'm Gorkie",
         children: [

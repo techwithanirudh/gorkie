@@ -8,7 +8,10 @@ import {
   recordFeedbackDetails,
 } from './feedback';
 import { chat } from './instance';
+import { registerModeration } from './moderation';
+import { guarded } from './moderation/gate';
 import { acceptOptIn } from './onboarding';
+import { onSendCancel, onSendConfirm, sendIds } from './send';
 
 export function registerEvents(): void {
   const bot = chat();
@@ -22,14 +25,22 @@ export function registerEvents(): void {
   );
 
   registerAppHome();
+  registerModeration();
 
   bot.onAction('opt_in_accept', acceptOptIn);
 
-  bot.onAction(feedbackIds.action, onFeedbackClick);
-  bot.onModalSubmit(feedbackIds.modal, (event) =>
-    recordFeedbackDetails({ comment: event.values.details, event })
+  bot.onAction(sendIds.confirm, guarded(onSendConfirm));
+  bot.onAction(sendIds.cancel, guarded(onSendCancel));
+
+  bot.onAction(feedbackIds.action, guarded(onFeedbackClick));
+  bot.onModalSubmit(
+    feedbackIds.modal,
+    guarded((event) =>
+      recordFeedbackDetails({ comment: event.values.details, event })
+    )
   );
-  bot.onModalClose(feedbackIds.modal, (event) =>
-    recordFeedbackDetails({ event })
+  bot.onModalClose(
+    feedbackIds.modal,
+    guarded((event) => recordFeedbackDetails({ event }))
   );
 }

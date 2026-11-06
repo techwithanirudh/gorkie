@@ -3,20 +3,23 @@ import { parseMarkdown, stringifyMarkdown } from 'chat';
 import { isComment } from './message';
 import { threadState } from './state';
 
-const MAX_MESSAGES = 10;
-const MAX_SCANNED = 30;
+const MAX_MESSAGES = 30;
+const MAX_SCANNED = 60;
 
 export async function withHistory({
   message,
+  skipped,
   thread,
 }: {
   message: Message;
+  skipped: readonly Message[];
   thread: Thread;
 }): Promise<Message> {
   if (thread.isDM) {
     return message;
   }
 
+  const inBatch = new Set([...skipped, message].map(({ id }) => id));
   const state = await threadState(thread);
   const lines: string[] = [];
   let scanned = 0;
@@ -35,7 +38,7 @@ export async function withHistory({
       comments++;
       continue;
     }
-    if (previous.id !== message.id && !previous.author.isMe) {
+    if (!(inBatch.has(previous.id) || previous.author.isMe)) {
       const mention = thread.mentionUser(previous.author.userId);
       const author = previous.author.fullName || previous.author.userName;
       const bot = previous.author.isBot === true ? ' (bot)' : '';

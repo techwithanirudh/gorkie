@@ -1,6 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
+import { neutralizeBroadcasts } from '../../chat/message';
 import { type Target, targetSchema } from '../../chat/target';
 import { upload } from '../../config';
 import { channelContext } from '../../lib/context';
@@ -141,7 +142,7 @@ export const uploadFileTool = createTool({
     await slack.webClient.files.completeUploadExternal({
       channel_id: destination.channel,
       files: [{ id: created.file_id, title: name }],
-      initial_comment: comment,
+      initial_comment: comment && neutralizeBroadcasts(comment),
       thread_ts: destination.threadTs,
     });
     const fileId = created.file_id;

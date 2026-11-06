@@ -1,4 +1,8 @@
 import { SlackAdapter } from '@chat-adapter/slack';
+import type { PlanModel } from 'chat';
+import { z } from 'zod';
+import { activityPlanMarkerSchema } from '../types/progress';
+import { withoutLeadingMentions } from './message';
 
 const mentionPattern = /<@([A-Z0-9_]+)(?:\|([^<>]+))?>/g;
 
@@ -21,6 +25,22 @@ export class SlackAgentAdapter extends SlackAdapter {
     ...args: Parameters<SlackAdapter['handleMessageEvent']>
   ): ReturnType<SlackAdapter['handleMessageEvent']> {
     const [event] = args;
+    const text = event.text ?? '';
+    const mentionsBot = [...text.matchAll(mentionPattern)].some(
+      ([, id]) => id === this.botUserId
+    );
+    // Slack escapes a typed <> in event text. Dropped here, before the recipient
+    // cache, so a side conversation cannot retarget a stream already running.
+    // Side comments go too, since a batch reaches the model without the handler
+    // seeing each of its messages.
+    if (
+      !mentionsBot &&
+      (/^\s*(?:<>|&lt;&gt;)/.test(text) ||
+        (event.channel_type !== 'im' &&
+          /^\s*##/.test(withoutLeadingMentions(text))))
+    ) {
+      return;
+    }
     const { chat } = this;
     const userId = event.user;
     const teamId = event.team_id ?? event.team;
@@ -111,6 +131,16 @@ export class SlackAgentAdapter extends SlackAdapter {
   private activeLookups = 0;
   private readonly waitingLookups: (() => void)[] = [];
 
+  protected override planToBlockKit(plan: PlanModel): unknown[] {
+    if (!activityPlanMarkerSchema.safeParse(plan).success) {
+      return super.planToBlockKit(plan);
+    }
+    return super.planToBlockKit(plan).map((block, index) => ({
+      ...z.looseObject({ type: z.string() }).parse(block),
+      block_id: `gorkie_plan_${index}`,
+    }));
+  }
+
   protected override lookupUser(
     ...args: Parameters<SlackAdapter['lookupUser']>
   ): ReturnType<SlackAdapter['lookupUser']> {
@@ -152,21 +182,13 @@ export class SlackAgentAdapter extends SlackAdapter {
     return lookup;
   }
 
-  protected override async resolveInlineMentions(
-    text: string,
-    skipSelfMention: boolean
-  ) {
+  protected override async resolveInlineMentions(text: string) {
     const mentionNames = new Map<string, string>();
     const missingIds = new Set<string>();
-    const { botUserId } = this;
 
     for (const mention of text.matchAll(mentionPattern)) {
       const [, userId, label] = mention;
-      if (
-        !userId ||
-        mentionNames.has(userId) ||
-        (skipSelfMention && userId === botUserId)
-      ) {
+      if (!userId || mentionNames.has(userId)) {
         continue;
       }
       if (label) {

@@ -5,6 +5,7 @@ import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, rawId } from '../../lib/ids';
+import { assertWithinLimit } from '../../lib/limits';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
 
@@ -182,7 +183,10 @@ async function toOutput({
   response: SearchResponse;
   threadId?: string;
 }) {
-  const messages = response.results?.messages ?? [];
+  const messages = (response.results?.messages ?? []).filter(
+    ({ channelId }) =>
+      !(channelId && env.BLOCKED_CHANNELS.includes(rawId(channelId)))
+  );
   const channelIds = new Set<string>();
   for (const message of messages) {
     if (message.channelId) {
@@ -296,6 +300,10 @@ export const searchSlackTool = createTool({
   },
   execute: async ({ query, cursor }, context) => {
     spendSlackCall(context?.requestContext);
+    await assertWithinLimit({
+      kind: 'slackSearch',
+      requestContext: context?.requestContext,
+    });
     const { channelId, messageId, threadId } = channelContext(
       context?.requestContext
     );

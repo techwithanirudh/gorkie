@@ -13,11 +13,14 @@ import { summarizer } from './agents/summarizer';
 import { registerEvents } from './chat/events';
 import { setChat } from './chat/instance';
 import { setMastra } from './chat/mastra-instance';
+import { TurnDrainWorker } from './chat/turn-drain';
+import { backgroundTasks as backgroundTaskConfig, shutdown } from './config';
 import { postgresStore, runMigrations } from './db';
 import { buildAllowlist } from './lib/allowed-users';
 import { logger } from './lib/logger';
 import { LangfuseFeedbackExporter } from './observability/langfuse-feedback';
 import { slackIdentity } from './observability/slack-identity';
+import { prepareScheduledFire } from './schedule-hooks';
 
 process.on('unhandledRejection', (err: unknown) => {
   logger.error('[process] unhandled rejection', { err });
@@ -30,14 +33,19 @@ const isProduction = env.NODE_ENV === 'production';
 
 export const mastra = new Mastra({
   agents: { orchestrator, summarizer, research, explore },
-  schedules: {
-    prepare: async ({ mastra: runtime, schedule }) => {
-      const current = await runtime.schedules.get(schedule.id);
-      if (current?.metadata?.kind === 'wait') {
-        await runtime.schedules.delete(schedule.id);
-      }
-    },
+  workers: [new TurnDrainWorker()],
+  // Socket Mode needs no inbound traffic, and this API has no auth of its own.
+  server: { drainTimeout: shutdown.drainTimeoutMs, host: env.HOST },
+  backgroundTasks: {
+    enabled: true,
+    backpressure: 'queue',
+    globalConcurrency: backgroundTaskConfig.globalConcurrency,
+    perAgentConcurrency: backgroundTaskConfig.perAgentConcurrency,
+    defaultTimeoutMs: backgroundTaskConfig.timeoutMs,
+    untilIdleMaxIdleMs: backgroundTaskConfig.untilIdleMaxIdleMs,
+    cleanup: { cleanupIntervalMs: backgroundTaskConfig.cleanupIntervalMs },
   },
+  schedules: { prepare: prepareScheduledFire },
   storage: isProduction
     ? postgresStore
     : new MastraCompositeStore({

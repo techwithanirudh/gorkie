@@ -5,30 +5,46 @@ import {
   ToolSearchProcessor,
 } from '@mastra/core/processors';
 import { Memory } from '@mastra/memory';
+import { skillResultRedactor } from '@mastra/memory/hooks';
+import { toolDisplay } from '../chat/activity';
 import { slack } from '../chat/client';
 import {
+  onAction,
   onDirectMessage,
   onMention,
   onSubscribedMessage,
 } from '../chat/handlers';
 import { chat } from '../chat/instance';
+import { onSlashCommand } from '../chat/moderation/commands';
 import { status } from '../chat/status';
-import { agent as config, summarizer as summarizerConfig } from '../config';
+import {
+  backgroundTasks,
+  agent as config,
+  quotaWarningAt,
+  summarizer as summarizerConfig,
+} from '../config';
 import { listMCPServers } from '../db/queries/mcps';
 import { getInstructions } from '../db/queries/settings';
 import { channelContext } from '../lib/context';
 import { defaultErrorProcessors } from '../lib/error-handling';
+import { usage } from '../lib/limits';
 import { logger } from '../lib/logger';
-import { stepCountIs, toolCall } from '../lib/tools';
+import { reactionEndsTurn, stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
 import { delegatedTools } from '../processors/delegated-tools';
+import { outputBudget } from '../processors/output-budget';
+import { progress } from '../processors/progress';
 import { sandbox } from '../processors/sandbox';
+import { staleMessages } from '../processors/stale-messages';
+import { stepGuard } from '../processors/step-guard';
+import { tokenUsage } from '../processors/token-usage';
 import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
 import { instructions } from '../prompts';
+import { contextPrompt } from '../prompts/context';
 import { githubPrompt } from '../prompts/github';
-import { reasoningPrompt } from '../prompts/reasoning';
+import { lowQuotaPrompt } from '../prompts/processors';
 import {
   orchestrator as orchestratorModel,
   summarizer as summarizerModel,
@@ -45,7 +61,7 @@ const orchestrator = new Agent({
   name: 'Orchestrator',
   instructions: async ({ requestContext }) => {
     const messages = [
-      ...instructions(requestContext),
+      ...instructions(),
       { role: 'system' as const, content: await workspaceCodeModePrompt() },
     ];
     const { isDM, userId } = channelContext(requestContext);
@@ -89,13 +105,26 @@ const orchestrator = new Agent({
         content: `<mcps>The user's MCP server(s) ${failedServers.join(', ')} failed to connect. If they ask about missing tools or the request calls for one of these servers, mention casually that it looks down and they may want to check it in App Home.</mcps>`,
       });
     }
-    messages.push({ role: 'system' as const, content: reasoningPrompt });
+    const low = userId
+      ? (await usage(userId).catch(() => []))
+          .filter(({ max, used }) => used >= max * quotaWarningAt)
+          .map(({ max, noun, used }) => `${noun}: ${used} of ${max}`)
+      : [];
+    if (low.length > 0) {
+      messages.push({ role: 'system' as const, content: lowQuotaPrompt(low) });
+    }
+    // Last, because this changes per thread and would break the prompt cache.
+    const context = contextPrompt(requestContext);
+    if (context) {
+      messages.push({ role: 'system' as const, content: context });
+    }
     return messages;
   },
   model: orchestratorModel,
   errorProcessors: defaultErrorProcessors(),
   maxProcessorRetries: 2,
   defaultOptions: ({ requestContext }) => ({
+    toolChoice: 'required',
     modelSettings: {
       maxOutputTokens: config.maxTokens.output,
       maxRetries: 5,
@@ -108,7 +137,9 @@ const orchestrator = new Agent({
         messages.filter(({ role }) => role === 'user').slice(-1),
     },
     stopWhen: [
+      toolCall('reply'),
       toolCall('skip'),
+      reactionEndsTurn,
       toolCall('wait'),
       stepCountIs(config.maxSteps),
     ],
@@ -137,6 +168,8 @@ const orchestrator = new Agent({
   }),
   workspace,
   inputProcessors: [
+    outputBudget,
+    staleMessages,
     new ToolSearchProcessor({
       tools: deferredTools,
       storage: 'context',
@@ -152,8 +185,11 @@ const orchestrator = new Agent({
     new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
   ],
   outputProcessors: [
+    stepGuard,
     delegatedTools,
+    progress,
     sandbox,
+    tokenUsage,
     turnFooter,
     workingModel(config.id),
   ],
@@ -179,6 +215,12 @@ const orchestrator = new Agent({
   agents: {
     research: researchAgent,
     explore: exploreAgent,
+  },
+  backgroundTasks: {
+    tools: {
+      research: { enabled: true, timeoutMs: backgroundTasks.timeoutMs },
+      explore: { enabled: true, timeoutMs: backgroundTasks.timeoutMs },
+    },
   },
   memory: new Memory({
     options: {
@@ -207,6 +249,7 @@ const orchestrator = new Agent({
         },
         temporalMarkers: true,
         scope: 'thread',
+        hooks: { beforeObservation: skillResultRedactor() },
       },
     },
   }),
@@ -214,19 +257,27 @@ const orchestrator = new Agent({
     tools: false,
     chatOptions: {
       fallbackStreamingPlaceholderText: 'working...',
+      concurrency: { strategy: 'burst', debounceMs: config.batchWindowMs },
+      logger: 'warn',
     },
     adapters: {
       slack: {
         adapter: slack,
         streaming: true,
-        toolDisplay: 'hidden',
+        toolDisplay,
         typingStatus: status,
         formatError: (error) =>
           `*Oops, something went wrong.*\n\n> ${error.message}`,
       },
     },
     threadContext: { maxMessages: 0 },
-    handlers: { onMention, onSubscribedMessage, onDirectMessage },
+    handlers: {
+      onMention,
+      onSubscribedMessage,
+      onDirectMessage,
+      onSlashCommand,
+      onAction,
+    },
   },
 });
 

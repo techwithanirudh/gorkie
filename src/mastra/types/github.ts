@@ -9,10 +9,8 @@ const GITHUB_PERMISSIONS = [
 
 export interface GitHubCredential {
   expiresAt: Date | undefined;
-  kind: 'app' | 'pat';
   login: string;
   refreshToken: string | undefined;
-  scopes: string[];
   token: string;
 }
 

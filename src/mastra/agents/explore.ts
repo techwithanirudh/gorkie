@@ -5,10 +5,13 @@ import {
 } from '@mastra/core/processors';
 import { InMemoryStore } from '@mastra/core/storage';
 import { Memory } from '@mastra/memory';
-import { agent as config } from '../config';
+import { agent as config, subagent } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
+import { runLimits } from '../processors/run-limits';
 import { sandbox } from '../processors/sandbox';
+import { stepGuard } from '../processors/step-guard';
+import { tokenUsage } from '../processors/token-usage';
 import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
 import * as explore from '../prompts/agents/explore';
@@ -32,6 +35,7 @@ export const exploreAgent = new Agent({
     fetch_url: fetchUrlTool,
   },
   inputProcessors: [
+    runLimits,
     new TokenLimiterProcessor({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
@@ -57,8 +61,9 @@ export const exploreAgent = new Agent({
       topP: 0.95,
       timeout: config.modelTimeout,
     },
-    stopWhen: stepCountIs(config.maxSteps),
+    // One past the limit, so the turn run-limits forces can still answer.
+    stopWhen: stepCountIs(subagent.maxSteps + 1),
     autoResumeSuspendedTools: true,
   },
-  outputProcessors: [sandbox, workingModel('explore')],
+  outputProcessors: [stepGuard, tokenUsage, sandbox, workingModel('explore')],
 });

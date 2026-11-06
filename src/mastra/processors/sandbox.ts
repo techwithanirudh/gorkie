@@ -2,14 +2,44 @@ import type {
   ProcessOutputResultArgs,
   ProcessToolResultArgs,
 } from '@mastra/core/processors';
+import type { RequestContext } from '@mastra/core/request-context';
+import { getMastra } from '../chat/mastra-instance';
 import { sandbox as sandboxConfig } from '../config';
+import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
+import { memoryThread } from '../lib/memory';
 import {
   getSandbox,
   pauseSandbox,
   usedSandbox,
   workspaceToolNames,
 } from '../workspace';
+import { runningJobs } from '../workspace/jobs';
+
+async function hasRunningBackgroundTask(
+  requestContext: RequestContext
+): Promise<boolean> {
+  const { threadId } = channelContext(requestContext);
+  const manager = getMastra().backgroundTaskManager;
+  if (!(threadId && manager)) {
+    return false;
+  }
+  try {
+    const { default: orchestrator } = await import('../agents/orchestrator');
+    const thread = await memoryThread({
+      agent: orchestrator,
+      externalThreadId: threadId,
+    });
+    const { tasks } = await manager.listTasks({
+      status: ['pending', 'running'],
+      threadId: thread.id,
+    });
+    return tasks.length > 0;
+  } catch (error) {
+    logger.debug('[sandbox] could not check background tasks', { error });
+    return false;
+  }
+}
 
 export const sandbox = {
   id: 'sandbox',
@@ -35,7 +65,13 @@ export const sandbox = {
   },
   async processOutputResult(args: ProcessOutputResultArgs) {
     const { requestContext, messages } = args;
-    if (requestContext) {
+    // A child or a command may still be using the box. Its own timeout caps how
+    // long that can run unattended.
+    if (
+      requestContext &&
+      runningJobs(channelContext(requestContext).threadId) === 0 &&
+      !(await hasRunningBackgroundTask(requestContext))
+    ) {
       await pauseSandbox(requestContext);
     }
     return messages;

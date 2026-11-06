@@ -1,6 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { env } from '@/env';
+import { assertWithinLimit } from '../lib/limits';
 import { input, output } from '../types/tools/index';
 import { requireSandbox } from '../workspace';
 
@@ -43,6 +44,10 @@ export const uploadEmojiTool = createTool({
     },
   },
   execute: async ({ name, path, aliasFor }, context) => {
+    await assertWithinLimit({
+      kind: 'emojiUpload',
+      requestContext: context?.requestContext,
+    });
     if (!env.EMOJI_PROXY_TOKEN) {
       throw new Error(
         'Emoji upload is not configured. Set EMOJI_PROXY_TOKEN to enable it.'

@@ -1,4 +1,5 @@
 import { CardText, Modal } from 'chat';
+import type { DeviceLogin } from '../../../../lib/github';
 import { ids } from '../ids';
 
 export const failedModal = (reason: string) => {
@@ -14,12 +15,24 @@ export const failedModal = (reason: string) => {
     closeLabel: 'Close',
     children: [
       CardText(`:warning: ${explained}`),
-      CardText(
-        'Press Reconnect for a new code, or pick Classic token there instead.'
-      ),
+      CardText('Press Reconnect for a new code.'),
     ],
   });
 };
+
+export const pendingModal = (device: DeviceLogin) =>
+  Modal({
+    callbackId: ids.modal,
+    title: 'Not confirmed yet',
+    submitLabel: 'Done',
+    closeLabel: 'Close',
+    children: [
+      CardText(
+        `GitHub has not confirmed yet. Open ${device.verificationUri} and enter this code. This updates once it does.`
+      ),
+      CardText(`\`${device.userCode}\``),
+    ],
+  });
 
 export const connectedModal = (login: string) =>
   Modal({
