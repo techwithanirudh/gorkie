@@ -14,12 +14,23 @@ export const failedModal = (reason: string) => {
     closeLabel: 'Close',
     children: [
       CardText(`:warning: ${explained}`),
-      CardText(
-        'Press Reconnect for a new code, or pick Classic token there instead.'
-      ),
+      CardText('Press Reconnect for a new code.'),
     ],
   });
 };
+
+export const pendingModal = () =>
+  Modal({
+    callbackId: ids.modal,
+    title: 'Not confirmed yet',
+    submitLabel: 'Done',
+    closeLabel: 'Close',
+    children: [
+      CardText(
+        'GitHub has not confirmed yet. Finish both steps, and this updates once it does.'
+      ),
+    ],
+  });
 
 export const connectedModal = (login: string) =>
   Modal({

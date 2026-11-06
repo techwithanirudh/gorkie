@@ -9,12 +9,10 @@ import type { GitHubPermission, ToolPermission } from '../types';
 
 export const githubCredentials = pgTable('github_credentials', {
   userId: text('user_id').primaryKey(),
-  kind: text('kind').$type<'app' | 'pat'>().notNull(),
   login: text('login').notNull(),
   token: text('token').notNull(),
   refreshToken: text('refresh_token'),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
-  scopes: text('scopes'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

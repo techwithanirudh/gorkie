@@ -17,19 +17,14 @@ export function githubBlocks({
   threads: boolean;
   unreadable: boolean;
 }): HomeSection {
-  const pat = credential?.kind === 'pat' ? credential : undefined;
-
   const scope = threads ? '  ·  `runs in shared threads`' : '';
   let status = 'Not connected';
   let detail =
-    'Sign in with the app for access scoped to the repositories you pick. A classic token also reaches repositories somebody else owns.';
+    'Sign in with the app for access scoped to the repositories you pick.';
   if (unreadable) {
     status = '*Unavailable*';
     detail =
       'Gorkie could not read your stored connection, so GitHub tools will not run. Disconnect and sign in again to replace it.';
-  } else if (credential?.kind === 'pat') {
-    status = `*${credential.login}*`;
-    detail = `${PRESETS[permission].status}${scope}  ·  using your personal token`;
   } else if (credential && installations === undefined) {
     status = `*${credential.login}*`;
     detail = `${PRESETS[permission].status}${scope}  ·  Gorkie could not check which repositories it can reach just now`;
@@ -42,10 +37,9 @@ export function githubBlocks({
   }
 
   const connected = Boolean(credential) || unreadable;
-  const forgets = pat ? 'your token' : 'your sign-in';
-  const afterwards = pat
-    ? 'The token itself keeps working until you delete it on GitHub.'
-    : "The app stays installed on your repositories until you remove it in GitHub's settings.";
+  const forgets = 'your sign-in';
+  const afterwards =
+    "The app stays installed on your repositories until you remove it in GitHub's settings.";
 
   return {
     fixed: [

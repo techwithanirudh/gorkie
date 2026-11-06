@@ -11,7 +11,7 @@ export const connections: CommandHandler = async ({ message, thread }) => {
     const github = await githubAccess({ isDM: thread.isDM, userId });
     let status = 'could not read it right now';
     if (github.state === 'connected') {
-      status = `connected via ${github.credential.kind}`;
+      status = `connected as ${github.credential.login}`;
     } else if (github.state === 'disconnected') {
       status = 'not connected';
     }

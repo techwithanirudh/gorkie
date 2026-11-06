@@ -61,8 +61,9 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
       work: scheduledTasksBlocks(userId),
     }),
   ]);
-  const installations =
-    credential?.kind === 'app' ? await countInstallations(credential.token) : 0;
+  const installations = credential
+    ? await countInstallations(credential.token)
+    : 0;
 
   const sections: HomeSection[] = [
     { fixed: [...content.home.blocks, { type: 'divider' }] },

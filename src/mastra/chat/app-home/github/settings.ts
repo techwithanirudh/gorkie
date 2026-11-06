@@ -1,7 +1,4 @@
-import {
-  getGitHubCredential,
-  removeGitHubCredential,
-} from '../../../db/queries/github';
+import { removeGitHubCredential } from '../../../db/queries/github';
 import {
   clearGitHubSettings,
   getGitHubSettings,
@@ -24,15 +21,11 @@ export function registerSettings({
 
   bot.onAction(ids.configure, async (event) => {
     const { userId } = event.user;
-    const [settings, credential] = await Promise.all([
-      getGitHubSettings(userId),
-      getGitHubCredential(userId),
-    ]);
+    const settings = await getGitHubSettings(userId);
     try {
       await slack.webClient.views.open({
         trigger_id: event.triggerId ?? '',
         view: configureView({
-          pat: credential?.kind === 'pat',
           permission: settings.permission,
           threads: settings.threads,
         }),
@@ -51,13 +44,11 @@ export function registerSettings({
       return;
     }
     const threads = event.value === 'threads';
-    const credential = await getGitHubCredential(event.user.userId);
     try {
       await slack.webClient.views.update({
         hash: view.hash,
         view_id: view.id,
         view: configureView({
-          pat: credential?.kind === 'pat',
           permission: githubPermissionSchema.parse(
             selectedPermission({
               raw: event.raw,

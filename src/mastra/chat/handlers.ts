@@ -102,6 +102,28 @@ async function refusedByLimit({
   return true;
 }
 
+// Chat state is in memory, so a restart forgets who gorkie follows. A subscribed
+// thread whose root mentions gorkie was followed by that mention; only a
+// join_thread on some other thread is lost.
+async function rootMentionsBot(thread: Thread): Promise<boolean> {
+  const { channel, threadTs } = slack.decodeThreadId(thread.id);
+  const replies = await slack.webClient.conversations
+    .replies({ channel, ts: threadTs, limit: 1 })
+    .catch((error: unknown) => {
+      logger.warn('[chat] could not read the thread root', {
+        error,
+        threadId: thread.id,
+      });
+      return null;
+    });
+  const following = Boolean(
+    slack.botUserId &&
+      replies?.messages?.[0]?.text?.includes(`<@${slack.botUserId}`)
+  );
+  await thread.setState({ respondOnThreadMessages: following });
+  return following;
+}
+
 export async function onMention(
   thread: Thread,
   message: Message,
@@ -150,7 +172,8 @@ export async function onSubscribedMessage(
   ) {
     return;
   }
-  const isFollowingThread = state?.respondOnThreadMessages === true;
+  const isFollowingThread =
+    state?.respondOnThreadMessages ?? (await rootMentionsBot(thread));
   const mentioned = [...skipped, message].some(({ isMention }) => isMention);
   if (!(isFollowingThread || mentioned)) {
     return;

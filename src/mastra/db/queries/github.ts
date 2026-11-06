@@ -17,12 +17,10 @@ export async function getGitHubCredential(
   }
   return {
     expiresAt: row.expiresAt ?? undefined,
-    kind: row.kind,
     login: row.login,
     refreshToken: row.refreshToken
       ? decryptSecret(row.refreshToken)
       : undefined,
-    scopes: row.scopes ? row.scopes.split(',') : [],
     token: decryptSecret(row.token),
   };
 }
@@ -36,12 +34,10 @@ export async function setGitHubCredential({
 }): Promise<void> {
   const set = {
     expiresAt: credential.expiresAt ?? null,
-    kind: credential.kind,
     login: credential.login,
     refreshToken: credential.refreshToken
       ? encryptSecret(credential.refreshToken)
       : null,
-    scopes: credential.scopes.length ? credential.scopes.join(',') : null,
     token: encryptSecret(credential.token),
   };
   await db

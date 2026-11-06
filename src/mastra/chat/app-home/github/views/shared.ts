@@ -2,8 +2,6 @@ import type { PlainTextOption } from '@slack/web-api';
 import { z } from 'zod';
 import { ids } from '../ids';
 
-export type ConnectMethod = 'app' | 'pat';
-
 export const option = ({
   description,
   label,

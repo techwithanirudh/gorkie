@@ -87,6 +87,12 @@ Three surfaces that are shipped, reachable by real people, and never verified en
 
 ## Customization
 
+- [x] **Plan step details list newest first.** `chat/activity.ts` reverses the detail lines. When Slack collapses them behind Show more is decided by Slack, not gorkie. Not tested live.
+
+- [x] **Followed threads survive a restart.** `MastraStateAdapter` keeps `get` and `set` in a `Map`, so `respondOnThreadMessages`, `lastSeenMessage` and `dropMessagesBefore` vanish on restart, while subscriptions persist in thread metadata. A followed thread went silent after any restart unless mentioned. `onSubscribedMessage` now falls back to whether the root message mentions the bot. A `join_thread` on a thread whose root has no mention is still forgotten on restart. Hourly limits and pending sends also reset on restart.
+
+- [x] **GitHub App sign-in only.** Removed the classic token path: modal method picker, `verifyGitHubPat`, `kind` and `scopes` on `github_credentials`, and `forkRepository`, since only a token could fork. Migration `drop_github_classic_tokens` deletes stored token rows and drops both columns. It has not been run from this branch; the development database already has this shape, which is why reads of `kind` failed against it.
+
 - [x] **Send on someone's behalf with a preview.** `chat/send.ts`, `tools/slack/post-message.ts`. Any destination now gets a private preview with Send and Cancel, requester only, kept in Chat state for 10 minutes with a claim key against double clicks. Posted with the bot token as `Name [gorkie]` with their avatar and a `Sent by` line, plus `chat:write.customize` already in the manifest. Before the preview: archived refused, private needs both bot and requester as members, a DM channel only if it is the current one. On Send: join on `not_in_channel`, and `restricted_action`, `restricted_action_read_only_channel`, `ekm_access_denied`, `channel_not_found`, `is_archived` become a plain refusal in the preview. Not built: a Report button, stored send records, and a turn that tells the agent the outcome, so the preview alone shows it. `upload_file` still only reaches the current channel. Not tested live.
 
 - [x] **Hourly limits.** `lib/limits.ts`, values in `config.limits`: messages 500, Slack searches 500, web searches 100, page fetches 100, sends 100, emoji uploads 5. Fixed clock-hour counters in Chat state, not sliding windows, and without atomic increment, so simultaneous calls can both pass. Message limit answers privately and skips the turn. Canvas, sandbox and subagent limits were not added.
