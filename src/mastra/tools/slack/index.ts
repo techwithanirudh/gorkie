@@ -1,3 +1,4 @@
+import { callSlackApiTool } from './call-api';
 import { getChannelInfoTool } from './get-channel-info';
 import { getPermalinkTool } from './get-permalink';
 import { getSlackFileTool } from './get-slack-file';
@@ -26,6 +27,7 @@ export const slackTools = {
   upload_file: uploadFileTool,
   post_message: postMessageTool,
   join_thread: joinThreadTool,
+  call_slack_api: callSlackApiTool,
   leave_thread: leaveThreadTool,
   summarize_thread: summarizeThreadTool,
 };

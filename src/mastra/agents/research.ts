@@ -38,6 +38,7 @@ export const researchAgent = new Agent({
     fetch_url: fetchUrlTool,
     search_slack: slackTools.search_slack,
     read_conversation_history: slackTools.read_conversation_history,
+    call_slack_api: slackTools.call_slack_api,
     get_user: slackTools.get_user,
     get_channel_info: slackTools.get_channel_info,
     get_permalink: slackTools.get_permalink,

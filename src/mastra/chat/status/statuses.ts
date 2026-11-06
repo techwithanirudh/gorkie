@@ -63,6 +63,7 @@ export const statuses: Record<string, (args: Args) => string> = {
       : 'is checking a process…';
   },
   get_slack_file: () => 'is downloading a Slack file…',
+  call_slack_api: () => 'is checking Slack…',
   get_user: () => 'is looking up a user…',
   grep: (args) => {
     const pattern = str(args, 'pattern');

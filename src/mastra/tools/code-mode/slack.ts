@@ -18,6 +18,7 @@ function codeTools(mcp: Awaited<ReturnType<typeof mcpTools>>) {
     search_slack: slackTools.search_slack,
     read_conversation_history: slackTools.read_conversation_history,
     list_threads: slackTools.list_threads,
+    call_slack_api: slackTools.call_slack_api,
     get_user: slackTools.get_user,
     get_channel_info: slackTools.get_channel_info,
     list_channels: slackTools.list_channels,
