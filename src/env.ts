@@ -45,7 +45,7 @@ export const env = createEnv({
       .pipe(z.array(slackUserIdSchema)),
 
     HACKCLUB_API_KEY: z.string().min(1),
-    OPENCODE_API_KEY: z.string().min(1),
+    AI_GATEWAY_API_KEY: z.string().min(1),
 
     DATABASE_URL: z.url(),
 

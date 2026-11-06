@@ -64,14 +64,13 @@ export const agent = {
   id: 'orchestrator',
   // Every ladder rung must fit input plus output in its context window. The
   // smallest on models.dev is 1,000,000 (DeepSeek v4.1 Flash):
-  // 850,000 + 65,536 leaves about 84,000 for
+  // 850,000 + 64,000 leaves about 86,000 for
   // tool schemas, which the limiter does not count, and for the gap between
-  // its tokenizer and the provider's. GPT-6 Luna also caps input at 922,000.
-  // Output must stay under the smallest
-  // output cap on the ladder, 128,000 (opencode-go GPT-6 Luna).
+  // its tokenizer and the provider's. Output must stay under the smallest
+  // output cap on the ladder, 64,000 (alibaba/qwen3.7-flash behind vmc/gorkie).
   maxTokens: {
     input: 850_000,
-    output: 65_536,
+    output: 64_000,
     subagentOutput: 16_384,
     history: 200_000,
   },
@@ -85,8 +84,7 @@ export const agent = {
   maxProcessorRetries: 2,
 };
 
-// Output caps on models.dev: mimo-v2.6-flash 131,072; gemini-3.5-flash-lite
-// 65,536. Observational Memory defaults
+// Output caps: vmc/gorkie 64,000; gemini-3.5-flash-lite 65,536. Observational Memory defaults
 // observer and reflector to 100,000 output tokens, over the gemini cap, so
 // orchestrator.ts overrides it with this budget.
 export const summarizer = {
@@ -212,7 +210,6 @@ export const activity = {
 export const codeChannels = { maxViewBytes: 1_000_000 };
 
 export const huddle = {
-  model: 'minimax-m3',
   voice: 'flux-alexis-en',
   sttModel: 'flux-general-en',
   eotThreshold: 0.7,
