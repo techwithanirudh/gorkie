@@ -1,10 +1,10 @@
 import { createTool } from '@mastra/core/tools';
+import { WebClient } from '@slack/web-api';
 import { z } from 'zod';
 import { env } from '@/env';
-import { slack } from '../../chat/client';
-import { chat } from '../../chat/instance';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, rawId } from '../../lib/ids';
+import { slackWebLogger } from '../../lib/logger/slack';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
 
@@ -76,7 +76,30 @@ const slackErrorSchema = z.looseObject({
   data: z.looseObject({ error: z.string().optional() }).optional(),
 });
 
+const rateLimitSchema = z.looseObject({
+  retryAfter: z.number().optional(),
+});
+
+// On a 429 the shared client pauses its whole queue for Slack's retry-after and
+// retries, so one search stops every Slack call in the process for minutes. This
+// client rejects a 429 at once, and the model hears how long search is out.
+// rejectRateLimitedCalls aborts the retry loop, so only network errors and 5xx
+// responses are retried.
+const searchClient = new WebClient(undefined, {
+  logger: slackWebLogger,
+  rejectRateLimitedCalls: true,
+  retryConfig: { retries: 2, factor: 2 },
+  timeout: 15_000,
+});
+
 function searchFailure(error: unknown): Error {
+  const limited = rateLimitSchema.safeParse(error);
+  if (limited.data?.retryAfter !== undefined) {
+    return new Error(
+      `Slack rate limited search for ${Math.ceil(limited.data.retryAfter / 60)} more minutes, so no search ran. Do not search again. Answer from what you already have, and tell the person search is unavailable for now.`,
+      { cause: error }
+    );
+  }
   const parsed = slackErrorSchema.safeParse(error);
   const code = parsed.success ? parsed.data.data?.error : undefined;
   if (!code) {
@@ -115,7 +138,7 @@ async function assertPublicOnly(token: string): Promise<void> {
     return;
   }
   const auth = authTestSchema.parse(
-    await slack.webClient.apiCall('auth.test', { token })
+    await searchClient.apiCall('auth.test', { token })
   );
   const scopes = auth.response_metadata?.scopes;
   if (!scopes) {
@@ -154,7 +177,7 @@ async function runSearch({
 }): Promise<SearchResponse> {
   try {
     return searchResponseSchema.parse(
-      await slack.webClient.apiCall('assistant.search.context', {
+      await searchClient.apiCall('assistant.search.context', {
         // Keep the originating channel attached when searching with a user
         // token, so Slack can enforce access controls in that context.
         context_channel_id: rawId(channelId),
@@ -201,8 +224,18 @@ async function toOutput({
       return channelId;
     }
     try {
-      const metadata = await chat().channel(channelId).fetchMetadata();
-      return metadata.channelVisibility === 'workspace' ? channelId : undefined;
+      const { channel } = await searchClient.conversations.info({
+        channel: rawId(channelId),
+        token: env.SLACK_BOT_TOKEN,
+      });
+      // The rule the Slack adapter's fetchChannelInfo uses for "workspace".
+      const shared = !(
+        channel?.is_ext_shared ||
+        channel?.is_im ||
+        channel?.is_mpim ||
+        channel?.is_private
+      );
+      return shared && rawId(channelId).startsWith('C') ? channelId : undefined;
     } catch (error) {
       // A channel gorkie cannot look up is not readable. Anything else, a
       // rate limit above all, has to fail the search instead of quietly
@@ -211,11 +244,11 @@ async function toOutput({
       if (parsed.success && parsed.data.data?.error === 'channel_not_found') {
         return;
       }
-      throw error;
+      throw searchFailure(error);
     }
   };
   // Bounded in small batches: one unbounded Promise.all can fire enough
-  // parallel fetchMetadata calls to trip Slack rate limits. No caching, on
+  // parallel conversations.info calls to trip Slack rate limits. No caching, on
   // purpose - visibility is the privacy gate for these results, and a stale
   // "workspace" entry would leak a channel that later went private.
   const visibilityBatchSize = 4;
