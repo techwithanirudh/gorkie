@@ -10,7 +10,7 @@ import { canvasIdSchema } from './utils';
 export const lookupCanvasSectionsTool = createTool({
   id: 'lookup_canvas_sections',
   description:
-    'Find section ids in one Slack canvas by header type, contained text, or both. Use this before edit_canvas when changing a specific section rather than replacing the whole canvas.',
+    'Find section ids in one Slack canvas by header type, contained text, or both. Only headings are addressable: tables, table cells, and other blocks have no section id of their own, so this can point at the heading above a table but not at the table. Use it before edit_canvas when changing a specific section rather than replacing the whole canvas.',
   inputSchema: input({
     canvasId: canvasIdSchema,
     sectionTypes: z

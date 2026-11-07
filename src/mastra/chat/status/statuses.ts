@@ -171,6 +171,7 @@ export const statuses: Record<string, (args: Args) => string> = {
       ? fit('is looking at ', fileName(path), '…')
       : 'is looking at an image…';
   },
+  update_canvas_table: () => 'is updating a canvas table…',
   upload_emoji: (args) => {
     const name = str(args, 'name');
     return name
