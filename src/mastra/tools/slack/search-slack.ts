@@ -1,10 +1,12 @@
 import { createTool } from '@mastra/core/tools';
+import { WebClient } from '@slack/web-api';
 import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, rawId } from '../../lib/ids';
+import { slackWebLogger } from '../../lib/logger/slack';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
 
@@ -76,7 +78,28 @@ const slackErrorSchema = z.looseObject({
   data: z.looseObject({ error: z.string().optional() }).optional(),
 });
 
+const rateLimitSchema = z.looseObject({
+  retryAfter: z.number().optional(),
+});
+
+// On a 429 the shared client pauses its whole queue for Slack's retry-after and
+// retries, so one search stops every Slack call in the process for minutes. This
+// client rejects instead, and the model hears how long search is out.
+const searchClient = new WebClient(undefined, {
+  logger: slackWebLogger,
+  rejectRateLimitedCalls: true,
+  retryConfig: { retries: 0 },
+  timeout: 15_000,
+});
+
 function searchFailure(error: unknown): Error {
+  const limited = rateLimitSchema.safeParse(error);
+  if (limited.data?.retryAfter !== undefined) {
+    return new Error(
+      `Slack rate limited search for ${Math.ceil(limited.data.retryAfter / 60)} more minutes, so no search ran. Do not search again. Answer from what you already have, and tell the person search is unavailable for now.`,
+      { cause: error }
+    );
+  }
   const parsed = slackErrorSchema.safeParse(error);
   const code = parsed.success ? parsed.data.data?.error : undefined;
   if (!code) {
@@ -154,7 +177,7 @@ async function runSearch({
 }): Promise<SearchResponse> {
   try {
     return searchResponseSchema.parse(
-      await slack.webClient.apiCall('assistant.search.context', {
+      await searchClient.apiCall('assistant.search.context', {
         // Keep the originating channel attached when searching with a user
         // token, so Slack can enforce access controls in that context.
         context_channel_id: rawId(channelId),
