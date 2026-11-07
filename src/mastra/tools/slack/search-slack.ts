@@ -2,7 +2,6 @@ import { createTool } from '@mastra/core/tools';
 import { WebClient } from '@slack/web-api';
 import { z } from 'zod';
 import { env } from '@/env';
-import { chat } from '../../chat/instance';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, rawId } from '../../lib/ids';
 import { slackWebLogger } from '../../lib/logger/slack';
@@ -225,8 +224,18 @@ async function toOutput({
       return channelId;
     }
     try {
-      const metadata = await chat().channel(channelId).fetchMetadata();
-      return metadata.channelVisibility === 'workspace' ? channelId : undefined;
+      const { channel } = await searchClient.conversations.info({
+        channel: rawId(channelId),
+        token: env.SLACK_BOT_TOKEN,
+      });
+      // The rule the Slack adapter's fetchChannelInfo uses for "workspace".
+      const shared = !(
+        channel?.is_ext_shared ||
+        channel?.is_im ||
+        channel?.is_mpim ||
+        channel?.is_private
+      );
+      return shared && rawId(channelId).startsWith('C') ? channelId : undefined;
     } catch (error) {
       // A channel gorkie cannot look up is not readable. Anything else, a
       // rate limit above all, has to fail the search instead of quietly
@@ -235,11 +244,11 @@ async function toOutput({
       if (parsed.success && parsed.data.data?.error === 'channel_not_found') {
         return;
       }
-      throw error;
+      throw searchFailure(error);
     }
   };
   // Bounded in small batches: one unbounded Promise.all can fire enough
-  // parallel fetchMetadata calls to trip Slack rate limits. No caching, on
+  // parallel conversations.info calls to trip Slack rate limits. No caching, on
   // purpose - visibility is the privacy gate for these results, and a stale
   // "workspace" entry would leak a channel that later went private.
   const visibilityBatchSize = 4;
