@@ -12,6 +12,7 @@ export default defineConfig({
     'github_credentials',
     'mcp_servers',
     'moderation_events',
+    'usage',
     'user_settings',
   ],
   dbCredentials: { url: process.env.DATABASE_URL ?? '' },

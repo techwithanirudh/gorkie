@@ -20,8 +20,7 @@ export function githubBlocks({
 }): HomeSection {
   const scope = threads ? '  ·  `runs in shared threads`' : '';
   let status = 'Not connected';
-  let detail =
-    'Sign in with the app for access scoped to the repositories you pick.';
+  let detail = '';
   if (unreadable) {
     status = 'Unavailable';
     detail =
@@ -38,14 +37,11 @@ export function githubBlocks({
   }
 
   const connected = Boolean(credential) || unreadable;
-  const forgets = 'your sign-in';
-  const afterwards =
-    "The app stays installed on your repositories until you remove it in GitHub's settings.";
 
   return {
     fixed: [
       heading('GitHub'),
-      note(`${status}. ${detail}`),
+      note(`${status}. ${detail}`.trim()),
       {
         type: 'actions',
         elements: connected
@@ -69,7 +65,7 @@ export function githubBlocks({
                   title: { type: 'plain_text', text: 'Disconnect GitHub?' },
                   text: {
                     type: 'mrkdwn',
-                    text: `Gorkie forgets ${forgets} and stops using GitHub. ${afterwards}`,
+                    text: "Gorkie forgets your sign-in and stops using GitHub. The app stays installed on your repositories until you remove it in GitHub's settings.",
                   },
                   confirm: { type: 'plain_text', text: 'Disconnect' },
                   deny: { type: 'plain_text', text: 'Cancel' },

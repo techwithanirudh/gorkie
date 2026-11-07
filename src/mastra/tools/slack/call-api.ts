@@ -1,4 +1,3 @@
-import { posix } from 'node:path';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
@@ -103,7 +102,6 @@ Responses can be large, so the full JSON is written to a file in the thread sand
     size: z.number(),
     truncated: z.boolean(),
     preview: z.string(),
-    nextCursor: z.string().optional(),
   }),
   transform: {
     display: {
@@ -151,7 +149,6 @@ Responses can be large, so the full JSON is written to a file in the thread sand
         const sandbox = await requireSandbox(context.requestContext);
         const target = sandboxPath('slack-api', `${method}-${Date.now()}.json`);
         await sandbox.retryOnDead(async () => {
-          await sandbox.e2b.files.makeDir(posix.dirname(target));
           await sandbox.e2b.files.write(target, body);
         });
         path = target;
@@ -168,7 +165,6 @@ Responses can be large, so the full JSON is written to a file in the thread sand
       size: body.length,
       truncated,
       preview: truncated ? body.slice(0, previewChars) : body,
-      nextCursor: response.response_metadata?.next_cursor || undefined,
     };
   },
 });

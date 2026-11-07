@@ -1,32 +1,50 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+import { chat } from '../chat/instance';
 import { neutralizeBroadcasts } from '../chat/message';
-import { richBlocks } from '../chat/rich-blocks';
+import { replyCard } from '../chat/reply-card';
+import { ReplyDraft, replyDrafts } from '../chat/reply-draft';
+import { channelContext } from '../lib/context';
 import { replyInputSchema } from '../types/progress';
+
+const markdownTable = /^\s*\|.*\|\s*\n\s*\|[\s:|-]+\|\s*$/m;
 
 export const replyTool = createTool({
   id: 'reply',
   description:
-    'Send your answer to the current Slack conversation and end the turn. Use for a final answer, a question, or a blocker the user must see. Call this by itself after work tools finish. Put progress and narration in status_update, not here. Ordinary model text is not delivered to Slack.',
+    'Send your answer to the current Slack conversation and end the turn. Use for a final answer, a question, or a blocker. Before sending, ask whether the answer has numbers to compare, items with the same attributes, a few key stats, or an obvious next step. If so, add a card: a Chart, Table, Fields or Buttons, with Text between them.',
   inputSchema: replyInputSchema,
-  outputSchema: z.strictObject({ queued: z.boolean() }),
-  transform: { display: { output: () => ({ summary: 'Reply queued' }) } },
-  execute: async ({ message, cards, charts, images, tables }, context) => {
-    // Thrown here so the model can fix it while the turn is still open.
-    richBlocks({ cards, charts, images, tables });
-    if (!context.writer) {
-      throw new Error('Reply requires the agent output stream.');
+  outputSchema: z.strictObject({ sent: z.boolean() }),
+  transform: { display: { output: () => ({ summary: 'Reply sent' }) } },
+  execute: async ({ message, card }, context) => {
+    // Thrown before anything settles so the model can fix it while the turn is open.
+    if (markdownTable.test(message)) {
+      throw new Error(
+        'Slack cannot show a markdown table. Move it into card as a Table element and keep the takeaway in message.'
+      );
     }
-    await context.writer.custom({
-      type: 'data-reply',
-      data: {
-        message: neutralizeBroadcasts(message),
-        cards,
-        charts,
-        images,
-        tables,
-      },
-    });
-    return { queued: true };
+    const element = card && replyCard(card);
+    const { threadId } = channelContext(context.requestContext);
+    if (!threadId) {
+      return { sent: false };
+    }
+    const draft =
+      replyDrafts.get(threadId) ?? new ReplyDraft(chat().thread(threadId));
+    replyDrafts.set(threadId, draft);
+    // A step can call reply twice in parallel, and only one is the answer.
+    if (draft.finished) {
+      return { sent: false };
+    }
+    draft.finished = true;
+    try {
+      await draft.finish({
+        answer: neutralizeBroadcasts(message),
+        card: element,
+      });
+    } catch (error) {
+      draft.finished = false;
+      throw error;
+    }
+    return { sent: true };
   },
 });

@@ -1,5 +1,6 @@
 import type { SlashCommandChannelHandler } from '@mastra/core/channels';
 import { z } from 'zod';
+import { limitWindowHours } from '../../config';
 import { activeBans } from '../../db/queries/moderation';
 import { isUserAllowed } from '../../lib/allowed-users';
 import { overLimit } from '../../lib/limits';
@@ -64,7 +65,7 @@ export const onSlashCommand: SlashCommandChannelHandler = async (
   if (!(isBan || isUnban)) {
     // defaultHandler runs a full agent turn, so it gets the same gates as a
     // mention: banned or not opted in gets nothing, and it counts against the
-    // hourly message limit.
+    // token limit.
     if ((await isBanned(actorId)) || !(await isUserAllowed(actorId))) {
       await reply({ raw: event.raw, text: "You can't use Gorkie right now." });
       return;
@@ -72,7 +73,7 @@ export const onSlashCommand: SlashCommandChannelHandler = async (
     if (await overLimit({ kind: 'tokens', userId: actorId })) {
       await reply({
         raw: event.raw,
-        text: "You've hit the hourly message limit. Try again later.",
+        text: `You've hit your ${limitWindowHours}-hour usage limit. See \`!limits\`, and try again later.`,
       });
       return;
     }

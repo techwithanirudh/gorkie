@@ -18,8 +18,6 @@ const errorBodySchema = z.object({
   messages: z.array(z.string()).optional(),
 });
 
-const probeTimeoutMs = 2000;
-
 function upstreamMessage({ line }: { line: string }): {
   text: string;
   rpcCode?: number;
@@ -49,21 +47,18 @@ function upstreamMessage({ line }: { line: string }): {
   return { text, rpcCode: rpc?.code };
 }
 
-async function guardedFetch(
-  input: string | URL,
-  init?: RequestInit
-): Promise<Response> {
-  const error = await findMCPUrlError(String(input));
-  if (error) {
-    throw new Error(`Blocked OAuth request: ${error}`);
-  }
-  return fetch(input, { ...init, redirect: 'manual' });
-}
-
 function advertisesOAuth(url: string): Promise<boolean> {
-  const signal = AbortSignal.timeout(probeTimeoutMs);
-  return discoverOAuthProtectedResourceMetadata(url, undefined, (input, init) =>
-    guardedFetch(input, { ...init, signal })
+  const signal = AbortSignal.timeout(2000);
+  return discoverOAuthProtectedResourceMetadata(
+    url,
+    undefined,
+    async (input, init) => {
+      const error = await findMCPUrlError(String(input));
+      if (error) {
+        throw new Error(`Blocked OAuth request: ${error}`);
+      }
+      return fetch(input, { ...init, signal, redirect: 'manual' });
+    }
   ).then(
     () => true,
     () => false
@@ -93,7 +88,7 @@ async function authHint({
     return 'This server uses OAuth sign-in, which Gorkie does not support yet, so an access token will not work here.';
   }
   if (server.token) {
-    return 'The server rejected the access token, so Gorkie stopped connecting to it. Remove this server and add it again with a valid token.';
+    return 'The server rejected the access token. Remove this server and add it again with a valid token.';
   }
   return 'The server requires authentication. Remove this server and add it again with an access token.';
 }

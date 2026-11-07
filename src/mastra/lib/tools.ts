@@ -18,6 +18,18 @@ const failedOutput = z.union([
   }),
 ]);
 
+// Mastra rebuilds a step's results from the turn's response messages, and
+// Observational Memory can move the previous turn's last message into those, so
+// its `reply` would end this turn before the model answers. Only a call made in
+// this step counts.
+function latestResults(steps: Parameters<MastraStopCondition>[0]['steps']) {
+  const step = steps.at(-1);
+  const calls = new Set(step?.toolCalls?.map(({ toolCallId }) => toolCallId));
+  return (step?.toolResults ?? []).filter(({ toolCallId }) =>
+    calls.has(toolCallId)
+  );
+}
+
 function succeeded({ output }: { output?: unknown }): boolean {
   return !failedOutput.safeParse(output).success;
 }
@@ -25,7 +37,7 @@ function succeeded({ output }: { output?: unknown }): boolean {
 // A reaction is the whole response unless the same step has a result the model
 // still needs to read, or a call failed and the model has to see that.
 export const reactionEndsTurn: MastraStopCondition = ({ steps }) => {
-  const results = steps.at(-1)?.toolResults ?? [];
+  const results = latestResults(steps);
   return (
     results.some(({ toolName }) => toolName === 'react') &&
     results.every(
@@ -40,11 +52,9 @@ export const reactionEndsTurn: MastraStopCondition = ({ steps }) => {
 
 export function toolCall(toolName: string): MastraStopCondition {
   return ({ steps }) =>
-    steps
-      .at(-1)
-      ?.toolResults?.some(
-        (result) => result.toolName === toolName && succeeded(result)
-      ) ?? false;
+    latestResults(steps).some(
+      (result) => result.toolName === toolName && succeeded(result)
+    );
 }
 
 export function stepCountIs(stepCount: number): MastraStopCondition {

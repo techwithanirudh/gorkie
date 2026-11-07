@@ -24,7 +24,7 @@ export const outputBudget = {
       });
     }
     return {
-      toolChoice: 'none',
+      toolChoice: { type: 'tool', toolName: 'reply' },
       systemMessages: [
         ...systemMessages,
         {

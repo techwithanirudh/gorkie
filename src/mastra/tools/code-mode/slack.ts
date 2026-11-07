@@ -87,7 +87,10 @@ async function createCodeModeInstance({
       throw new Error('No E2B sandbox available for Slack code mode.');
     }
 
-    let coveredAction = toolActivity({ toolName: 'slack', args: input });
+    let coveredAction = await toolActivity({
+      toolName: 'slack',
+      args: input,
+    });
 
     const { execute } = createCodeModeTool(
       {
@@ -105,7 +108,7 @@ async function createCodeModeInstance({
           transport.run({
             ...options,
             dispatch: async (toolName, args) => {
-              const status = toolActivity({ toolName, args });
+              const status = await toolActivity({ toolName, args });
               if (status === coveredAction) {
                 coveredAction = null;
               } else if (status) {

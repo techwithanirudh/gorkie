@@ -1,4 +1,3 @@
-import { Readable } from 'node:stream';
 import type { ToolDisplayFn } from '@mastra/core/channels';
 import type { Adapter, PlanModel, PlanModelTask, Thread } from 'chat';
 import { z } from 'zod';
@@ -11,7 +10,7 @@ import {
   activityTaskSchema,
 } from '../types/progress';
 import { getMastra } from './mastra-instance';
-import { toolActivity } from './status/tool-activity';
+import { addAction, toolActivity } from './status/tool-activity';
 
 interface Step extends PlanModelTask {
   completedAt?: number;
@@ -87,15 +86,16 @@ async function followTask({
       const nested =
         taskChunkSchema.safeParse(value).data?.payload?.payload?.output;
       if (nested?.type === 'tool-call' && nested.payload) {
-        const action = toolActivity({
+        const action = await toolActivity({
           toolName: nested.payload.toolName,
           args: nested.payload.args,
         });
         if (action) {
           const details = typeof step.details === 'string' ? step.details : '';
-          step.details = [...details.split('\n').filter(Boolean), action]
-            .slice(-config.maxTools)
-            .join('\n');
+          step.details = addAction({
+            actions: details.split('\n').filter(Boolean),
+            label: action,
+          }).join('\n');
           onChange();
         }
       }
@@ -137,7 +137,6 @@ async function showActivity({
   let startedAt = Date.now();
   let completedAt: number | undefined;
   let outcome: ActivityOutcome | undefined;
-  let answer = '';
   let messageId: string | undefined;
   let lastSent = '';
   let lastSentAt = 0;
@@ -146,7 +145,7 @@ async function showActivity({
   let writes = Promise.resolve();
   const hasDetails = () =>
     [...steps.values()].some(
-      (step) => step.id.startsWith('subagent-') || Boolean(step.details)
+      (step) => step.id.startsWith(delegatedStepPrefix) || Boolean(step.details)
     );
 
   const render = async () => {
@@ -249,11 +248,6 @@ async function showActivity({
   ticker.unref();
   try {
     for await (const piece of stream) {
-      if (typeof piece === 'string') {
-        answer += piece;
-        schedule();
-        continue;
-      }
       const ended = activityEndSchema.safeParse(piece);
       if (ended.success) {
         ({ outcome } = ended.data);
@@ -297,7 +291,7 @@ async function showActivity({
     clearInterval(ticker);
     clearTimeout(updateTimer);
     completedAt ??= Date.now();
-    title = outcome ?? (answer.trim() ? 'Completed' : 'Stopped');
+    title = outcome ?? 'Stopped';
     for (const step of steps.values()) {
       if (step.status !== 'complete' && step.status !== 'error') {
         step.status = 'complete';
@@ -314,23 +308,8 @@ async function showActivity({
     } else {
       await enqueue();
     }
-    if (!answer.trim()) {
-      if (messageId && !hasDetails()) {
-        await adapter.deleteMessage(thread.id, messageId);
-      }
-    } else if (answer.length <= config.maxAnswerPreviewChars) {
-      await thread.post({ markdown: answer });
-    } else {
-      function* text() {
-        for (
-          let offset = 0;
-          offset < answer.length;
-          offset += config.answerChunkChars
-        ) {
-          yield answer.slice(offset, offset + config.answerChunkChars);
-        }
-      }
-      await thread.post(Readable.from(text()));
+    if (messageId && !hasDetails()) {
+      await adapter.deleteMessage(thread.id, messageId);
     }
   }
 }

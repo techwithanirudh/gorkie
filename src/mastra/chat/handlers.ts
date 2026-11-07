@@ -2,8 +2,10 @@ import type {
   ActionChannelHandler,
   ChannelHandlerContext,
 } from '@mastra/core/channels';
-import type { Message, Thread } from 'chat';
+import { type ActionEvent, Message, parseMarkdown, type Thread } from 'chat';
+import { limitWindowHours } from '../config';
 import { isUserAllowed } from '../lib/allowed-users';
+import { parseSlackId } from '../lib/ids';
 import { overLimit } from '../lib/limits';
 import { logger } from '../lib/logger';
 import { attachments } from './attachments';
@@ -11,11 +13,13 @@ import { slack } from './client';
 import { handleCommand } from './commands';
 import { shouldRespond } from './gate';
 import { withHistory } from './history';
-import { isComment } from './message';
+import { chat } from './instance';
+import { isComment, neutralizeBroadcasts } from './message';
 import { banRefusal } from './moderation/cards';
 import { banStatus, isBanned } from './moderation/gate';
 import { notify } from './notify';
 import { offerOptIn } from './onboarding';
+import { followUpActionPrefix } from './reply-card';
 import { setThreadState, threadState } from './state';
 
 type DefaultHandler = (thread: Thread, message: Message) => Promise<void>;
@@ -90,30 +94,30 @@ function startTurn(args: Parameters<typeof runTurn>[0]): void {
 }
 
 async function refusedByLimit({
-  message,
+  author,
   thread,
 }: {
-  message: Message;
-  thread: Thread;
+  author: Message['author'];
+  thread: Thread<unknown>;
 }): Promise<boolean> {
   const refused = await overLimit({
     kind: 'tokens',
-    userId: message.author.userId,
+    userId: author.userId,
   });
   if (!refused) {
     return false;
   }
   logger.info('[chat] message limit reached', { threadId: thread.id });
-  await thread.postEphemeral(
-    message.author,
-    "You've hit your hourly usage limit, so I'm skipping this one. See `!limits`, and try again later.",
-    { fallbackToDM: false }
-  );
+  await notify({
+    text: `You've hit your ${limitWindowHours}-hour usage limit, so I'm skipping this one. See \`!limits\`, and try again later.`,
+    thread,
+    user: author,
+  });
   return true;
 }
 
-// Fails closed: a ban that cannot be checked refuses the message. Every author
-// in the batch is checked, though a batch comes from one sender.
+// Fails closed: a ban that cannot be checked refuses the message. Channels splits
+// a batch into one turn per sender, so this only ever refuses that sender's turn.
 async function refusedByBan({
   message,
   skipped,
@@ -201,7 +205,7 @@ export async function onMention(
   }
   if (
     (await runCommands({ message, skipped, thread })) ||
-    (await refusedByLimit({ message, thread }))
+    (await refusedByLimit({ author: message.author, thread }))
   ) {
     return;
   }
@@ -240,7 +244,7 @@ export async function onSubscribedMessage(
   }
   if (
     (await runCommands({ message, skipped, thread })) ||
-    (await refusedByLimit({ message, thread }))
+    (await refusedByLimit({ author: message.author, thread }))
   ) {
     return;
   }
@@ -268,16 +272,71 @@ export async function onDirectMessage(
   }
   if (
     (await runCommands({ message, skipped, thread })) ||
-    (await refusedByLimit({ message, thread }))
+    (await refusedByLimit({ author: message.author, thread }))
   ) {
     return;
   }
   startTurn({ defaultHandler, message, skipped, thread });
 }
 
+// Slack can't post as the person who clicked, so it shows under their name and
+// avatar marked [gorkie]. The checks come first so a refused click posts nothing
+// in their name, and the message handlers run them again on the way to the agent.
+async function sendFollowUp(event: ActionEvent): Promise<void> {
+  if (!(event.value && event.thread)) {
+    return;
+  }
+  if (!(await isUserAllowed(event.user.userId))) {
+    await offerOptIn({ thread: event.thread, user: event.user });
+    return;
+  }
+  if (await refusedByLimit({ author: event.user, thread: event.thread })) {
+    return;
+  }
+  const text = neutralizeBroadcasts(event.value);
+  const user = await chat()
+    .getUser(event.user.userId)
+    .catch(() => null);
+  const { channel, ts } = parseSlackId(event.threadId);
+  if (!channel) {
+    return;
+  }
+  const note = await slack.webClient.chat.postMessage({
+    channel,
+    thread_ts: ts,
+    text,
+    username: `${user?.userName || event.user.userName} [gorkie]`.slice(0, 80),
+    unfurl_links: false,
+    ...(user?.avatarUrl ? { icon_url: user.avatarUrl } : {}),
+  });
+  if (!note.ts) {
+    return;
+  }
+  await chat().processMessage(
+    event.adapter,
+    event.threadId,
+    new Message({
+      id: note.ts,
+      threadId: event.threadId,
+      text,
+      formatted: parseMarkdown(text),
+      raw: { text, ts: note.ts, user: event.user.userId },
+      author: event.user,
+      metadata: { dateSent: new Date(), edited: false },
+      attachments: [],
+      isMention: true,
+    }),
+    { deduplicate: false }
+  );
+}
+
 // defaultHandler is Mastra's tool approve and deny button handler.
 export const onAction: ActionChannelHandler = async (event, defaultHandler) => {
   if (!(await isBanned(event.user.userId))) {
+    if (event.actionId.startsWith(followUpActionPrefix)) {
+      await sendFollowUp(event);
+      return;
+    }
     await defaultHandler();
     return;
   }

@@ -44,6 +44,7 @@ export const agent = {
   id: 'orchestrator',
   maxTokens: { input: 1_000_000, output: 64_000 },
   maxOutputTokensPerTurn: 200_000,
+  maxProcessorRetries: 2,
   batchWindowMs: 500,
   maxSteps: 1000,
   modelTimeout: { firstChunkMs: 2 * 60 * 1000, stepMs: 5 * 60 * 1000 },
@@ -74,11 +75,13 @@ export const workingModel = {
   ttl: 30 * 60 * 1000,
 };
 
+export const limitWindowHours = 5;
+
 export const limits = {
-  tokens: { max: env.HOURLY_TOKEN_LIMIT, noun: 'tokens' },
-  slackSearch: { max: 500, noun: 'Slack searches' },
-  webSearch: { max: 100, noun: 'web searches' },
-  fetch: { max: 100, noun: 'page fetches' },
+  tokens: { max: 5_000_000, noun: 'tokens' },
+  slackSearch: { max: 1000, noun: 'Slack searches' },
+  webSearch: { max: 200, noun: 'web searches' },
+  fetch: { max: 200, noun: 'page fetches' },
   emojiUpload: { max: 5, noun: 'custom emoji uploads' },
 };
 
@@ -129,7 +132,14 @@ export const activity = {
   maxTools: 32,
   elapsedIntervalMs: 5000,
   maxAnswerPreviewChars: 10_000,
+  // Slack rejects markdown_text past 12,000 characters.
+  maxMessageChars: 11_500,
   answerChunkChars: 1000,
   maxTitleChars: 48,
   maxTargetChars: 48,
+  channelLookupMs: 1000,
+};
+
+export const database = {
+  connectAttemptTimeoutMs: 2000,
 };

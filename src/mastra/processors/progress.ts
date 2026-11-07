@@ -1,6 +1,10 @@
 import type { Processor } from '@mastra/core/processors';
 import { z } from 'zod';
-import { toolActivity, toolTitle } from '../chat/status/tool-activity';
+import {
+  addAction,
+  toolActivity,
+  toolTitle,
+} from '../chat/status/tool-activity';
 import { activity as config } from '../config';
 import { channelContext } from '../lib/context';
 import {
@@ -8,8 +12,6 @@ import {
   type ActivityTask,
   activitySchema,
   delegationActivitySchema,
-  type ReplyExtras,
-  replyInputSchema,
 } from '../types/progress';
 import { statusUpdateInputSchema } from '../types/tools/status-update';
 
@@ -64,12 +66,9 @@ export const progress = {
   description:
     'Groups tool activity into temporary work steps in the reply stream.',
   processDataParts: true,
-  processOutputStream({ part, requestContext, state }) {
+  async processOutputStream({ part, requestContext, state }) {
     if (!channelContext(requestContext).threadId) {
-      return Promise.resolve(part);
-    }
-    if (part.type === 'text-delta') {
-      return Promise.resolve(null);
+      return part;
     }
     const turn: Turn = turns.get(state) ?? {
       phases: [],
@@ -154,9 +153,12 @@ export const progress = {
           advance({ title: parsed.data.status, automatic: false });
         }
       } else {
-        const label = toolActivity({ toolName, args: part.payload.args });
+        const label = await toolActivity({
+          toolName,
+          args: part.payload.args,
+        });
         if (label === null) {
-          return Promise.resolve(part);
+          return part;
         }
         const phase =
           delegatedPhase ??
@@ -164,7 +166,7 @@ export const progress = {
           advance({ title: toolTitle(toolName), automatic: true });
         if (!turn.calls.has(toolCallId)) {
           turn.calls.set(toolCallId, phase);
-          phase.actions = [...phase.actions, label].slice(-config.maxTools);
+          phase.actions = addAction({ actions: phase.actions, label });
           chunks.push(task({ phase, calls: turn.calls }));
         }
       }
@@ -177,7 +179,7 @@ export const progress = {
           delegatedPhase ??
           current() ??
           advance({ title: label, automatic: true });
-        phase.actions = [...phase.actions, label].slice(-config.maxTools);
+        phase.actions = addAction({ actions: phase.actions, label });
         chunks.push(task({ phase, calls: turn.calls }));
       }
     }
@@ -219,12 +221,11 @@ export const progress = {
     if (part.type === 'tool-call-approval') {
       advance({ title: 'waiting for your approval', automatic: false });
     }
-    let replyExtras: ReplyExtras | undefined;
-    if (part.type === 'data-reply') {
-      const parsed = replyInputSchema.safeParse(part.data);
-      if (!parsed.success || turn.replied) {
-        return Promise.resolve(null);
-      }
+    if (
+      part.type === 'tool-result' &&
+      part.payload.toolName === 'reply' &&
+      !part.payload.isError
+    ) {
       turn.replied = true;
       turn.outcome = 'Completed';
       turn.calls.clear();
@@ -232,26 +233,14 @@ export const progress = {
         phase.current = false;
         chunks.push(task({ phase, calls: turn.calls }));
       }
-      part = {
-        ...part,
-        type: 'text-delta',
-        payload: { id: 'reply', text: parsed.data.message },
-      };
-      replyExtras = {
-        cards: parsed.data.cards,
-        charts: parsed.data.charts,
-        images: parsed.data.images,
-        tables: parsed.data.tables,
-      };
     }
     if (['finish', 'error', 'abort'].includes(part.type)) {
       turns.delete(state);
     }
-    return Promise.resolve({
+    return {
       ...part,
       metadata: {
         ...part.metadata,
-        ...(replyExtras ? { gorkieReplyExtras: replyExtras } : {}),
         gorkieActivity: {
           chunks,
           replied: turn.replied,
@@ -261,7 +250,7 @@ export const progress = {
           intervalMs: config.updateIntervalMs,
         },
       },
-    });
+    };
   },
   processOutputResult({ messages, state }) {
     turns.delete(state);

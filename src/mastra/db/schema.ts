@@ -1,6 +1,7 @@
 import {
   boolean,
   index,
+  integer,
   pgTable,
   primaryKey,
   text,
@@ -51,6 +52,21 @@ export const userSettings = pgTable('user_settings', {
     .notNull()
     .defaultNow(),
 });
+
+export const usage = pgTable(
+  'usage',
+  {
+    userId: text('user_id').notNull(),
+    kind: text('kind').notNull(),
+    windowStart: timestamp('window_start', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    used: integer('used').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.kind], name: 'usage_pk' }),
+  ]
+);
 
 export const moderationEvents = pgTable(
   'moderation_events',

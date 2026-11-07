@@ -31,9 +31,12 @@ import { usage } from '../lib/limits';
 import { logger } from '../lib/logger';
 import { reactionEndsTurn, stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
+import { cutOffReply } from '../processors/cut-off-reply';
 import { delegatedTools } from '../processors/delegated-tools';
+import { firstStatus } from '../processors/first-status';
 import { outputBudget } from '../processors/output-budget';
 import { progress } from '../processors/progress';
+import { replyStream } from '../processors/reply-stream';
 import { sandbox } from '../processors/sandbox';
 import { staleMessages } from '../processors/stale-messages';
 import { stepGuard } from '../processors/step-guard';
@@ -106,7 +109,12 @@ const orchestrator = new Agent({
       });
     }
     const low = userId
-      ? (await usage(userId).catch(() => []))
+      ? (
+          await usage(userId).catch((error: unknown) => {
+            logger.warn('[limits] could not read usage', { error, userId });
+            return [];
+          })
+        )
           .filter(({ max, used }) => used >= max * quotaWarningAt)
           .map(({ max, noun, used }) => `${noun}: ${used} of ${max}`)
       : [];
@@ -122,7 +130,7 @@ const orchestrator = new Agent({
   },
   model: orchestratorModel,
   errorProcessors: defaultErrorProcessors(),
-  maxProcessorRetries: 2,
+  maxProcessorRetries: config.maxProcessorRetries,
   defaultOptions: ({ requestContext }) => ({
     toolChoice: 'required',
     modelSettings: {
@@ -168,6 +176,7 @@ const orchestrator = new Agent({
   }),
   workspace,
   inputProcessors: [
+    firstStatus,
     outputBudget,
     staleMessages,
     new ToolSearchProcessor({
@@ -186,8 +195,10 @@ const orchestrator = new Agent({
   ],
   outputProcessors: [
     stepGuard,
+    cutOffReply,
     delegatedTools,
     progress,
+    replyStream,
     sandbox,
     tokenUsage,
     turnFooter,
@@ -256,7 +267,9 @@ const orchestrator = new Agent({
   channels: {
     tools: false,
     chatOptions: {
-      fallbackStreamingPlaceholderText: 'working...',
+      // reply only opens a stream once it has text, and a placeholder outlives
+      // an edit Slack rejects.
+      fallbackStreamingPlaceholderText: null,
       concurrency: { strategy: 'burst', debounceMs: config.batchWindowMs },
       logger: 'warn',
     },
@@ -264,6 +277,7 @@ const orchestrator = new Agent({
       slack: {
         adapter: slack,
         streaming: true,
+        textDisplay: 'hidden',
         toolDisplay,
         typingStatus: status,
         formatError: (error) =>

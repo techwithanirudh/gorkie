@@ -81,7 +81,12 @@ export const createScheduledTaskTool = createTool({
         ifIdle: {
           behavior: 'wake',
           streamOptions: {
-            requestContext: { channel: channelContext(context.requestContext) },
+            requestContext: {
+              channel: {
+                ...channelContext(context.requestContext),
+                messageId: undefined,
+              },
+            },
           },
         },
         ...(name ? { name } : {}),

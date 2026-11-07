@@ -3,6 +3,7 @@ import { memoryThread } from '../../lib/memory';
 import type { CommandHandler } from '../../types';
 import { killJobs } from '../../workspace/jobs';
 import { getMastra } from '../mastra-instance';
+import { notify } from '../notify';
 import { setThreadState } from '../state';
 
 async function cancelBackgroundTasks(threadId: string): Promise<number> {
@@ -81,15 +82,9 @@ export const stop: CommandHandler = async ({ message, thread }) => {
     });
     return;
   }
-  await thread
-    .postEphemeral(message.author, 'Nothing to stop right now.', {
-      fallbackToDM: false,
-    })
-    .catch((error: unknown) => {
-      logger.warn('[commands] Failed to post stop feedback', {
-        error,
-        threadId: thread.id,
-        userId: message.author.userId,
-      });
-    });
+  await notify({
+    text: 'Nothing to stop right now.',
+    thread,
+    user: message.author,
+  });
 };

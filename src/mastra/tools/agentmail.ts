@@ -105,13 +105,10 @@ async function readAttachments({
   requestContext,
 }: {
   attachments: z.infer<typeof attachmentsSchema>;
-  requestContext?: RequestContext;
+  requestContext: RequestContext;
 }) {
   if (!attachments?.length) {
     return {};
-  }
-  if (!requestContext) {
-    throw new Error('Attachments need the sandbox, and this run has none.');
   }
   const sandbox = await requireSandbox(requestContext);
   const files = attachments.map(({ path, filename }) => {

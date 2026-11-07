@@ -6,10 +6,8 @@ import { text } from './shared';
 
 export const connectView = ({
   device,
-  warning,
 }: {
   device: DeviceLogin;
-  warning?: string;
 }): ModalView => ({
   type: 'modal',
   callback_id: ids.modal,
@@ -17,7 +15,6 @@ export const connectView = ({
   submit: { type: 'plain_text', text: 'Done' },
   close: { type: 'plain_text', text: 'Cancel' },
   blocks: [
-    ...(warning ? [text(`:warning: ${warning}`)] : []),
     text(
       `*1.* <${`https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`}|Choose which repositories Gorkie may use>. Pick "Only select repositories" to keep it narrow.`
     ),

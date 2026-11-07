@@ -24,9 +24,10 @@ const markers = [
   'stepIsContinued',
   'id: "continued"',
   '-(input|output)-processor$/.test(workflowId)',
+  '(!requesterId || requesterId !== actorId)',
+  'buildRenderContextForThread(threadId, requestContext?.get("channel")?.userId)',
+  '"__mastra_chat_channel_render"',
 ];
-
-const stockContracts = ['"__mastra_chat_channel_render"'];
 
 // The deployer's server is bundled into the build output, so the output has
 // no @mastra/deployer install and the marker is checked in the bundle instead.
@@ -44,14 +45,9 @@ const missing = [
       ];
     }
     const source = readFileSync(path, 'utf8');
-    return [
-      ...markers
-        .filter((marker) => !source.includes(marker))
-        .map((marker) => `${file}: ${marker}`),
-      ...stockContracts
-        .filter((contract) => !source.includes(contract))
-        .map((contract) => `${file}: stock contract ${contract}`),
-    ];
+    return markers
+      .filter((marker) => !source.includes(marker))
+      .map((marker) => `${file}: ${marker}`);
   }),
   ...(deployerServer &&
   readFileSync(deployerServer, 'utf8').includes('preContextIsPublic')

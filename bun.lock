@@ -8,6 +8,7 @@
         "@ai-sdk/provider-utils": "^5.0.26",
         "@chat-adapter/slack": "^4.44.0",
         "@github-tools/sdk": "^1.11.1",
+        "@json-render/chat": "0.22.0",
         "@langfuse/client": "^5.11.1",
         "@mastra/core": "1.82.0",
         "@mastra/deployer": "^1.82.0",
@@ -483,6 +484,10 @@
     "@js-sdsl/ordered-map": ["@js-sdsl/ordered-map@4.4.2", "", {}, "sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw=="],
 
     "@js-temporal/polyfill": ["@js-temporal/polyfill@0.5.1", "", { "dependencies": { "jsbi": "^4.3.0" } }, "sha512-hloP58zRVCRSpgDxmqCWJNlizAlUgJFqG2ypq79DCvyv9tHjRYMDOcPFjzfl/A1/YxDvRCZz8wvZvmapQnKwFQ=="],
+
+    "@json-render/chat": ["@json-render/chat@0.22.0", "", { "dependencies": { "@json-render/core": "0.22.0" }, "peerDependencies": { "chat": "^4.43.0", "zod": "^4.0.0" } }, "sha512-5X88BgOWLyC1B2ko7kHFM3BO2LygsN+79wy6Gin6EIxYvT4v+6wp9gRcUMQZP3hLGhEbuIE4sawk5OsZzPkGTQ=="],
+
+    "@json-render/core": ["@json-render/core@0.22.0", "", { "dependencies": { "zod": "^4.3.6" } }, "sha512-BIfJ2V3bLYETetBu2KWoxxRPU5cSAf77dDTBgqaV54kEAfyHta1psPJgNk0fDcB3FCrnCZ5KO/X41VDkrNSYgw=="],
 
     "@langfuse/client": ["@langfuse/client@5.11.1", "", { "dependencies": { "@langfuse/core": "^5.11.1", "@langfuse/tracing": "^5.11.1", "mustache": "^4.2.0" }, "peerDependencies": { "@opentelemetry/api": "^1.9.0" } }, "sha512-8xqjQKAo9TKSSgclnphdforUTDY8H3lv6Cf/yq2q6STkG8fmIV8AxJWm27/AI9XVodtQPYjj8jKWt55qgGqqCg=="],
 
@@ -1965,6 +1970,8 @@
     "@hono/node-ws/ws": ["ws@8.21.0", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g=="],
 
     "@jridgewell/gen-mapping/@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.6.0", "", {}, "sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw=="],
+
+    "@json-render/core/zod": ["zod@4.6.7", "", {}, "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg=="],
 
     "@langfuse/otel/@langfuse/core": ["@langfuse/core@5.14.0", "", { "peerDependencies": { "@opentelemetry/api": "^1.9.0" } }, "sha512-E64XSrRcfddqi76Y0bqi8UYQZfQcChPXb4Ezz4XbQysS3p9Zjqiip3Chv4+Lov374vprjGSorx3CjXjior2CmA=="],
 

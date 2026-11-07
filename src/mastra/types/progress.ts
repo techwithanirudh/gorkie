@@ -1,10 +1,4 @@
 import { z } from 'zod';
-import {
-  cardSchema,
-  chartSchema,
-  imageSchema,
-  tableSchema,
-} from './rich-blocks';
 
 export const activitySchema = z.object({ status: z.string() });
 
@@ -72,47 +66,48 @@ export const activityPlanMarkerSchema = z.object({
 
 export type ActivityTask = z.infer<typeof activityTaskSchema>;
 
+// json-render resolves `$` objects such as $template when it renders, so their
+// result would skip the broadcast filter that runs on the spec.
+function hasExpression(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some(hasExpression);
+  }
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  return Object.entries(value).some(
+    ([key, entry]) => key.startsWith('$') || hasExpression(entry)
+  );
+}
+
+const cardSpecSchema = z.strictObject({
+  root: z.string().describe('Id of the Card element in elements.'),
+  elements: z.record(
+    z.string(),
+    z.strictObject({
+      type: z.string(),
+      props: z
+        .record(z.string(), z.unknown())
+        .refine((props) => !hasExpression(props), {
+          error: 'Props are literal values: no $ expressions.',
+        }),
+      children: z.array(z.string()).optional(),
+    })
+  ),
+});
+
+export type CardSpec = z.infer<typeof cardSpecSchema>;
+
+export const partialReplySchema = z.looseObject({
+  message: z.string().optional(),
+  card: cardSpecSchema.optional().catch(undefined),
+});
+
 export const replyInputSchema = z.strictObject({
   message: z.string().trim().min(1),
-  charts: z
-    .array(chartSchema)
-    .max(2)
+  card: cardSpecSchema
     .optional()
     .describe(
-      'Native Slack charts shown below the message. Use one for a comparison or a trend over a few categories, and still state the takeaway in the message.'
+      'Rich content shown right after message in the same Slack message, as a flat map of elements in display order, so a Text between two charts sits between them. One Card is the root. Components: Card {title?, subtitle?, imageUrl?} and Section {} hold children, Text {content, style?: plain|bold|muted}, Fields {} holds Field {label, value}, Table {headers, rows, caption, align?}, Chart {title, chart: {type: pie, segments: [{label, value}]} or {type: bar|line|area, categories, series: [{name, values}], xLabel?, yLabel?}}, Image {url, alt}, Divider {}, Actions {} holds LinkButton {label, url} and Button {label, style?: primary|danger|default}. Clicking a Button sends you its label as a follow-up message from that person, so write the label as that request and use one for a next step you can act on. At most 2 Chart and 1 Table. Chart title and labels: 50 and 20 characters.'
     ),
-  tables: z
-    .array(tableSchema)
-    .max(2)
-    .optional()
-    .describe(
-      'Sortable, paged Slack tables shown below the message. Use one for data with several columns or more than a handful of rows, instead of a markdown table.'
-    ),
-  images: z
-    .array(imageSchema)
-    .max(6)
-    .optional()
-    .describe(
-      'Images shown below the message, from public URLs. Use when the reply is about the picture. For a file in the sandbox, use upload_file instead.'
-    ),
-  cards: z
-    .array(cardSchema)
-    .max(10)
-    .optional()
-    .describe(
-      'Link cards shown below the message, for a few options or results to pick from. One shows alone, and more scroll in a carousel. Not for plain answers.'
-    ),
-});
-
-const replyExtrasSchema = replyInputSchema.pick({
-  cards: true,
-  charts: true,
-  images: true,
-  tables: true,
-});
-
-export type ReplyExtras = z.infer<typeof replyExtrasSchema>;
-
-export const replyExtrasMetadataSchema = z.looseObject({
-  gorkieReplyExtras: replyExtrasSchema,
 });

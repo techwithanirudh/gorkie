@@ -28,7 +28,7 @@ export async function offerOptIn({
   thread,
   user,
 }: {
-  thread: Thread;
+  thread: Thread<unknown>;
   user: Author;
 }): Promise<void> {
   if (!env.OPT_IN_CHANNEL) {

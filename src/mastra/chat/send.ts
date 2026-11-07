@@ -291,14 +291,9 @@ export async function onSendConfirm(event: ActionEvent): Promise<void> {
   if (!(await state.setIfNotExists(claim, true, config.pendingTtlMs))) {
     return;
   }
+  let link: string | undefined;
   try {
-    const link = await deliver(pending);
-    await state.delete(pendingKey(event.value));
-    await respond({
-      event,
-      replace: true,
-      text: link ? `Sent. <${link}|View message>` : 'Sent.',
-    });
+    link = await deliver(pending);
   } catch (error) {
     const refusal = refusals[slackError(error) ?? ''];
     if (refusal) {
@@ -313,5 +308,12 @@ export async function onSendConfirm(event: ActionEvent): Promise<void> {
       replace: false,
       text: 'Something broke and nothing was sent. Click Send to try again.',
     });
+    return;
   }
+  await state.delete(pendingKey(event.value));
+  await respond({
+    event,
+    replace: true,
+    text: link ? `Sent. <${link}|View message>` : 'Sent.',
+  });
 }

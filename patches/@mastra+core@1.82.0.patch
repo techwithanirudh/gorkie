@@ -1,10 +1,14 @@
 --- a/dist/agent-BP9OWM6D.js
 +++ b/dist/agent-BP9OWM6D.js
-@@ -4504,2 +4504,3 @@
+@@ -4502,6 +4502,7 @@
+ }
+ const NOT_CANCELED_STATUSES = WORKFLOW_RUN_STATUSES.filter((status) => status !== "canceled");
  async function isWorkflowRunCanceled(engine, workflowId, runId) {
 +	if (/-(input|output)-processor$/.test(workflowId) || !Object.values(engine.mastra?.listWorkflows?.() ?? {}).some((workflow) => workflow.id === workflowId)) return false;
  	try {
-@@ -17153,6 +17153,16 @@
+ 		return await (await engine.mastra?.getStorage()?.getStore("workflows"))?.loadWorkflowRunStatus({
+ 			workflowName: workflowId,
+@@ -17153,6 +17154,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -21,7 +25,7 @@
  				}
  			}
  			let skipUnavailableAttachments = inputData.skipUnavailableAttachments;
-@@ -17205,7 +17215,11 @@
+@@ -17205,7 +17216,11 @@
  				}
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -34,7 +38,7 @@
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -17233,7 +17247,7 @@
+@@ -17233,7 +17248,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -43,7 +47,7 @@
  					...skipUnavailableAttachments ? { skipUnavailableAttachments } : {}
  				};
  			}
-@@ -59157,16 +59171,38 @@
+@@ -59157,16 +59172,38 @@
  */
  async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, toolDisplayFn, streamingOptions, channelToolNames, logger, onApprovalPosted, getPendingApproval, takePendingApproval, typingGate, formatError, textFormat }) {
  	const platform = adapter.name;
@@ -84,7 +88,7 @@
  		let buffer = [];
  		let closed = false;
  		let resolveNext;
-@@ -59189,6 +59225,8 @@
+@@ -59189,6 +59226,8 @@
  		return {
  			push: (piece) => {
  				if (closed) return;
@@ -93,7 +97,7 @@
  				buffer.push(piece);
  				if (resolveNext) {
  					const r = resolveNext;
-@@ -59207,12 +59245,30 @@
+@@ -59207,12 +59246,30 @@
  			},
  			done: (async () => {
  				try {
@@ -127,7 +131,7 @@
  						buffer = [];
  						if (closed) break;
  						await waitForNext();
-@@ -59225,11 +59281,19 @@
+@@ -59225,11 +59282,19 @@
  					}
  				} finally {
  					typingGate.active = false;
@@ -148,7 +152,7 @@
  		const s = sessionRef.current;
  		if (!s) {
  			pendingInitialText.length = 0;
-@@ -59244,6 +59308,9 @@
+@@ -59244,6 +59309,9 @@
  		pendingOmTasks.clear();
  		aggregatedRecallRef.current = null;
  		planTitleRef.current = false;
@@ -158,7 +162,7 @@
  		toolTasksRef.current = false;
  		sessionRef.current = null;
  		s.close();
-@@ -59257,15 +59324,92 @@
+@@ -59257,15 +59325,92 @@
  	* `if (!session) session = openSession(); session.push(...)` pattern out
  	* of the handlers.
  	*/
@@ -252,7 +256,7 @@
  	};
  	const lookupTaskTitle = (toolCallId, fallback) => {
  		const stash = getPendingApproval(toolCallId);
-@@ -59356,6 +59500,29 @@
+@@ -59356,6 +59501,29 @@
  		});
  	};
  	for await (const chunk of stream) {
@@ -282,7 +286,7 @@
  		if (aggregatedRecallRef.current) {
  			const probe = asOmChunk(chunk);
  			if (!(probe?.type === "data-om-activation" && probe.data.operationType === "observation")) aggregatedRecallRef.current = null;
-@@ -59368,7 +59535,8 @@
+@@ -59368,7 +59536,8 @@
  			}
  			const om = asOmChunk(chunk);
  			if (om) {
@@ -292,7 +296,7 @@
  				if (om.data.cycleId) {
  					if (!planTitleRef.current) {
  						pushToSession({
-@@ -59420,7 +59588,24 @@
+@@ -59420,7 +59589,24 @@
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -318,7 +322,7 @@
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -59433,11 +59618,12 @@
+@@ -59433,11 +59619,12 @@
  			continue;
  		}
  		if (chunk.type === "finish") {
@@ -332,7 +336,7 @@
  			await postStreamError({
  				chunk,
  				chatThread,
-@@ -59449,7 +59635,7 @@
+@@ -59449,7 +59636,7 @@
  			continue;
  		}
  		if (chunk.type === "abort") {
@@ -341,7 +345,7 @@
  			tracker.reset();
  			continue;
  		}
-@@ -59680,7 +59866,7 @@
+@@ -59680,7 +59867,7 @@
  		}
  		if (chunk.type === "tripwire") {
  			if (chunk.payload.retry) continue;
@@ -350,7 +354,7 @@
  			await postTripwire({
  				chunk,
  				chatThread,
-@@ -59689,7 +59875,12 @@
+@@ -59689,7 +59876,12 @@
  			continue;
  		}
  	}
@@ -364,7 +368,7 @@
  }
  // src/channels/output-processor.ts
  /** Chunks that carry reply text, kept out of the channel by `textDisplay: 'hidden'`. */
-@@ -59809,8 +60000,13 @@
+@@ -59809,8 +60001,13 @@
  			session = this.#openSession(render, requestContext);
  			state.session = session;
  		}
@@ -379,7 +383,63 @@
  			session.queue.close();
  			try {
  				await session.driverPromise;
-@@ -62162,7 +62358,7 @@
+@@ -59840,7 +60037,7 @@
+ 		}
+ 		const threadId = parseMemoryRequestContext(requestContext)?.thread?.id;
+ 		if (this.#agentChannels && threadId) {
+-			const rebuilt = await this.#agentChannels.buildRenderContextForThread(threadId);
++			const rebuilt = await this.#agentChannels.buildRenderContextForThread(threadId, requestContext?.get("channel")?.userId);
+ 			state.render = rebuilt ?? null;
+ 			return rebuilt ?? void 0;
+ 		}
+@@ -60983,7 +61180,7 @@
+ 							return;
+ 						}
+ 						const actorId = event.user?.userId;
+-						if (adapterConfig?.toolApprovers !== "anyone" && requesterId && actorId && requesterId !== actorId) {
++						if (adapterConfig?.toolApprovers !== "anyone" && (!requesterId || requesterId !== actorId)) {
+ 							this.log("info", `Ignoring tool approval action from ${actorId}: only ${requesterId} may answer`, {
+ 								...actionEventContext,
+ 								requesterId
+@@ -62021,8 +62218,8 @@
+ 	* `Thread` handle, which the Chat SDK materializes from the stored external id
+ 	* via `chat.thread(externalThreadId)`.
+ 	*/
+-	async buildRenderContextForThread(threadId) {
+-		return (await this.loadChannelThread(threadId))?.render ?? null;
++	async buildRenderContextForThread(threadId, requesterId) {
++		return (await this.loadChannelThread(threadId, requesterId))?.render ?? null;
+ 	}
+ 	/**
+ 	* The channel context and render context for a run on a channel-backed
+@@ -62047,7 +62244,7 @@
+ 			render
+ 		};
+ 	}
+-	async loadChannelThread(threadId) {
++	async loadChannelThread(threadId, requesterId) {
+ 		const storage = this.getMastra()?.getStorage();
+ 		if (!storage) return null;
+ 		const memoryStore = await storage.getStore("memory");
+@@ -62066,7 +62263,7 @@
+ 		const storedIsDM = thread.metadata?.[IS_DM_KEY];
+ 		const isDM = typeof storedIsDM === "boolean" ? storedIsDM : chatThread.isDM;
+ 		if (!sender && isDM === chatThread.isDM) return {
+-			render: this._buildRenderContext(chatThread, platform),
++			render: this._buildRenderContext(chatThread, platform, { requesterId: requesterId ?? sender?.author?.userId }),
+ 			sender
+ 		};
+ 		const { Message: ChatMessage, ThreadImpl } = await getChatModule();
+@@ -62096,7 +62293,7 @@
+ 			stateAdapter: this.stateAdapter
+ 		});
+ 		return {
+-			render: this._buildRenderContext(rebuilt, platform),
++			render: this._buildRenderContext(rebuilt, platform, { requesterId: requesterId ?? sender?.author?.userId }),
+ 			sender
+ 		};
+ 	}
+@@ -62162,7 +62359,7 @@
  		let statusSent = false;
  		try {
  			for await (const chunk of stream) {
@@ -388,7 +448,7 @@
  					let result;
  					try {
  						result = typingStatusFn(chunk, {
-@@ -62195,7 +62391,7 @@
+@@ -62195,7 +62392,7 @@
  				yield chunk;
  			}
  		} finally {
@@ -397,7 +457,7 @@
  				this.log("debug", "Typing clear failed (best-effort)", {
  					platform,
  					threadId: chatThread.id,
-@@ -78722,7 +78918,13 @@
+@@ -78722,7 +78919,13 @@
  					});
  					await options.onError?.({ error });
  				},
@@ -412,7 +472,7 @@
  				abortSignal: options.abortSignal
  			},
  			activeTools: options.activeTools,
-@@ -83130,7 +83332,7 @@
+@@ -83130,7 +83333,7 @@
  							let delegatedPause = {};
  							for await (const chunk of streamResult.fullStream) {
  								if (context?.writer) {
@@ -421,7 +481,7 @@
  									else await context.writer.write(chunk);
  								}
  								if (chunk.type === "data-tool-call-approval") {
-@@ -83222,7 +83424,7 @@
+@@ -83222,7 +83425,7 @@
  							let fullText = "";
  							for await (const chunk of streamResult.fullStream) {
  								if (context?.writer) {
@@ -432,11 +492,15 @@
  								if (chunk.type === "text-delta") fullText += chunk.textDelta;
 --- a/dist/agent-3djrMSaa.cjs
 +++ b/dist/agent-3djrMSaa.cjs
-@@ -4507,2 +4507,3 @@
+@@ -4505,6 +4505,7 @@
+ }
+ const NOT_CANCELED_STATUSES = WORKFLOW_RUN_STATUSES.filter((status) => status !== "canceled");
  async function isWorkflowRunCanceled(engine, workflowId, runId) {
 +	if (/-(input|output)-processor$/.test(workflowId) || !Object.values(engine.mastra?.listWorkflows?.() ?? {}).some((workflow) => workflow.id === workflowId)) return false;
  	try {
-@@ -17156,6 +17156,16 @@
+ 		return await (await engine.mastra?.getStorage()?.getStore("workflows"))?.loadWorkflowRunStatus({
+ 			workflowName: workflowId,
+@@ -17156,6 +17157,16 @@
  						apiError: void 0,
  						deferredErrorChunk: void 0
  					});
@@ -453,7 +517,7 @@
  				}
  			}
  			let skipUnavailableAttachments = inputData.skipUnavailableAttachments;
-@@ -17208,7 +17218,11 @@
+@@ -17208,7 +17219,11 @@
  				}
  				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
  				const steps = inputData.output?.steps || [];
@@ -466,7 +530,7 @@
  				const messages = {
  					all: messageList.get.all.aiV5.model(),
  					user: messageList.get.input.aiV5.model(),
-@@ -17236,7 +17250,7 @@
+@@ -17236,7 +17251,7 @@
  					},
  					messages,
  					processorRetryCount: nextProcessorRetryCount,
@@ -475,7 +539,7 @@
  					...skipUnavailableAttachments ? { skipUnavailableAttachments } : {}
  				};
  			}
-@@ -59162,16 +59176,38 @@
+@@ -59162,16 +59177,38 @@
  */
  async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, toolDisplayFn, streamingOptions, channelToolNames, logger, onApprovalPosted, getPendingApproval, takePendingApproval, typingGate, formatError, textFormat }) {
  	const platform = adapter.name;
@@ -516,7 +580,7 @@
  		let buffer = [];
  		let closed = false;
  		let resolveNext;
-@@ -59194,6 +59230,8 @@
+@@ -59194,6 +59231,8 @@
  		return {
  			push: (piece) => {
  				if (closed) return;
@@ -525,7 +589,7 @@
  				buffer.push(piece);
  				if (resolveNext) {
  					const r = resolveNext;
-@@ -59212,12 +59250,30 @@
+@@ -59212,12 +59251,30 @@
  			},
  			done: (async () => {
  				try {
@@ -559,7 +623,7 @@
  						buffer = [];
  						if (closed) break;
  						await waitForNext();
-@@ -59230,11 +59286,19 @@
+@@ -59230,11 +59287,19 @@
  					}
  				} finally {
  					typingGate.active = false;
@@ -580,7 +644,7 @@
  		const s = sessionRef.current;
  		if (!s) {
  			pendingInitialText.length = 0;
-@@ -59249,6 +59313,9 @@
+@@ -59249,6 +59314,9 @@
  		pendingOmTasks.clear();
  		aggregatedRecallRef.current = null;
  		planTitleRef.current = false;
@@ -590,7 +654,7 @@
  		toolTasksRef.current = false;
  		sessionRef.current = null;
  		s.close();
-@@ -59262,15 +59329,92 @@
+@@ -59262,15 +59330,92 @@
  	* `if (!session) session = openSession(); session.push(...)` pattern out
  	* of the handlers.
  	*/
@@ -684,7 +748,7 @@
  	};
  	const lookupTaskTitle = (toolCallId, fallback) => {
  		const stash = getPendingApproval(toolCallId);
-@@ -59361,6 +59505,29 @@
+@@ -59361,6 +59506,29 @@
  		});
  	};
  	for await (const chunk of stream) {
@@ -714,7 +778,7 @@
  		if (aggregatedRecallRef.current) {
  			const probe = asOmChunk(chunk);
  			if (!(probe?.type === "data-om-activation" && probe.data.operationType === "observation")) aggregatedRecallRef.current = null;
-@@ -59373,7 +59540,8 @@
+@@ -59373,7 +59541,8 @@
  			}
  			const om = asOmChunk(chunk);
  			if (om) {
@@ -724,7 +788,7 @@
  				if (om.data.cycleId) {
  					if (!planTitleRef.current) {
  						pushToSession({
-@@ -59425,7 +59593,24 @@
+@@ -59425,7 +59594,24 @@
  			continue;
  		}
  		if (chunk.type === "step-finish") {
@@ -750,7 +814,7 @@
  			continue;
  		}
  		if (chunk.type === "file") {
-@@ -59438,11 +59623,12 @@
+@@ -59438,11 +59624,12 @@
  			continue;
  		}
  		if (chunk.type === "finish") {
@@ -764,7 +828,7 @@
  			await postStreamError({
  				chunk,
  				chatThread,
-@@ -59454,7 +59640,7 @@
+@@ -59454,7 +59641,7 @@
  			continue;
  		}
  		if (chunk.type === "abort") {
@@ -773,7 +837,7 @@
  			tracker.reset();
  			continue;
  		}
-@@ -59685,7 +59871,7 @@
+@@ -59685,7 +59872,7 @@
  		}
  		if (chunk.type === "tripwire") {
  			if (chunk.payload.retry) continue;
@@ -782,7 +846,7 @@
  			await postTripwire({
  				chunk,
  				chatThread,
-@@ -59694,7 +59880,12 @@
+@@ -59694,7 +59881,12 @@
  			continue;
  		}
  	}
@@ -796,7 +860,7 @@
  }
  // src/channels/output-processor.ts
  /** Chunks that carry reply text, kept out of the channel by `textDisplay: 'hidden'`. */
-@@ -59814,8 +60005,13 @@
+@@ -59814,8 +60006,13 @@
  			session = this.#openSession(render, requestContext);
  			state.session = session;
  		}
@@ -811,7 +875,63 @@
  			session.queue.close();
  			try {
  				await session.driverPromise;
-@@ -62167,7 +62363,7 @@
+@@ -59845,7 +60042,7 @@
+ 		}
+ 		const threadId = require_stream.parseMemoryRequestContext(requestContext)?.thread?.id;
+ 		if (this.#agentChannels && threadId) {
+-			const rebuilt = await this.#agentChannels.buildRenderContextForThread(threadId);
++			const rebuilt = await this.#agentChannels.buildRenderContextForThread(threadId, requestContext?.get("channel")?.userId);
+ 			state.render = rebuilt ?? null;
+ 			return rebuilt ?? void 0;
+ 		}
+@@ -60988,7 +61185,7 @@
+ 							return;
+ 						}
+ 						const actorId = event.user?.userId;
+-						if (adapterConfig?.toolApprovers !== "anyone" && requesterId && actorId && requesterId !== actorId) {
++						if (adapterConfig?.toolApprovers !== "anyone" && (!requesterId || requesterId !== actorId)) {
+ 							this.log("info", `Ignoring tool approval action from ${actorId}: only ${requesterId} may answer`, {
+ 								...actionEventContext,
+ 								requesterId
+@@ -62026,8 +62223,8 @@
+ 	* `Thread` handle, which the Chat SDK materializes from the stored external id
+ 	* via `chat.thread(externalThreadId)`.
+ 	*/
+-	async buildRenderContextForThread(threadId) {
+-		return (await this.loadChannelThread(threadId))?.render ?? null;
++	async buildRenderContextForThread(threadId, requesterId) {
++		return (await this.loadChannelThread(threadId, requesterId))?.render ?? null;
+ 	}
+ 	/**
+ 	* The channel context and render context for a run on a channel-backed
+@@ -62052,7 +62249,7 @@
+ 			render
+ 		};
+ 	}
+-	async loadChannelThread(threadId) {
++	async loadChannelThread(threadId, requesterId) {
+ 		const storage = this.getMastra()?.getStorage();
+ 		if (!storage) return null;
+ 		const memoryStore = await storage.getStore("memory");
+@@ -62071,7 +62268,7 @@
+ 		const storedIsDM = thread.metadata?.[IS_DM_KEY];
+ 		const isDM = typeof storedIsDM === "boolean" ? storedIsDM : chatThread.isDM;
+ 		if (!sender && isDM === chatThread.isDM) return {
+-			render: this._buildRenderContext(chatThread, platform),
++			render: this._buildRenderContext(chatThread, platform, { requesterId: requesterId ?? sender?.author?.userId }),
+ 			sender
+ 		};
+ 		const { Message: ChatMessage, ThreadImpl } = await getChatModule();
+@@ -62101,7 +62298,7 @@
+ 			stateAdapter: this.stateAdapter
+ 		});
+ 		return {
+-			render: this._buildRenderContext(rebuilt, platform),
++			render: this._buildRenderContext(rebuilt, platform, { requesterId: requesterId ?? sender?.author?.userId }),
+ 			sender
+ 		};
+ 	}
+@@ -62167,7 +62364,7 @@
  		let statusSent = false;
  		try {
  			for await (const chunk of stream) {
@@ -820,7 +940,7 @@
  					let result;
  					try {
  						result = typingStatusFn(chunk, {
-@@ -62200,7 +62396,7 @@
+@@ -62200,7 +62397,7 @@
  				yield chunk;
  			}
  		} finally {
@@ -829,7 +949,7 @@
  				this.log("debug", "Typing clear failed (best-effort)", {
  					platform,
  					threadId: chatThread.id,
-@@ -78727,7 +78923,13 @@
+@@ -78727,7 +78924,13 @@
  					});
  					await options.onError?.({ error });
  				},
@@ -844,7 +964,7 @@
  				abortSignal: options.abortSignal
  			},
  			activeTools: options.activeTools,
-@@ -83135,7 +83337,7 @@
+@@ -83135,7 +83338,7 @@
  							let delegatedPause = {};
  							for await (const chunk of streamResult.fullStream) {
  								if (context?.writer) {
@@ -853,7 +973,7 @@
  									else await context.writer.write(chunk);
  								}
  								if (chunk.type === "data-tool-call-approval") {
-@@ -83227,7 +83429,7 @@
+@@ -83227,7 +83430,7 @@
  							let fullText = "";
  							for await (const chunk of streamResult.fullStream) {
  								if (context?.writer) {

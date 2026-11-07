@@ -3,14 +3,25 @@ import { z } from 'zod';
 import { agent as agentConfig } from '../config';
 import { channelContext } from '../lib/context';
 import { output } from '../types/tools/index';
-import { waitInputSchema } from '../types/tools/wait';
 import { isAgentSchedule } from './scheduled-tasks/queries';
 
 export const waitTool = createTool({
   id: 'wait',
   description:
     'Pause the conversation and automatically resume it later, without blocking. Use for one-time delays, spaced polling, or giving a background job or external event time to progress. The activity card retains your reason and delay as Waiting. Call this last and stop; do not call reply first, because reply ends the turn. Ordinary text is not delivered. For recurring work, use create_scheduled_task instead.',
-  inputSchema: waitInputSchema,
+  inputSchema: z.strictObject({
+    seconds: z
+      .number()
+      .int()
+      .min(1)
+      // The resume cron has no year field, so a wait of a year or more fires early.
+      .max(364 * 24 * 60 * 60)
+      .describe('How many seconds to wait, at most 364 days.'),
+    reason: z
+      .string()
+      .min(1)
+      .describe('What you are waiting for, and what to do once it resumes.'),
+  }),
   outputSchema: output({ seconds: z.number() }),
   transform: {
     display: {
@@ -68,7 +79,14 @@ export const waitTool = createTool({
       ifIdle: {
         behavior: 'wake',
         streamOptions: {
-          requestContext: { channel: channelContext(context.requestContext) },
+          // Not a live message, so the footer times this run from its own start
+          // and message-only tools such as Slack search stay refused.
+          requestContext: {
+            channel: {
+              ...channelContext(context.requestContext),
+              messageId: undefined,
+            },
+          },
         },
       },
       metadata: { kind: 'wait' },

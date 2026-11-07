@@ -1,6 +1,12 @@
 import { posix } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { activity as config } from '../../config';
+import { logger } from '../../lib/logger';
 import { activityInputSchema } from '../../types/progress';
+import { chat } from '../instance';
+
+const channelTargets = new Map<string, string>();
+const repeatedAction = /^(.*) ×(\d+)$/;
 
 const toolActions: Record<string, string | null> = {
   slack: 'checking Slack',
@@ -21,18 +27,7 @@ const toolActions: Record<string, string | null> = {
   search_emojis: 'looking for an emoji',
   upload_emoji: 'uploading an emoji',
   call_slack_api: 'checking Slack',
-  post_card: 'preparing a response card',
-  run_background: 'starting background work',
-  read_artifact: 'reading research findings',
-  save_artifact: 'saving research findings',
   submit_feedback: 'saving feedback',
-  create_code_channel: 'opening a code channel',
-  set_code_channel_view: 'updating a preview tab',
-  update_code_channel: 'updating session context',
-  set_code_channel_commands: 'updating code-channel commands',
-  archive_code_channel: 'archiving the code channel',
-  huddle_dj: 'sending a music command',
-  huddle_dj_reply: 'checking the music command',
   create_canvas: 'writing a canvas',
   edit_canvas: 'editing a canvas',
   read_canvas: 'reading a canvas',
@@ -128,6 +123,43 @@ function shortTarget(text: string): string {
   return clean(text).slice(0, config.maxTargetChars);
 }
 
+// The plan is plain text anyone in the thread can read, so a private channel's
+// name stays out of it. `<#id>` would solve this per viewer, but the adapter
+// sends plan rows as text elements and it would print literally.
+async function fetchChannelTarget(id: string): Promise<string | undefined> {
+  try {
+    const metadata = await chat().channel(`slack:${id}`).fetchMetadata();
+    const target =
+      metadata.channelVisibility === 'workspace'
+        ? metadata.name && shortTarget(metadata.name)
+        : 'a private channel';
+    if (target) {
+      channelTargets.set(id, target);
+    }
+    return target;
+  } catch (error) {
+    logger.debug('[activity] could not name a channel', { error, id });
+  }
+}
+
+// A slow lookup must not hold up the reply stream, and it still fills the cache
+// for the next row.
+async function channelTarget(
+  reference: string | undefined
+): Promise<string | undefined> {
+  const id = reference?.match(/\b[CG][A-Z0-9]{8,}\b/)?.[0];
+  if (!id) {
+    return;
+  }
+  return (
+    channelTargets.get(id) ??
+    (await Promise.race([
+      fetchChannelTarget(id),
+      delay(config.channelLookupMs, undefined),
+    ]))
+  );
+}
+
 function baseName(toolName: string): string {
   return toolName
     .replace(/^agent-(?:research|explore)_/, '')
@@ -139,19 +171,34 @@ function toolLabel(name: string): string | null {
   return Object.hasOwn(toolActions, key) ? toolActions[key] : 'working';
 }
 
+export function addAction({
+  actions,
+  label,
+}: {
+  actions: string[];
+  label: string;
+}): string[] {
+  const last = actions.at(-1);
+  const repeat = last?.match(repeatedAction);
+  if ((repeat?.[1] ?? last) !== label) {
+    return [...actions, label].slice(-config.maxTools);
+  }
+  return [...actions.slice(0, -1), `${label} ×${Number(repeat?.[2] ?? 1) + 1}`];
+}
+
 // The step title when the model named no phase. It stays generic so the row's
 // details, which carry the target, say something the title does not.
 export function toolTitle(toolName: string): string {
   return toolLabel(baseName(toolName)) ?? 'working';
 }
 
-export function toolActivity({
+export async function toolActivity({
   toolName,
   args,
 }: {
   toolName: string;
   args: unknown;
-}): string | null {
+}): Promise<string | null> {
   const name = baseName(toolName);
   const label = toolLabel(name);
   if (label === null) {
@@ -177,34 +224,26 @@ export function toolActivity({
   if (
     name === 'read_conversation_history' ||
     name === 'list_threads' ||
-    name === 'summarize_thread' ||
-    name === 'get_permalink'
+    name === 'summarize_thread'
   ) {
-    const reference =
-      parsed.data.threadId ?? parsed.data.messageId ?? parsed.data.channelId;
-    const link = URL.parse(reference ?? '');
-    const source = link?.host
-      ? link.pathname.replace(/^\/archives\//, '')
-      : reference?.replace(/^slack:/, '');
-    const target = source ? shortTarget(source) : '';
-    const action =
-      name === 'read_conversation_history' && parsed.data.threadId
-        ? 'reading Slack thread'
-        : label;
+    const channel = await channelTarget(
+      parsed.data.threadId ?? parsed.data.messageId ?? parsed.data.channelId
+    );
     const page = parsed.data.cursor ? ' (next page)' : '';
-    return `${action}${target ? ` ${target}` : ''}${page}`;
-  }
-  if (
-    (name === 'create_code_channel' || name === 'set_code_channel_view') &&
-    parsed.data.name
-  ) {
-    return `${label}: ${shortTarget(parsed.data.name)}`;
+    if (name === 'read_conversation_history' && parsed.data.threadId) {
+      return `reading a thread${channel ? ` in ${channel}` : ''}${page}`;
+    }
+    if (name === 'read_conversation_history') {
+      return `${channel ? `reading ${channel}` : label}${page}`;
+    }
+    return `${label}${channel ? ` in ${channel}` : ''}${page}`;
   }
   if (name === 'get_user' && parsed.data.userId) {
     return `${label} ${shortTarget(parsed.data.userId)}`;
   }
-  if (name === 'get_channel_info' && parsed.data.channelId) {
-    return `${label} ${shortTarget(parsed.data.channelId.replace(/^slack:/, ''))}`;
+  if (name === 'get_channel_info') {
+    const channel = await channelTarget(parsed.data.channelId);
+    return channel ? `looking up ${channel}` : label;
   }
   if (name === 'skill') {
     return parsed.data.name
@@ -247,8 +286,6 @@ export function toolActivity({
       return `looking at ${target}`;
     case 'upload_file':
       return `uploading ${target}`;
-    case 'set_code_channel_view':
-      return `${label}: ${target}`;
     default:
       return label;
   }

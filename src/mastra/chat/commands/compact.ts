@@ -3,6 +3,7 @@ import { agent as agentConfig } from '../../config';
 import { logger } from '../../lib/logger';
 import type { CommandHandler } from '../../types';
 import { getMastra } from '../mastra-instance';
+import { notify } from '../notify';
 
 async function compactThread(slackThreadId: string): Promise<string> {
   const agent = getMastra().getAgentById(agentConfig.id);
@@ -51,14 +52,6 @@ export const compact: CommandHandler = ({ message, thread }) => {
       logger.error('[commands] compact failed', { error, threadId: thread.id });
       return "i couldn't compact this thread just now. try again in a minute.";
     })
-    .then((text) =>
-      thread.postEphemeral(message.author, text, { fallbackToDM: false })
-    )
-    .catch((error: unknown) => {
-      logger.warn('[commands] failed to post compact result', {
-        error,
-        threadId: thread.id,
-      });
-    });
+    .then((text) => notify({ text, thread, user: message.author }));
   return Promise.resolve();
 };

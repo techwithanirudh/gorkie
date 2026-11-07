@@ -3,12 +3,12 @@ import { z } from 'zod';
 import { chat } from '../../chat/instance';
 import { neutralizeBroadcasts } from '../../chat/message';
 import { assertCanSendTo, deliver, offerSend } from '../../chat/send';
-import { targetSchema } from '../../chat/target';
+import { type Target, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
 import { parseSlackId, rawId } from '../../lib/ids';
 import { input, output } from '../../types/tools/index';
 
-function destinationOf(target: z.infer<typeof targetSchema>) {
+function destinationOf(target: Target) {
   if (target.type === 'user') {
     const userId = rawId(target.id);
     return { userId, label: `a DM to <@${userId}>` };
@@ -69,7 +69,7 @@ The message goes out with the person's avatar, named "Name [gorkie]", with a "Se
     const requester = await chat()
       .getUser(ctx.userId)
       .catch(() => null);
-    const name = requester?.fullName || requester?.userName || ctx.userName;
+    const name = requester?.userName || ctx.userName;
     const pending = {
       ...destination,
       message: neutralizeBroadcasts(message),

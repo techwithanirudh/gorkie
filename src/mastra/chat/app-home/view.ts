@@ -67,7 +67,7 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
     { credential, unreadable },
     github,
     scheduled,
-    hourly,
+    usageRows,
   ] = await Promise.all([
     settled({ label: 'instructions', userId, work: getInstructions(userId) }),
     settled({ label: 'mcp', userId, work: listMCPServers(userId) }),
@@ -96,7 +96,7 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
     }),
     mcpServersBlocks(mcpServers ?? []),
     ...(scheduled ? [scheduled] : []),
-    usageBlocks(hourly ?? []),
+    ...(usageRows ? [usageBlocks(usageRows)] : []),
   ];
 
   return { type: 'home', blocks: fitHome(sections) };

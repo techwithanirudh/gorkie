@@ -2,6 +2,17 @@ import 'dotenv/config';
 import { createEnv } from '@t3-oss/env-core';
 import { z } from 'zod';
 
+const idList = z
+  .string()
+  .optional()
+  .transform(
+    (value) =>
+      value
+        ?.split(',')
+        .map((id) => id.trim())
+        .filter(Boolean) ?? []
+  );
+
 export const env = createEnv({
   server: {
     NODE_ENV: z
@@ -27,28 +38,8 @@ export const env = createEnv({
       .optional(),
     // Slack channel ids the bot may not read or search, for benchmarks that must
     // not find an earlier answer.
-    BLOCKED_CHANNELS: z
-      .string()
-      .optional()
-      .transform(
-        (value) =>
-          value
-            ?.split(',')
-            .map((id) => id.trim())
-            .filter(Boolean) ?? []
-      ),
-    HOURLY_TOKEN_LIMIT: z.coerce.number().int().positive().default(1_000_000),
-    MODERATORS: z
-      .string()
-      .optional()
-      .transform(
-        (value) =>
-          value
-            ?.split(',')
-            .map((id) => id.trim())
-            .filter(Boolean) ?? []
-      )
-      .pipe(z.array(z.string().regex(/^[UW][A-Z0-9]+$/))),
+    BLOCKED_CHANNELS: idList,
+    MODERATORS: idList.pipe(z.array(z.string().regex(/^[UW][A-Z0-9]+$/))),
 
     HACKCLUB_API_KEY: z.string().min(1),
     AI_GATEWAY_API_KEY: z.string().min(1),
