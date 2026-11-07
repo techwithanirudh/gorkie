@@ -9,6 +9,7 @@ import { chatChannelId, rawId } from '../../lib/ids';
 import { assertWithinLimit } from '../../lib/limits';
 import { slackWebLogger } from '../../lib/logger/slack';
 import { spendSlackCall } from '../../lib/slack-budget';
+import { slackError } from '../../lib/slack-error';
 import { input, output } from '../../types/tools/index';
 
 const contextMessageSchema = z
@@ -75,8 +76,7 @@ const authTestSchema = z.looseObject({
     .optional(),
 });
 
-const slackErrorSchema = z.looseObject({
-  data: z.looseObject({ error: z.string().optional() }).optional(),
+const rateLimitSchema = z.looseObject({
   retryAfter: z.number().optional(),
 });
 
@@ -91,14 +91,14 @@ const searchClient = new WebClient(undefined, {
 });
 
 function searchFailure(error: unknown): Error {
-  const parsed = slackErrorSchema.safeParse(error);
+  const parsed = rateLimitSchema.safeParse(error);
   if (parsed.data?.retryAfter !== undefined) {
     return new Error(
       `Slack rate limited search for ${Math.ceil(parsed.data.retryAfter / 60)} more minutes, so no search ran. Do not search again. Answer from what you already have, and tell the person search is unavailable for now.`,
       { cause: error }
     );
   }
-  const code = parsed.success ? parsed.data.data?.error : undefined;
+  const code = slackError(error);
   if (!code) {
     return new Error(
       'Slack search failed. No results were returned to the model. Do not treat this as an empty search or retry with another token.',
@@ -230,8 +230,7 @@ async function toOutput({
       // A channel gorkie cannot look up is not readable. Anything else, a
       // rate limit above all, has to fail the search instead of quietly
       // shrinking it into a confident "nothing found".
-      const parsed = slackErrorSchema.safeParse(error);
-      if (parsed.success && parsed.data.data?.error === 'channel_not_found') {
+      if (slackError(error) === 'channel_not_found') {
         return;
       }
       throw error;

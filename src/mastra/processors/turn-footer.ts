@@ -45,16 +45,18 @@ export const turnFooter = {
     const text = `done in ${elapsed || 'under a second'}`;
     const traceId = args.tracingContext?.currentSpan?.traceId;
     try {
-      await slack.postBlocks({
+      const { channel, threadTs } = slack.decodeThreadId(threadId);
+      await slack.webClient.chat.postMessage({
+        channel,
+        thread_ts: threadTs || undefined,
         blocks: [
           {
             type: 'context',
             elements: [{ type: 'mrkdwn', text: `_${text}_` }],
           },
           feedbackBlock(traceId),
-        ],
+        ] as never,
         text,
-        threadId,
       });
     } catch (error) {
       logger.warn('[turn-footer] failed to post', { threadId, error });

@@ -1,5 +1,5 @@
 import { desc, eq } from 'drizzle-orm';
-import type { ActiveBan, ModerationEvent } from '../../types';
+import type { ModerationEvent } from '../../types';
 import { db } from '../client';
 import { moderationEvents } from '../schema';
 
@@ -11,7 +11,7 @@ function isLive(row: ModerationEvent): boolean {
 
 export async function activeBan(
   userId: string
-): Promise<ActiveBan | undefined> {
+): Promise<ModerationEvent | undefined> {
   const [row] = await db
     .select()
     .from(moderationEvents)

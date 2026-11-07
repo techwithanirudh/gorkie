@@ -27,15 +27,8 @@ export const staleMessages = {
     if (!threadId) {
       return messageList;
     }
-    const cutoff = (
-      await threadState(chat().thread(threadId)).catch((error: unknown) => {
-        logger.warn('[chat] could not read the stop cutoff', {
-          error,
-          threadId,
-        });
-        return null;
-      })
-    )?.dropMessagesBefore;
+    const cutoff = (await threadState(chat().thread(threadId)))
+      ?.dropMessagesBefore;
     if (!cutoff) {
       return messageList;
     }

@@ -165,7 +165,8 @@ async function showActivity({
           id: step.id,
           title: `${sentenceCase(step.title)} · ${elapsed((step.completedAt ?? now) - step.startedAt)}`,
           status: step.status,
-          details: lines,
+          details:
+            lines.length === 0 && step.status === 'complete' ? ['Done'] : lines,
         };
       }),
       gorkieActivity: true,
@@ -228,7 +229,7 @@ async function showActivity({
         if (ends.includes('failed')) {
           title = 'Failed';
         } else {
-          title = ends.includes('cancelled') ? 'Stopped' : 'Completed';
+          title = ends.includes('cancelled') ? 'Stopped' : 'Subagents finished';
         }
       })
       .catch((error: unknown) => {

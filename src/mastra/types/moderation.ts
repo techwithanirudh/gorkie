@@ -8,11 +8,6 @@ export type BanDuration = z.infer<typeof banDurationSchema>;
 
 export type ModerationEvent = typeof moderationEvents.$inferSelect;
 
-export type ActiveBan = Pick<
-  ModerationEvent,
-  'actorId' | 'expiresAt' | 'reason'
->;
-
 export type BanStatus =
-  | { status: 'banned'; ban: ActiveBan }
+  | { status: 'banned'; ban: ModerationEvent }
   | { status: 'clear' | 'lookup-failed' };

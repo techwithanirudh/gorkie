@@ -4,6 +4,5 @@ export * from './command';
 export * from './github';
 export * from './mcp';
 export * from './moderation';
-export * from './thread';
 export * from './tools';
 export * from './user';

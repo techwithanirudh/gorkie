@@ -13,24 +13,19 @@ type AgentMailTool =
   | 'send_message'
   | 'reply_to_message';
 
-function connect(apiKey: string) {
-  const client = new MCPClient({
-    id: 'agentmail',
-    servers: {
-      agentmail: {
-        url: new URL('https://mcp.agentmail.to/mcp'),
-        allowedHosts: ['mcp.agentmail.to'],
-        requestInit: { headers: { 'x-api-key': apiKey } },
-      },
-    },
-  });
-  client.__setLogger(logger);
-  return client;
-}
-
 const client = env.AGENTMAIL_API_KEY
-  ? connect(env.AGENTMAIL_API_KEY)
+  ? new MCPClient({
+      id: 'agentmail',
+      servers: {
+        agentmail: {
+          url: new URL('https://mcp.agentmail.to/mcp'),
+          allowedHosts: ['mcp.agentmail.to'],
+          requestInit: { headers: { 'x-api-key': env.AGENTMAIL_API_KEY } },
+        },
+      },
+    })
   : undefined;
+client?.__setLogger(logger);
 
 export const agentmailEnabled = client !== undefined;
 

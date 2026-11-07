@@ -1,16 +1,13 @@
 import type { Message } from 'chat';
-import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import type { Target } from '../../chat/target';
 import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
 import { logger } from '../../lib/logger';
+import { slackError } from '../../lib/slack-error';
 import type { ChannelContext } from '../../types';
 
-const slackErrorSchema = z.looseObject({
-  data: z.looseObject({ error: z.string().optional() }).optional(),
-});
 const notReadable =
   'Reading DMs, private channels, or external conversations is not allowed.';
 
@@ -63,8 +60,7 @@ export async function assertReadableResource({
     (check) =>
       check.status === 'rejected' &&
       check.reason?.message !== notReadable &&
-      slackErrorSchema.safeParse(check.reason).data?.data?.error !==
-        'channel_not_found'
+      slackError(check.reason) !== 'channel_not_found'
   );
   if (failed?.status === 'rejected') {
     throw new Error(
@@ -125,10 +121,7 @@ export async function joinChannel(channelId: string): Promise<void> {
     // already_in_channel means the bot is already a member, the state we want,
     // so remember it and stop re-calling join. Other failures may be transient,
     // so do not cache and let a later call retry.
-    if (
-      slackErrorSchema.safeParse(error).data?.data?.error ===
-      'already_in_channel'
-    ) {
+    if (slackError(error) === 'already_in_channel') {
       joinedChannels.add(id);
       return;
     }

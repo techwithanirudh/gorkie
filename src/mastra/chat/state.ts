@@ -1,16 +1,9 @@
 import type { Thread } from 'chat';
-import { z } from 'zod';
 import { logger } from '../lib/logger';
-import type { ThreadState } from '../types';
+import { type ThreadState, threadStateSchema } from '../types/thread';
 import { getMastra } from './mastra-instance';
 
 const stateType = 'gorkie:chat';
-
-const threadStateSchema = z.looseObject({
-  dropMessagesBefore: z.number().optional(),
-  lastSeenMessage: z.string().optional(),
-  respondOnThreadMessages: z.boolean().optional(),
-});
 
 // Mastra's threadState domain, because Chat SDK's thread.state is an in-process
 // Map under channels' MastraStateAdapter and a restart empties it. The domain's
@@ -40,11 +33,8 @@ async function loadState(threadId: string): Promise<ThreadState> {
 }
 
 export async function threadState(
-  thread: Pick<Thread, 'id'> | undefined
+  thread: Pick<Thread, 'id'>
 ): Promise<ThreadState | null> {
-  if (!thread) {
-    return null;
-  }
   try {
     return await loadState(thread.id);
   } catch (error) {

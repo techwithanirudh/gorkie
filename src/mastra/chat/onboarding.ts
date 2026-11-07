@@ -7,22 +7,14 @@ import {
   Card,
   CardText,
 } from 'chat';
-import { z } from 'zod';
 import { env } from '@/env';
 import { addAllowedUser } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
+import { slackError } from '../lib/slack-error';
 import { slack } from './client';
 import { banRefusal } from './moderation/cards';
 import { banStatus } from './moderation/gate';
 import { notify } from './notify';
-
-const slackErrorSchema = z.looseObject({
-  data: z
-    .looseObject({
-      error: z.string().optional(),
-    })
-    .optional(),
-});
 
 export async function offerOptIn({
   thread,
@@ -105,8 +97,7 @@ async function inviteToOptInChannel(userId: string): Promise<void> {
   try {
     await slack.webClient.conversations.invite({ channel, users: userId });
   } catch (error) {
-    const slackError = slackErrorSchema.safeParse(error).data?.data?.error;
-    if (slackError === 'already_in_channel') {
+    if (slackError(error) === 'already_in_channel') {
       return;
     }
     logger.warn('[onboarding] failed to invite to opt-in channel', {

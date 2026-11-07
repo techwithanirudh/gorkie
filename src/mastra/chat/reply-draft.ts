@@ -2,7 +2,6 @@ import { Readable } from 'node:stream';
 import { cardToFallbackText } from '@chat-adapter/slack';
 import type { CardElement, SentMessage, Thread } from 'chat';
 import { activity as config } from '../config';
-import { parseSlackId } from '../lib/ids';
 import { logger } from '../lib/logger';
 import { slack } from './client';
 import { neutralizeBroadcasts } from './message';
@@ -102,10 +101,7 @@ export class ReplyDraft {
   }
 
   private sendCard(card: CardElement): void {
-    const { channel, ts } = parseSlackId(this.thread.id);
-    if (!channel) {
-      throw new Error(`No Slack channel in ${this.thread.id}.`);
-    }
+    const { channel, threadTs } = slack.decodeThreadId(this.thread.id);
     const content = {
       channel,
       blocks: cardBlocks(card) as never,
@@ -118,7 +114,7 @@ export class ReplyDraft {
       }
       const sent = await slack.webClient.chat.postMessage({
         ...content,
-        thread_ts: ts,
+        thread_ts: threadTs || undefined,
         unfurl_links: false,
       });
       return sent.ts;

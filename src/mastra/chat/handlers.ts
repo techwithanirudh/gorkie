@@ -32,21 +32,6 @@ function isFromBot(message: Message): boolean {
   );
 }
 
-async function runCommands({
-  message,
-  skipped,
-  thread,
-}: {
-  message: Message;
-  skipped: readonly Message[];
-  thread: Thread;
-}): Promise<boolean> {
-  await Promise.all(
-    skipped.map((earlier) => handleCommand({ message: earlier, thread }))
-  );
-  return handleCommand({ message, thread });
-}
-
 async function runTurn({
   defaultHandler,
   message,
@@ -116,36 +101,43 @@ async function refusedByLimit({
   return true;
 }
 
-// Fails closed: a ban that cannot be checked refuses the message. Channels splits
-// a batch into one turn per sender, so this only ever refuses that sender's turn.
-async function refusedByBan({
+async function handledBeforeTurn({
   message,
   skipped,
-  speak,
   thread,
 }: {
   message: Message;
   skipped: readonly Message[];
+  thread: Thread;
+}): Promise<boolean> {
+  await Promise.all(
+    skipped.map((earlier) => handleCommand({ message: earlier, thread }))
+  );
+  return (
+    (await handleCommand({ message, thread })) ||
+    (await refusedByLimit({ author: message.author, thread }))
+  );
+}
+
+// Fails closed: a ban that cannot be checked refuses the message. Channels splits
+// a batch into one turn per sender, so this only refuses that sender's turn.
+async function refusedByBan({
+  message,
+  speak,
+  thread,
+}: {
+  message: Message;
   speak: boolean;
   thread: Thread;
 }): Promise<boolean> {
-  const authors = new Set(
-    [...skipped, message].map(({ author }) => author.userId)
-  );
-  const statuses = await Promise.all(
-    [...authors].map(async (userId) => ({
-      userId,
-      result: await banStatus(userId),
-    }))
-  );
-  if (statuses.every(({ result }) => result.status === 'clear')) {
+  const result = await banStatus(message.author.userId);
+  if (result.status === 'clear') {
     return false;
   }
   logger.info('[chat] message refused for a ban', { threadId: thread.id });
-  const own = statuses.find(({ userId }) => userId === message.author.userId);
-  if (speak && own && own.result.status !== 'clear') {
+  if (speak) {
     await notify({
-      text: banRefusal(own.result),
+      text: banRefusal(result),
       thread,
       user: message.author,
     });
@@ -192,7 +184,7 @@ export async function onMention(
   if (![...skipped, message].some(({ isMention }) => isMention)) {
     return;
   }
-  if (await refusedByBan({ message, skipped, speak: true, thread })) {
+  if (await refusedByBan({ message, speak: true, thread })) {
     return;
   }
   if (!(await isUserAllowed(message.author.userId))) {
@@ -203,10 +195,7 @@ export async function onMention(
   if ([...skipped, message].some(({ id }) => id === threadTs)) {
     await setThreadState({ thread, patch: { respondOnThreadMessages: true } });
   }
-  if (
-    (await runCommands({ message, skipped, thread })) ||
-    (await refusedByLimit({ author: message.author, thread }))
-  ) {
+  if (await handledBeforeTurn({ message, skipped, thread })) {
     return;
   }
   startTurn({ defaultHandler, message, skipped, thread });
@@ -236,16 +225,13 @@ export async function onSubscribedMessage(
   if (!(isFollowingThread || mentioned)) {
     return;
   }
-  if (await refusedByBan({ message, skipped, speak: mentioned, thread })) {
+  if (await refusedByBan({ message, speak: mentioned, thread })) {
     return;
   }
   if (!(await isUserAllowed(message.author.userId))) {
     return;
   }
-  if (
-    (await runCommands({ message, skipped, thread })) ||
-    (await refusedByLimit({ author: message.author, thread }))
-  ) {
+  if (await handledBeforeTurn({ message, skipped, thread })) {
     return;
   }
   if (!(mentioned || (await shouldRespond({ message, skipped, thread })))) {
@@ -263,17 +249,14 @@ export async function onDirectMessage(
   if (isFromBot(message)) {
     return;
   }
-  if (await refusedByBan({ message, skipped, speak: true, thread })) {
+  if (await refusedByBan({ message, speak: true, thread })) {
     return;
   }
   if (!(await isUserAllowed(message.author.userId))) {
     await offerOptIn({ thread, user: message.author });
     return;
   }
-  if (
-    (await runCommands({ message, skipped, thread })) ||
-    (await refusedByLimit({ author: message.author, thread }))
-  ) {
+  if (await handledBeforeTurn({ message, skipped, thread })) {
     return;
   }
   startTurn({ defaultHandler, message, skipped, thread });

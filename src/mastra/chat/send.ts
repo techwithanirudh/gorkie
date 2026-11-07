@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { send as config } from '../config';
 import { rawId } from '../lib/ids';
 import { logger } from '../lib/logger';
+import { slackError } from '../lib/slack-error';
 import { slack } from './client';
 import { chat } from './instance';
 
@@ -22,9 +23,6 @@ const pendingSendSchema = z.object({
 
 type PendingSend = z.infer<typeof pendingSendSchema>;
 
-const slackErrorSchema = z.looseObject({
-  data: z.looseObject({ error: z.string() }),
-});
 const interactionSchema = z.looseObject({ response_url: z.url() });
 
 const refusals: Record<string, string> = {
@@ -36,10 +34,6 @@ const refusals: Record<string, string> = {
     "I'm not allowed to post in that channel.",
   ekm_access_denied: "I'm not allowed to post in that channel.",
 };
-
-function slackError(error: unknown): string | undefined {
-  return slackErrorSchema.safeParse(error).data?.data.error;
-}
 
 function pendingKey(id: string): string {
   return `send:${id}`;

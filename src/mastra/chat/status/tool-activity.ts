@@ -63,8 +63,6 @@ const toolActions: Record<string, string | null> = {
   search_skills: 'finding a skill',
   search_tools: 'finding available tools',
   tool_search: 'finding available tools',
-  'agent-research': 'researching the question',
-  'agent-explore': 'exploring the workspace',
   github_checkout: 'checking out a repository',
   github_push_branch: 'pushing a branch',
   'context7_resolve-library-id': 'finding library documentation',
