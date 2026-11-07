@@ -27,6 +27,7 @@ function codeTools(mcp: Awaited<ReturnType<typeof mcpTools>>) {
     list_canvases: canvasTools.list_canvases,
     read_canvas: canvasTools.read_canvas,
     lookup_canvas_sections: canvasTools.lookup_canvas_sections,
+    update_canvas_table: canvasTools.update_canvas_table,
   };
 }
 

@@ -4,7 +4,7 @@ import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
 import { input, output } from '../../types/tools/index';
 import { assertReadableResource } from '../slack/utils';
-import { canvasIdSchema } from './utils';
+import { canvasEditError, canvasIdSchema } from './utils';
 
 const markdownContentSchema = z.object({
   type: z.literal('markdown').default('markdown'),
@@ -49,7 +49,7 @@ const canvasChangeSchema = z.discriminatedUnion('operation', [
 export const editCanvasTool = createTool({
   id: 'edit_canvas',
   description:
-    'Edit a Slack canvas by applying ordered markdown changes: insert, replace, or delete sections. Use lookup_canvas_sections to find section ids first. Canvas mentions use ![](@USER_ID) and ![](#CHANNEL_ID), not <@U123>.',
+    'Edit a Slack canvas by applying ordered markdown changes: insert, replace, or delete sections. Use lookup_canvas_sections to find section ids first. A section id covers the heading block only, so replace and delete on it leave whatever follows that heading (a list, a table) sitting in place; for tables use update_canvas_table instead, because replacing a section above a table duplicates the table. Canvas mentions use ![](@USER_ID) and ![](#CHANNEL_ID), not <@U123>.',
   inputSchema: input({
     canvasId: canvasIdSchema,
     changes: z.tuple([canvasChangeSchema]).rest(canvasChangeSchema),
@@ -78,14 +78,7 @@ export const editCanvasTool = createTool({
         changes,
       });
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      if (reason.includes('restricted_action')) {
-        throw new Error(
-          `Can't edit canvas ${canvasId}: only read access, not write. This canvas's sharing settings need to grant the bot write access (its owner can do this from the canvas's "Manage access" menu in Slack), the canvases:write scope alone isn't enough.`,
-          { cause: error }
-        );
-      }
-      throw error;
+      throw canvasEditError(canvasId, error);
     }
     return { canvasId };
   },
