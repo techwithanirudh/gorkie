@@ -103,9 +103,23 @@ export const partialReplySchema = z.looseObject({
   card: cardSpecSchema.optional().catch(undefined),
 });
 
+// Some models send the card as a JSON string; the reply then fails validation
+// and the person sees only the streamed draft.
+function parsedCard(value: unknown): unknown {
+  if (typeof value !== 'string') {
+    return value;
+  }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
 export const replyInputSchema = z.strictObject({
   message: z.string().trim().min(1),
-  card: cardSpecSchema
+  card: z
+    .preprocess(parsedCard, cardSpecSchema)
     .optional()
     .describe(
       'Rich content shown right after message in the same Slack message, as a flat map of elements in display order, so a Text between two charts sits between them. One Card is the root. Components: Card {title?, subtitle?, imageUrl?} and Section {} hold children, Text {content, style?: plain|bold|muted}, Fields {} holds Field {label, value}, Table {headers, rows, caption, align?}, Chart {title, chart: {type: pie, segments: [{label, value}]} or {type: bar|line|area, categories, series: [{name, values}], xLabel?, yLabel?}}, Image {url, alt}, Divider {}, Actions {} holds LinkButton {label, url} and Button {label, style?: primary|danger|default}. Clicking a Button sends you its label as a follow-up message from that person, so write the label as that request and use one for a next step you can act on. At most 2 Chart and 1 Table. Chart title and labels: 50 and 20 characters.'

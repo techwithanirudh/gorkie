@@ -78,7 +78,7 @@ export const workingModel = {
 export const limitWindowHours = 5;
 
 export const limits = {
-  tokens: { max: 5_000_000, noun: 'tokens' },
+  tokens: { max: 3_000_000, noun: 'tokens' },
   slackSearch: { max: 1000, noun: 'Slack searches' },
   webSearch: { max: 200, noun: 'web searches' },
   fetch: { max: 200, noun: 'page fetches' },
@@ -128,9 +128,12 @@ export const emoji = {
 
 export const activity = {
   updateIntervalMs: 1500,
+  // Chat SDK edits a streamed reply every 500ms by default, and Slack refuses
+  // the bot past about 50 chat.update calls a minute across every thread.
+  streamEditIntervalMs: 2000,
   maxPhases: 8,
   maxTools: 32,
-  elapsedIntervalMs: 5000,
+  taskPollMs: 5000,
   maxAnswerPreviewChars: 10_000,
   // Slack rejects markdown_text past 12,000 characters.
   maxMessageChars: 11_500,

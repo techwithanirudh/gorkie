@@ -30,14 +30,19 @@ async function hasRunningBackgroundTask(
       agent: orchestrator,
       externalThreadId: threadId,
     });
+    if (!thread) {
+      return false;
+    }
     const { tasks } = await manager.listTasks({
       status: ['pending', 'running'],
       threadId: thread.id,
     });
     return tasks.length > 0;
   } catch (error) {
-    logger.debug('[sandbox] could not check background tasks', { error });
-    return false;
+    // Unknown counts as running: pausing under a live task breaks it, while
+    // skipping one pause only keeps the sandbox up until its timeout.
+    logger.warn('[sandbox] could not check background tasks', { error });
+    return true;
   }
 }
 

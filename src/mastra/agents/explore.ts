@@ -8,6 +8,7 @@ import { Memory } from '@mastra/memory';
 import { agent as config, subagent } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
+import { autoBackground } from '../processors/auto-background';
 import { runLimits } from '../processors/run-limits';
 import { sandbox } from '../processors/sandbox';
 import { stepGuard } from '../processors/step-guard';
@@ -35,6 +36,7 @@ export const exploreAgent = new Agent({
     fetch_url: fetchUrlTool,
   },
   inputProcessors: [
+    autoBackground,
     runLimits,
     new TokenLimiterProcessor({
       limit: config.maxTokens.input,

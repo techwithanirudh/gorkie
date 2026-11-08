@@ -16,7 +16,7 @@ import { withHistory } from './history';
 import { chat } from './instance';
 import { isComment, neutralizeBroadcasts } from './message';
 import { banRefusal } from './moderation/cards';
-import { banStatus, isBanned } from './moderation/gate';
+import { banStatus } from './moderation/gate';
 import { notify } from './notify';
 import { offerOptIn } from './onboarding';
 import { followUpActionPrefix } from './reply-card';
@@ -315,17 +315,18 @@ async function sendFollowUp(event: ActionEvent): Promise<void> {
 
 // defaultHandler is Mastra's tool approve and deny button handler.
 export const onAction: ActionChannelHandler = async (event, defaultHandler) => {
-  if (!(await isBanned(event.user.userId))) {
-    if (event.actionId.startsWith(followUpActionPrefix)) {
-      await sendFollowUp(event);
-      return;
-    }
-    await defaultHandler();
+  const result = await banStatus(event.user.userId);
+  if (result.status !== 'clear') {
+    await notify({
+      text: banRefusal(result),
+      thread: event.thread,
+      user: event.user,
+    });
     return;
   }
-  await notify({
-    text: "You're banned from Gorkie.",
-    thread: event.thread,
-    user: event.user,
-  });
+  if (event.actionId.startsWith(followUpActionPrefix)) {
+    await sendFollowUp(event);
+    return;
+  }
+  await defaultHandler();
 };

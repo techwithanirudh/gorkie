@@ -97,13 +97,16 @@ orchestrator
   .then(async () => {
     const sdk = orchestrator.getChannels()?.sdk;
     if (!sdk) {
-      return;
+      throw new Error('Channels initialized without a chat instance.');
     }
     setChat(sdk);
     registerEvents();
     await buildAllowlist();
     logger.info('[agent] online');
   })
-  .catch((err: unknown) =>
-    logger.error('[agent] initialization failed', { err })
-  );
+  .catch((err: unknown) => {
+    // Running on without Slack or the allowlist looks healthy while every user
+    // is ignored or told to opt in, so exit and let the supervisor restart it.
+    logger.error('[agent] initialization failed', { err });
+    process.exit(1);
+  });

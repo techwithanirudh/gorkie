@@ -37,7 +37,7 @@ export async function stopThread(
   const threadMemory = await memoryThread({
     agent: orchestrator,
     externalThreadId: threadId,
-  }).catch(() => undefined);
+  });
   if (!threadMemory) {
     return killed > 0 ? 'cancelled' : 'idle';
   }

@@ -18,6 +18,7 @@ import { chat } from '../chat/instance';
 import { onSlashCommand } from '../chat/moderation/commands';
 import { status } from '../chat/status';
 import {
+  activity as activityConfig,
   backgroundTasks,
   agent as config,
   quotaWarningAt,
@@ -31,6 +32,7 @@ import { usage } from '../lib/limits';
 import { logger } from '../lib/logger';
 import { reactionEndsTurn, stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
+import { autoBackground } from '../processors/auto-background';
 import { cutOffReply } from '../processors/cut-off-reply';
 import { delegatedTools } from '../processors/delegated-tools';
 import { firstStatus } from '../processors/first-status';
@@ -176,6 +178,7 @@ const orchestrator = new Agent({
   }),
   workspace,
   inputProcessors: [
+    autoBackground,
     firstStatus,
     outputBudget,
     staleMessages,
@@ -270,6 +273,7 @@ const orchestrator = new Agent({
       // reply only opens a stream once it has text, and a placeholder outlives
       // an edit Slack rejects.
       fallbackStreamingPlaceholderText: null,
+      streamingUpdateIntervalMs: activityConfig.streamEditIntervalMs,
       concurrency: { strategy: 'burst', debounceMs: config.batchWindowMs },
       logger: 'warn',
     },

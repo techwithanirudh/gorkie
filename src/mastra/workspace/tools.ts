@@ -83,6 +83,35 @@ function runWithAutoBackground({
   };
 }
 
+const executableSchema = z.looseObject({
+  execute: z.custom<ExecuteCommand>((value) => typeof value === 'function'),
+});
+const wrapped = new WeakSet<object>();
+
+// The agent's workspace injects its own command tool after every other tool,
+// so code mode's wrapped copy never reaches a direct call. This wraps whichever
+// copy a step actually has, once.
+export function autoBackgroundCommands(tools: Record<string, unknown>): void {
+  const command = tools[EXECUTE_COMMAND];
+  const execute = executableSchema.safeParse(command).data?.execute;
+  const readOutput = executableSchema.safeParse(tools[GET_PROCESS_OUTPUT]).data
+    ?.execute;
+  if (
+    !(execute && readOutput) ||
+    typeof command !== 'object' ||
+    command === null ||
+    wrapped.has(command)
+  ) {
+    return;
+  }
+  wrapped.add(command);
+  Reflect.set(
+    command,
+    'execute',
+    runWithAutoBackground({ execute, readOutput })
+  );
+}
+
 async function describedTools(requestContext?: RequestContext) {
   const tools = await createWorkspaceTools(workspace, {
     workspace,

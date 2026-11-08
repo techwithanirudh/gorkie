@@ -214,7 +214,10 @@ export async function toolActivity({
       clean(parsed.data.description).slice(0, config.maxTitleChars) || label
     );
   }
-  if ((name === 'search_slack' || name === 'search_web') && parsed.data.query) {
+  if (
+    ['search_slack', 'search_web', 'search_emojis'].includes(name) &&
+    parsed.data.query
+  ) {
     const query = shortTarget(parsed.data.query);
     const page = parsed.data.cursor ? ' (next page)' : '';
     return query ? `${label}: ${query}${page}` : label;

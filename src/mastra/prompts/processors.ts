@@ -1,6 +1,9 @@
 export const outputBudgetPrompt =
   'This turn has used its output budget, so call `reply` now with what you have, and say plainly what is left undone so the person can ask you to continue.';
 
+export const usageLimitPrompt =
+  'This person has reached their usage limit during this turn, so call `reply` now with what you have. Say plainly what is left undone and that they can ask again once the limit resets, which `!limits` shows.';
+
 export const cutOffReplyPrompt =
   'Your last response hit the output limit and was cut off, so nothing reached the person. Think briefly, then call `reply` now with a much shorter answer, and say what you left out so they can ask for the rest.';
 

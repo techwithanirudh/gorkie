@@ -71,8 +71,20 @@ export async function acceptOptIn(event: ActionEvent): Promise<void> {
     });
     return;
   }
-  await addAllowedUser(userId);
-  await inviteToOptInChannel(userId);
+  // The allowlist is rebuilt from the opt-in channel's members on every start,
+  // so a failed invite loses the opt-in at the next restart too.
+  try {
+    await addAllowedUser(userId);
+    await inviteToOptInChannel(userId);
+  } catch (error) {
+    logger.warn('[onboarding] failed to opt in', { error, userId });
+    await notify({
+      text: "I couldn't opt you in just now. Try the button again in a minute.",
+      thread,
+      user,
+    });
+    return;
+  }
   if (!thread) {
     return;
   }
@@ -100,10 +112,6 @@ async function inviteToOptInChannel(userId: string): Promise<void> {
     if (slackError(error) === 'already_in_channel') {
       return;
     }
-    logger.warn('[onboarding] failed to invite to opt-in channel', {
-      channel,
-      error,
-      userId,
-    });
+    throw error;
   }
 }

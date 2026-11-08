@@ -29,22 +29,14 @@ export async function addAllowedUser(userId: string): Promise<void> {
     return;
   }
   const state = chat().getState();
-  try {
-    const allowedUsers = new Set(
-      (await state.get<string[]>(allowlistKey(channel))) ?? []
-    );
-    const wasAllowed = allowedUsers.has(userId);
-    allowedUsers.add(userId);
-    await state.set(allowlistKey(channel), [...allowedUsers]);
-    if (!wasAllowed) {
-      logger.info('[allowlist] user opted in', { channel, userId });
-    }
-  } catch (error) {
-    logger.warn('[allowlist] failed to add user to opt-in cache', {
-      channel,
-      error,
-      userId,
-    });
+  const allowedUsers = new Set(
+    (await state.get<string[]>(allowlistKey(channel))) ?? []
+  );
+  const wasAllowed = allowedUsers.has(userId);
+  allowedUsers.add(userId);
+  await state.set(allowlistKey(channel), [...allowedUsers]);
+  if (!wasAllowed) {
+    logger.info('[allowlist] user opted in', { channel, userId });
   }
 }
 
@@ -57,7 +49,13 @@ export async function buildAllowlist(): Promise<void> {
 
   chat().onMemberJoinedChannel(async (event) => {
     if (rawId(event.channelId) === channel) {
-      await addAllowedUser(event.userId);
+      await addAllowedUser(event.userId).catch((error: unknown) => {
+        logger.warn('[allowlist] failed to add a member who joined', {
+          channel,
+          error,
+          userId: event.userId,
+        });
+      });
     }
   });
 

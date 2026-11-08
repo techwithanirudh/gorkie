@@ -108,7 +108,7 @@ async function followTask({
   while (!(isTaskEnd(status) || signal.aborted)) {
     // biome-ignore lint/performance/noAwaitInLoops: this polls until the task ends
     await new Promise((resolve) => {
-      setTimeout(resolve, config.elapsedIntervalMs);
+      setTimeout(resolve, config.taskPollMs);
     });
     status = (await manager.getTask(task.id))?.status ?? 'failed';
   }
@@ -140,7 +140,6 @@ async function showActivity({
   let messageId: string | undefined;
   let lastSent = '';
   let lastSentAt = 0;
-  let closed = false;
   let updateTimer: ReturnType<typeof setTimeout> | undefined;
   let writes = Promise.resolve();
   const hasDetails = () =>
@@ -148,10 +147,15 @@ async function showActivity({
       (step) => step.id.startsWith(delegatedStepPrefix) || Boolean(step.details)
     );
 
+  // Durations show only once something ends. A running count would need an edit
+  // every few seconds per plan, and Slack refuses the bot past about 50 a minute.
+  const withTime = (text: string, from: number, to: number | undefined) =>
+    to === undefined
+      ? sentenceCase(text)
+      : `${sentenceCase(text)} · ${elapsed(to - from)}`;
   const render = async () => {
-    const now = Date.now();
     const model: PlanModel & { gorkieActivity: true } = {
-      title: `${sentenceCase(title)} · ${elapsed((completedAt ?? now) - startedAt)}`,
+      title: withTime(title, startedAt, completedAt),
       tasks: [...steps.values()].map((step) => {
         const details = typeof step.details === 'string' ? step.details : '';
         const lines = details
@@ -163,7 +167,7 @@ async function showActivity({
           : [];
         return {
           id: step.id,
-          title: `${sentenceCase(step.title)} · ${elapsed((step.completedAt ?? now) - step.startedAt)}`,
+          title: withTime(step.title, step.startedAt, step.completedAt),
           status: step.status,
           details:
             lines.length === 0 && step.status === 'complete' ? ['Done'] : lines,
@@ -194,18 +198,17 @@ async function showActivity({
     return writes;
   };
   const schedule = () => {
-    if (closed || updateTimer) {
+    if (updateTimer) {
       return;
     }
-    const delay = Math.max(
-      0,
-      lastSentAt + config.updateIntervalMs - Date.now()
+    updateTimer = setTimeout(
+      () => {
+        updateTimer = undefined;
+        // A Slack edit must not hold the model stream behind a network request.
+        enqueue();
+      },
+      Math.max(0, lastSentAt + config.updateIntervalMs - Date.now())
     );
-    updateTimer = setTimeout(() => {
-      updateTimer = undefined;
-      // A Slack edit must not hold the model stream behind a network request.
-      enqueue();
-    }, delay);
   };
   // Runs detached, because the turn that handed off has to end for the thread to
   // take other messages. The child's result arrives in a later turn.
@@ -219,11 +222,9 @@ async function showActivity({
       step.status = 'in_progress';
       step.completedAt = undefined;
     }
-    const timer = setInterval(enqueue, config.elapsedIntervalMs);
-    timer.unref();
     enqueue();
     Promise.all(
-      delegated.map((step) => followTask({ step, onChange: enqueue }))
+      delegated.map((step) => followTask({ step, onChange: schedule }))
     )
       .then((ends) => {
         if (ends.includes('failed')) {
@@ -240,13 +241,11 @@ async function showActivity({
         });
       })
       .finally(() => {
-        clearInterval(timer);
+        clearTimeout(updateTimer);
         completedAt = Date.now();
         return enqueue();
       });
   };
-  const ticker = setInterval(schedule, config.elapsedIntervalMs);
-  ticker.unref();
   try {
     for await (const piece of stream) {
       const ended = activityEndSchema.safeParse(piece);
@@ -288,8 +287,6 @@ async function showActivity({
     outcome = 'Failed';
     throw error;
   } finally {
-    closed = true;
-    clearInterval(ticker);
     clearTimeout(updateTimer);
     completedAt ??= Date.now();
     title = outcome ?? 'Stopped';

@@ -20,7 +20,9 @@ export async function assertReadableChannel({
 }) {
   const id = chatChannelId(channelId);
   if (env.BLOCKED_CHANNELS.includes(rawId(id))) {
-    throw new Error(notReadable);
+    throw new Error(
+      'This channel is blocked from reads by the operator. Every tool, id form and search is refused for it, so do not try another way. Tell the person you cannot read that channel.'
+    );
   }
   const metadata = await chat().channel(id).fetchMetadata();
   if (currentThreadId && id === chatChannelId(currentThreadId)) {
