@@ -3,6 +3,10 @@ import { CommandExitError } from 'e2b';
 import { sandbox as sandboxConfig } from '../../config';
 import { githubAccessToken } from '../../lib/github';
 import { logger } from '../../lib/logger';
+import { sandboxPath } from '../../workspace/path';
+
+export const clonePath = (repository: string): string =>
+  sandboxPath(repository.replace('/', '__'));
 
 export const git = async ({
   command,

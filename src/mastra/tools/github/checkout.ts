@@ -1,12 +1,11 @@
 import { createTool } from '@mastra/core/tools';
-import { sandbox as sandboxConfig } from '../../config';
 import { githubAccessToken } from '../../lib/github';
 import { repoAccess } from '../../lib/github/api';
 import { sh } from '../../lib/utils';
 import { branchSchema, repositorySchema } from '../../types';
 import { input } from '../../types/tools/index';
 import { requireSandbox } from '../../workspace';
-import { git, withCredential } from './git';
+import { clonePath, git, withCredential } from './git';
 
 export const checkoutTool = ({
   approval,
@@ -43,7 +42,7 @@ export const checkoutTool = ({
     }),
     execute: async ({ repository, branch }, context) => {
       const sandbox = await requireSandbox(context.requestContext);
-      const path = `${sandboxConfig.workdir}/${repository.replace('/', '__')}`;
+      const path = clonePath(repository);
       const remote = `https://github.com/${repository}.git`;
 
       const token = await githubAccessToken(userId);

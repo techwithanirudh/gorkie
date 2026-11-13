@@ -1,10 +1,9 @@
 import { createTool } from '@mastra/core/tools';
-import { sandbox as sandboxConfig } from '../../config';
 import { sh } from '../../lib/utils';
 import { branchSchema, repositorySchema } from '../../types';
 import { input } from '../../types/tools/index';
 import { requireSandbox } from '../../workspace';
-import { git, withCredential } from './git';
+import { clonePath, git, withCredential } from './git';
 
 export const pushTool = ({
   approval,
@@ -36,8 +35,7 @@ export const pushTool = ({
     }),
     execute: async ({ repository, branch, checkout }, context) => {
       const sandbox = await requireSandbox(context.requestContext);
-      const cloned = checkout ?? repository;
-      const path = `${sandboxConfig.workdir}/${cloned.replace('/', '__')}`;
+      const path = clonePath(checkout ?? repository);
       const remote = `https://github.com/${repository}.git`;
       const push = () =>
         git({
