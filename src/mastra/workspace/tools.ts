@@ -5,7 +5,6 @@ import { createWorkspaceTools } from '@mastra/core/workspace';
 import { z } from 'zod';
 import { sandbox as config } from '../config';
 import { channelContext } from '../lib/context';
-import { describeWorkSchema } from '../tools/work-description';
 import { requireSandbox, workspace } from './index';
 import { runningJobs, trackJob } from './jobs';
 import { EXECUTE_COMMAND, GET_PROCESS_OUTPUT } from './tool-names';
@@ -119,10 +118,6 @@ async function describedTools(requestContext?: RequestContext) {
     workspace,
     requestContext,
   });
-  const command = tools[EXECUTE_COMMAND];
-  if (command) {
-    command.inputSchema = describeWorkSchema(command.inputSchema);
-  }
   autoBackgroundCommands(tools);
   return tools;
 }

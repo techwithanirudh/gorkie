@@ -154,6 +154,7 @@ export const workspace: Workspace = new Workspace({
       // documents `false` as the setting for cloud sandboxes like E2B, where
       // the process is supposed to outlive the agent that started it.
       backgroundProcesses: { abortSignal: false },
+      requireDescription: true,
     },
     [WORKSPACE_TOOLS.SANDBOX.GET_PROCESS_OUTPUT]: {
       name: GET_PROCESS_OUTPUT,
