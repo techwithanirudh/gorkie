@@ -2,10 +2,9 @@ import type {
   ActionChannelHandler,
   ChannelHandlerContext,
 } from '@mastra/core/channels';
-import { type ActionEvent, Message, parseMarkdown, type Thread } from 'chat';
+import type { Message, Thread } from 'chat';
 import { limitWindowHours } from '../config';
 import { isUserAllowed } from '../lib/allowed-users';
-import { parseSlackId } from '../lib/ids';
 import { overLimit } from '../lib/limits';
 import { logger } from '../lib/logger';
 import { attachments } from './attachments';
@@ -13,13 +12,11 @@ import { slack } from './client';
 import { handleCommand } from './commands';
 import { shouldRespond } from './gate';
 import { withHistory } from './history';
-import { chat } from './instance';
-import { isComment, neutralizeBroadcasts } from './message';
+import { isComment } from './message';
 import { banRefusal } from './moderation/cards';
 import { banStatus } from './moderation/gate';
 import { notify } from './notify';
 import { offerOptIn } from './onboarding';
-import { followUpActionPrefix } from './reply-card';
 import { setThreadState, threadState } from './state';
 
 type DefaultHandler = (thread: Thread, message: Message) => Promise<void>;
@@ -265,62 +262,6 @@ export async function onDirectMessage(
   startTurn({ defaultHandler, message, skipped, thread });
 }
 
-// Slack can't post as the person who clicked, so it shows under their name and
-// avatar marked [gorkie].
-async function sendFollowUp(event: ActionEvent): Promise<void> {
-  if (!(event.value && event.thread)) {
-    return;
-  }
-  if (!(await isUserAllowed(event.user.userId))) {
-    await offerOptIn({ thread: event.thread, user: event.user });
-    return;
-  }
-  if (
-    await refusedByLimit({
-      author: event.user,
-      tellUser: true,
-      thread: event.thread,
-    })
-  ) {
-    return;
-  }
-  const text = neutralizeBroadcasts(event.value);
-  const user = await chat()
-    .getUser(event.user.userId)
-    .catch(() => null);
-  const { channel, ts } = parseSlackId(event.threadId);
-  if (!channel) {
-    return;
-  }
-  const note = await slack.webClient.chat.postMessage({
-    channel,
-    thread_ts: ts,
-    text,
-    username: `${user?.userName || event.user.userName} [gorkie]`.slice(0, 80),
-    unfurl_links: false,
-    ...(user?.avatarUrl ? { icon_url: user.avatarUrl } : {}),
-  });
-  if (!note.ts) {
-    return;
-  }
-  await chat().processMessage(
-    event.adapter,
-    event.threadId,
-    new Message({
-      id: note.ts,
-      threadId: event.threadId,
-      text,
-      formatted: parseMarkdown(text),
-      raw: { text, ts: note.ts, user: event.user.userId },
-      author: event.user,
-      metadata: { dateSent: new Date(), edited: false },
-      attachments: [],
-      isMention: true,
-    }),
-    { deduplicate: false }
-  );
-}
-
 export const onAction: ActionChannelHandler = async (event, defaultHandler) => {
   const result = await banStatus(event.user.userId);
   if (result.status !== 'clear') {
@@ -329,10 +270,6 @@ export const onAction: ActionChannelHandler = async (event, defaultHandler) => {
       thread: event.thread,
       user: event.user,
     });
-    return;
-  }
-  if (event.actionId.startsWith(followUpActionPrefix)) {
-    await sendFollowUp(event);
     return;
   }
   await defaultHandler();

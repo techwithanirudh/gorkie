@@ -127,19 +127,19 @@ export const emoji = {
 };
 
 export const activity = {
-  // Every plan and reply edit waits this long. Slack refuses the bot past about
+  // Every plan and answer edit waits this long. Slack refuses the bot past about
   // 50 chat.update calls a minute across every thread.
   editIntervalMs: 2000,
   maxPhases: 8,
   maxTools: 32,
   taskPollMs: 5000,
-  maxAnswerPreviewChars: 10_000,
-  // Slack rejects markdown_text past 12,000 characters.
-  maxMessageChars: 11_500,
-  answerChunkChars: 1000,
   maxTitleChars: 48,
   maxTargetChars: 48,
   channelLookupMs: 1000,
+};
+
+export const optIn = {
+  refreshMs: 10 * 60 * 1000,
 };
 
 export const database = {

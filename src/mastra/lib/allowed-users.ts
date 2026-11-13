@@ -1,4 +1,5 @@
 import { env } from '@/env';
+import { optIn } from '../config';
 import { slack } from '../chat/client';
 import { chat } from '../chat/instance';
 import { rawId } from './ids';
@@ -40,12 +41,32 @@ export async function addAllowedUser(userId: string): Promise<void> {
   }
 }
 
+async function refreshAllowlist(channel: string): Promise<void> {
+  const allowedUsers = new Set<string>();
+  let cursor: string | undefined;
+  do {
+    // biome-ignore lint/performance/noAwaitInLoops: each page's cursor comes from the previous response, so this can't be parallelized.
+    const response = await slack.webClient.conversations.members({
+      channel,
+      cursor,
+      limit: 200,
+    });
+    for (const member of response.members ?? []) {
+      allowedUsers.add(member);
+    }
+    cursor = response.response_metadata?.next_cursor || undefined;
+  } while (cursor);
+  await chat()
+    .getState()
+    .set(allowlistKey(channel), [...allowedUsers]);
+  logger.info('[allowlist] opt-in cache built', { count: allowedUsers.size });
+}
+
 export async function buildAllowlist(): Promise<void> {
   const channel = env.OPT_IN_CHANNEL;
   if (!channel) {
     return;
   }
-  const state = chat().getState();
 
   chat().onMemberJoinedChannel(async (event) => {
     if (rawId(event.channelId) === channel) {
@@ -60,29 +81,18 @@ export async function buildAllowlist(): Promise<void> {
   });
 
   try {
-    const allowedUsers = new Set<string>();
-    let cursor: string | undefined;
-    do {
-      // biome-ignore lint/performance/noAwaitInLoops: each page's cursor comes from the previous response, so this can't be parallelized.
-      const response = await slack.webClient.conversations.members({
-        channel,
-        cursor,
-        limit: 200,
-      });
-      for (const member of response.members ?? []) {
-        allowedUsers.add(member);
-      }
-      cursor = response.response_metadata?.next_cursor || undefined;
-    } while (cursor);
-    await state.set(allowlistKey(channel), [...allowedUsers]);
-    logger.info('[allowlist] opt-in cache built', {
-      count: allowedUsers.size,
-    });
+    await refreshAllowlist(channel);
   } catch (error) {
-    logger.error('[allowlist] failed to build opt-in cache', {
-      channel,
-      error,
-    });
     throw new Error('Failed to build opt-in allowlist', { cause: error });
   }
+  // Chat SDK has no leave event, so a rebuild is what drops people who left or
+  // were removed from the channel.
+  setInterval(() => {
+    refreshAllowlist(channel).catch((error: unknown) => {
+      logger.warn('[allowlist] failed to refresh the opt-in cache', {
+        channel,
+        error,
+      });
+    });
+  }, optIn.refreshMs).unref();
 }

@@ -33,11 +33,9 @@ import { logger } from '../lib/logger';
 import { stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
 import { autoBackground } from '../processors/auto-background';
-import { cutOffReply } from '../processors/cut-off-reply';
 import { delegatedTools } from '../processors/delegated-tools';
 import { firstStatus } from '../processors/first-status';
 import { progress } from '../processors/progress';
-import { replyStream } from '../processors/reply-stream';
 import { sandbox } from '../processors/sandbox';
 import { tokenUsage } from '../processors/token-usage';
 import { moveToolImages } from '../processors/tool-media';
@@ -132,7 +130,7 @@ const orchestrator = new Agent({
   errorProcessors: defaultErrorProcessors(),
   maxProcessorRetries: config.maxProcessorRetries,
   defaultOptions: ({ requestContext }) => ({
-    toolChoice: 'required',
+    toolChoice: 'auto',
     modelSettings: {
       maxOutputTokens: config.maxTokens.output,
       maxRetries: 5,
@@ -145,7 +143,6 @@ const orchestrator = new Agent({
         messages.filter(({ role }) => role === 'user').slice(-1),
     },
     stopWhen: [
-      toolCall('reply'),
       toolCall('skip'),
       toolCall('wait'),
       stepCountIs(config.maxSteps),
@@ -193,10 +190,8 @@ const orchestrator = new Agent({
     new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
   ],
   outputProcessors: [
-    cutOffReply,
     delegatedTools,
     progress,
-    replyStream,
     sandbox,
     tokenUsage,
     turnFooter,
@@ -265,8 +260,7 @@ const orchestrator = new Agent({
   channels: {
     tools: false,
     chatOptions: {
-      // reply only opens a stream once it has text, and a placeholder outlives
-      // an edit Slack rejects.
+      // A placeholder outlives an edit Slack rejects.
       fallbackStreamingPlaceholderText: null,
       streamingUpdateIntervalMs: activityConfig.editIntervalMs,
       concurrency: { strategy: 'burst', debounceMs: config.batchWindowMs },
@@ -276,7 +270,7 @@ const orchestrator = new Agent({
       slack: {
         adapter: slack,
         streaming: true,
-        textDisplay: 'hidden',
+        textDisplay: 'show',
         toolDisplay,
         typingStatus: status,
         formatError: (error) =>

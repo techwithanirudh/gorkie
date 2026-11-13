@@ -15,11 +15,7 @@ export const turnFooter = {
     'Closes a turn with how long it took and a thumbs rating for the response.',
   processOutputStream(args: ProcessOutputStreamArgs) {
     args.state.startTime ??= Date.now();
-    if (
-      args.part.type === 'tool-result' &&
-      args.part.payload.toolName === 'reply' &&
-      !args.part.payload.isError
-    ) {
+    if (args.part.type === 'text-delta' && args.part.payload.text.trim()) {
       args.state.replySent = true;
     }
     return args.part;

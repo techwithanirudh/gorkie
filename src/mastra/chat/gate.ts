@@ -7,21 +7,6 @@ import { gate as gateModel } from '../providers';
 import { isComment, rawText } from './message';
 
 const connectorFooter = /\s*\*Sent using\* <@[A-Z0-9_]+(?:\|[^>]*)?>\s*$/;
-const offerPattern =
-  /\b(want me to|should i|shall i|if you want|if you'd like|if you like|say the word|lmk if|let me know if)\b/i;
-
-function awaitsReply(text: string): boolean {
-  const trimmed = text
-    .trim()
-    .replace(/(?:\s*:[a-z0-9_+'-]+:)+$/i, '')
-    .replace(/[\s)\]"'*_~`]+$/, '');
-  if (trimmed.endsWith('?')) {
-    return true;
-  }
-  const lastSentence = trimmed.split(/(?<=[.!?])\s+|\n+/).at(-1) ?? '';
-  return offerPattern.test(lastSentence);
-}
-
 function render(message: Message): string {
   const author = message.author.isMe
     ? 'gorkie (bot)'
@@ -57,10 +42,6 @@ export async function shouldRespond({
     if (!(newestIds.has(previous.id) || isComment(previous) || isFooter)) {
       recent.push(previous);
     }
-  }
-  const [latest] = recent;
-  if (latest?.author.isMe && awaitsReply(latest.text)) {
-    return true;
   }
   const prompt = `<recent_messages>
 ${recent.reverse().map(render).join('\n') || '(none)'}

@@ -4,7 +4,6 @@ import { workspaceCodeMode } from './code-mode/slack';
 import { submitFeedbackTool } from './feedback';
 import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
-import { replyTool } from './reply';
 import { scheduledTaskTools } from './scheduled-tasks';
 import { searchEmojisTool } from './search-emojis';
 import { searchWebTool } from './search-web';
@@ -35,7 +34,6 @@ export async function orchestratorTools() {
     upload_file: slackTools.upload_file,
     post_message: slackTools.post_message,
     status_update: statusUpdateTool,
-    reply: replyTool,
     skip: skipTool,
     wait: waitTool,
   };

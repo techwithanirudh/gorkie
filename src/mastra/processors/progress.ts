@@ -222,9 +222,9 @@ export const progress = {
       advance({ title: 'waiting for your approval', automatic: false });
     }
     if (
-      part.type === 'tool-result' &&
-      part.payload.toolName === 'reply' &&
-      !part.payload.isError
+      part.type === 'text-delta' &&
+      part.payload.text.trim() &&
+      !turn.replied
     ) {
       turn.replied = true;
       turn.outcome = 'Completed';

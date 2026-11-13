@@ -99,7 +99,6 @@ const toolActions: Record<string, string | null> = {
   github_update_issue: 'updating an issue',
   github_update_pull_request: 'updating a pull request',
   status_update: null,
-  reply: null,
   skip: null,
   wait: null,
   react: null,

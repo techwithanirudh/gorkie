@@ -39,7 +39,7 @@ export const usageLimit = {
       });
     }
     return {
-      toolChoice: { type: 'tool', toolName: 'reply' },
+      toolChoice: 'none',
       systemMessages: [
         ...systemMessages,
         { role: 'system', content: usageLimitPrompt },
