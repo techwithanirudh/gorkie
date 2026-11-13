@@ -36,11 +36,8 @@ export const pushTool = ({
     }),
     execute: async ({ repository, branch, checkout }, context) => {
       const sandbox = await requireSandbox(context.requestContext);
-      // The branch lives in the checkout directory. For a normal push that is
-      // the target repo; for a fork PR it is the upstream repo that was cloned,
-      // not the fork we push to, so the two are tracked apart.
-      const source = checkout ?? repository;
-      const path = `${sandboxConfig.workdir}/${source.replace('/', '__')}`;
+      const cloned = checkout ?? repository;
+      const path = `${sandboxConfig.workdir}/${cloned.replace('/', '__')}`;
       const remote = `https://github.com/${repository}.git`;
       const push = () =>
         git({
@@ -54,9 +51,8 @@ export const pushTool = ({
             await push();
           } catch (error) {
             const message = error instanceof Error ? error.message : `${error}`;
-            // github_checkout clones shallow (--depth 50), and git refuses a
-            // push whose history bottoms out at that boundary. Deepen once and
-            // retry rather than handing back a git internals error.
+            // github_checkout clones with --depth 50, and git refuses a push
+            // whose history bottoms out at that boundary.
             if (/shallow/i.test(message)) {
               await git({
                 command: 'git fetch --unshallow',

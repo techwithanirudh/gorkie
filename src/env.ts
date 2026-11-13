@@ -20,12 +20,9 @@ export const env = createEnv({
       .enum(['development', 'production', 'test'])
       .default('development'),
 
-    // Injected by the Mastra CLI, not set by hand. `mastra dev` and
-    // `mastra start` each run with a different cwd, neither of which is the
-    // repo root, so anything writing a file relative to cwd needs this.
-    // Not `MASTRA_PROJECT_ROOT`: the Mastra CLI sets that itself, after our
-    // .env is loaded, and points it at `.mastra` rather than the repo root.
-    // Anything anchored to it lands in the wrong directory.
+    // Injected by the Mastra CLI. `mastra dev` and `mastra start` each run with
+    // a cwd that is not the repo root. Not `MASTRA_PROJECT_ROOT`: the CLI sets
+    // that after .env loads and points it at `.mastra`.
     PROJECT_ROOT: z.string().default(process.cwd()),
 
     HOST: z.string().default('127.0.0.1'),

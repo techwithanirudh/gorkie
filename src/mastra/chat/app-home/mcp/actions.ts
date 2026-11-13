@@ -69,11 +69,8 @@ async function addServer({
   }
   await publishHome(userId);
 
-  // Probe after storing, not before: the connection check can take longer than
-  // Slack's modal-submit ack window, which made a slow or unauthenticated
-  // server show a generic failure while the add actually went through. Now the
-  // add always succeeds fast and a failed probe lands as the row's lastError,
-  // rendered on the next Home publish, matching how reconnects report status.
+  // Probe after storing: the connection check can outlast Slack's modal-submit
+  // ack window. A failed probe lands as the row's lastError on the next publish.
   const server = parsed.data;
   findMCPConnectionError({ userId, server })
     .then(async (connectionError) => {

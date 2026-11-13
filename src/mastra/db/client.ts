@@ -23,7 +23,6 @@ const saveMessages = memory.saveMessages.bind(memory);
 memory.saveMessages = (args) =>
   saveMessages({ messages: excludeImageData(args) });
 
-// drizzle v1 takes the driver via `{ client }`; `schema` is only for the
-// db.query.* relational API, which gorkie does not use (tables are imported
-// directly and used with the core query builder).
+// drizzle's `schema` option only feeds the db.query.* relational API, which
+// nothing here uses.
 export const db = drizzle({ client: postgresStore.pool });
