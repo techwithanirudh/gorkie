@@ -9,6 +9,8 @@ import {
   activityPlanSchema,
   activityTaskSchema,
 } from '../types/progress';
+import { threadJobs } from '../workspace/jobs';
+import { answerStream } from './card';
 import { getMastra } from './mastra-instance';
 import { addAction, toolActivity } from './status/tool-activity';
 
@@ -142,30 +144,65 @@ async function showActivity({
   let updateTimer: ReturnType<typeof setTimeout> | undefined;
   let writes = Promise.resolve();
   // Channels hands the answer text to this display along with the plan, so it
-  // streams it into its own message.
-  const answer: string[] = [];
-  let answerDone = false;
-  let wakeAnswer: (() => void) | undefined;
-  let answerPosted: Promise<unknown> | undefined;
-  async function* answerText() {
-    while (!answerDone || answer.length > 0) {
-      const next = answer.shift();
+  // streams it into its own message, starting a new one at a line break before
+  // Slack's length limit.
+  interface Segment {
+    done: boolean;
+    queue: string[];
+    wake?: () => void;
+  }
+  const posts: Promise<unknown>[] = [];
+  let segment: Segment | undefined;
+  let segmentChars = 0;
+  async function* segmentText(open: Segment) {
+    while (!open.done || open.queue.length > 0) {
+      const next = open.queue.shift();
       if (next !== undefined) {
         yield next;
         continue;
       }
       // biome-ignore lint/performance/noAwaitInLoops: text arrives in order and is yielded as it comes
       await new Promise<void>((resolve) => {
-        wakeAnswer = resolve;
+        open.wake = resolve;
       });
     }
   }
-  const pushAnswer = (text: string) => {
-    answer.push(text);
-    answerPosted ??= thread.post(answerText());
-    wakeAnswer?.();
-    wakeAnswer = undefined;
+  const endSegment = () => {
+    if (!segment) {
+      return;
+    }
+    segment.done = true;
+    segment.wake?.();
+    segment = undefined;
+    segmentChars = 0;
   };
+  const write = (text: string) => {
+    if (!text) {
+      return;
+    }
+    if (!segment) {
+      segment = { done: false, queue: [] };
+      posts.push(thread.post(segmentText(segment)));
+    }
+    segment.queue.push(text);
+    segmentChars += text.length;
+    segment.wake?.();
+    segment.wake = undefined;
+  };
+  const pushAnswer = (text: string) => {
+    const lineEnd = text.indexOf('\n');
+    if (segmentChars >= config.answerSplitChars && lineEnd !== -1) {
+      write(text.slice(0, lineEnd + 1));
+      endSegment();
+      write(text.slice(lineEnd + 1));
+      return;
+    }
+    if (segmentChars + text.length > config.maxMessageChars) {
+      endSegment();
+    }
+    write(text);
+  };
+  let reply: ReturnType<typeof answerStream> | undefined;
   const hasDetails = () =>
     [...steps.values()].some(
       (step) => step.id.startsWith(delegatedStepPrefix) || Boolean(step.details)
@@ -235,6 +272,40 @@ async function showActivity({
   };
   // Runs detached, because the turn that handed off has to end for the thread to
   // take other messages. The child's result arrives in a later turn.
+  // A command that outlives its turn keeps a live row until it exits, the way a
+  // hand-off does, since nothing else shows it is still running.
+  const followJobs = (running: ReturnType<typeof threadJobs>) => {
+    const outcomeTitle = title;
+    title = 'Running in the background';
+    completedAt = undefined;
+    for (const job of running) {
+      steps.set(`job-${job.handle.pid}`, {
+        id: `job-${job.handle.pid}`,
+        title: job.description,
+        status: 'in_progress',
+        details: `PID ${job.handle.pid}`,
+        startedAt: job.startedAt,
+      });
+    }
+    enqueue();
+    Promise.all(
+      running.map(async (job) => {
+        const succeeded = await job.done;
+        const step = steps.get(`job-${job.handle.pid}`);
+        if (step) {
+          step.status = succeeded ? 'complete' : 'error';
+          step.completedAt = Date.now();
+        }
+        schedule();
+      })
+    ).finally(() => {
+      clearTimeout(updateTimer);
+      updateTimer = undefined;
+      title = outcomeTitle;
+      completedAt = Date.now();
+      return enqueue();
+    });
+  };
   const followDelegations = () => {
     const delegated = [...steps.values()].filter(({ id }) =>
       id.startsWith(delegatedStepPrefix)
@@ -273,7 +344,8 @@ async function showActivity({
   try {
     for await (const piece of stream) {
       if (typeof piece === 'string') {
-        pushAnswer(piece);
+        reply ??= answerStream({ onText: pushAnswer, thread });
+        reply.push(piece);
         continue;
       }
       const ended = activityEndSchema.safeParse(piece);
@@ -315,14 +387,18 @@ async function showActivity({
     outcome = 'Failed';
     throw error;
   } finally {
-    answerDone = true;
-    wakeAnswer?.();
-    await answerPosted?.catch((error: unknown) => {
-      logger.warn('[activity] answer post failed', {
-        error,
-        threadId: thread.id,
-      });
-    });
+    await reply?.end();
+    endSegment();
+    await Promise.all(
+      posts.map((post) =>
+        post.catch((error: unknown) => {
+          logger.warn('[activity] answer post failed', {
+            error,
+            threadId: thread.id,
+          });
+        })
+      )
+    );
     clearTimeout(updateTimer);
     updateTimer = undefined;
     completedAt ??= Date.now();
@@ -338,8 +414,12 @@ async function showActivity({
       }
       step.completedAt ??= completedAt;
     }
+    const running =
+      title === 'Stopped' || title === 'Failed' ? [] : threadJobs(thread.id);
     if (title === 'Handed off') {
       followDelegations();
+    } else if (running.length > 0) {
+      followJobs(running);
     } else {
       await enqueue();
     }

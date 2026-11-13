@@ -1,17 +1,35 @@
 import type { ProcessHandle } from '@mastra/core/workspace';
 import { logger } from '../lib/logger';
 
-const jobs = new Map<string, Map<string, ProcessHandle>>();
+interface Job {
+  description: string;
+  done: Promise<boolean>;
+  handle: ProcessHandle;
+  startedAt: number;
+}
+
+const jobs = new Map<string, Map<string, Job>>();
 
 export function trackJob({
+  description,
   handle,
   threadId,
 }: {
+  description: string;
   handle: ProcessHandle;
   threadId: string;
 }): void {
-  const running = jobs.get(threadId) ?? new Map<string, ProcessHandle>();
-  running.set(handle.pid, handle);
+  const running = jobs.get(threadId) ?? new Map<string, Job>();
+  const done = handle.wait().then(
+    (result) => result.success,
+    () => false
+  );
+  running.set(handle.pid, {
+    description,
+    done,
+    handle,
+    startedAt: Date.now(),
+  });
   jobs.set(threadId, running);
   const forget = () => {
     running.delete(handle.pid);
@@ -19,7 +37,11 @@ export function trackJob({
       jobs.delete(threadId);
     }
   };
-  handle.wait().then(forget, forget);
+  done.then(forget, forget);
+}
+
+export function threadJobs(threadId: string): Job[] {
+  return [...(jobs.get(threadId)?.values() ?? [])];
 }
 
 export function runningJobs(threadId: string | undefined): number {
@@ -27,8 +49,10 @@ export function runningJobs(threadId: string | undefined): number {
 }
 
 export async function killJobs(threadId: string): Promise<number> {
-  const running = [...(jobs.get(threadId)?.values() ?? [])];
-  const killed = await Promise.allSettled(running.map((job) => job.kill()));
+  const running = threadJobs(threadId);
+  const killed = await Promise.allSettled(
+    running.map((job) => job.handle.kill())
+  );
   if (killed.some(({ status }) => status === 'rejected')) {
     logger.warn('[sandbox] some jobs failed to stop', { threadId });
   }

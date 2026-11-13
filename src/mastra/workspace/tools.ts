@@ -17,6 +17,7 @@ type ExecuteCommand = (
 
 const commandInput = z.looseObject({
   background: z.boolean().nullish(),
+  description: z.string().nullish(),
   tail: z.number().int().nullish(),
   timeout: z.number().nullish(),
 });
@@ -57,7 +58,11 @@ function runWithAutoBackground({
     if (!(handle && threadId)) {
       throw new Error('The command started but could not be tracked.');
     }
-    trackJob({ handle, threadId });
+    trackJob({
+      description: parsed.description || 'Running a command',
+      handle,
+      threadId,
+    });
     if (parsed.background) {
       return started;
     }

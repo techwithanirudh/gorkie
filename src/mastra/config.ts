@@ -133,6 +133,10 @@ export const activity = {
   maxPhases: 8,
   maxTools: 32,
   taskPollMs: 5000,
+  // Slack rejects markdown_text past 12,000 characters, so a long answer moves
+  // to a new message at the first line break past answerSplitChars.
+  answerSplitChars: 10_000,
+  maxMessageChars: 11_500,
   maxTitleChars: 48,
   maxTargetChars: 48,
   channelLookupMs: 1000,
