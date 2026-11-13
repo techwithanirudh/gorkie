@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { createEnv } from '@t3-oss/env-core';
 import { z } from 'zod';
+import { slackUserIdSchema } from './mastra/types/user';
 
 const idList = z
   .string()
@@ -37,7 +38,7 @@ export const env = createEnv({
       .regex(/^[CG][A-Z0-9]+$/, 'must be a Slack channel id')
       .optional(),
     BLOCKED_CHANNELS: idList,
-    MODERATORS: idList.pipe(z.array(z.string().regex(/^[UW][A-Z0-9]+$/))),
+    MODERATORS: idList.pipe(z.array(slackUserIdSchema)),
 
     HACKCLUB_API_KEY: z.string().min(1),
     AI_GATEWAY_API_KEY: z.string().min(1),

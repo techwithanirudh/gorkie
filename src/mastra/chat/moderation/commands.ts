@@ -5,7 +5,7 @@ import { activeBans } from '../../db/queries/moderation';
 import { isUserAllowed } from '../../lib/allowed-users';
 import { overLimit } from '../../lib/limits';
 import { logger } from '../../lib/logger';
-import { banDurationSchema } from '../../types';
+import { banDurationSchema, slackUserIdSchema } from '../../types';
 import { slack } from '../client';
 import { until } from './cards';
 import { isBanned } from './gate';
@@ -17,7 +17,7 @@ const rawSchema = z.looseObject({
 });
 
 // Slack adds the |name when the text was escaped, as it does with should_escape.
-const target = /^<@([UW][A-Z0-9]+)(?:\|[^>]*)?>\s*(.*)$/s;
+const target = /^<@([^|>]+)(?:\|[^>]*)?>\s*(.*)$/s;
 
 async function reply({
   raw,
@@ -115,7 +115,8 @@ export const onSlashCommand: SlashCommandChannelHandler = async (
     });
     return;
   }
-  const [, userId, rest = ''] = args.match(target) ?? [];
+  const [, mention, rest = ''] = args.match(target) ?? [];
+  const userId = slackUserIdSchema.safeParse(mention).data;
   if (!userId) {
     await reply({
       raw: event.raw,
