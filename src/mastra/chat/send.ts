@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { ImageElement, KnownBlock } from '@slack/web-api';
 import type { ActionEvent } from 'chat';
 import { z } from 'zod';
 import { send as config } from '../config';
@@ -45,7 +46,7 @@ function messageBlocks({
 }: {
   message: string;
   requesterId: string;
-}): unknown[] {
+}): KnownBlock[] {
   return [
     { type: 'markdown', text: message },
     {
@@ -164,7 +165,7 @@ export async function offerSend({
                   type: 'image',
                   image_url: pending.avatarUrl,
                   alt_text: pending.username,
-                },
+                } satisfies ImageElement,
               ]
             : []),
           { type: 'mrkdwn', text: `*${pending.username}*` },
@@ -190,7 +191,7 @@ export async function offerSend({
           },
         ],
       },
-    ] as never,
+    ],
   });
 }
 
@@ -232,7 +233,7 @@ export async function deliver(
       channel,
       ...(pending.threadTs ? { thread_ts: pending.threadTs } : {}),
       text: pending.message,
-      blocks: messageBlocks(pending) as never,
+      blocks: messageBlocks(pending),
       username: pending.username,
       unfurl_links: false,
       ...(pending.avatarUrl ? { icon_url: pending.avatarUrl } : {}),
