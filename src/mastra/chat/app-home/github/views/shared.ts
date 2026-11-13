@@ -41,9 +41,7 @@ const viewAction = z.object({
   }),
 });
 
-export type ViewTarget = z.infer<typeof viewAction>['view'];
-
-export const viewOf = (raw: unknown): ViewTarget | undefined =>
+export const viewOf = (raw: unknown) =>
   viewAction.safeParse(raw).data?.view;
 
 export const selectedPermission = ({
