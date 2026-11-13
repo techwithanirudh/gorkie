@@ -1,7 +1,7 @@
 import { env } from '@/env';
-import { optIn } from '../config';
 import { slack } from '../chat/client';
 import { chat } from '../chat/instance';
+import { optIn } from '../config';
 import { rawId } from './ids';
 import { logger } from './logger';
 

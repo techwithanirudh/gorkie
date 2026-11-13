@@ -41,8 +41,7 @@ const viewAction = z.object({
   }),
 });
 
-export const viewOf = (raw: unknown) =>
-  viewAction.safeParse(raw).data?.view;
+export const viewOf = (raw: unknown) => viewAction.safeParse(raw).data?.view;
 
 export const selectedPermission = ({
   raw,
