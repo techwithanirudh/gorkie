@@ -10,8 +10,6 @@ import type { GitHubCredential } from '../../types';
 import { logger } from '../logger';
 import { toAccount } from './device-flow';
 
-const REFRESH_MARGIN_MS = 5 * 60 * 1000;
-
 const refreshErrorSchema = z.object({
   status: z.number().optional(),
   response: z
@@ -77,7 +75,7 @@ export async function githubAccessToken(
   }
   const expiresSoon =
     account.expiresAt !== undefined &&
-    account.expiresAt.getTime() - Date.now() < REFRESH_MARGIN_MS;
+    account.expiresAt.getTime() - Date.now() < 5 * 60 * 1000;
   if (!(expiresSoon && account.refreshToken)) {
     return account.token;
   }

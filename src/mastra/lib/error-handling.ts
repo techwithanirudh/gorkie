@@ -22,9 +22,6 @@ function isTerminalModelError(error: unknown): boolean {
   return terminalPattern.test(messageOf(error));
 }
 
-const econnresetMaxRetries = 2;
-const econnresetRetryInitialDelayMs = 1000;
-const econnresetRetryMaxDelayMs = 30_000;
 const econnresetMessagePattern = /econnreset|socket hang up/i;
 
 function isEconnresetError(error: unknown): boolean {
@@ -58,12 +55,8 @@ export function defaultErrorProcessors() {
         { match: isBadRequestError, maxRetries: 0 },
         {
           match: isEconnresetError,
-          maxRetries: econnresetMaxRetries,
-          delayMs: ({ retryCount }) =>
-            Math.min(
-              econnresetRetryInitialDelayMs * 2 ** retryCount,
-              econnresetRetryMaxDelayMs
-            ),
+          maxRetries: 2,
+          delayMs: ({ retryCount }) => Math.min(1000 * 2 ** retryCount, 30_000),
         },
         { match: isRateLimitError, maxRetries: 2, delayMs: 3000 },
       ],
