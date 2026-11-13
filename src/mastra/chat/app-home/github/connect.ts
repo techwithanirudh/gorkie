@@ -29,7 +29,7 @@ export const polling = new Map<
   }
 >();
 
-export async function completeLogin({
+async function completeLogin({
   controller,
   login,
   userId,
