@@ -34,8 +34,6 @@ async function settled<T>({
 }
 
 async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
-  // A failed lookup still renders the page: every button on it checks the ban
-  // again before it does anything.
   const ban = await banStatus(userId);
   if (ban.status === 'banned') {
     return {

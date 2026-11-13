@@ -2,7 +2,6 @@ import { env } from '@/env';
 export const sandbox = {
   template: 'gorkie-workspace:2.0',
   executionTimeout: 15 * 60 * 1000,
-  // A command still running after this returns its pid so the turn can go on.
   autoBackgroundMs: 2 * 60 * 1000,
   maxJobs: 3,
   timeout: 16 * 60 * 1000,
@@ -43,7 +42,6 @@ export const agentmail = {
 export const agent = {
   id: 'orchestrator',
   maxTokens: { input: 1_000_000, output: 64_000 },
-  maxOutputTokensPerTurn: 200_000,
   maxProcessorRetries: 2,
   batchWindowMs: 500,
   maxSteps: 1000,
@@ -56,7 +54,8 @@ export const exa = {
 };
 
 export const gate = {
-  maxTokens: { output: 16 },
+  // Room for the JSON wrapper Output.choice asks for, not just the word.
+  maxTokens: { output: 64 },
   contextMessages: 8,
   maxMessageChars: 1200,
   timeoutMs: 10_000,
@@ -105,12 +104,13 @@ export const subagent = {
 
 export const quotaWarningAt = 0.8;
 
+const taskTimeoutMs = 15 * 60 * 1000;
+
 export const backgroundTasks = {
   globalConcurrency: 10,
   perAgentConcurrency: 5,
-  timeoutMs: 15 * 60 * 1000,
-  // Has to outlast the slowest task so its result still reaches the open stream.
-  untilIdleMaxIdleMs: 20 * 60 * 1000,
+  timeoutMs: taskTimeoutMs,
+  untilIdleMaxIdleMs: taskTimeoutMs + 5 * 60 * 1000,
   cleanupIntervalMs: 60 * 60 * 1000,
 };
 

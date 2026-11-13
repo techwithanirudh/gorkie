@@ -71,8 +71,6 @@ export async function acceptOptIn(event: ActionEvent): Promise<void> {
     });
     return;
   }
-  // The allowlist is rebuilt from the opt-in channel's members on every start,
-  // so a failed invite loses the opt-in at the next restart too.
   try {
     await addAllowedUser(userId);
     await inviteToOptInChannel(userId);

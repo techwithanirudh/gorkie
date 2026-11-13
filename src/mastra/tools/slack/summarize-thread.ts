@@ -77,7 +77,6 @@ export const summarizeThreadTool = createTool({
         .join(' ');
       return `${index + 1}. [${message.metadata.dateSent.toISOString()}] ${author} (${message.author.userId}): ${message.text}${attachments ? ` ${attachments}` : ''}`;
     });
-    // Keeps the newest messages when a thread outgrows what one call should read.
     const fullTranscript = lines.join('\n');
     const transcript = fullTranscript.slice(-threadReads.maxTranscriptChars);
     const note =

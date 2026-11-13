@@ -21,9 +21,7 @@ function neutralized(value: unknown): unknown {
   );
 }
 
-// A click sends the label, so a button can't send anything but what it shows,
-// whatever value the model gave it. Slack needs each action id in a block to
-// differ, so the element id provides it.
+// Slack needs each action id in a block to differ, so the element id provides it.
 function prepared(spec: CardSpec): CardSpec {
   return {
     ...spec,
@@ -71,8 +69,7 @@ export function partialReplyCard(spec: CardSpec): CardElement | null {
   return toPartialCard(prepared(spec));
 }
 
-// One Slack message, in writing order. A card title renders as a header pinned
-// to the top, so it moves below the answer.
+// A card title renders as a header pinned to the top, so it moves below the answer.
 export function answerCard({
   answer,
   card,

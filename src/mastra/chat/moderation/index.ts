@@ -82,7 +82,7 @@ export function registerModeration(): void {
     if (!ban) {
       return;
     }
-    if (await activeBan(ban.userId)) {
+    if ((await activeBan(ban.userId))?.id === ban.id) {
       await decide({
         action: 'unban',
         actorId: event.user.userId,

@@ -1,8 +1,6 @@
 import type { ProcessHandle } from '@mastra/core/workspace';
 import { logger } from '../lib/logger';
 
-// One process serves Slack, and sandboxes do not outlive a restart's tracking
-// by more than their own timeout, so this needs no storage.
 const jobs = new Map<string, Map<string, ProcessHandle>>();
 
 export function trackJob({

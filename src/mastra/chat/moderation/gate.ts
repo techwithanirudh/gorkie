@@ -13,7 +13,6 @@ export async function banStatus(userId: string): Promise<BanStatus> {
   }
 }
 
-// Fails closed: a ban that cannot be checked is treated as a ban.
 export async function isBanned(userId: string): Promise<boolean> {
   return (await banStatus(userId)).status !== 'clear';
 }

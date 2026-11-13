@@ -30,21 +30,19 @@ import { channelContext } from '../lib/context';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { usage } from '../lib/limits';
 import { logger } from '../lib/logger';
-import { reactionEndsTurn, stepCountIs, toolCall } from '../lib/tools';
+import { stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
 import { autoBackground } from '../processors/auto-background';
 import { cutOffReply } from '../processors/cut-off-reply';
 import { delegatedTools } from '../processors/delegated-tools';
 import { firstStatus } from '../processors/first-status';
-import { outputBudget } from '../processors/output-budget';
 import { progress } from '../processors/progress';
 import { replyStream } from '../processors/reply-stream';
 import { sandbox } from '../processors/sandbox';
-import { staleMessages } from '../processors/stale-messages';
-import { stepGuard } from '../processors/step-guard';
 import { tokenUsage } from '../processors/token-usage';
 import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
+import { usageLimit } from '../processors/usage-limit';
 import { workingModel } from '../processors/working-model';
 import { instructions } from '../prompts';
 import { contextPrompt } from '../prompts/context';
@@ -149,7 +147,6 @@ const orchestrator = new Agent({
     stopWhen: [
       toolCall('reply'),
       toolCall('skip'),
-      reactionEndsTurn,
       toolCall('wait'),
       stepCountIs(config.maxSteps),
     ],
@@ -180,8 +177,7 @@ const orchestrator = new Agent({
   inputProcessors: [
     autoBackground,
     firstStatus,
-    outputBudget,
-    staleMessages,
+    usageLimit,
     new ToolSearchProcessor({
       tools: deferredTools,
       storage: 'context',
@@ -197,7 +193,6 @@ const orchestrator = new Agent({
     new ProviderHistoryCompat({ additionalRules: [moveToolImages] }),
   ],
   outputProcessors: [
-    stepGuard,
     cutOffReply,
     delegatedTools,
     progress,

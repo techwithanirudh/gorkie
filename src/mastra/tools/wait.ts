@@ -74,8 +74,6 @@ export const waitTool = createTool({
       ifIdle: {
         behavior: 'wake',
         streamOptions: {
-          // Not a live message, so the footer times this run from its own start
-          // and message-only tools such as Slack search stay refused.
           requestContext: {
             channel: {
               ...channelContext(context.requestContext),

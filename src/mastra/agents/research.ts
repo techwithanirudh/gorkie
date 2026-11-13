@@ -10,7 +10,6 @@ import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
 import { runLimits } from '../processors/run-limits';
 import { sandbox } from '../processors/sandbox';
-import { stepGuard } from '../processors/step-guard';
 import { tokenUsage } from '../processors/token-usage';
 import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
@@ -41,7 +40,6 @@ export const researchAgent = new Agent({
     fetch_url: fetchUrlTool,
     search_slack: slackTools.search_slack,
     read_conversation_history: slackTools.read_conversation_history,
-    call_slack_api: slackTools.call_slack_api,
     get_user: slackTools.get_user,
     get_channel_info: slackTools.get_channel_info,
     get_permalink: slackTools.get_permalink,
@@ -62,9 +60,8 @@ export const researchAgent = new Agent({
       reasoning: 'medium',
       timeout: config.modelTimeout,
     },
-    // One past the limit, so the turn run-limits forces can still answer.
     stopWhen: stepCountIs(subagent.maxSteps + 1),
     autoResumeSuspendedTools: true,
   },
-  outputProcessors: [stepGuard, tokenUsage, sandbox, workingModel('research')],
+  outputProcessors: [tokenUsage, sandbox, workingModel('research')],
 });

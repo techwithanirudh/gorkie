@@ -69,7 +69,10 @@ function runWithAutoBackground({
       ),
       delay(config.autoBackgroundMs, false, { ref: false }),
     ]);
+    // The workspace does not pass the abort signal to the process, so a stopped
+    // turn has to kill it here or it keeps running untracked by the model.
     if (context.abortSignal?.aborted) {
+      await handle.kill();
       throw new Error('The command was stopped.');
     }
     if (finished) {

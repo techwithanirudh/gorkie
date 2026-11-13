@@ -8,10 +8,8 @@ import { Memory } from '@mastra/memory';
 import { agent as config, subagent } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
-import { autoBackground } from '../processors/auto-background';
 import { runLimits } from '../processors/run-limits';
 import { sandbox } from '../processors/sandbox';
-import { stepGuard } from '../processors/step-guard';
 import { tokenUsage } from '../processors/token-usage';
 import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
@@ -36,7 +34,6 @@ export const exploreAgent = new Agent({
     fetch_url: fetchUrlTool,
   },
   inputProcessors: [
-    autoBackground,
     runLimits,
     new TokenLimiterProcessor({
       limit: config.maxTokens.input,
@@ -63,9 +60,8 @@ export const exploreAgent = new Agent({
       topP: 0.95,
       timeout: config.modelTimeout,
     },
-    // One past the limit, so the turn run-limits forces can still answer.
     stopWhen: stepCountIs(subagent.maxSteps + 1),
     autoResumeSuspendedTools: true,
   },
-  outputProcessors: [stepGuard, tokenUsage, sandbox, workingModel('explore')],
+  outputProcessors: [tokenUsage, sandbox, workingModel('explore')],
 });

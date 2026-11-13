@@ -26,7 +26,6 @@ const toolActions: Record<string, string | null> = {
   generate_image: 'creating an image',
   search_emojis: 'looking for an emoji',
   upload_emoji: 'uploading an emoji',
-  call_slack_api: 'checking Slack',
   submit_feedback: 'saving feedback',
   create_canvas: 'writing a canvas',
   edit_canvas: 'editing a canvas',
@@ -140,8 +139,6 @@ async function fetchChannelTarget(id: string): Promise<string | undefined> {
   }
 }
 
-// A slow lookup must not hold up the reply stream, and it still fills the cache
-// for the next row.
 async function channelTarget(
   reference: string | undefined
 ): Promise<string | undefined> {
@@ -184,8 +181,6 @@ export function addAction({
   return [...actions.slice(0, -1), `${label} ×${Number(repeat?.[2] ?? 1) + 1}`];
 }
 
-// The step title when the model named no phase. It stays generic so the row's
-// details, which carry the target, say something the title does not.
 export function toolTitle(toolName: string): string {
   return toolLabel(baseName(toolName)) ?? 'working';
 }

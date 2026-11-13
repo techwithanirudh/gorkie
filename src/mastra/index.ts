@@ -88,25 +88,26 @@ export const mastra = new Mastra({
 });
 
 await runMigrations();
-await mastra.startWorkers();
 setMastra(mastra);
 
-orchestrator
-  .getChannels()
-  ?.initialize(mastra)
+const channels = orchestrator.getChannels();
+if (!channels) {
+  throw new Error('The orchestrator has no Slack channels configured.');
+}
+channels
+  .initialize(mastra)
   .then(async () => {
-    const sdk = orchestrator.getChannels()?.sdk;
+    const { sdk } = channels;
     if (!sdk) {
       throw new Error('Channels initialized without a chat instance.');
     }
     setChat(sdk);
     registerEvents();
     await buildAllowlist();
+    await mastra.startWorkers();
     logger.info('[agent] online');
   })
   .catch((err: unknown) => {
-    // Running on without Slack or the allowlist looks healthy while every user
-    // is ignored or told to opt in, so exit and let the supervisor restart it.
     logger.error('[agent] initialization failed', { err });
     process.exit(1);
   });

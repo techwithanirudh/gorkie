@@ -26,7 +26,6 @@ export const turnFooter = {
   },
   async processOutputResult(args: ProcessOutputResultArgs) {
     const { messageId, threadId } = channelContext(args.requestContext);
-    // Counted from the person's message, since they waited for the setup too.
     const startTime = messageId
       ? Number(messageId) * 1000
       : args.state.startTime;

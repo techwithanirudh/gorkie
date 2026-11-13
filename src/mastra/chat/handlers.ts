@@ -80,9 +80,11 @@ function startTurn(args: Parameters<typeof runTurn>[0]): void {
 
 async function refusedByLimit({
   author,
+  tellUser,
   thread,
 }: {
   author: Message['author'];
+  tellUser: boolean;
   thread: Thread<unknown>;
 }): Promise<boolean> {
   const refused = await overLimit({
@@ -93,6 +95,9 @@ async function refusedByLimit({
     return false;
   }
   logger.info('[chat] message limit reached', { threadId: thread.id });
+  if (!tellUser) {
+    return true;
+  }
   await notify({
     text: `You've hit your ${limitWindowHours}-hour usage limit, so I'm skipping this one. See \`!limits\`, and try again later.`,
     thread,
@@ -104,10 +109,12 @@ async function refusedByLimit({
 async function handledBeforeTurn({
   message,
   skipped,
+  tellUser,
   thread,
 }: {
   message: Message;
   skipped: readonly Message[];
+  tellUser: boolean;
   thread: Thread;
 }): Promise<boolean> {
   await Promise.all(
@@ -115,19 +122,17 @@ async function handledBeforeTurn({
   );
   return (
     (await handleCommand({ message, thread })) ||
-    (await refusedByLimit({ author: message.author, thread }))
+    (await refusedByLimit({ author: message.author, tellUser, thread }))
   );
 }
 
-// Fails closed: a ban that cannot be checked refuses the message. Channels splits
-// a batch into one turn per sender, so this only refuses that sender's turn.
 async function refusedByBan({
   message,
-  speak,
+  tellUser,
   thread,
 }: {
   message: Message;
-  speak: boolean;
+  tellUser: boolean;
   thread: Thread;
 }): Promise<boolean> {
   const result = await banStatus(message.author.userId);
@@ -135,7 +140,7 @@ async function refusedByBan({
     return false;
   }
   logger.info('[chat] message refused for a ban', { threadId: thread.id });
-  if (speak) {
+  if (tellUser) {
     await notify({
       text: banRefusal(result),
       thread,
@@ -145,8 +150,6 @@ async function refusedByBan({
   return true;
 }
 
-// Threads from before thread state was stored have no flag. A subscribed thread
-// whose root mentions gorkie was followed by that mention.
 async function rootMentionsBot(thread: Thread): Promise<boolean> {
   const { channel, threadTs } = slack.decodeThreadId(thread.id);
   const replies = await slack.webClient.conversations
@@ -184,7 +187,7 @@ export async function onMention(
   if (![...skipped, message].some(({ isMention }) => isMention)) {
     return;
   }
-  if (await refusedByBan({ message, speak: true, thread })) {
+  if (await refusedByBan({ message, tellUser: true, thread })) {
     return;
   }
   if (!(await isUserAllowed(message.author.userId))) {
@@ -195,7 +198,7 @@ export async function onMention(
   if ([...skipped, message].some(({ id }) => id === threadTs)) {
     await setThreadState({ thread, patch: { respondOnThreadMessages: true } });
   }
-  if (await handledBeforeTurn({ message, skipped, thread })) {
+  if (await handledBeforeTurn({ message, skipped, tellUser: true, thread })) {
     return;
   }
   startTurn({ defaultHandler, message, skipped, thread });
@@ -211,8 +214,6 @@ export async function onSubscribedMessage(
     return;
   }
   const state = await threadState(thread);
-  // A stop or leave_thread sets the cutoff, so anything sent before it was
-  // meant for the turn that got stopped.
   if (
     state?.dropMessagesBefore &&
     message.metadata.dateSent.getTime() < state.dropMessagesBefore
@@ -225,13 +226,15 @@ export async function onSubscribedMessage(
   if (!(isFollowingThread || mentioned)) {
     return;
   }
-  if (await refusedByBan({ message, speak: mentioned, thread })) {
+  if (await refusedByBan({ message, tellUser: mentioned, thread })) {
     return;
   }
   if (!(await isUserAllowed(message.author.userId))) {
     return;
   }
-  if (await handledBeforeTurn({ message, skipped, thread })) {
+  if (
+    await handledBeforeTurn({ message, skipped, tellUser: mentioned, thread })
+  ) {
     return;
   }
   if (!(mentioned || (await shouldRespond({ message, skipped, thread })))) {
@@ -249,22 +252,21 @@ export async function onDirectMessage(
   if (isFromBot(message)) {
     return;
   }
-  if (await refusedByBan({ message, speak: true, thread })) {
+  if (await refusedByBan({ message, tellUser: true, thread })) {
     return;
   }
   if (!(await isUserAllowed(message.author.userId))) {
     await offerOptIn({ thread, user: message.author });
     return;
   }
-  if (await handledBeforeTurn({ message, skipped, thread })) {
+  if (await handledBeforeTurn({ message, skipped, tellUser: true, thread })) {
     return;
   }
   startTurn({ defaultHandler, message, skipped, thread });
 }
 
 // Slack can't post as the person who clicked, so it shows under their name and
-// avatar marked [gorkie]. The checks come first so a refused click posts nothing
-// in their name, and the message handlers run them again on the way to the agent.
+// avatar marked [gorkie].
 async function sendFollowUp(event: ActionEvent): Promise<void> {
   if (!(event.value && event.thread)) {
     return;
@@ -273,7 +275,13 @@ async function sendFollowUp(event: ActionEvent): Promise<void> {
     await offerOptIn({ thread: event.thread, user: event.user });
     return;
   }
-  if (await refusedByLimit({ author: event.user, thread: event.thread })) {
+  if (
+    await refusedByLimit({
+      author: event.user,
+      tellUser: true,
+      thread: event.thread,
+    })
+  ) {
     return;
   }
   const text = neutralizeBroadcasts(event.value);
@@ -313,7 +321,6 @@ async function sendFollowUp(event: ActionEvent): Promise<void> {
   );
 }
 
-// defaultHandler is Mastra's tool approve and deny button handler.
 export const onAction: ActionChannelHandler = async (event, defaultHandler) => {
   const result = await banStatus(event.user.userId);
   if (result.status !== 'clear') {

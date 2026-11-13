@@ -55,8 +55,7 @@ type TaskEnd = 'completed' | 'failed' | 'cancelled';
 const isTaskEnd = (status: string): status is TaskEnd =>
   ['completed', 'failed', 'cancelled'].includes(status);
 
-// Shows each tool the child calls and resolves to how the task ended. Status is
-// read directly too, because the stream can miss a cancel.
+// Status is read directly too, because the stream can miss a cancel.
 async function followTask({
   onChange,
   step,
@@ -204,7 +203,6 @@ async function showActivity({
     updateTimer = setTimeout(
       () => {
         updateTimer = undefined;
-        // A Slack edit must not hold the model stream behind a network request.
         enqueue();
       },
       Math.max(0, lastSentAt + config.editIntervalMs - Date.now())
@@ -242,6 +240,7 @@ async function showActivity({
       })
       .finally(() => {
         clearTimeout(updateTimer);
+        updateTimer = undefined;
         completedAt = Date.now();
         return enqueue();
       });
@@ -288,6 +287,7 @@ async function showActivity({
     throw error;
   } finally {
     clearTimeout(updateTimer);
+    updateTimer = undefined;
     completedAt ??= Date.now();
     title = outcome ?? 'Stopped';
     const endStatus: Record<string, PlanModelTask['status']> = {
@@ -307,7 +307,14 @@ async function showActivity({
       await enqueue();
     }
     if (messageId && !hasDetails()) {
-      await adapter.deleteMessage(thread.id, messageId);
+      await adapter
+        .deleteMessage(thread.id, messageId)
+        .catch((error: unknown) => {
+          logger.warn('[activity] could not delete an empty plan', {
+            error,
+            threadId: thread.id,
+          });
+        });
     }
   }
 }

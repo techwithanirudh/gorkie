@@ -1,13 +1,6 @@
 import { z } from 'zod';
 import type { MastraStopCondition } from '../types';
 
-const endsWithReaction = new Set([
-  'leave_thread',
-  'react',
-  'skip',
-  'status_update',
-]);
-const keepsTurn = z.looseObject({ continueTurn: z.literal(true) });
 // Mastra reports a thrown tool or rejected input as a normal result, so the turn
 // has to keep going for the model to see the failure and fix it.
 const failedOutput = z.union([
@@ -33,22 +26,6 @@ function latestResults(steps: Parameters<MastraStopCondition>[0]['steps']) {
 function succeeded({ output }: { output?: unknown }): boolean {
   return !failedOutput.safeParse(output).success;
 }
-
-// A reaction is the whole response unless the same step has a result the model
-// still needs to read, or a call failed and the model has to see that.
-export const reactionEndsTurn: MastraStopCondition = ({ steps }) => {
-  const results = latestResults(steps);
-  return (
-    results.some(({ toolName }) => toolName === 'react') &&
-    results.every(
-      (result) =>
-        result.toolName &&
-        endsWithReaction.has(result.toolName) &&
-        !keepsTurn.safeParse(result.input).success &&
-        succeeded(result)
-    )
-  );
-};
 
 export function toolCall(toolName: string): MastraStopCondition {
   return ({ steps }) =>

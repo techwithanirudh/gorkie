@@ -11,7 +11,6 @@ export function createSandbox(threadId: string): E2BSandbox {
     id,
     apiKey: env.E2B_API_KEY,
     template: config.template,
-    // Nothing a sandbox serves should be reachable by anyone who learns its id.
     network: { rules: {}, allowPublicTraffic: false },
     env: {
       SSL_CERT_FILE: '/usr/lib/ssl/cert.pem',

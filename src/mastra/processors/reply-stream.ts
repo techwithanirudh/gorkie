@@ -40,8 +40,6 @@ export const replyStream = {
       if (message) {
         draft.writeMessage(message);
       }
-      // A model that writes the card first gets it at the end, so the answer
-      // still sits above it.
       if (
         card &&
         args.text.includes('"message"') &&

@@ -1,7 +1,7 @@
 import type { ProcessOutputResultArgs } from '@mastra/core/processors';
 import { addUsage } from '../db/queries/usage';
 import { channelContext } from '../lib/context';
-import { countedTokens } from '../lib/limits';
+import { uncachedTokens } from '../lib/limits';
 import { logger } from '../lib/logger';
 
 export const tokenUsage = {
@@ -16,7 +16,7 @@ export const tokenUsage = {
     const { userId } = channelContext(requestContext);
     if (userId) {
       await addUsage({
-        amount: countedTokens(result.usage),
+        amount: uncachedTokens(result.usage),
         kind: 'tokens',
         userId,
       }).catch((error: unknown) => {

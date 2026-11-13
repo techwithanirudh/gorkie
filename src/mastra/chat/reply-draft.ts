@@ -9,9 +9,6 @@ import { answerCard, cardBlocks } from './reply-card';
 
 const fence = '```';
 
-// Cuts at the last break before Slack's limit. The cut only moves until the text
-// passes the limit, so a streamed first part settles early. A cut inside a code
-// fence closes it here and reopens it in the rest.
 function firstPart(text: string): { part: string; rest: string } {
   if (text.length <= config.maxMessageChars) {
     return { part: text, rest: '' };
@@ -35,9 +32,6 @@ function splitAnswer(answer: string): string[] {
   return rest ? [part, ...splitAnswer(rest)] : [part];
 }
 
-// One turn's answer in Slack. It fills in while the model writes `reply`'s
-// arguments, and `finish` settles it to the validated input, so a retry after a
-// rejected card edits this message instead of posting a second one.
 export class ReplyDraft {
   private message: Promise<string | undefined> = Promise.resolve(undefined);
   private lastCardAt = 0;
@@ -70,8 +64,6 @@ export class ReplyDraft {
     this.sent += text;
   }
 
-  // Held back to the last whitespace, because neutralizing is only stable on
-  // whole words and a broadcast can arrive split across two deltas.
   writeMessage(message: string): void {
     const end = message.search(/\s\S*$/);
     if (end <= 0 || !(this.stream || !this.posted)) {
@@ -90,7 +82,6 @@ export class ReplyDraft {
     this.lastCardAt = Date.now();
     const previous = this.message;
     this.sendCard(answerCard({ answer: neutralizeBroadcasts(answer), card }));
-    // A partial Slack rejects must not stop the finished card from posting.
     this.message = this.message.catch(async (error: unknown) => {
       logger.debug('[reply] Slack rejected a partial card', {
         error,
@@ -139,7 +130,6 @@ export class ReplyDraft {
   }): Promise<void> {
     const [first = answer, ...later] = splitAnswer(answer);
     const last = later.pop();
-    // A retry can drop the card, and its partial still has to be replaced.
     if ((card || this.lastCardAt) && !last) {
       this.closeMessage();
       await this.settleCard({

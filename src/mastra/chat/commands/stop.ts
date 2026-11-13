@@ -26,9 +26,6 @@ async function cancelBackgroundTasks(threadId: string): Promise<number> {
   return tasks.length;
 }
 
-// 'aborted' means a live run was cancelled, and the agent's own onAbort posts
-// about it. 'cancelled' means only background work was running, so nothing else
-// tells the person it stopped.
 export async function stopThread(
   threadId: string
 ): Promise<'aborted' | 'cancelled' | 'idle'> {
@@ -57,7 +54,7 @@ export async function stopThread(
   const active = Boolean(orchestrator.getActiveThreadRunId(scope));
   // Also between turns: the open untilIdle stream starts a follow-up turn when a
   // task ends, even a cancelled one, unless it is closed too.
-  orchestrator.abortThreadStream(scope);
+  orchestrator.abortThreadStream({ ...scope, clearPendingSignals: true });
   if (active) {
     return 'aborted';
   }

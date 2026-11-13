@@ -87,9 +87,6 @@ export const onSlashCommand: SlashCommandChannelHandler = async (
   const isBan = subcommand === 'ban';
   const isUnban = subcommand === 'unban';
   if (!(isBan || isUnban || subcommand === 'bans')) {
-    // defaultHandler runs a full agent turn, so it gets the same gates as a
-    // mention: banned or not opted in gets nothing, and it counts against the
-    // token limit.
     if ((await isBanned(actorId)) || !(await isUserAllowed(actorId))) {
       await reply({ raw: event.raw, text: "You can't use Gorkie right now." });
       return;

@@ -34,13 +34,11 @@ export async function prepareScheduledFire({
         : undefined
     ).data?.channel.userId;
   if (!creator) {
-    logger.warn('[schedules] fired a schedule with no Slack creator', {
+    logger.warn('[schedules] skipped a schedule with no Slack creator', {
       scheduleId: schedule.id,
     });
-    return;
+    return null;
   }
-  // Fails closed: a ban that cannot be checked skips the fire, and a recurring
-  // schedule fires again on its next tick.
   if ((await banStatus(creator)).status !== 'clear') {
     logger.info("[schedules] skipped a banned user's fire", {
       scheduleId: schedule.id,

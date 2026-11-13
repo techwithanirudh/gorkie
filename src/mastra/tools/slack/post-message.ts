@@ -77,8 +77,6 @@ The message goes out with the person's avatar, named "Name [gorkie]", with a "Se
       username: `${name ?? 'someone'} [gorkie]`.slice(0, 80),
       avatarUrl: requester?.avatarUrl,
     };
-    // Scheduled runs deliver here with nobody around to click Send, and a DM to
-    // the requester speaks for no one else.
     if (isOwnDestination) {
       await deliver(pending);
       return { status: 'sent' as const, destination: destination.label };

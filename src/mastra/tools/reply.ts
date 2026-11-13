@@ -17,7 +17,6 @@ export const replyTool = createTool({
   outputSchema: z.strictObject({ sent: z.boolean() }),
   transform: { display: { output: () => ({ summary: 'Reply sent' }) } },
   execute: async ({ message, card }, context) => {
-    // Thrown before anything settles so the model can fix it while the turn is open.
     if (markdownTable.test(message)) {
       throw new Error(
         'Slack cannot show a markdown table. Move it into card as a Table element and keep the takeaway in message.'

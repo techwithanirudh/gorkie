@@ -39,8 +39,6 @@ async function hasRunningBackgroundTask(
     });
     return tasks.length > 0;
   } catch (error) {
-    // Unknown counts as running: pausing under a live task breaks it, while
-    // skipping one pause only keeps the sandbox up until its timeout.
     logger.warn('[sandbox] could not check background tasks', { error });
     return true;
   }
@@ -70,8 +68,6 @@ export const sandbox = {
   },
   async processOutputResult(args: ProcessOutputResultArgs) {
     const { requestContext, messages } = args;
-    // A child or a command may still be using the box. Its own timeout caps how
-    // long that can run unattended.
     if (
       requestContext &&
       runningJobs(channelContext(requestContext).threadId) === 0 &&

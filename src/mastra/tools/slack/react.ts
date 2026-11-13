@@ -27,12 +27,6 @@ export const reactTool = createTool({
       .describe('Slack message URL, instead of channelId/messageId.'),
     action: z.enum(['add', 'remove']).default('add'),
     emoji: z.string().min(1).describe('Emoji name without colons.'),
-    continueTurn: z
-      .boolean()
-      .optional()
-      .describe(
-        'Default false: the reaction ends your turn. True keeps the turn going, such as reacting before more work.'
-      ),
   }),
   outputSchema: output({
     action: z.enum(['add', 'remove']),

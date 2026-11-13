@@ -5,8 +5,7 @@ import { channelContext } from './context';
 
 type LimitKind = keyof typeof limits;
 
-// Cached input is left out: it is most of a long turn and costs almost nothing.
-export function countedTokens({
+export function uncachedTokens({
   cachedInputTokens,
   inputTokens,
   outputTokens,
@@ -42,7 +41,6 @@ export async function overLimit({
   userId: string;
 }): Promise<string | null> {
   const { max, noun } = limits[kind];
-  // Tokens are counted when a run ends, since nobody knows the cost up front.
   if (
     kind !== 'tokens' &&
     (await addUsage({ amount: 1, ceiling: max, kind, userId }))

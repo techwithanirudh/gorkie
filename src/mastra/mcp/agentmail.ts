@@ -31,8 +31,6 @@ export const agentmailEnabled = client !== undefined;
 
 let listed: ReturnType<MCPClient['listToolsWithErrors']> | undefined;
 
-// The inbox is pinned here, after the model's input, so no tool can reach
-// another inbox on the account.
 export async function callAgentMail({
   args,
   context,

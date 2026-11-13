@@ -18,8 +18,6 @@ export function readUsage(userId: string) {
     );
 }
 
-// One statement, so two calls at once can't both pass the ceiling. Returns
-// whether the amount was counted, which is false only at the ceiling.
 export async function addUsage({
   amount,
   ceiling,

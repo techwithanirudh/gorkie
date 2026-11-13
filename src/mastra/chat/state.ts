@@ -16,7 +16,6 @@ async function stateStore() {
   return store;
 }
 
-// One process serves Slack, so this can answer reads and order writes.
 const cache = new Map<string, ThreadState>();
 const pendingWrites = new Map<string, Promise<void>>();
 

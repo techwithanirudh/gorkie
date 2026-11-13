@@ -1,4 +1,4 @@
-import { generateText } from 'ai';
+import { generateText, Output } from 'ai';
 import type { Message, Thread } from 'chat';
 import { gate as config } from '../config';
 import { logger } from '../lib/logger';
@@ -70,18 +70,19 @@ ${recent.reverse().map(render).join('\n') || '(none)'}
 ${newest.map(render).join('\n')}
 </newest_messages>
 
-Should gorkie respond to the newest messages? Answer yes or no.`;
+Should gorkie respond to the newest messages?`;
   try {
     // Direct, because an Agent run costs several database round trips per step.
-    const { text } = await generateText({
+    const { output } = await generateText({
       model: gateModel,
       system: gatePrompt,
       prompt,
+      output: Output.choice({ options: ['yes', 'no'] }),
       maxOutputTokens: config.maxTokens.output,
       maxRetries: 1,
       abortSignal: AbortSignal.timeout(config.timeoutMs),
     });
-    const respond = text.trim().toLowerCase().startsWith('yes');
+    const respond = output === 'yes';
     logger.info('[chat] relevance check', {
       respond,
       threadId: thread.id,

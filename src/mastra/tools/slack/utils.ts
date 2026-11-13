@@ -96,8 +96,6 @@ export function assertCanPostTo({
     throw new Error('No current Slack channel to compare against.');
   }
 
-  // parseSlackId is what the tools post with, so a permalink inside a thread id
-  // cannot pass this check and then post somewhere else.
   const destination =
     target.type === 'thread'
       ? (parseSlackId(target.id).channel ?? '')
