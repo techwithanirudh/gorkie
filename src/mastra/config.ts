@@ -24,8 +24,7 @@ export const file = {
 export const image = {
   maxEditBytes: 8 * 1024 * 1024,
   requestTimeoutMs: 5 * 60 * 1000,
-  // Cap on an image inlined into the model context, matching Mastra read_file's
-  // 10MB media default; a larger file is refused rather than blowing up context.
+  // Matches Mastra read_file's 10MB media default.
   maxViewBytes: 10 * 1024 * 1024,
   // Vision models cap inline images per request (GLM: 8 images, 64 MiB total,
   // non-retryable 400 over that). Keep only the most recent within these bounds.

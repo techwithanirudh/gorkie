@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { createEnv } from '@t3-oss/env-core';
 import { z } from 'zod';
+import { slackUserIdSchema } from './mastra/types/user';
 
 const idList = z
   .string()
@@ -19,12 +20,9 @@ export const env = createEnv({
       .enum(['development', 'production', 'test'])
       .default('development'),
 
-    // Injected by the Mastra CLI, not set by hand. `mastra dev` and
-    // `mastra start` each run with a different cwd, neither of which is the
-    // repo root, so anything writing a file relative to cwd needs this.
-    // Not `MASTRA_PROJECT_ROOT`: the Mastra CLI sets that itself, after our
-    // .env is loaded, and points it at `.mastra` rather than the repo root.
-    // Anything anchored to it lands in the wrong directory.
+    // Injected by the Mastra CLI. `mastra dev` and `mastra start` each run with
+    // a cwd that is not the repo root. Not `MASTRA_PROJECT_ROOT`: the CLI sets
+    // that after .env loads and points it at `.mastra`.
     PROJECT_ROOT: z.string().default(process.cwd()),
 
     HOST: z.string().default('127.0.0.1'),
@@ -37,7 +35,7 @@ export const env = createEnv({
       .regex(/^[CG][A-Z0-9]+$/, 'must be a Slack channel id')
       .optional(),
     BLOCKED_CHANNELS: idList,
-    MODERATORS: idList.pipe(z.array(z.string().regex(/^[UW][A-Z0-9]+$/))),
+    MODERATORS: idList.pipe(z.array(slackUserIdSchema)),
 
     HACKCLUB_API_KEY: z.string().min(1),
     AI_GATEWAY_API_KEY: z.string().min(1),

@@ -6,9 +6,6 @@ import { withoutLeadingMentions } from './message';
 
 const mentionPattern = /<@([A-Z0-9_]+)(?:\|([^<>]+))?>/g;
 
-const MAX_USER_LOOKUPS = 4;
-const UNRESOLVED_TTL_MS = 60_000;
-
 export class SlackAgentAdapter extends SlackAdapter {
   protected override handleMessageEvent(
     ...args: Parameters<SlackAdapter['handleMessageEvent']>
@@ -62,7 +59,7 @@ export class SlackAgentAdapter extends SlackAdapter {
     }
 
     const lookup = (async () => {
-      if (this.activeLookups >= MAX_USER_LOOKUPS) {
+      if (this.activeLookups >= 4) {
         await new Promise<void>((resolve) => this.waitingLookups.push(resolve));
       } else {
         this.activeLookups++;
@@ -72,7 +69,7 @@ export class SlackAgentAdapter extends SlackAdapter {
         if (user) {
           this.unresolvedUntil.delete(userId);
         } else {
-          this.unresolvedUntil.set(userId, Date.now() + UNRESOLVED_TTL_MS);
+          this.unresolvedUntil.set(userId, Date.now() + 60_000);
         }
         return user;
       } finally {

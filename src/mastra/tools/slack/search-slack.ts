@@ -78,11 +78,9 @@ const rateLimitSchema = z.looseObject({
   retryAfter: z.number().optional(),
 });
 
-// On a 429 the shared client pauses its whole queue for Slack's retry-after and
-// retries, so one search stops every Slack call in the process for minutes. This
-// client rejects a 429 at once, and the model hears how long search is out.
-// rejectRateLimitedCalls aborts the retry loop, so only network errors and 5xx
-// responses are retried.
+// On a 429 the shared client pauses its whole queue for Slack's retry-after, so
+// one search stalls every Slack call in the process for minutes. This client
+// rejects a 429 at once and retries only network errors and 5xx responses.
 const searchClient = new WebClient(undefined, {
   logger: slackWebLogger,
   rejectRateLimitedCalls: true,
@@ -189,8 +187,6 @@ async function runSearch({
       })
     );
   } catch (error) {
-    // Throw the reason as the tool error the model receives. Never retry a
-    // denied search under a different identity or disguise it as zero hits.
     throw searchFailure(error);
   }
 }
@@ -237,25 +233,21 @@ async function toOutput({
       );
       return shared && rawId(channelId).startsWith('C') ? channelId : undefined;
     } catch (error) {
-      // A channel gorkie cannot look up is not readable. Anything else, a
-      // rate limit above all, has to fail the search instead of quietly
-      // shrinking it into a confident "nothing found".
+      // A rate limit has to fail the search, not shrink it into "nothing found".
       if (slackError(error) === 'channel_not_found') {
         return;
       }
       throw searchFailure(error);
     }
   };
-  // Bounded in small batches: one unbounded Promise.all can fire enough
-  // parallel conversations.info calls to trip Slack rate limits. No caching, on
-  // purpose - visibility is the privacy gate for these results, and a stale
-  // "workspace" entry would leak a channel that later went private.
+  // Unbounded parallel conversations.info calls trip Slack rate limits. Not
+  // cached: a stale "workspace" entry would leak a channel that went private.
   const visibilityBatchSize = 4;
   const ids = [...channelIds];
   const resolved: Array<string | undefined> = [];
   for (let index = 0; index < ids.length; index += visibilityBatchSize) {
     resolved.push(
-      // biome-ignore lint/performance/noAwaitInLoops: batches are sequential on purpose - that is what bounds the concurrency.
+      // biome-ignore lint/performance/noAwaitInLoops: sequential batches are what bound the concurrency.
       ...(await Promise.all(
         ids.slice(index, index + visibilityBatchSize).map(lookupVisibility)
       ))

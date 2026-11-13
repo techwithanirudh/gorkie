@@ -6,10 +6,10 @@ import { isUserAllowed } from './lib/allowed-users';
 import { rawId } from './lib/ids';
 import { overLimit } from './lib/limits';
 import { logger } from './lib/logger';
+import { slackUserIdSchema } from './types';
 
-const slackUserId = z.string().regex(/^[UW][A-Z0-9]+$/);
 const requestContextSchema = z.object({
-  channel: z.object({ userId: slackUserId }),
+  channel: z.object({ userId: slackUserIdSchema }),
 });
 
 // Only `null` skips a fire; `undefined` fires it with the row's defaults.
@@ -25,7 +25,7 @@ export async function prepareScheduledFire({
     return null;
   }
   const creator =
-    slackUserId.safeParse(
+    slackUserIdSchema.safeParse(
       current.resourceId ? rawId(current.resourceId) : undefined
     ).data ??
     requestContextSchema.safeParse(

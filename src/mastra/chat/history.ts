@@ -3,9 +3,6 @@ import { parseMarkdown, stringifyMarkdown } from 'chat';
 import { isComment } from './message';
 import { threadState } from './state';
 
-const MAX_MESSAGES = 30;
-const MAX_SCANNED = 60;
-
 export async function withHistory({
   message,
   skipped,
@@ -29,7 +26,7 @@ export async function withHistory({
     if (previous.id === state?.lastSeenMessage) {
       break;
     }
-    if (scanned >= MAX_SCANNED) {
+    if (scanned >= 60) {
       truncated = true;
       break;
     }
@@ -61,7 +58,7 @@ export async function withHistory({
         `[${author} (${mention})${bot}] (msg:${previous.id}): ${text}${files}`
       );
     }
-    if (lines.length >= MAX_MESSAGES) {
+    if (lines.length >= 30) {
       truncated = true;
       break;
     }

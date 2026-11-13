@@ -2,15 +2,16 @@ import type { ToolsInput } from '@mastra/core/agent';
 import type { RequestContext } from '@mastra/core/request-context';
 import { createCodeMode, createCodeModeTool } from '@mastra/core/tools';
 import { E2BCodeModeTransport } from '@mastra/e2b';
+import { z } from 'zod';
 import { toolActivity } from '../../chat/status/tool-activity';
 import { sandbox as sandboxConfig } from '../../config';
 import { mcpTools } from '../../mcp';
 import { codeModePrompt } from '../../prompts/features/code-mode';
+import { workDescriptionSchema } from '../../types/progress';
 import { codeModeToolNames, getSandbox } from '../../workspace';
 import { workspaceTools } from '../../workspace/tools';
 import { canvasTools } from '../canvas';
 import { slackTools } from '../slack';
-import { describeWorkSchema } from '../work-description';
 
 const transport = new E2BCodeModeTransport();
 
@@ -75,7 +76,12 @@ async function createCodeModeInstance({
   };
   const mode = createCodeMode(modeConfig, transport);
 
-  mode.tool.inputSchema = describeWorkSchema(mode.tool.inputSchema);
+  if (!(mode.tool.inputSchema instanceof z.ZodObject)) {
+    throw new Error('Described work tools must expose an object input schema.');
+  }
+  mode.tool.inputSchema = mode.tool.inputSchema.extend({
+    description: workDescriptionSchema,
+  });
 
   mode.tool.execute = async (input, context) => {
     if (!context.requestContext) {

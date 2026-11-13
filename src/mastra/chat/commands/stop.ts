@@ -26,7 +26,7 @@ async function cancelBackgroundTasks(threadId: string): Promise<number> {
   return tasks.length;
 }
 
-export async function stopThread(
+async function stopThread(
   threadId: string
 ): Promise<'aborted' | 'cancelled' | 'idle'> {
   const { default: orchestrator } = await import('../../agents/orchestrator');

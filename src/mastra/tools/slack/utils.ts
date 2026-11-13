@@ -56,8 +56,7 @@ export async function assertReadableResource({
     return;
   }
 
-  // Still refused either way. A rate limit or timeout just must not read as
-  // "this conversation is private".
+  // A rate limit or timeout must not read as "this conversation is private".
   const failed = checks.find(
     (check) =>
       check.status === 'rejected' &&
