@@ -85,6 +85,9 @@ export function answerStream({
   let wake: (() => void) | undefined;
   let card: Promise<unknown> | undefined;
   let inSpec = false;
+  // Blank lines wait for the next text line, so the ones left around a cut-out
+  // spec fence or at the end never reach Slack.
+  let blankLines = '';
   async function* patchLines() {
     while (!ended || patches.length > 0) {
       const next = patches.shift();
@@ -110,7 +113,12 @@ export function answerStream({
       return;
     }
     if (!inSpec) {
-      onText(`${neutralizeBroadcasts(text)}\n`);
+      if (!trimmed) {
+        blankLines += '\n';
+        return;
+      }
+      onText(`${blankLines}${neutralizeBroadcasts(text)}\n`);
+      blankLines = '';
       return;
     }
     const patch = patchLine.safeParse(trimmed).data;
