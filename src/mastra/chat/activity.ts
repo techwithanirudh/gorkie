@@ -288,20 +288,25 @@ async function showActivity({
       });
     }
     enqueue();
+    let failed = false;
     Promise.all(
       running.map(async (job) => {
         const succeeded = await job.done;
         const step = steps.get(`job-${job.handle.pid}`);
         if (step) {
           step.status = succeeded ? 'complete' : 'error';
+          step.details = succeeded ? 'Done' : 'Exited with an error';
           step.completedAt = Date.now();
         }
+        failed ||= !succeeded;
         schedule();
       })
     ).finally(() => {
       clearTimeout(updateTimer);
       updateTimer = undefined;
-      title = outcomeTitle;
+      // Slack shows a warning icon on the whole plan when any row failed, so
+      // the title says so instead of reading as a clean finish.
+      title = failed ? 'Background job failed' : outcomeTitle;
       completedAt = Date.now();
       return enqueue();
     });
