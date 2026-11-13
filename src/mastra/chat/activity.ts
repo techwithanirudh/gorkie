@@ -141,6 +141,31 @@ async function showActivity({
   let lastSentAt = 0;
   let updateTimer: ReturnType<typeof setTimeout> | undefined;
   let writes = Promise.resolve();
+  // Channels hands the answer text to this display along with the plan, so it
+  // streams it into its own message.
+  const answer: string[] = [];
+  let answerDone = false;
+  let wakeAnswer: (() => void) | undefined;
+  let answerPosted: Promise<unknown> | undefined;
+  async function* answerText() {
+    while (!answerDone || answer.length > 0) {
+      const next = answer.shift();
+      if (next !== undefined) {
+        yield next;
+        continue;
+      }
+      // biome-ignore lint/performance/noAwaitInLoops: text arrives in order and is yielded as it comes
+      await new Promise<void>((resolve) => {
+        wakeAnswer = resolve;
+      });
+    }
+  }
+  const pushAnswer = (text: string) => {
+    answer.push(text);
+    answerPosted ??= thread.post(answerText());
+    wakeAnswer?.();
+    wakeAnswer = undefined;
+  };
   const hasDetails = () =>
     [...steps.values()].some(
       (step) => step.id.startsWith(delegatedStepPrefix) || Boolean(step.details)
@@ -247,6 +272,10 @@ async function showActivity({
   };
   try {
     for await (const piece of stream) {
+      if (typeof piece === 'string') {
+        pushAnswer(piece);
+        continue;
+      }
       const ended = activityEndSchema.safeParse(piece);
       if (ended.success) {
         ({ outcome } = ended.data);
@@ -286,6 +315,14 @@ async function showActivity({
     outcome = 'Failed';
     throw error;
   } finally {
+    answerDone = true;
+    wakeAnswer?.();
+    await answerPosted?.catch((error: unknown) => {
+      logger.warn('[activity] answer post failed', {
+        error,
+        threadId: thread.id,
+      });
+    });
     clearTimeout(updateTimer);
     updateTimer = undefined;
     completedAt ??= Date.now();

@@ -19,7 +19,7 @@ function requesterLabel(context: ToolExecutionContext): string {
       'Email tools need a Slack requester, and this run has none, so nothing was read or sent.'
     );
   }
-  return `slack-user:${userId}`;
+  return `slack-user:${userId.toLowerCase()}`;
 }
 
 const threadSchema = z.object({
