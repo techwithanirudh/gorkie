@@ -2,6 +2,7 @@ import type { Processor } from '@mastra/core/processors';
 import { agent as config, limits } from '../config';
 import { readUsage } from '../db/queries/usage';
 import { channelContext } from '../lib/context';
+import { countedTokens } from '../lib/limits';
 import { logger } from '../lib/logger';
 import { outputBudgetPrompt, usageLimitPrompt } from '../prompts/processors';
 
@@ -23,10 +24,7 @@ export const outputBudget = {
     let counted = 0;
     for (const { usage } of steps) {
       output += usage.outputTokens ?? 0;
-      // Counted the way processors/token-usage.ts adds it to the limit.
-      counted +=
-        Math.max(0, (usage.inputTokens ?? 0) - (usage.cachedInputTokens ?? 0)) +
-        (usage.outputTokens ?? 0);
+      counted += countedTokens(usage);
     }
     const overLimit =
       userId !== undefined &&

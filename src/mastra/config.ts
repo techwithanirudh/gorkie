@@ -127,10 +127,9 @@ export const emoji = {
 };
 
 export const activity = {
-  updateIntervalMs: 1500,
-  // Chat SDK edits a streamed reply every 500ms by default, and Slack refuses
-  // the bot past about 50 chat.update calls a minute across every thread.
-  streamEditIntervalMs: 2000,
+  // Every plan and reply edit waits this long. Slack refuses the bot past about
+  // 50 chat.update calls a minute across every thread.
+  editIntervalMs: 2000,
   maxPhases: 8,
   maxTools: 32,
   taskPollMs: 5000,

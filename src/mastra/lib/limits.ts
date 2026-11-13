@@ -5,6 +5,22 @@ import { channelContext } from './context';
 
 type LimitKind = keyof typeof limits;
 
+// Cached input is left out: it is most of a long turn and costs almost nothing.
+export function countedTokens({
+  cachedInputTokens,
+  inputTokens,
+  outputTokens,
+}: {
+  cachedInputTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+}): number {
+  return (
+    Math.max(0, (inputTokens ?? 0) - (cachedInputTokens ?? 0)) +
+    (outputTokens ?? 0)
+  );
+}
+
 function resetsIn(windowStart: Date): string {
   const minutes = Math.max(
     1,

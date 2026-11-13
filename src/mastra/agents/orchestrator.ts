@@ -273,7 +273,7 @@ const orchestrator = new Agent({
       // reply only opens a stream once it has text, and a placeholder outlives
       // an edit Slack rejects.
       fallbackStreamingPlaceholderText: null,
-      streamingUpdateIntervalMs: activityConfig.streamEditIntervalMs,
+      streamingUpdateIntervalMs: activityConfig.editIntervalMs,
       concurrency: { strategy: 'burst', debounceMs: config.batchWindowMs },
       logger: 'warn',
     },

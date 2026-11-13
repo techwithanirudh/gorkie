@@ -207,7 +207,7 @@ async function showActivity({
         // A Slack edit must not hold the model stream behind a network request.
         enqueue();
       },
-      Math.max(0, lastSentAt + config.updateIntervalMs - Date.now())
+      Math.max(0, lastSentAt + config.editIntervalMs - Date.now())
     );
   };
   // Runs detached, because the turn that handed off has to end for the thread to
@@ -290,14 +290,14 @@ async function showActivity({
     clearTimeout(updateTimer);
     completedAt ??= Date.now();
     title = outcome ?? 'Stopped';
+    const endStatus: Record<string, PlanModelTask['status']> = {
+      Stopped: 'pending',
+      Failed: 'error',
+    };
+    const unfinished = endStatus[title] ?? 'complete';
     for (const step of steps.values()) {
       if (step.status !== 'complete' && step.status !== 'error') {
-        step.status = 'complete';
-        if (title === 'Stopped') {
-          step.status = 'pending';
-        } else if (title === 'Failed') {
-          step.status = 'error';
-        }
+        step.status = unfinished;
       }
       step.completedAt ??= completedAt;
     }

@@ -55,14 +55,38 @@ async function listBans(): Promise<string> {
     .join('\n');
 }
 
+const usage = {
+  ban: `@user [${banDurationSchema.options.join('|')}] [reason]`,
+  unban: '@user [reason]',
+};
+
 export const onSlashCommand: SlashCommandChannelHandler = async (
   event,
   defaultHandler
 ) => {
-  const isBan = ['/ban', '/gorkie-dev-ban'].includes(event.command);
-  const isUnban = ['/unban', '/gorkie-dev-unban'].includes(event.command);
   const actorId = event.user.userId;
-  if (!(isBan || isUnban)) {
+  const [, word = '', args = ''] =
+    event.text.trim().match(/^(\S*)\s*(.*)$/s) ?? [];
+  const subcommand = word.toLowerCase();
+  if (subcommand === '' || subcommand === 'help') {
+    const { command } = event;
+    await reply({
+      raw: event.raw,
+      text: [
+        `*${command} help:* show this list.`,
+        `*${command} <anything else>:* ask gorkie, the same as a mention.`,
+        `*${command} ban ${usage.ban}:* ban someone (moderators only).`,
+        `*${command} unban ${usage.unban}:* lift a ban (moderators only).`,
+        `*${command} bans:* list active bans (moderators only).`,
+        '',
+        'Inside a thread, `!help` lists the thread commands.',
+      ].join('\n'),
+    });
+    return;
+  }
+  const isBan = subcommand === 'ban';
+  const isUnban = subcommand === 'unban';
+  if (!(isBan || isUnban || subcommand === 'bans')) {
     // defaultHandler runs a full agent turn, so it gets the same gates as a
     // mention: banned or not opted in gets nothing, and it counts against the
     // token limit.
@@ -87,11 +111,18 @@ export const onSlashCommand: SlashCommandChannelHandler = async (
     });
     return;
   }
-  const [, userId, rest = ''] = event.text.trim().match(target) ?? [];
+  if (!(isBan || isUnban)) {
+    await reply({
+      raw: event.raw,
+      text: `*Active bans*\n${await listBans()}`,
+    });
+    return;
+  }
+  const [, userId, rest = ''] = args.match(target) ?? [];
   if (!userId) {
     await reply({
       raw: event.raw,
-      text: `Usage: \`${event.command} @user${isBan ? ` [${banDurationSchema.options.join('|')}]` : ''} [reason]\`\n\n*Active bans*\n${await listBans()}`,
+      text: `Usage: \`${event.command} ${subcommand} ${isBan ? usage.ban : usage.unban}\`\n\n*Active bans*\n${await listBans()}`,
     });
     return;
   }

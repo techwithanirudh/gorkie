@@ -19,15 +19,9 @@
     },
     "slash_commands": [
       {
-        "command": "/ban",
-        "description": "Ban someone from gorkie (moderators only)",
-        "usage_hint": "@user [1h|1d|7d|30d|perm] [reason]",
-        "should_escape": true
-      },
-      {
-        "command": "/unban",
-        "description": "Lift a gorkie ban (moderators only)",
-        "usage_hint": "@user [reason]",
+        "command": "/gorkie",
+        "description": "Ask gorkie, or moderate it: help, ban, unban, bans",
+        "usage_hint": "help | ban @user [1h|1d|7d|30d|perm] [reason] | unban @user | bans | <question>",
         "should_escape": true
       }
     ]

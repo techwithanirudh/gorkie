@@ -247,7 +247,7 @@ export const progress = {
           outcome: turn.outcome,
           startedAt: turn.startedAt,
           status: current()?.title || 'working',
-          intervalMs: config.updateIntervalMs,
+          intervalMs: config.editIntervalMs,
         },
       },
     };

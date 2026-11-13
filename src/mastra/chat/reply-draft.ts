@@ -84,7 +84,7 @@ export class ReplyDraft {
   }
 
   writeCard({ answer, card }: { answer: string; card: CardElement }): void {
-    if (Date.now() - this.lastCardAt < config.updateIntervalMs) {
+    if (Date.now() - this.lastCardAt < config.editIntervalMs) {
       return;
     }
     this.lastCardAt = Date.now();
