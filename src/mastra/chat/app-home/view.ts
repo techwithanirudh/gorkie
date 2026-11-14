@@ -2,6 +2,7 @@ import { getGitHubCredential } from '../../db/queries/github';
 import { listMCPServers } from '../../db/queries/mcps';
 import { getGitHubSettings, getInstructions } from '../../db/queries/settings';
 import { countInstallations } from '../../lib/github';
+import { githubAccessToken } from '../../lib/github/token';
 import { usage } from '../../lib/limits';
 import { logger } from '../../lib/logger';
 import type { GitHubCredential } from '../../types';
@@ -78,12 +79,21 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
     }),
     settled({ label: 'usage', userId, work: usage(userId) }),
   ]);
-  const installations = credential
-    ? await countInstallations(credential.token)
-    : 0;
+  // The stored token lasts 8 hours and only githubAccessToken refreshes it, so
+  // checking with it directly fails for anyone idle that long.
+  const token = credential
+    ? await githubAccessToken(userId).catch((error: unknown) => {
+        logger.warn('[app-home] could not refresh the GitHub token', {
+          error,
+          userId,
+        });
+      })
+    : undefined;
+  const installations = token ? await countInstallations(token) : 0;
 
   const sections: HomeSection[] = [
     { fixed: [...content.home.blocks, { type: 'divider' }] },
+    ...(usageRows ? [usageBlocks(usageRows)] : []),
     customInstructionsBlocks(instructions),
     githubBlocks({
       credential,
@@ -94,7 +104,6 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
     }),
     mcpServersBlocks(mcpServers ?? []),
     ...(scheduled ? [scheduled] : []),
-    ...(usageRows ? [usageBlocks(usageRows)] : []),
   ];
 
   return { type: 'home', blocks: fitHome(sections) };

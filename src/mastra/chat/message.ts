@@ -16,10 +16,8 @@ export function isComment(message: Message): boolean {
   const [first] = rawText(message)
     .split('\n')
     .filter((line) => line.trim());
-  return (
-    first !== undefined &&
-    withoutLeadingMentions(first).trimStart().startsWith('##')
-  );
+  const start = first ? withoutLeadingMentions(first).trimStart() : '';
+  return start.startsWith('##') || start.startsWith('--');
 }
 
 export function neutralizeBroadcasts(text: string): string {

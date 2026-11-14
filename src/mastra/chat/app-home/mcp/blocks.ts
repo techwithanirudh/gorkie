@@ -7,32 +7,29 @@ import { ids } from './ids';
 export function mcpServersBlocks(
   servers: (MCPServerConfig & { lastError?: string })[]
 ): HomeSection {
-  const add = {
-    type: 'actions',
-    elements: [
-      {
-        type: 'button',
-        text: { type: 'plain_text', text: 'Add' },
-        action_id: ids.add,
-      },
-    ],
+  const header = {
+    ...heading('MCP Servers'),
+    accessory: {
+      type: 'button',
+      text: { type: 'plain_text', text: 'Add' },
+      action_id: ids.add,
+    },
   };
 
   if (servers.length === 0) {
     return {
       fixed: [
-        heading('MCP Servers'),
+        header,
         note(
           'None yet. Add a server to give Gorkie extra tools, just for you.'
         ),
-        add,
       ],
       trailing: [{ type: 'divider' }],
     };
   }
 
   return {
-    fixed: [heading('MCP Servers'), add],
+    fixed: [header],
     rows: servers.map((server) => [
       {
         type: 'section',

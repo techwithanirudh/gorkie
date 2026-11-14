@@ -419,6 +419,20 @@ async function showActivity({
       }
       step.completedAt ??= completedAt;
     }
+    // A model can end a turn with only reasoning, which never reaches Slack, so
+    // a finished turn that posted nothing says so instead of going quiet.
+    if (title === 'Completed' && posts.length === 0) {
+      await thread
+        .post(
+          "_I finished that turn without writing an answer. Ask again and I'll pick it up from here._"
+        )
+        .catch((error: unknown) => {
+          logger.warn('[activity] could not post the missing-answer note', {
+            error,
+            threadId: thread.id,
+          });
+        });
+    }
     const running =
       title === 'Stopped' || title === 'Failed' ? [] : threadJobs(thread.id);
     if (title === 'Handed off') {

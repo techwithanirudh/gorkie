@@ -40,8 +40,8 @@ import { sandbox } from '../processors/sandbox';
 import { tokenUsage } from '../processors/token-usage';
 import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
-import { usageLimit } from '../processors/usage-limit';
 import { workingModel } from '../processors/working-model';
+import { wrapUp } from '../processors/wrap-up';
 import { instructions } from '../prompts';
 import { contextPrompt } from '../prompts/context';
 import { githubPrompt } from '../prompts/github';
@@ -172,7 +172,12 @@ const orchestrator = new Agent({
   inputProcessors: [
     autoBackground,
     firstStatus,
-    usageLimit,
+    wrapUp({
+      id: 'wrap-up',
+      // One step before stepCountIs ends the run, so the last one can answer.
+      maxSteps: config.maxSteps - 1,
+      maxTokens: config.maxTokensPerRun,
+    }),
     new ToolSearchProcessor({
       tools: deferredTools,
       storage: 'context',

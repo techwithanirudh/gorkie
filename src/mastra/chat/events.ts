@@ -1,6 +1,7 @@
 import { logger } from '../lib/logger';
 import { registerAppHome } from './app-home';
 import { slack } from './client';
+import { onAgentSessionStopped } from './commands/stop';
 import { content } from './content';
 import {
   feedbackIds,
@@ -23,6 +24,8 @@ export function registerEvents(): void {
         logger.error('[events] setSuggestedPrompts failed', { error })
       )
   );
+
+  bot.onAgentSessionStopped(onAgentSessionStopped);
 
   registerAppHome();
   registerModeration();

@@ -17,5 +17,6 @@ export function usageBlocks(
         `Each limit starts at its first use and resets ${limitWindowHours} hours later.`
       ),
     ],
+    trailing: [{ type: 'divider' }],
   };
 }

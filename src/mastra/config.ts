@@ -44,6 +44,9 @@ export const agent = {
   maxProcessorRetries: 2,
   batchWindowMs: 500,
   maxSteps: 1000,
+  // Uncached input plus output in one turn, under the 3M usage limit so one
+  // runaway turn cannot spend a person's whole window.
+  maxTokensPerRun: 2_000_000,
   modelTimeout: { firstChunkMs: 2 * 60 * 1000, stepMs: 5 * 60 * 1000 },
 };
 

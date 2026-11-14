@@ -5,14 +5,14 @@ import {
 } from '@mastra/core/processors';
 import { InMemoryStore } from '@mastra/core/storage';
 import { Memory } from '@mastra/memory';
-import { agent as config, subagent } from '../config';
+import { backgroundTasks, agent as config, subagent } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
-import { runLimits } from '../processors/run-limits';
 import { sandbox } from '../processors/sandbox';
 import { tokenUsage } from '../processors/token-usage';
 import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
+import { wrapUp } from '../processors/wrap-up';
 import * as explore from '../prompts/agents/explore';
 import { explorer } from '../providers';
 import { fetchUrlTool } from '../tools/fetch-url';
@@ -34,7 +34,12 @@ export const exploreAgent = new Agent({
     fetch_url: fetchUrlTool,
   },
   inputProcessors: [
-    runLimits,
+    wrapUp({
+      id: 'wrap-up',
+      maxSteps: subagent.maxSteps,
+      maxTokens: subagent.maxTokens,
+      deadlineMs: backgroundTasks.timeoutMs - subagent.wrapUpBeforeTimeoutMs,
+    }),
     new TokenLimiterProcessor({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
