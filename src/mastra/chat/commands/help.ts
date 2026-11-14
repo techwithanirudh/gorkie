@@ -1,31 +1,38 @@
-import type { CommandHandler } from '../../types';
-import { notify } from '../notify';
+import type { SharedCommand } from '../../types';
+import { moderationUsage } from '../moderation/commands';
+import { isModerator } from '../moderation/moderators';
 
-const COMMANDS: [string, string][] = [
-  ['!help', 'show this list.'],
-  [
-    '!stop',
-    'immediately stop the current turn and any background work in this thread.',
-  ],
-  [
-    '!compact',
-    "condense this thread's memory now instead of waiting for it to fill up.",
-  ],
-  ['!limits', 'show how much of your usage limits you have used.'],
-  [
-    '!connections',
-    'list your mcp servers, integrations, and github, with status.',
-  ],
-];
+const list = (items: [string, string][]) =>
+  items.map(([command, text]) => `• \`${command}\` ${text}`);
 
-export const help: CommandHandler = async ({ message, thread }) => {
-  const text = [
-    "*hey, i'm gorkie.* a helpful assistant right here in slack. mention me with anything: questions, code, research, files, or a hand with a task, and i'll pick it up in the thread.",
+export const commandList = (userId: string) =>
+  [
+    '*Commands:* type `!name` in a thread, or `/gorkie name` anywhere.',
+    ...list([
+      ['!help', 'show this list'],
+      ['!limits', 'see how much of your usage limits you have used'],
+      ['!connections', 'your MCP servers, integrations and GitHub'],
+    ]),
     '',
-    '*commands*',
-    ...COMMANDS.map(([command, description]) => `*${command}:* ${description}`),
+    '*In a thread only:*',
+    ...list([
+      ['!stop', 'stop the current turn and any background work'],
+      ['!compact', "condense this thread's memory"],
+    ]),
+    ...(isModerator(userId)
+      ? [
+          '',
+          '*Moderators:*',
+          ...list([
+            [`!ban ${moderationUsage.ban}`, 'ban someone'],
+            [`!unban ${moderationUsage.unban}`, 'lift a ban'],
+            ['!bans', 'list active bans'],
+          ]),
+        ]
+      : []),
     '',
-    'tip: set your custom instructions and manage github, mcp servers, and scheduled tasks from the *home* tab.',
+    'To ask me something, mention me. Custom instructions, GitHub, MCP servers and scheduled tasks live in the *Home* tab.',
   ].join('\n');
-  await notify({ text, thread, user: message.author });
-};
+
+export const help: SharedCommand = async ({ userId }) =>
+  `*hey, i'm gorkie.* mention me with anything: questions, code, research, files, or a hand with a task, and i'll pick it up in the thread.\n\n${commandList(userId)}`;

@@ -34,7 +34,7 @@ export const searchWebTool = createTool({
     },
   },
   execute: async ({ query }, { abortSignal, requestContext }) => {
-    await assertWithinLimit({ kind: 'webSearch', requestContext });
+    await assertWithinLimit({ kind: 'web', requestContext });
     const { results } = await withExaTimeout({
       request: exa.search(query, {
         type: 'auto',

@@ -2,7 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { chat } from '../../chat/instance';
 import { neutralizeBroadcasts } from '../../chat/message';
-import { assertCanSendTo, deliver, offerSend } from '../../chat/send';
+import { assertCanSendTo, offerSend } from '../../chat/send';
 import { type Target, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
 import { parseSlackId, rawId } from '../../lib/ids';
@@ -32,7 +32,7 @@ Never use this to answer the current conversation or to report progress: use rep
 
 A DM to the person asking goes out directly with status "sent". Anything else only prepares the message: the person sees a private preview with Send and Cancel buttons, nothing goes out until they click Send, and the status is "awaiting_confirmation". In that case don't say it was sent or describe the preview, and if nothing else needs an answer, call skip. You are not told the outcome; the preview itself shows it.
 
-The message goes out with the person's avatar, named "Name [gorkie]", with a "Sent by" line. Don't add attribution yourself. Find channel ids with list_channels.`,
+The message goes out with the person's avatar, named "Name [gorkie]", with a "Sent by" line, except a DM to the person asking, which comes from gorkie. Don't add attribution yourself. Find channel ids with list_channels.`,
   inputSchema: input({
     target: targetSchema.describe('Destination outside this conversation.'),
     message: z.string().min(1).max(6000).describe('Markdown message body.'),
@@ -65,7 +65,12 @@ The message goes out with the person's avatar, named "Name [gorkie]", with a "Se
         requesterId: ctx.userId,
       });
     }
-    const isOwnDestination = destination.userId === rawId(ctx.userId);
+    const isDmToRequester = destination.userId === rawId(ctx.userId);
+    if (isDmToRequester) {
+      const dm = await chat().openDM(ctx.userId);
+      await dm.post({ markdown: neutralizeBroadcasts(message) });
+      return { status: 'sent' as const, destination: destination.label };
+    }
     const requester = await chat()
       .getUser(ctx.userId)
       .catch(() => null);
@@ -77,10 +82,6 @@ The message goes out with the person's avatar, named "Name [gorkie]", with a "Se
       username: `${name ?? 'someone'} [gorkie]`.slice(0, 80),
       avatarUrl: requester?.avatarUrl,
     };
-    if (isOwnDestination) {
-      await deliver(pending);
-      return { status: 'sent' as const, destination: destination.label };
-    }
     await offerSend({
       pending,
       previewChannel,

@@ -1,13 +1,15 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { resolveUserProfile } from '../../chat/names';
+import { channelContext } from '../../lib/context';
+import { rawId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
 
 export const getUserTool = createTool({
   id: 'get_user',
   description:
-    "Look up one Slack user's profile by raw user id, such as U0123ABCD. Returns names, pronouns, timezone, title, status, and custom profile fields. Use search_slack instead when you only know the person's name.",
+    "Look up one Slack user's profile by raw user id, such as U0123ABCD. Returns names, pronouns, timezone, title, status, and custom profile fields, plus the email address when it is the person asking. Use search_slack instead when you only know the person's name.",
   inputSchema: input({
     userId: z.string().min(1).describe('Slack user id, e.g. U123ABC'),
   }),
@@ -21,6 +23,7 @@ export const getUserTool = createTool({
     timezone: z.string().optional(),
     timezoneLabel: z.string().optional(),
     fields: z.array(z.object({ label: z.string(), value: z.string() })),
+    email: z.string().optional(),
   }),
   transform: {
     display: {
@@ -33,6 +36,9 @@ export const getUserTool = createTool({
     spendSlackCall(context?.requestContext);
 
     const profile = await resolveUserProfile(userId);
+    const isRequester =
+      rawId(userId) ===
+      rawId(channelContext(context?.requestContext).userId ?? '');
     return {
       userId,
       userName: profile.displayName,
@@ -43,6 +49,7 @@ export const getUserTool = createTool({
       timezone: profile.timezone,
       timezoneLabel: profile.timezoneLabel,
       fields: profile.fields,
+      email: isRequester ? profile.email : undefined,
     };
   },
 });

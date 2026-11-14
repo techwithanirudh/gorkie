@@ -1,5 +1,6 @@
 import { formatSlackDate, formatSlackUser } from '@chat-adapter/slack/format';
 import { Actions, Button, Card, CardText, Field, Fields } from 'chat';
+import { formatDuration, intervalToDuration } from 'date-fns';
 import type { BanStatus, ModerationEvent } from '../../types';
 import { moderationIds } from './ids';
 
@@ -14,30 +15,49 @@ export function until(expiresAt: Date | null): string {
     : 'permanent';
 }
 
+// `closed` is the line that replaces the Unban button once the card is acted on.
 export function decisionCard({
+  closed,
   event,
-  liftedBy,
 }: {
+  closed?: string;
   event: ModerationEvent;
-  liftedBy?: string;
 }) {
   const banned = event.action === 'ban';
   return Card({
-    title: banned ? ':hammer: banned' : ':white_check_mark: unbanned',
+    title: banned ? 'Banned' : 'Unbanned',
     children: [
       Fields([
         Field({ label: 'User', value: formatSlackUser(event.userId) }),
         Field({ label: 'By', value: formatSlackUser(event.actorId) }),
         ...(banned
-          ? [Field({ label: 'Until', value: until(event.expiresAt) })]
+          ? [
+              Field({
+                label: 'Duration',
+                value: event.expiresAt
+                  ? `${
+                      formatDuration(
+                        intervalToDuration({
+                          start: 0,
+                          // The row is written a moment after expiresAt is set.
+                          end:
+                            Math.round(
+                              (event.expiresAt.getTime() -
+                                event.createdAt.getTime()) /
+                                60_000
+                            ) * 60_000,
+                        })
+                      ) || 'under a minute'
+                    }, until ${until(event.expiresAt)}`
+                  : 'Permanent',
+              }),
+            ]
           : []),
       ]),
       CardText(`*Reason:* ${event.reason ?? 'none given'}`),
-      ...(liftedBy
-        ? [CardText(`_Lifted by ${formatSlackUser(liftedBy)}._`)]
-        : []),
+      ...(closed ? [CardText(`_${closed}_`)] : []),
       Actions([
-        ...(banned && !liftedBy
+        ...(banned && !closed
           ? [
               Button({
                 id: moderationIds.unban,

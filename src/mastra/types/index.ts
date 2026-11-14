@@ -2,6 +2,7 @@ export * from './approval';
 export * from './channel';
 export * from './command';
 export * from './github';
+export * from './limits';
 export * from './mcp';
 export * from './moderation';
 export * from './tools';

@@ -8,6 +8,7 @@ import { Memory } from '@mastra/memory';
 import { backgroundTasks, agent as config, subagent } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { stepCountIs } from '../lib/tools';
+import { lowQuota } from '../processors/low-quota';
 import { sandbox } from '../processors/sandbox';
 import { tokenUsage } from '../processors/token-usage';
 import { moveToolImages } from '../processors/tool-media';
@@ -34,12 +35,8 @@ export const exploreAgent = new Agent({
     fetch_url: fetchUrlTool,
   },
   inputProcessors: [
-    wrapUp({
-      id: 'wrap-up',
-      maxSteps: subagent.maxSteps,
-      maxTokens: subagent.maxTokens,
-      deadlineMs: backgroundTasks.timeoutMs - subagent.wrapUpBeforeTimeoutMs,
-    }),
+    wrapUp({ id: 'wrap-up', timeoutMs: backgroundTasks.timeoutMs }),
+    lowQuota,
     new TokenLimiterProcessor({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
@@ -65,7 +62,7 @@ export const exploreAgent = new Agent({
       topP: 0.95,
       timeout: config.modelTimeout,
     },
-    stopWhen: stepCountIs(subagent.maxSteps + 1),
+    stopWhen: stepCountIs(subagent.maxSteps),
     autoResumeSuspendedTools: true,
   },
   outputProcessors: [tokenUsage, sandbox, workingModel('explore')],

@@ -8,6 +8,7 @@ import { Memory } from '@mastra/memory';
 import { skillResultRedactor } from '@mastra/memory/hooks';
 import { toolDisplay } from '../chat/activity';
 import { slack } from '../chat/client';
+import { onSlashCommand } from '../chat/commands/slash';
 import {
   onAction,
   onDirectMessage,
@@ -15,37 +16,33 @@ import {
   onSubscribedMessage,
 } from '../chat/handlers';
 import { chat } from '../chat/instance';
-import { onSlashCommand } from '../chat/moderation/commands';
 import { status } from '../chat/status';
 import {
   activity as activityConfig,
   backgroundTasks,
   agent as config,
-  quotaWarningAt,
   summarizer as summarizerConfig,
 } from '../config';
-import { listMCPServers } from '../db/queries/mcps';
 import { getInstructions } from '../db/queries/settings';
 import { channelContext } from '../lib/context';
 import { defaultErrorProcessors } from '../lib/error-handling';
-import { usage } from '../lib/limits';
 import { logger } from '../lib/logger';
 import { stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
 import { autoBackground } from '../processors/auto-background';
 import { delegatedTools } from '../processors/delegated-tools';
 import { firstStatus } from '../processors/first-status';
+import { lowQuota } from '../processors/low-quota';
+import { mcpStatus } from '../processors/mcp-status';
 import { progress } from '../processors/progress';
 import { sandbox } from '../processors/sandbox';
 import { tokenUsage } from '../processors/token-usage';
 import { moveToolImages } from '../processors/tool-media';
 import { turnFooter } from '../processors/turn-footer';
 import { workingModel } from '../processors/working-model';
-import { wrapUp } from '../processors/wrap-up';
 import { instructions } from '../prompts';
 import { contextPrompt } from '../prompts/context';
 import { githubPrompt } from '../prompts/github';
-import { lowQuotaPrompt } from '../prompts/processors';
 import {
   orchestrator as orchestratorModel,
   summarizer as summarizerModel,
@@ -87,37 +84,6 @@ const orchestrator = new Agent({
         role: 'system' as const,
         content: `<user_instructions>\n${userInstructions}\n</user_instructions>`,
       });
-    }
-    const mcpServers = userId
-      ? await listMCPServers(userId).catch((error: unknown) => {
-          logger.debug('[orchestrator] failed to load mcp server status', {
-            error,
-            userId,
-          });
-          return [];
-        })
-      : [];
-    const failedServers = mcpServers
-      .filter((server) => server.lastError)
-      .map((server) => server.name);
-    if (failedServers.length > 0) {
-      messages.push({
-        role: 'system' as const,
-        content: `<mcps>The user's MCP server(s) ${failedServers.join(', ')} failed to connect. If they ask about missing tools or the request calls for one of these servers, mention casually that it looks down and they may want to check it in App Home.</mcps>`,
-      });
-    }
-    const low = userId
-      ? (
-          await usage(userId).catch((error: unknown) => {
-            logger.warn('[limits] could not read usage', { error, userId });
-            return [];
-          })
-        )
-          .filter(({ max, used }) => used >= max * quotaWarningAt)
-          .map(({ max, noun, used }) => `${noun}: ${used} of ${max}`)
-      : [];
-    if (low.length > 0) {
-      messages.push({ role: 'system' as const, content: lowQuotaPrompt(low) });
     }
     // Last, because this changes per thread and would break the prompt cache.
     const context = contextPrompt(requestContext);
@@ -172,12 +138,8 @@ const orchestrator = new Agent({
   inputProcessors: [
     autoBackground,
     firstStatus,
-    wrapUp({
-      id: 'wrap-up',
-      // One step before stepCountIs ends the run, so the last one can answer.
-      maxSteps: config.maxSteps - 1,
-      maxTokens: config.maxTokensPerRun,
-    }),
+    lowQuota,
+    mcpStatus,
     new ToolSearchProcessor({
       tools: deferredTools,
       storage: 'context',

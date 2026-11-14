@@ -22,9 +22,16 @@ export const turnFooter = {
   },
   async processOutputResult(args: ProcessOutputResultArgs) {
     const { messageId, threadId } = channelContext(args.requestContext);
-    const startTime = messageId
-      ? Number(messageId) * 1000
-      : args.state.startTime;
+    // A message that joins a running turn becomes its messageId, so the run's
+    // own start is the floor; the message time counts setup before the run.
+    const starts: number[] = [];
+    if (messageId) {
+      starts.push(Number(messageId) * 1000);
+    }
+    if (typeof args.state.startTime === 'number') {
+      starts.push(args.state.startTime);
+    }
+    const startTime = starts.length > 0 ? Math.min(...starts) : undefined;
 
     if (
       !(threadId && args.state.replySent === true) ||
@@ -56,6 +63,9 @@ export const turnFooter = {
     } catch (error) {
       logger.warn('[turn-footer] failed to post', { threadId, error });
     }
+    // Mastra skips its own clear while a plan edit is in flight, and Slack
+    // only clears a status on a new message, so a stale "is …" could stay.
+    await slack.startTyping(threadId, '');
     return args.messages;
   },
 };

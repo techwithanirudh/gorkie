@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { env } from '@/env';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, rawId } from '../../lib/ids';
-import { assertWithinLimit } from '../../lib/limits';
 import { slackWebLogger } from '../../lib/logger/slack';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { slackError } from '../../lib/slack-error';
@@ -320,10 +319,6 @@ export const searchSlackTool = createTool({
   },
   execute: async ({ query, cursor }, context) => {
     spendSlackCall(context?.requestContext);
-    await assertWithinLimit({
-      kind: 'slackSearch',
-      requestContext: context?.requestContext,
-    });
     const { channelId, messageId, threadId } = channelContext(
       context?.requestContext
     );

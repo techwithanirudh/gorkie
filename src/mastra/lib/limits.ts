@@ -1,9 +1,8 @@
 import type { RequestContext } from '@mastra/core/request-context';
 import { limits, limitWindowHours } from '../config';
 import { addUsage, readUsage } from '../db/queries/usage';
+import type { LimitKind } from '../types';
 import { channelContext } from './context';
-
-type LimitKind = keyof typeof limits;
 
 export function uncachedTokens({
   cachedInputTokens,

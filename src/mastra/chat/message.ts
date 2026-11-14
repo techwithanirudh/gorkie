@@ -21,12 +21,15 @@ export function isComment(message: Message): boolean {
 }
 
 export function neutralizeBroadcasts(text: string): string {
-  return text
-    .replace(/<!(here|channel|everyone)(?:\|[^>]*)?>/gi, '@\u200B$1')
-    .replace(
-      /<!subteam\^[A-Z0-9]+(?:\|([^>]*))?>/gi,
-      (_match, label?: string) =>
-        `@\u200B${(label ?? 'group').replace(/^@/, '')}`
-    )
-    .replace(/(^|[^\w\u200B])@(here|channel|everyone)\b/gi, '$1@\u200B$2');
+  return (
+    text
+      .replace(/<!(here|channel|everyone)(?:\|[^>]*)?>/gi, '@\u200B$1')
+      .replace(
+        /<!subteam\^[A-Z0-9]+(?:\|([^>]*))?>/gi,
+        (_match, label?: string) =>
+          `@\u200B${(label ?? 'group').replace(/^@/, '')}`
+      )
+      // A `/` before it is a URL path such as medium.com/@channel, not a ping.
+      .replace(/(^|[^\w\u200B/])@(here|channel|everyone)\b/gi, '$1@\u200B$2')
+  );
 }

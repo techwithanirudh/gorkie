@@ -21,7 +21,7 @@ if (!memory) {
 }
 const saveMessages = memory.saveMessages.bind(memory);
 memory.saveMessages = (args) =>
-  saveMessages({ messages: excludeImageData(args) });
+  saveMessages({ ...args, messages: excludeImageData(args) });
 
 // drizzle's `schema` option only feeds the db.query.* relational API, which
 // nothing here uses.

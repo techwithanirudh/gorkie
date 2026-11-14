@@ -1,6 +1,7 @@
 import { and, eq, gt, sql } from 'drizzle-orm';
 import { limitWindowHours } from '../../config';
 import { rawId } from '../../lib/ids';
+import type { LimitKind } from '../../types';
 import { db } from '../client';
 import { usage } from '../schema';
 
@@ -26,7 +27,7 @@ export async function addUsage({
 }: {
   amount: number;
   ceiling?: number;
-  kind: string;
+  kind: LimitKind;
   userId: string;
 }): Promise<boolean> {
   const expired = sql`${usage.windowStart} <= ${windowOpensAfter}`;

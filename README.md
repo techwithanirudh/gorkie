@@ -20,7 +20,7 @@ runs commands and inspects files without touching the host machine.
 
 - Slack-native replies for mentions, DMs, and subscribed thread follow-ups,
   streamed as they generate, with a typing indicator.
-- Moderator bans: `/gorkie ban @user [1h|1d|7d|30d|perm] [reason]`, `/gorkie unban` and `/gorkie bans` (`/gorkie help` lists them),
+- Moderator bans: `/gorkie ban @user [90m|12h|7d|2w|perm] [reason]` (or `!ban` in a thread), `unban` and `bans`; `/gorkie help` or `!help` lists every command,
   limited to `MODERATORS`, logged as cards with an Unban button in the logs
   channel (`LOGS_CHANNEL`). A banned person is turned away everywhere,
   including tool approval buttons, App Home, and their scheduled tasks.

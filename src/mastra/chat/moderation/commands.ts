@@ -1,46 +1,21 @@
-import type { SlashCommandChannelHandler } from '@mastra/core/channels';
-import { z } from 'zod';
-import { limitWindowHours } from '../../config';
 import { activeBans } from '../../db/queries/moderation';
-import { isUserAllowed } from '../../lib/allowed-users';
-import { overLimit } from '../../lib/limits';
-import { logger } from '../../lib/logger';
-import { banDurationSchema, slackUserIdSchema } from '../../types';
+import {
+  banDurationSchema,
+  type SharedCommand,
+  slackUserIdSchema,
+} from '../../types';
 import { slack } from '../client';
 import { until } from './cards';
-import { isBanned } from './gate';
 import { decide } from './index';
 import { isModerator } from './moderators';
-
-const rawSchema = z.looseObject({
-  response_url: z.url({ hostname: /^hooks\.slack\.com$/ }),
-});
 
 // Slack adds the |name when the text was escaped, as it does with should_escape.
 const target = /^<@([^|>]+)(?:\|[^>]*)?>\s*(.*)$/s;
 
-async function reply({
-  raw,
-  text,
-}: {
-  raw: unknown;
-  text: string;
-}): Promise<void> {
-  const parsed = rawSchema.safeParse(raw);
-  if (!parsed.success) {
-    logger.warn('[moderation] slash command had no response_url');
-    return;
-  }
-  // response_url reaches the invoker privately in any conversation, including
-  // ones the bot is not in, which chat.postEphemeral cannot.
-  await fetch(parsed.data.response_url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ response_type: 'ephemeral', text }),
-  }).catch((error: unknown) =>
-    logger.warn('[moderation] could not answer the slash command', { error })
-  );
-}
+export const moderationUsage = {
+  ban: '@user [90m|12h|6.5d|2w|perm] [reason]',
+  unban: '@user [reason]',
+};
 
 async function listBans(): Promise<string> {
   const bans = await activeBans();
@@ -55,107 +30,59 @@ async function listBans(): Promise<string> {
     .join('\n');
 }
 
-const usage = {
-  ban: `@user [${banDurationSchema.options.join('|')}] [reason]`,
-  unban: '@user [reason]',
-};
+export const bans: SharedCommand = async ({ userId }) =>
+  isModerator(userId)
+    ? `*Active bans*\n${await listBans()}`
+    : 'Only Gorkie moderators can do that.';
 
-export const onSlashCommand: SlashCommandChannelHandler = async (
-  event,
-  defaultHandler
-) => {
-  const actorId = event.user.userId;
-  const [, word = '', args = ''] =
-    event.text.trim().match(/^(\S*)\s*(.*)$/s) ?? [];
-  const subcommand = word.toLowerCase();
-  if (subcommand === '' || subcommand === 'help') {
-    const { command } = event;
-    await reply({
-      raw: event.raw,
-      text: [
-        `*${command} help:* show this list.`,
-        `*${command} <anything else>:* ask gorkie, the same as a mention.`,
-        `*${command} ban ${usage.ban}:* ban someone (moderators only).`,
-        `*${command} unban ${usage.unban}:* lift a ban (moderators only).`,
-        `*${command} bans:* list active bans (moderators only).`,
-        '',
-        'Inside a thread, `!help` lists the thread commands.',
-      ].join('\n'),
-    });
-    return;
-  }
-  const isBan = subcommand === 'ban';
-  const isUnban = subcommand === 'unban';
-  if (!(isBan || isUnban || subcommand === 'bans')) {
-    if ((await isBanned(actorId)) || !(await isUserAllowed(actorId))) {
-      await reply({ raw: event.raw, text: "You can't use Gorkie right now." });
-      return;
+function moderate(action: 'ban' | 'unban'): SharedCommand {
+  return async ({ args, prefix, userId: actorId }) => {
+    if (!isModerator(actorId)) {
+      return 'Only Gorkie moderators can do that.';
     }
-    if (await overLimit({ kind: 'tokens', userId: actorId })) {
-      await reply({
-        raw: event.raw,
-        text: `You've hit your ${limitWindowHours}-hour usage limit. See \`!limits\`, and try again later.`,
+    const [, mention, rest = ''] = args.match(target) ?? [];
+    const userId = slackUserIdSchema.safeParse(mention).data;
+    if (!userId) {
+      return `Usage: \`${prefix}${action} ${moderationUsage[action]}\``;
+    }
+    if (userId === actorId) {
+      return "You can't ban yourself.";
+    }
+    if (isModerator(userId)) {
+      return "Moderators can't be banned. Remove them from MODERATORS first.";
+    }
+    if (slack.botUserId && userId === slack.botUserId) {
+      return "Gorkie can't ban itself.";
+    }
+    if (action === 'unban') {
+      await decide({
+        action,
+        actorId,
+        userId,
+        reason: rest.trim() || undefined,
       });
-      return;
+      return `Unbanned <@${userId}>.`;
     }
-    await defaultHandler();
-    return;
-  }
-  if (!isModerator(actorId)) {
-    await reply({
-      raw: event.raw,
-      text: 'Only Gorkie moderators can do that.',
-    });
-    return;
-  }
-  if (!(isBan || isUnban)) {
-    await reply({
-      raw: event.raw,
-      text: `*Active bans*\n${await listBans()}`,
-    });
-    return;
-  }
-  const [, mention, rest = ''] = args.match(target) ?? [];
-  const userId = slackUserIdSchema.safeParse(mention).data;
-  if (!userId) {
-    await reply({
-      raw: event.raw,
-      text: `Usage: \`${event.command} ${subcommand} ${isBan ? usage.ban : usage.unban}\`\n\n*Active bans*\n${await listBans()}`,
-    });
-    return;
-  }
-  let refusal: string | undefined;
-  if (userId === actorId) {
-    refusal = "You can't ban yourself.";
-  } else if (isModerator(userId)) {
-    refusal = "Moderators can't be banned. Remove them from MODERATORS first.";
-  } else if (slack.botUserId && userId === slack.botUserId) {
-    refusal = "Gorkie can't ban itself.";
-  }
-  if (refusal) {
-    await reply({ raw: event.raw, text: refusal });
-    return;
-  }
-  if (isUnban) {
+    const [first = '', ...words] = rest.trim().split(/\s+/);
+    const parsed = banDurationSchema.safeParse(first);
+    // A word that starts like a length but does not parse is a typo, and
+    // falling through to a permanent ban would be the worst reading of it.
+    if (!parsed.success && /^\d/.test(first)) {
+      return `I couldn't read \`${first}\` as a ban length. Use a number and a unit (s, m, h, d or w), like \`90m\` or \`6.5d\`, or \`perm\`.`;
+    }
+    const reason = (parsed.success ? words : [first, ...words])
+      .join(' ')
+      .trim();
     await decide({
-      action: 'unban',
+      action,
       actorId,
       userId,
-      reason: rest.trim() || undefined,
+      duration: parsed.data,
+      reason: reason || undefined,
     });
-    await reply({ raw: event.raw, text: `Unbanned <@${userId}>.` });
-    return;
-  }
-  const [first = '', ...words] = rest.trim().split(/\s+/);
-  const parsed = banDurationSchema.safeParse(first);
-  const duration = parsed.data ?? 'perm';
-  const reason = (parsed.success ? words : [first, ...words]).join(' ').trim();
-  await decide({
-    action: 'ban',
-    actorId,
-    userId,
-    duration,
-    reason: reason || undefined,
-  });
-  await reply({ raw: event.raw, text: `Banned <@${userId}> (${duration}).` });
-};
+    return `Banned <@${userId}> (${parsed.data ? first : 'permanent'}).`;
+  };
+}
+
+export const ban = moderate('ban');
+export const unban = moderate('unban');

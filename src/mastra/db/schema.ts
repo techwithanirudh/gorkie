@@ -10,6 +10,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type {
   GitHubPermission,
+  LimitKind,
   ModerationAction,
   ToolPermission,
 } from '../types';
@@ -57,7 +58,7 @@ export const usage = pgTable(
   'usage',
   {
     userId: text('user_id').notNull(),
-    kind: text('kind').notNull(),
+    kind: text('kind').$type<LimitKind>().notNull(),
     windowStart: timestamp('window_start', { withTimezone: true })
       .notNull()
       .defaultNow(),

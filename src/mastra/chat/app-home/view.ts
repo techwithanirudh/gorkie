@@ -89,7 +89,7 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
         });
       })
     : undefined;
-  const installations = token ? await countInstallations(token) : 0;
+  const installations = token ? await countInstallations(token) : undefined;
 
   const sections: HomeSection[] = [
     { fixed: [...content.home.blocks, { type: 'divider' }] },

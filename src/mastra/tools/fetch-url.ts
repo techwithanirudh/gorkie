@@ -31,7 +31,7 @@ This extracts readable article content, so it fails on anything that isn't a pla
     },
   },
   execute: async ({ url }, { abortSignal, requestContext }) => {
-    await assertWithinLimit({ kind: 'fetch', requestContext });
+    await assertWithinLimit({ kind: 'web', requestContext });
     const [result] = (
       await withExaTimeout({
         request: exa.getContents([url], {

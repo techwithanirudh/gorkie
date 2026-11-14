@@ -10,6 +10,7 @@ import {
   activityTaskSchema,
 } from '../types/progress';
 import { threadJobs } from '../workspace/jobs';
+import { approvalCard } from './approval-card';
 import { answerStream } from './card';
 import { getMastra } from './mastra-instance';
 import { addAction, toolActivity } from './status/tool-activity';
@@ -154,6 +155,9 @@ async function showActivity({
   const posts: Promise<unknown>[] = [];
   let segment: Segment | undefined;
   let segmentChars = 0;
+  // A split inside a code block closes it here and reopens it in the next
+  // message, or both halves render wrong.
+  let openFence: string | undefined;
   async function* segmentText(open: Segment) {
     while (!open.done || open.queue.length > 0) {
       const next = open.queue.shift();
@@ -171,21 +175,41 @@ async function showActivity({
     if (!segment) {
       return;
     }
+    if (openFence) {
+      segment.queue.push('\n```\n');
+    }
     segment.done = true;
     segment.wake?.();
     segment = undefined;
     segmentChars = 0;
   };
+  let heldOpener = '';
   const write = (text: string) => {
     if (!text) {
       return;
     }
-    if (!segment) {
+    // Slack refuses a message that is only an empty code block (`no_text`),
+    // so an opening fence waits for its first line.
+    if (!openFence && /^\s*```[^`]*$/.test(text)) {
+      heldOpener += text;
+      return;
+    }
+    const chunk = heldOpener + text;
+    heldOpener = '';
+    if (segment) {
+      segment.queue.push(chunk);
+    } else {
       segment = { done: false, queue: [] };
       posts.push(thread.post(segmentText(segment)));
+      segment.queue.push(openFence ? `${openFence}\n${chunk}` : chunk);
     }
-    segment.queue.push(text);
-    segmentChars += text.length;
+    for (const line of chunk.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('```')) {
+        openFence = openFence ? undefined : trimmed;
+      }
+    }
+    segmentChars += chunk.length;
     segment.wake?.();
     segment.wake = undefined;
   };
@@ -456,6 +480,9 @@ async function showActivity({
 }
 
 export const toolDisplay = Object.assign(
-  (() => undefined) satisfies ToolDisplayFn,
+  ((event) =>
+    event.kind === 'approval'
+      ? { kind: 'post', message: approvalCard(event) }
+      : undefined) satisfies ToolDisplayFn,
   { activity: showActivity }
 );

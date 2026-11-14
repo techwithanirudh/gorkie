@@ -20,8 +20,8 @@
     "slash_commands": [
       {
         "command": "/gorkie",
-        "description": "Ask gorkie, or moderate it: help, ban, unban, bans",
-        "usage_hint": "help | ban @user [1h|1d|7d|30d|perm] [reason] | unban @user | bans | <question>",
+        "description": "gorkie commands: help, limits, connections, ban, unban, bans",
+        "usage_hint": "help | limits | connections | ban @user [90m|12h|7d|2w|perm] [reason] | unban @user | bans",
         "should_escape": true
       }
     ]

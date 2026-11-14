@@ -44,9 +44,6 @@ export const agent = {
   maxProcessorRetries: 2,
   batchWindowMs: 500,
   maxSteps: 1000,
-  // Uncached input plus output in one turn, under the 3M usage limit so one
-  // runaway turn cannot spend a person's whole window.
-  maxTokensPerRun: 2_000_000,
   modelTimeout: { firstChunkMs: 2 * 60 * 1000, stepMs: 5 * 60 * 1000 },
 };
 
@@ -80,10 +77,8 @@ export const limitWindowHours = 5;
 
 export const limits = {
   tokens: { max: 3_000_000, noun: 'tokens' },
-  slackSearch: { max: 1000, noun: 'Slack searches' },
-  webSearch: { max: 200, noun: 'web searches' },
-  fetch: { max: 200, noun: 'page fetches' },
-  emojiUpload: { max: 5, noun: 'custom emoji uploads' },
+  web: { max: 300, noun: 'web lookups' },
+  emojiUpload: { max: 10, noun: 'emoji uploads' },
 };
 
 export const send = {
@@ -100,11 +95,12 @@ export const shutdown = {
 
 export const subagent = {
   maxSteps: 50,
-  maxTokens: 1_000_000,
-  wrapUpBeforeTimeoutMs: 90 * 1000,
 };
 
-export const quotaWarningAt = 0.8;
+export const wrapUp = {
+  warnBeforeTimeoutMs: 3 * 60 * 1000,
+  stopBeforeTimeoutMs: 2 * 60 * 1000,
+};
 
 const taskTimeoutMs = 15 * 60 * 1000;
 

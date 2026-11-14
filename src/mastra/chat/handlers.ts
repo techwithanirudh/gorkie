@@ -98,11 +98,9 @@ async function refusedByLimit({
   if (!tellUser) {
     return true;
   }
-  await notify({
-    text: `You've hit your ${limitWindowHours}-hour usage limit, so I'm skipping this one. See \`!limits\`, and try again later.`,
-    thread,
-    user: author,
-  });
+  await thread.post(
+    `<@${author.userId}> you've hit your ${limitWindowHours}-hour usage limit. Run \`!limits\` to see your usage limits.`
+  );
   return true;
 }
 

@@ -14,12 +14,13 @@ const userInfoSchema = z.looseObject({
     .looseObject({
       tz: z.string().optional(),
       tz_label: z.string().optional(),
+      profile: z.looseObject({ email: z.string().optional() }).optional(),
     })
     .optional(),
 });
 export async function resolveUserProfile(id: string): Promise<UserProfile> {
   const userId = rawId(id);
-  const cacheKey = `slack:user-profile:${userId}`;
+  const cacheKey = `slack:user-profile:v3:${userId}`;
   const bot = chat();
   const cached = await bot.getState().get<UserProfile>(cacheKey);
   if (cached) {
@@ -57,6 +58,8 @@ export async function resolveUserProfile(id: string): Promise<UserProfile> {
   const fields = profileFieldsSchema.parse(raw.fields ?? {});
   const profile: UserProfile = {
     displayName: user?.userName ?? (raw.display_name || undefined),
+    // users.profile.get leaves the email out on some workspaces; users.info has it.
+    email: info?.user?.profile?.email || raw.email || undefined,
     fields: Object.values(fields).flatMap((field) =>
       field.value && field.label
         ? [{ label: field.label, value: field.value }]
