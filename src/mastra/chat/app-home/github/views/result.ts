@@ -5,7 +5,7 @@ export const failedModal = (reason: string) => {
   const explained =
     {
       expired_token: 'The code ran out before GitHub confirmed.',
-      interrupted: 'Gorkie restarted while waiting, losing track of this code.',
+      interrupted: 'Porkie restarted while waiting, losing track of this code.',
     }[reason] ?? `GitHub stopped the sign-in: ${reason}.`;
   return Modal({
     callbackId: ids.modal,
@@ -30,7 +30,7 @@ export const connectedModal = (login: string) =>
     children: [
       CardText(`:white_check_mark: Signed in as *${login}*.`),
       CardText(
-        'Gorkie now reaches the repositories you installed it on. The GitHub section shows that, and when it stops to ask.'
+        'Porkie now reaches the repositories you installed it on. The GitHub section shows that, and when it stops to ask.'
       ),
     ],
   });

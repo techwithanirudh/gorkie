@@ -1,7 +1,7 @@
 ---
 name: coding-best-practices
 description: >
-  Code quality rules for the Gorkie Slack bot. Use when reviewing files for
+  Code quality rules for the Porkie Slack bot. Use when reviewing files for
   violations, auditing PRs, or deciding how to structure new code. Covers
   TypeScript patterns, Slack modal conventions, and architecture rules specific
   to this repo.

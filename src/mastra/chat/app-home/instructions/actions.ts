@@ -20,7 +20,7 @@ export function registerCustomInstructions({
         children: [
           TextInput({
             id: 'instructions',
-            label: 'How should Gorkie act for you?',
+            label: 'How should Porkie act for you?',
             placeholder:
               'e.g. keep replies short, always show code diffs, address me as vro',
             multiline: true,

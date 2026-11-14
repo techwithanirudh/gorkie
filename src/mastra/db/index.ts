@@ -8,7 +8,7 @@ import { mcpServers } from './schema';
 
 export { db, postgresStore } from './client';
 
-// Applies the checked-in drizzle migrations for gorkie's own tables. Mastra's
+// Applies the checked-in drizzle migrations for porkie's own tables. Mastra's
 // PostgresStore creates its own tables on init, so those are not covered here.
 export async function runMigrations(): Promise<void> {
   await migrate(db, {

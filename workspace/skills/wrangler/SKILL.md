@@ -1,6 +1,6 @@
 ---
 name: wrangler
-description: Cloudflare Workers CLI for deploying and developing Workers and the bindings temporary accounts support (KV, D1, Durable Objects, Hyperdrive, Queues), including static sites served as Workers assets. Use when the user asks to deploy a site, app, API, or Worker to Cloudflare, or to run/build/preview one. gorkie has no Cloudflare account, so it deploys via account-less temporary Workers deploys, never Pages, which always requires a real account. Biases towards retrieval from Cloudflare docs over pre-trained knowledge.
+description: Cloudflare Workers CLI for deploying and developing Workers and the bindings temporary accounts support (KV, D1, Durable Objects, Hyperdrive, Queues), including static sites served as Workers assets. Use when the user asks to deploy a site, app, API, or Worker to Cloudflare, or to run/build/preview one. porkie has no Cloudflare account, so it deploys via account-less temporary Workers deploys, never Pages, which always requires a real account. Biases towards retrieval from Cloudflare docs over pre-trained knowledge.
 ---
 
 # Wrangler CLI
@@ -9,7 +9,7 @@ Your knowledge of Wrangler flags and config may be outdated. **Prefer retrieval 
 
 ## No Auth
 
-gorkie has **no Cloudflare account and cannot log in**. Never run `wrangler login` or `wrangler whoami`: they will hang waiting for a browser. For static sites, serve them as a Worker with static assets instead (see [config-and-bindings.md](references/config-and-bindings.md)) and deploy with `wrangler deploy`.
+porkie has **no Cloudflare account and cannot log in**. Never run `wrangler login` or `wrangler whoami`: they will hang waiting for a browser. For static sites, serve them as a Worker with static assets instead (see [config-and-bindings.md](references/config-and-bindings.md)) and deploy with `wrangler deploy`.
 
 Instead use **Temporary Accounts for Agents** (`--temporary`), which only works with `wrangler deploy`:
 

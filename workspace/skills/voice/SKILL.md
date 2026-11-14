@@ -1,6 +1,6 @@
 ---
 name: voice
-description: Text-to-speech and speech-to-text audio work in the sandbox. Use when the user asks to generate voice/audio from text, create a spoken message, transcribe an audio or voice message, convert audio formats, inspect spoken content, or prepare audio files for Slack upload. Uses ffmpeg plus Python packages gTTS, SpeechRecognition, and pydub that are preinstalled in gorkie's E2B sandbox.
+description: Text-to-speech and speech-to-text audio work in the sandbox. Use when the user asks to generate voice/audio from text, create a spoken message, transcribe an audio or voice message, convert audio formats, inspect spoken content, or prepare audio files for Slack upload. Uses ffmpeg plus Python packages gTTS, SpeechRecognition, and pydub that are preinstalled in porkie's E2B sandbox.
 ---
 
 # Voice

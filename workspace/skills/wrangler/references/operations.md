@@ -182,7 +182,7 @@ curl http://localhost:8787/__scheduled
 | Issue | Solution |
 |-------|----------|
 | `command not found: wrangler` | Install: `npm install -D wrangler` |
-| Auth errors | gorkie has no account; deploy with `wrangler deploy --temporary`, never `wrangler login` |
+| Auth errors | porkie has no account; deploy with `wrangler deploy --temporary`, never `wrangler login` |
 | Startup time limit exceeded | Run `wrangler check startup` to profile startup and generate CPU profiles |
 | Type errors after config change | Run `wrangler types` |
 | Local storage not persisting | Check `.wrangler/state` directory |

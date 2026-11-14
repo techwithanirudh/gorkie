@@ -1,6 +1,6 @@
 # AgentMail Core API
 
-Use Python. The sandbox template preinstalls the `agentmail` Python package for Gorkie AgentMail work.
+Use Python. The sandbox template preinstalls the `agentmail` Python package for Porkie AgentMail work.
 
 ## Client
 
@@ -17,9 +17,9 @@ inbox = "gorkie@agentmail.to"
 
 ```python
 inbox_obj = client.inboxes.create(
-    username="gorkie-test",
+    username="porkie-test",
     domain="agentmail.to",
-    display_name="Gorkie Test",
+    display_name="Porkie Test",
 )
 
 inboxes = client.inboxes.list()
@@ -27,7 +27,7 @@ current = client.inboxes.get(inbox_id=inbox)
 
 client.inboxes.update(
     inbox_id=inbox,
-    display_name="Gorkie",
+    display_name="Porkie",
 )
 
 client.inboxes.delete(inbox_id="old-inbox@agentmail.to")
@@ -43,10 +43,10 @@ Send a message:
 sent = client.inboxes.messages.send(
     inbox_id=inbox,
     to="recipient@example.com",
-    subject="Hello from Gorkie",
+    subject="Hello from Porkie",
     text="Plain text body",
     html="<p>Plain text body</p>",
-    labels=["sent-by-gorkie"],
+    labels=["sent-by-porkie"],
 )
 print(sent)
 ```
@@ -197,8 +197,8 @@ messages = client.inboxes.messages.list(
 
 Useful labels:
 
-- `sent-by-gorkie`
-- `drafted-by-gorkie`
+- `sent-by-porkie`
+- `drafted-by-porkie`
 - `needs-user-review`
 - `replied`
 - `unreplied`

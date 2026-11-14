@@ -26,19 +26,19 @@ export function githubBlocks({
   if (unreadable) {
     status = '*Unavailable*';
     detail =
-      'Gorkie could not read your stored connection, so GitHub tools will not run. Disconnect and sign in again to replace it.';
+      'Porkie could not read your stored connection, so GitHub tools will not run. Disconnect and sign in again to replace it.';
   } else if (credential?.kind === 'pat') {
     status = `*${credential.login}*`;
     detail = `${PRESETS[permission].status}${scope}  ·  using your personal token`;
   } else if (credential && installations === undefined) {
     status = `*${credential.login}*`;
-    detail = `${PRESETS[permission].status}${scope}  ·  Gorkie could not check which repositories it can reach just now`;
+    detail = `${PRESETS[permission].status}${scope}  ·  Porkie could not check which repositories it can reach just now`;
   } else if (credential && installations) {
     status = `*${credential.login}*`;
-    detail = `${PRESETS[permission].status}${scope}  ·  Gorkie uses your GitHub account`;
+    detail = `${PRESETS[permission].status}${scope}  ·  Porkie uses your GitHub account`;
   } else if (credential) {
     status = `*${credential.login}*`;
-    detail = `Not installed on any repositories, so Gorkie cannot reach code${scope}  ·  <${`https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`}|choose repositories>`;
+    detail = `Not installed on any repositories, so Porkie cannot reach code${scope}  ·  <${`https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`}|choose repositories>`;
   }
 
   const connected = Boolean(credential) || unreadable;
@@ -80,7 +80,7 @@ export function githubBlocks({
                   title: { type: 'plain_text', text: 'Disconnect GitHub?' },
                   text: {
                     type: 'mrkdwn',
-                    text: `Gorkie forgets ${forgets} and stops using GitHub. ${afterwards}`,
+                    text: `Porkie forgets ${forgets} and stops using GitHub. ${afterwards}`,
                   },
                   confirm: { type: 'plain_text', text: 'Disconnect' },
                   deny: { type: 'plain_text', text: 'Cancel' },

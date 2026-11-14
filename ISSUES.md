@@ -168,17 +168,17 @@ on that comparison rejects every canvas including the current one.
 
 That exact error string exists in no commit on any ref in this repo, so the
 deployed bot is not this working tree. Two other signs agree: a stack trace
-pointing at `/root/gorkie/.mastra/output/`, and traces running a model that
+pointing at `/root/porkie/.mastra/output/`, and traces running a model that
 appears in no ref at that date.
 
 `src/mastra/tools/canvas/read.ts:27-47` at HEAD has **no visibility guard at
 all** and will read a canvas from any private conversation the bot has been in.
 The false positive is gone and a hole is in its place. Worth a decision.
 
-### A7. Not a gorkie bug: OpenPGP in the sandbox
+### A7. Not a porkie bug: OpenPGP in the sandbox
 
 **Cosmetic.** Trace `4c326f42a19301aa3a831913ff452031`. There is no OpenPGP
-dependency anywhere in gorkie. The user asked whether code mode could PGP
+dependency anywhere in porkie. The user asked whether code mode could PGP
 encrypt, the agent `npm install`ed `openpgp` inside the E2B sandbox and imported
 it by absolute path into `dist/openpgp.mjs`, which resolved to a string rather
 than the module. `getPrimarySelfSignature is not a function` is the symptom. The
@@ -385,7 +385,7 @@ against 0 of 40 median ones. Delegation is not a driver.
 | 30 | open | observational memory does not buffer during long active agent runs | related to B, that processor is a top-6 byte offender |
 | 25 | open | Implement thread-scoped GitHub task handoff | no trace evidence |
 | 23 | open | add per-user limiting | no trace evidence |
-| 6 | open | Hello from gorkie dev | not a defect |
+| 6 | open | Hello from porkie dev | not a defect |
 | 4 | closed | Orchestrator emits raw `<think>` blocks | reopened in `TODO.md`: the guard was removed a third time and no longer exists in `src/` |
 
 ## D. Two cheap fixes that cut across several of these
@@ -420,8 +420,8 @@ cause of section E and it is not a hang.
 
 ```
 23:57:49  [chat] turn started                          (pid 476413)
-00:02:59  gorkie-monitor.service runs
-00:03:07  "health check failed (2/2)" -> systemctl restart gorkie.service
+00:02:59  porkie-monitor.service runs
+00:03:07  "health check failed (2/2)" -> systemctl restart porkie.service
           90 seconds pass. The app logs nothing. It never handles SIGTERM.
 00:04:37  systemd: "State 'stop-sigterm' timed out. Killing."  SIGKILL
 00:04:38  service restarts, online 00:04:45
@@ -429,7 +429,7 @@ cause of section E and it is not a hang.
 07:23:49  the user asks "what hPpene d"
 ```
 
-`/usr/local/bin/gorkie-monitor.sh` curls `127.0.0.1:4111` with `--max-time 8`
+`/usr/local/bin/porkie-monitor.sh` curls `127.0.0.1:4111` with `--max-time 8`
 and restarts the service after two consecutive misses. The turn was five
 minutes into sandbox-heavy work, the event loop stopped answering inside that
 8 second budget, and the watchdog shot it.
@@ -445,7 +445,7 @@ running.
 **406 watchdog restarts since 2026-08-13**, twelve of them in the four days to
 09-12. Every one destroys whatever turns were in flight and loses their traces.
 
-The host has **1966 MB of RAM with 1365 MB already in swap**. gorkie alone
+The host has **1966 MB of RAM with 1365 MB already in swap**. porkie alone
 holds about 1 GB RSS, half the machine. systemd recorded `1G memory peak, 1G
 memory swap peak` for the killed unit. The monitor script's own comment says
 it was written after an Aug 17 outage where the process wedged
@@ -546,13 +546,13 @@ hang it does cover.
 
 Three changes on the host, all reversible, none requiring a restart:
 
-- `systemctl set-property gorkie.service MemoryHigh=1400M` (was `1G`).
+- `systemctl set-property porkie.service MemoryHigh=1400M` (was `1G`).
   `MemoryCurrent` was `1073340416`, sitting exactly on the old 1 GB line, so
   the kernel was continuously reclaiming the unit's pages into swap. That
   forced reclaim, not a shortage of swap, is what produced the 9 million major
   page faults. Swap itself was never the constraint: 5886 MB total with 4499 MB
   free, so adding swap would only have widened the target for eviction.
-- `THRESHOLD=2` to `5` in `/usr/local/bin/gorkie-monitor.sh`, taking the grace
+- `THRESHOLD=2` to `5` in `/usr/local/bin/porkie-monitor.sh`, taking the grace
   window from about 2 minutes to about 5. 487 stalls recovered on their own
   against 406 that escalated, so over half of all restarts were killing a
   process that was going to come back by itself.
@@ -560,7 +560,7 @@ Three changes on the host, all reversible, none requiring a restart:
   on a box whose I/O pressure sat at 43%.
 
 Backups: `/root/memory.conf.bak.20260912`,
-`/root/gorkie-monitor.sh.bak.20260912`.
+`/root/porkie-monitor.sh.bak.20260912`.
 
 Measured immediately after: `/proc/pressure/io` went from `full avg10=42.81`
 to `full avg10=0.38`, with `avg60=17.63` and `avg300=37.08` showing the decay

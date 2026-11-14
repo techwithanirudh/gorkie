@@ -8,6 +8,6 @@ export const postgresStore = new PostgresStore({
 });
 
 // drizzle v1 takes the driver via `{ client }`; `schema` is only for the
-// db.query.* relational API, which gorkie does not use (tables are imported
+// db.query.* relational API, which porkie does not use (tables are imported
 // directly and used with the core query builder).
 export const db = drizzle({ client: postgresStore.pool });

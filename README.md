@@ -1,19 +1,19 @@
 <div align="center">
-  <img alt="gorkie banner" src="./.github/banner.png" />
-  <h1>gorkie</h1>
+  <img alt="porkie banner" src="./.github/banner.png" />
+  <h1>porkie</h1>
   <p>An AI assistant for Slack, built on Mastra.</p>
 </div>
 
 ## Introduction
 
-gorkie answers mentions, DMs, and subscribed threads, and runs code in a
+porkie answers mentions, DMs, and subscribed threads, and runs code in a
 sandbox to get those answers. It also runs recurring scheduled tasks on its
 own.
 
 The bot is a long-lived Bun process. [Mastra][mastra]'s built-in
 [channels][channels] feature handles Slack events, wiring the [Vercel Chat
 SDK][chat-sdk] Slack adapter in Socket Mode while the agent runs on Mastra's
-native runtime. Each Slack thread gets its own [E2B][e2b] sandbox, so gorkie
+native runtime. Each Slack thread gets its own [E2B][e2b] sandbox, so porkie
 runs commands and inspects files without touching the host machine.
 
 ## Features
@@ -86,7 +86,7 @@ bun run dev
 ```
 
 Local development uses Slack Socket Mode, so the bot needs no public HTTP
-tunnel to receive Slack events. It logs `[gorkie] online` once connected.
+tunnel to receive Slack events. It logs `[porkie] online` once connected.
 
 Do not run two local instances against the same Slack app token. Their Socket
 Mode connections race, and the resulting behavior is hard to diagnose.
@@ -96,7 +96,7 @@ For a production-style run: `bun run build` then `bun run start`.
 ### Local Postgres database
 
 The default `DATABASE_URL` in [`.env.example`](./.env.example) points at a
-local database named `gorkie`. Mastra creates its tables on first run.
+local database named `porkie`. Mastra creates its tables on first run.
 
 ## Environment
 
@@ -104,7 +104,7 @@ local database named `gorkie`. Mastra creates its tables on first run.
 |---|---|---|
 | `SLACK_BOT_TOKEN` | yes | Bot User OAuth token (`xoxb-…`) |
 | `SLACK_APP_TOKEN` | yes | App-level token with `connections:write` (`xapp-…`) |
-| `SLACK_USER_TOKEN` | yes | Slack user token, not the bot token, used for public-channel search. Mint it with `search:read.public` only; gorkie verifies the granted scopes on first use and refuses the token if it also carries `search:read.im`, `search:read.mpim`, or `search:read.private`. See [docs/slack-search.md](docs/slack-search.md) |
+| `SLACK_USER_TOKEN` | yes | Slack user token, not the bot token, used for public-channel search. Mint it with `search:read.public` only; porkie verifies the granted scopes on first use and refuses the token if it also carries `search:read.im`, `search:read.mpim`, or `search:read.private`. See [docs/slack-search.md](docs/slack-search.md) |
 | `OPT_IN_CHANNEL` | no | Slack channel id gating access to members only (opt-in allowlist); unset means everyone is allowed |
 | `AI_GATEWAY_API_KEY` | yes | Vercel AI Gateway key, used for the `vmc/gorkie` model config |
 | `HACKCLUB_API_KEY` | yes | Hack Club AI proxy key, the fallback and the image model |

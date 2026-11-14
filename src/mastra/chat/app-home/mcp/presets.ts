@@ -23,7 +23,7 @@ export function presetRadio({
 }) {
   return RadioSelect({
     id,
-    label: 'When should Gorkie stop and ask?',
+    label: 'When should Porkie stop and ask?',
     initialOption: `${scope} ${permission}`,
     options: (['all', 'write', 'delete'] as const).map((value) => ({
       label: PRESETS[value].label,

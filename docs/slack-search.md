@@ -1,6 +1,6 @@
 # Slack search setup
 
-Gorkie's `search_slack` tool runs one Slack message search per call over
+Porkie's `search_slack` tool runs one Slack message search per call over
 **public channels only**. DMs, private channels, and Slack Connect
 conversations are never searched.
 
@@ -14,7 +14,7 @@ re-checks the visibility of every result channel before returning it.
 
 `SLACK_USER_TOKEN` is a **user** token (`xoxp-`), not the bot token
 (`xoxb-`). Mint it with `search:read.public` and nothing else. On first use per
-process gorkie calls `auth.test`, reads the granted scopes, and refuses the
+process porkie calls `auth.test`, reads the granted scopes, and refuses the
 token if it carries `search:read.im`, `search:read.mpim`, or
 `search:read.private`, because those can read DMs and private channels. A token
 missing `search:read.public` is refused too.
@@ -35,7 +35,7 @@ Slack OAuth user-scope grants are cumulative. If the token was ever authorized
 with broader user scopes (`search:read.private/.mpim/.im`), removing them from
 the manifest does **not** shrink the token that was already issued. The
 OAuth page's scope list shows what the app now requests, but `auth.test` still
-reports the token's original grant, so gorkie keeps refusing it. The token
+reports the token's original grant, so porkie keeps refusing it. The token
 string does not change, so re-copying it into `.env` fixes nothing.
 
 To actually drop the extra scopes you must revoke and re-authorize:

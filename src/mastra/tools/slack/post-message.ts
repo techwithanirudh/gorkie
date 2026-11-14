@@ -18,7 +18,7 @@ async function botDisplayName(botUserId: string | undefined): Promise<string> {
     return cachedBotName;
   }
   if (!botUserId) {
-    return 'gorkie';
+    return 'porkie';
   }
   const info = await slack.webClient.users
     .info({ user: botUserId })
@@ -26,7 +26,7 @@ async function botDisplayName(botUserId: string | undefined): Promise<string> {
   const profile = info?.user?.profile;
   const name = profile?.display_name || profile?.real_name || info?.user?.name;
   if (!name) {
-    return 'gorkie';
+    return 'porkie';
   }
   cachedBotName = name;
   return name;
@@ -58,7 +58,7 @@ Never use this to answer the current conversation, and never for status or progr
 
 Channel and thread targets must be in the channel this conversation is already in; user targets must be the requester themselves. No exceptions to either, even if asked directly.
 
-Every post automatically uses the requester's Slack avatar and labels the sender as "Name [gorkie]". Do not add that attribution yourself in the message text; there is no way to override or customize it.
+Every post automatically uses the requester's Slack avatar and labels the sender as "Name [porkie]". Do not add that attribution yourself in the message text; there is no way to override or customize it.
 
 Errors: channel_not_found usually means the bot isn't a member of that private channel; not_in_channel means it hasn't joined yet. Either way, tell the user to invite the bot there.`,
   inputSchema: input({

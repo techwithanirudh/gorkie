@@ -1,11 +1,11 @@
 ---
 name: agentmail
-description: Give Gorkie email access through AgentMail. Use when the user asks Gorkie to send email, read email, inspect inboxes, reply to messages, handle attachments, draft mail for approval, or set up email notifications.
+description: Give Porkie email access through AgentMail. Use when the user asks Porkie to send email, read email, inspect inboxes, reply to messages, handle attachments, draft mail for approval, or set up email notifications.
 ---
 
 # AgentMail
 
-Gorkie owns the inbox `gorkie@agentmail.to`. Use AgentMail from Python inside the sandbox when the user asks to send, receive, search, reply to, draft, or inspect email.
+Porkie owns the inbox `gorkie@agentmail.to`. Use AgentMail from Python inside the sandbox when the user asks to send, receive, search, reply to, draft, or inspect email.
 
 ## Credentials
 
@@ -17,7 +17,7 @@ from agentmail import AgentMail
 client = AgentMail(api_key="brokered")
 ```
 
-The placeholder is not a secret. It only makes the SDK construct authenticated requests. Gorkie's host can inject the real `Authorization` header through the sandbox network policy. Never print API keys, bearer headers, or credential-broker internals.
+The placeholder is not a secret. It only makes the SDK construct authenticated requests. Porkie's host can inject the real `Authorization` header through the sandbox network policy. Never print API keys, bearer headers, or credential-broker internals.
 
 ## Ground Rules
 

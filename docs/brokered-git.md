@@ -6,7 +6,7 @@ Ported from [`vercel-labs/eve-software-factory-template`](https://github.com/ver
 
 ## Code
 
-| gorkie | eve |
+| porkie | eve |
 | --- | --- |
 | `tools/github/git-remote.ts` | `agent/lib/github/git-remote.ts` |
 | `tools/github/checkout.ts` | `agent/subagents/*/tools/checkout_branch.ts` |
@@ -14,13 +14,13 @@ Ported from [`vercel-labs/eve-software-factory-template`](https://github.com/ver
 | `tools/github/approval.ts` | `agent/lib/github/approval.ts` |
 | `tools/github/index.ts` | `agent/extensions/github.ts` |
 
-Two deliberate differences. eve clones once at template build so its checkout tool only fetches; gorkie has no bootstrap step, so `github_checkout` clones or fetches and is safe to re-run. eve serves one repository from one directory; gorkie derives `/home/user/<repo>` per repository.
+Two deliberate differences. eve clones once at template build so its checkout tool only fetches; porkie has no bootstrap step, so `github_checkout` clones or fetches and is safe to re-run. eve serves one repository from one directory; porkie derives `/home/user/<repo>` per repository.
 
-eve's approval policies key on trusted, autonomous, and schedule callers, which gorkie has no equivalent of: every turn is one attended person acting with their own credential, so the only axis is their App Home preset.
+eve's approval policies key on trusted, autonomous, and schedule callers, which porkie has no equivalent of: every turn is one attended person acting with their own credential, so the only axis is their App Home preset.
 
 ## Verified
 
-Against `gorkie-workspace:2.0` and a real private repository:
+Against `porkie-workspace:2.0` and a real private repository:
 
 - A clone with no `github.com` rule fails (`could not read Username`); with the rule it succeeds.
 - `git push` authenticates, and `.git/config` and the sandbox environment hold no credential.

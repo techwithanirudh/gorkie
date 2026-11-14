@@ -629,7 +629,7 @@ to attach them to the start of each source file to most effectively
 state the exclusion of warranty; and each file should have at least
 the "copyright" line and a pointer to where the full notice is found.
 
-    Gorkie is an AI assistant for Slack. It responds in mentions, DMs, Assistant threads, 
+    Porkie is an AI assistant for Slack. It responds in mentions, DMs, Assistant threads, 
     and Slack threads with answers backed by tools, a code sandbox, web search,
     Slack context, file uploads, image generation, and reminders.
     Copyright (c) 2025 Anirudh Sriram (techwithanirudh) and Devarsh (webdev03)

@@ -1,6 +1,6 @@
 # Coding Standards
 
-Project-wide rules for gorkie. These extend the project boundaries in
+Project-wide rules for porkie. These extend the project boundaries in
 [AGENTS.md](./AGENTS.md) with the concrete patterns to follow and avoid when
 writing or refactoring code. Enforced by review and by
 `bun run check` (Biome/ultracite) where a rule is mechanically checkable;

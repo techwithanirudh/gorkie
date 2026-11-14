@@ -11,7 +11,7 @@ async function githubApi({
 }): Promise<{ data: unknown; scopes: string[] } | { error: string }> {
   try {
     const response = await request(`GET ${path}`, {
-      headers: { authorization: `Bearer ${token}`, 'user-agent': 'gorkie' },
+      headers: { authorization: `Bearer ${token}`, 'user-agent': 'porkie' },
       request: { signal: AbortSignal.timeout(10_000) },
     });
     return {

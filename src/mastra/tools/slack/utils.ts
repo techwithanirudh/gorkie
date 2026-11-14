@@ -84,7 +84,7 @@ export function assertCanPostTo({
   if (target.type === 'user') {
     if (!ctx.userId || rawId(target.id) !== rawId(ctx.userId)) {
       throw new Error(
-        'gorkie can only DM the person currently asking, not a third party on their behalf. Ask that person to message gorkie directly instead.'
+        'porkie can only DM the person currently asking, not a third party on their behalf. Ask that person to message porkie directly instead.'
       );
     }
     return;
@@ -100,7 +100,7 @@ export function assertCanPostTo({
       : target.id;
   if (rawId(destination) !== rawId(ctx.channelId)) {
     throw new Error(
-      'gorkie can only post into the channel this conversation is already in, not another channel. Ask someone in that channel to post there instead.'
+      'porkie can only post into the channel this conversation is already in, not another channel. Ask someone in that channel to post there instead.'
     );
   }
 }
