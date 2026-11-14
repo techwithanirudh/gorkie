@@ -4,6 +4,7 @@ import { workspaceCodeMode } from './code-mode/slack';
 import { submitFeedbackTool } from './feedback';
 import { fetchUrlTool } from './fetch-url';
 import { generateImageTool } from './generate-image';
+import { killSandboxTool } from './kill-sandbox';
 import { scheduledTaskTools } from './scheduled-tasks';
 import { searchEmojisTool } from './search-emojis';
 import { searchWebTool } from './search-web';
@@ -36,6 +37,7 @@ export async function orchestratorTools() {
     status_update: statusUpdateTool,
     skip: skipTool,
     wait: waitTool,
+    kill_sandbox: killSandboxTool,
   };
 }
 

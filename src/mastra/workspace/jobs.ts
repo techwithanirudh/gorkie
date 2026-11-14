@@ -58,3 +58,7 @@ export async function killJobs(threadId: string): Promise<number> {
   }
   return running.length;
 }
+
+export function forgetJobs(threadId: string): void {
+  jobs.delete(threadId);
+}

@@ -54,6 +54,7 @@ const toolActions: Record<string, string | null> = {
   execute_command: 'running a command',
   get_process_output: 'reading command output',
   kill_process: 'stopping a command',
+  kill_sandbox: 'resetting the sandbox',
   search: 'searching workspace documents',
   index: 'indexing workspace documents',
   skill: 'reading a skill',
