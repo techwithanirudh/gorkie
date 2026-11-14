@@ -27,7 +27,7 @@ export function configureModal({
       ...(unlabelled
         ? [
             CardText(
-              ':warning: This server does not say which of its tools only read, so Gorkie treats them all as writes. Asking before writing will stop on every call here, and asking only before deleting will let real writes through.'
+              ':warning: This server does not say which of its tools only read, so Porkie treats them all as writes. Asking before writing will stop on every call here, and asking only before deleting will let real writes through.'
             ),
           ]
         : []),

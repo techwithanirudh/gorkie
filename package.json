@@ -1,5 +1,5 @@
 {
-  "name": "gorkie",
+  "name": "porkie",
   "license": "AGPL-3.0-only",
   "description": "An AI assistant for Slack, built on Mastra.",
   "type": "module",

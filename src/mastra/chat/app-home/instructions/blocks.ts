@@ -28,7 +28,7 @@ export function customInstructionsBlocks(
             elements: [
               {
                 type: 'mrkdwn',
-                text: 'none yet. gorkie uses its default personality. add one to shape how it replies to you.',
+                text: 'none yet. porkie uses its default personality. add one to shape how it replies to you.',
               },
             ],
           },
@@ -51,7 +51,7 @@ export function customInstructionsBlocks(
                     title: { type: 'plain_text', text: 'Clear instructions?' },
                     text: {
                       type: 'mrkdwn',
-                      text: 'This removes your custom instructions. Gorkie goes back to its default personality for you.',
+                      text: 'This removes your custom instructions. Porkie goes back to its default personality for you.',
                     },
                     confirm: { type: 'plain_text', text: 'Clear' },
                     deny: { type: 'plain_text', text: 'Cancel' },

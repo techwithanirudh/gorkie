@@ -16,7 +16,7 @@ export const connectView = ({
   const app = device
     ? [
         text(
-          `*1.* <${`https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`}|Choose which repositories Gorkie may use>. Pick "Only select repositories" to keep it narrow.`
+          `*1.* <${`https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`}|Choose which repositories Porkie may use>. Pick "Only select repositories" to keep it narrow.`
         ),
         text(
           `*2.* Open <${device.verificationUri}|${device.verificationUri}> and enter this code:`
@@ -32,7 +32,7 @@ export const connectView = ({
       'An app only reaches repositories it was installed on, so it cannot fork or open a pull request against one somebody else owns. A classic token can.'
     ),
     text(
-      'Pick the scope you want: <https://github.com/settings/tokens/new?scopes=public_repo&description=Gorkie|`public_repo`> covers public repositories, including other people\u2019s. <https://github.com/settings/tokens/new?scopes=repo&description=Gorkie|`repo`> adds your private ones, and is the only way Gorkie reaches private code while a token is set.'
+      'Pick the scope you want: <https://github.com/settings/tokens/new?scopes=public_repo&description=Porkie|`public_repo`> covers public repositories, including other people\u2019s. <https://github.com/settings/tokens/new?scopes=repo&description=Porkie|`repo`> adds your private ones, and is the only way Porkie reaches private code while a token is set.'
     ),
     {
       type: 'input',

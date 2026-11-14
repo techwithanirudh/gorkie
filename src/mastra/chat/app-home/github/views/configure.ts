@@ -20,7 +20,7 @@ export const configureView = ({
   const scopes = [
     option({
       description:
-        'In a shared thread Gorkie writes up the task and DMs it to you instead.',
+        'In a shared thread Porkie writes up the task and DMs it to you instead.',
       label: 'Only in a DM with you',
       value: 'dm',
     }),
@@ -45,7 +45,7 @@ export const configureView = ({
         type: 'input',
         block_id: ids.scope,
         dispatch_action: true,
-        label: { type: 'plain_text', text: 'Where can Gorkie use GitHub?' },
+        label: { type: 'plain_text', text: 'Where can Porkie use GitHub?' },
         element: {
           type: 'radio_buttons',
           action_id: ids.scope,
@@ -58,7 +58,7 @@ export const configureView = ({
       {
         type: 'input',
         block_id: `${ids.permission}_${threads ? 'threads' : 'dm'}`,
-        label: { type: 'plain_text', text: 'When should Gorkie stop and ask?' },
+        label: { type: 'plain_text', text: 'When should Porkie stop and ask?' },
         element: {
           type: 'radio_buttons',
           action_id: ids.permission,
@@ -69,7 +69,7 @@ export const configureView = ({
       text(
         pat
           ? 'Your token reaches everything its scopes allow, not a list of repositories. Disconnect to go back to the app.'
-          : 'Gorkie reaches only the repositories you chose. <https://github.com/settings/installations|Change which ones> on GitHub.'
+          : 'Porkie reaches only the repositories you chose. <https://github.com/settings/installations|Change which ones> on GitHub.'
       ),
     ],
   };

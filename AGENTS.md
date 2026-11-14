@@ -1,4 +1,4 @@
-# gorkie
+# porkie
 
 This project is a customizable AI assistant for Slack, built on Bun,
 TypeScript, Mastra channels, Chat SDK's Slack adapter in Socket Mode, E2B

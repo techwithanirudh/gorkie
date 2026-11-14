@@ -27,7 +27,7 @@ export async function scheduledTasksBlocks(
           elements: [
             {
               type: 'mrkdwn',
-              text: 'none yet. ask gorkie to schedule one for you in any conversation.',
+              text: 'none yet. ask porkie to schedule one for you in any conversation.',
             },
           ],
         },

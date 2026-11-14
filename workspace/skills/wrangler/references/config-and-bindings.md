@@ -1,7 +1,7 @@
 # Wrangler: configuration & service bindings
 
 Full `wrangler.jsonc` config plus the CLI reference for each Cloudflare service
-gorkie can actually use through a temporary account (`wrangler deploy
+porkie can actually use through a temporary account (`wrangler deploy
 --temporary`): Workers, Workers Static Assets, Workers KV, D1, Durable
 Objects, Hyperdrive, Queues, and SSL/TLS certificates only. Cloudflare has
 not extended temporary-account support to other products yet. Retrieval-first:
@@ -75,7 +75,7 @@ wrangler types --check
 
 ## Static Assets (no-account static site hosting)
 
-Since gorkie has no Cloudflare account and Pages always requires one, serve static
+Since porkie has no Cloudflare account and Pages always requires one, serve static
 sites (HTML/CSS/JS, no server framework) as a Worker instead, then deploy with
 `wrangler deploy --temporary` like any other Worker.
 

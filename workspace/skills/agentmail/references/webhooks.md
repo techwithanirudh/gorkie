@@ -1,6 +1,6 @@
 # AgentMail Webhooks
 
-Use webhooks when the user explicitly wants AgentMail to call a public HTTP endpoint for new mail or delivery events. For Gorkie itself, prefer polling or WebSockets unless the user has provided a stable endpoint.
+Use webhooks when the user explicitly wants AgentMail to call a public HTTP endpoint for new mail or delivery events. For Porkie itself, prefer polling or WebSockets unless the user has provided a stable endpoint.
 
 ## Create And Manage Webhooks
 

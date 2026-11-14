@@ -1,6 +1,6 @@
 import { env } from '@/env';
 export const sandbox = {
-  template: 'gorkie-workspace:2.0',
+  template: 'porkie-workspace:2.0',
   executionTimeout: 15 * 60 * 1000,
   timeout: 16 * 60 * 1000,
   // A cold clone or a large push runs well past E2B's 60s request default, and

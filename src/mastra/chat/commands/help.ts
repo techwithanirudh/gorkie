@@ -15,7 +15,7 @@ const COMMANDS: [string, string][] = [
 
 export const help: CommandHandler = async ({ message, thread }) => {
   const text = [
-    "*hey, i'm gorkie.* a helpful assistant right here in slack. mention me with anything: questions, code, research, files, or a hand with a task, and i'll pick it up in the thread.",
+    "*hey, i'm porkie.* a helpful assistant right here in slack. mention me with anything: questions, code, research, files, or a hand with a task, and i'll pick it up in the thread.",
     '',
     '*commands*',
     ...COMMANDS.map(([command, description]) => `*${command}:* ${description}`),

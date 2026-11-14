@@ -11,7 +11,7 @@ const placeholder = Buffer.from(
 ).toString('base64');
 
 export function createSandbox(threadId: string): E2BSandbox {
-  const id = `gorkie-${createHash('sha256').update(threadId).digest('hex').slice(0, 32)}`;
+  const id = `porkie-${createHash('sha256').update(threadId).digest('hex').slice(0, 32)}`;
 
   return new E2BSandbox({
     id,
@@ -21,9 +21,9 @@ export function createSandbox(threadId: string): E2BSandbox {
     env: {
       SSL_CERT_FILE: '/usr/lib/ssl/cert.pem',
       GIT_TERMINAL_PROMPT: '0',
-      GIT_AUTHOR_NAME: 'gorkie-agent',
+      GIT_AUTHOR_NAME: 'porkie-agent',
       GIT_AUTHOR_EMAIL: 'gorkie@agentmail.to',
-      GIT_COMMITTER_NAME: 'gorkie-agent',
+      GIT_COMMITTER_NAME: 'porkie-agent',
       GIT_COMMITTER_EMAIL: 'gorkie@agentmail.to',
       ...(env.AGENTMAIL_API_KEY ? { AGENTMAIL_API_KEY: placeholder } : {}),
     },

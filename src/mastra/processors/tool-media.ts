@@ -11,7 +11,7 @@ function byteLength(base64: string): number {
   return Math.ceil((base64.length * 3) / 4);
 }
 
-// Every gateway gorkie routes through is OpenAI-compatible, and none of them
+// Every gateway porkie routes through is OpenAI-compatible, and none of them
 // understand `media` parts inside tool-result content: they JSON-stringify the
 // whole part as text, so the model never sees the image. Relocating it into a
 // synthetic user message works everywhere, because user-message `file` parts

@@ -143,7 +143,7 @@ async function assertPublicOnly(token: string): Promise<void> {
   const scopes = auth.response_metadata?.scopes;
   if (!scopes) {
     throw new Error(
-      'Slack did not report the scopes on SLACK_USER_TOKEN, so gorkie cannot confirm it is limited to public channels. Workspace search is disabled until it can.'
+      'Slack did not report the scopes on SLACK_USER_TOKEN, so porkie cannot confirm it is limited to public channels. Workspace search is disabled until it can.'
     );
   }
   const overreach = scopes.filter((scope) =>
@@ -237,7 +237,7 @@ async function toOutput({
       );
       return shared && rawId(channelId).startsWith('C') ? channelId : undefined;
     } catch (error) {
-      // A channel gorkie cannot look up is not readable. Anything else, a
+      // A channel porkie cannot look up is not readable. Anything else, a
       // rate limit above all, has to fail the search instead of quietly
       // shrinking it into a confident "nothing found".
       const parsed = slackErrorSchema.safeParse(error);
@@ -335,7 +335,7 @@ export const searchSlackTool = createTool({
     const searchChannelId = channelId ?? threadId;
     if (!(messageId && searchChannelId)) {
       throw new Error(
-        'Slack search needs a live message in this thread. gorkie does not run the workspace search identity on scheduled or unattended runs. Ask the user to mention the bot, then search again.'
+        'Slack search needs a live message in this thread. porkie does not run the workspace search identity on scheduled or unattended runs. Ask the user to mention the bot, then search again.'
       );
     }
     const token = env.SLACK_USER_TOKEN;

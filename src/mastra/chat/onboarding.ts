@@ -34,10 +34,10 @@ export async function offerOptIn({
   try {
     await thread.post(
       Card({
-        title: ':wave: first time meeting gorkie',
+        title: ':wave: first time meeting porkie',
         children: [
           CardText(
-            `hi <@${user.userId}>! i'm gorkie. before i can help, you need to accept the terms posted in <#${env.OPT_IN_CHANNEL}>.`
+            `hi <@${user.userId}>! i'm porkie. before i can help, you need to accept the terms posted in <#${env.OPT_IN_CHANNEL}>.`
           ),
           CardText(
             "tap below to opt in, i'll add you to the terms channel and we can get started."
@@ -75,7 +75,7 @@ export async function acceptOptIn(event: ActionEvent): Promise<void> {
   await thread
     .postEphemeral(
       user,
-      "you're all set, welcome to gorkie. ask me anything.",
+      "you're all set, welcome to porkie. ask me anything.",
       {
         fallbackToDM: true,
       }

@@ -11,7 +11,7 @@ export const slackPrompt = `\
 - When no response is needed, call \`skip\` without writing any text. An empty reply posts nothing, so never send filler like "ok", "done", or "no action needed" just to close a turn.
 - For visual work, inspect the final screenshot before reporting success. Upload representative evidence and the final result without flooding the thread with near-duplicates.
 
-gorkie's source code is at https://github.com/techwithanirudh/gorkie.
+porkie's source code is at https://github.com/techwithanirudh/gorkie.
 </slack>`;
 
 export const slackToolPrompt = `\
