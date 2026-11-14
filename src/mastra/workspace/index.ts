@@ -35,10 +35,8 @@ export function usedSandbox(requestContext: RequestContext): boolean {
 export async function requireSandbox(
   requestContext: RequestContext
 ): Promise<E2BSandbox> {
-  // Real command/filesystem work needs a real thread. The `sandbox` resolver
-  // degrades to a shared `__unscoped__` sandbox so Mastra's pre-bind
-  // instruction read never crashes a turn, but a tool must not silently run
-  // commands in that scratch sandbox: fail loudly instead.
+  // Without a thread the `sandbox` resolver hands back the shared
+  // `__unscoped__` scratch sandbox, which a tool must never run commands in.
   if (!channelContext(requestContext).threadId) {
     throw new Error(
       'No Slack thread bound for this run, so a sandbox tool cannot run here.'
@@ -63,10 +61,9 @@ export async function getSandbox(
   return sandbox;
 }
 
-// Pause the thread's sandbox and drop its cache entry. The `sandbox` output
-// processor calls this on a normal turn, but that phase never runs on an abort
-// or a thrown turn, so `onAbort`/`onError` call it too: otherwise the sandbox
-// stays live until its own 16 minute timeout after every stopped turn.
+// Mastra skips the `sandbox` output processor on an aborted or thrown turn, so
+// `onAbort`/`onError` call this too, or the sandbox stays live until its own
+// timeout.
 export async function pauseSandbox(
   requestContext: RequestContext
 ): Promise<void> {
@@ -93,11 +90,9 @@ export const workspace: Workspace = new Workspace({
   name: 'Workspace',
   sandbox: ({ requestContext }) => {
     const { threadId } = channelContext(requestContext);
-    // Degrade instead of throw. Mastra can resolve workspace instructions
-    // before a thread is bound (and a scheduled/idle wake may arrive without
-    // channel context), and throwing here failed the whole turn and every
-    // fallback model. A contextless run gets a shared scratch sandbox; real
-    // turns still key on their own thread, so sandbox continuity is unchanged.
+    // Mastra can resolve workspace instructions before a thread is bound, and
+    // a scheduled or idle wake may arrive without channel context. Throwing
+    // here fails the turn on every fallback model.
     return createSandbox(threadId ?? '__unscoped__');
   },
   filesystem: async ({ requestContext }) => {
@@ -128,9 +123,8 @@ export const workspace: Workspace = new Workspace({
   tools: {
     [WORKSPACE_TOOLS.FILESYSTEM.READ_FILE]: {
       name: READ_FILE,
-      // Images go through view_image (which types by magic bytes), not read_file:
-      // read_file trusts the extension, which is how a mislabeled file becomes a
-      // bad image part. Keep PDFs, which view_image does not handle.
+      // read_file types media by extension, so a mislabeled file becomes a bad
+      // image part. Images go through view_image, which types by bytes.
       mediaTypes: ['application/pdf'],
     },
     [WORKSPACE_TOOLS.FILESYSTEM.WRITE_FILE]: {
@@ -149,11 +143,10 @@ export const workspace: Workspace = new Workspace({
     [WORKSPACE_TOOLS.FILESYSTEM.AST_EDIT]: { enabled: false },
     [WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND]: {
       name: EXECUTE_COMMAND,
-      // Without this the default is the agent's own abort signal, so every
-      // `background: true` process is killed the moment the turn ends. Mastra
-      // documents `false` as the setting for cloud sandboxes like E2B, where
-      // the process is supposed to outlive the agent that started it.
+      // Mastra defaults this to the agent's abort signal, which kills every
+      // `background: true` process when the turn ends.
       backgroundProcesses: { abortSignal: false },
+      requireDescription: true,
     },
     [WORKSPACE_TOOLS.SANDBOX.GET_PROCESS_OUTPUT]: {
       name: GET_PROCESS_OUTPUT,

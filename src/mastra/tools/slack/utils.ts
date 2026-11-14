@@ -1,15 +1,13 @@
 import type { Message } from 'chat';
-import { z } from 'zod';
+import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import type { Target } from '../../chat/target';
 import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
 import { logger } from '../../lib/logger';
+import { slackError } from '../../lib/slack-error';
 import type { ChannelContext } from '../../types';
 
-const slackErrorSchema = z.looseObject({
-  data: z.looseObject({ error: z.string().optional() }).optional(),
-});
 const notReadable =
   'Reading DMs, private channels, or external conversations is not allowed.';
 
@@ -21,6 +19,11 @@ export async function assertReadableChannel({
   currentThreadId?: string;
 }) {
   const id = chatChannelId(channelId);
+  if (env.BLOCKED_CHANNELS.includes(rawId(id))) {
+    throw new Error(
+      'This channel is blocked from reads by the operator. Every tool, id form and search is refused for it, so do not try another way. Tell the person you cannot read that channel.'
+    );
+  }
   const metadata = await chat().channel(id).fetchMetadata();
   if (currentThreadId && id === chatChannelId(currentThreadId)) {
     return metadata;
@@ -53,14 +56,12 @@ export async function assertReadableResource({
     return;
   }
 
-  // Still refused either way. A rate limit or timeout just must not read as
-  // "this conversation is private".
+  // A rate limit or timeout must not read as "this conversation is private".
   const failed = checks.find(
     (check) =>
       check.status === 'rejected' &&
       check.reason?.message !== notReadable &&
-      slackErrorSchema.safeParse(check.reason).data?.data?.error !==
-        'channel_not_found'
+      slackError(check.reason) !== 'channel_not_found'
   );
   if (failed?.status === 'rejected') {
     throw new Error(
@@ -96,7 +97,7 @@ export function assertCanPostTo({
 
   const destination =
     target.type === 'thread'
-      ? slack.decodeThreadId(target.id).channel
+      ? (parseSlackId(target.id).channel ?? '')
       : target.id;
   if (rawId(destination) !== rawId(ctx.channelId)) {
     throw new Error(
@@ -119,10 +120,7 @@ export async function joinChannel(channelId: string): Promise<void> {
     // already_in_channel means the bot is already a member, the state we want,
     // so remember it and stop re-calling join. Other failures may be transient,
     // so do not cache and let a later call retry.
-    if (
-      slackErrorSchema.safeParse(error).data?.data?.error ===
-      'already_in_channel'
-    ) {
+    if (slackError(error) === 'already_in_channel') {
       joinedChannels.add(id);
       return;
     }
@@ -162,4 +160,15 @@ export function formatMessage(message: Message) {
       url: a.url,
     })),
   };
+}
+
+// A remote file's url_private can be any host, and must never get a Slack token.
+export function assertSlackFileHost(url: string): void {
+  const { hostname, protocol } = new URL(url);
+  if (
+    protocol !== 'https:' ||
+    !(hostname === 'slack.com' || hostname.endsWith('.slack.com'))
+  ) {
+    throw new Error('That file is hosted outside Slack, so it cannot be read.');
+  }
 }

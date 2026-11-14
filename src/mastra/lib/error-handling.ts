@@ -3,6 +3,7 @@ import {
   PrefillErrorHandler,
   StreamErrorRetryProcessor,
 } from '@mastra/core/processors';
+import { modelErrors } from '../observability/model-errors';
 
 function messageOf(error: unknown): string {
   if (typeof error === 'string') {
@@ -21,9 +22,6 @@ function isTerminalModelError(error: unknown): boolean {
   return terminalPattern.test(messageOf(error));
 }
 
-const econnresetMaxRetries = 2;
-const econnresetRetryInitialDelayMs = 1000;
-const econnresetRetryMaxDelayMs = 30_000;
 const econnresetMessagePattern = /econnreset|socket hang up/i;
 
 function isEconnresetError(error: unknown): boolean {
@@ -45,24 +43,20 @@ function isRateLimitError(error: unknown): boolean {
 
 export function defaultErrorProcessors() {
   return [
+    // First: Mastra stops calling error processors at the first retry result.
+    modelErrors,
     new StreamErrorRetryProcessor({
       retryUnknownErrors: true,
       maxRetries: 2,
       delayMs: 3000,
       matchers: [
         { match: isTerminalModelError, maxRetries: 0 },
-        // A 400 is deterministic (a malformed/oversized request), so retrying
-        // the same model is a guaranteed second failure. Stop, so the run falls
-        // through to the next model in the ladder instead.
+        // A 400 is deterministic, so fall through to the next model instead.
         { match: isBadRequestError, maxRetries: 0 },
         {
           match: isEconnresetError,
-          maxRetries: econnresetMaxRetries,
-          delayMs: ({ retryCount }) =>
-            Math.min(
-              econnresetRetryInitialDelayMs * 2 ** retryCount,
-              econnresetRetryMaxDelayMs
-            ),
+          maxRetries: 2,
+          delayMs: ({ retryCount }) => Math.min(1000 * 2 ** retryCount, 30_000),
         },
         { match: isRateLimitError, maxRetries: 2, delayMs: 3000 },
       ],

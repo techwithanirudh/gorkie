@@ -26,7 +26,7 @@ export async function githubTools({
     if (access.state !== 'connected') {
       return {};
     }
-    const { credential, direct, level } = access;
+    const { direct, level } = access;
 
     const built = createGithubTools({
       token: async () => {
@@ -42,19 +42,12 @@ export async function githubTools({
 
     const tools: Record<string, unknown> = {};
     for (const name of ALLOWLIST) {
-      // An app structurally cannot fork a repository it is not installed on.
-      if (name === 'forkRepository' && credential.kind !== 'pat') {
-        continue;
-      }
       // The SDK's formatter is AI SDK shaped; Mastra hands it the result alone.
       const { toModelOutput: format, ...tool } = built[name];
       const id = `github_${name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()}`;
       if (!direct) {
-        // Replace the tool outright rather than layering the handoff over the
-        // SDK's formatter: those assume a GitHub API result, and
-        // listPullRequestFiles maps over it unguarded, so a handoff message
-        // throws instead of reaching the model. Nothing here reaches GitHub, so
-        // there is nothing to approve either.
+        // The SDK's formatters assume a GitHub API result, and
+        // listPullRequestFiles throws on a handoff message, so drop them.
         tools[id] = {
           ...tool,
           needsApproval: false,
@@ -83,7 +76,6 @@ export async function githubTools({
       });
       tools.github_push_branch = pushTool({
         approval: asksBefore({ kind: 'write', level }),
-        canFork: credential.kind === 'pat',
         userId,
       });
     }

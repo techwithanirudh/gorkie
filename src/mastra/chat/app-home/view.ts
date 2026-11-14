@@ -2,15 +2,21 @@ import { getGitHubCredential } from '../../db/queries/github';
 import { listMCPServers } from '../../db/queries/mcps';
 import { getGitHubSettings, getInstructions } from '../../db/queries/settings';
 import { countInstallations } from '../../lib/github';
+import { githubAccessToken } from '../../lib/github/token';
+import { usage } from '../../lib/limits';
 import { logger } from '../../lib/logger';
 import type { GitHubCredential } from '../../types';
 import { slack } from '../client';
 import { content } from '../content';
+import { banNotice } from '../moderation/cards';
+import { banStatus } from '../moderation/gate';
+import { heading, note } from './blocks';
 import { githubBlocks } from './github';
 import { customInstructionsBlocks } from './instructions';
 import { fitHome, type HomeSection } from './limit';
 import { mcpServersBlocks } from './mcp';
 import { scheduledTasksBlocks } from './scheduled-tasks';
+import { usageBlocks } from './usage';
 
 async function settled<T>({
   label,
@@ -29,6 +35,16 @@ async function settled<T>({
 }
 
 async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
+  const ban = await banStatus(userId);
+  if (ban.status === 'banned') {
+    return {
+      type: 'home',
+      blocks: [
+        heading('Banned From Gorkie'),
+        note(banNotice(ban.ban.expiresAt)),
+      ],
+    };
+  }
   const credentialResult: Promise<{
     credential: GitHubCredential | undefined;
     unreadable: boolean;
@@ -50,6 +66,7 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
     { credential, unreadable },
     github,
     scheduled,
+    usageRows,
   ] = await Promise.all([
     settled({ label: 'instructions', userId, work: getInstructions(userId) }),
     settled({ label: 'mcp', userId, work: listMCPServers(userId) }),
@@ -60,12 +77,23 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
       userId,
       work: scheduledTasksBlocks(userId),
     }),
+    settled({ label: 'usage', userId, work: usage(userId) }),
   ]);
-  const installations =
-    credential?.kind === 'app' ? await countInstallations(credential.token) : 0;
+  // The stored token lasts 8 hours and only githubAccessToken refreshes it, so
+  // checking with it directly fails for anyone idle that long.
+  const token = credential
+    ? await githubAccessToken(userId).catch((error: unknown) => {
+        logger.warn('[app-home] could not refresh the GitHub token', {
+          error,
+          userId,
+        });
+      })
+    : undefined;
+  const installations = token ? await countInstallations(token) : 0;
 
   const sections: HomeSection[] = [
     { fixed: [...content.home.blocks, { type: 'divider' }] },
+    ...(usageRows ? [usageBlocks(usageRows)] : []),
     customInstructionsBlocks(instructions),
     githubBlocks({
       credential,

@@ -1,5 +1,5 @@
-import { logger } from '../../lib/logger';
 import type { CommandHandler } from '../../types';
+import { notify } from '../notify';
 
 const COMMANDS: [string, string][] = [
   ['!help', 'show this list.'],
@@ -7,6 +7,11 @@ const COMMANDS: [string, string][] = [
     '!stop',
     'immediately stop the current turn and any background work in this thread.',
   ],
+  [
+    '!compact',
+    "condense this thread's memory now instead of waiting for it to fill up.",
+  ],
+  ['!limits', 'show how much of your usage limits you have used.'],
   [
     '!connections',
     'list your mcp servers, integrations, and github, with status.',
@@ -22,12 +27,5 @@ export const help: CommandHandler = async ({ message, thread }) => {
     '',
     'tip: set your custom instructions and manage github, mcp servers, and scheduled tasks from the *home* tab.',
   ].join('\n');
-  await thread
-    .postEphemeral(message.author, text, { fallbackToDM: false })
-    .catch((error: unknown) => {
-      logger.warn('[commands] failed to post help', {
-        error,
-        threadId: thread.id,
-      });
-    });
+  await notify({ text, thread, user: message.author });
 };

@@ -2,6 +2,7 @@ import { listMCPServers } from '../../db/queries/mcps';
 import { githubAccess } from '../../lib/github';
 import { logger } from '../../lib/logger';
 import type { CommandHandler } from '../../types';
+import { notify } from '../notify';
 
 export const connections: CommandHandler = async ({ message, thread }) => {
   const { userId } = message.author;
@@ -11,7 +12,7 @@ export const connections: CommandHandler = async ({ message, thread }) => {
     const github = await githubAccess({ isDM: thread.isDM, userId });
     let status = 'could not read it right now';
     if (github.state === 'connected') {
-      status = `connected via ${github.credential.kind}`;
+      status = `connected as ${github.credential.login}`;
     } else if (github.state === 'disconnected') {
       status = 'not connected';
     }
@@ -38,12 +39,5 @@ export const connections: CommandHandler = async ({ message, thread }) => {
     '',
     'manage these from the *home* tab.',
   ].join('\n');
-  await thread
-    .postEphemeral(message.author, text, { fallbackToDM: false })
-    .catch((error: unknown) => {
-      logger.warn('[commands] failed to post connections', {
-        error,
-        threadId: thread.id,
-      });
-    });
+  await notify({ text, thread, user: message.author });
 };

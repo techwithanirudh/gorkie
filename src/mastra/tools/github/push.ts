@@ -1,18 +1,15 @@
 import { createTool } from '@mastra/core/tools';
-import { sandbox as sandboxConfig } from '../../config';
 import { sh } from '../../lib/utils';
 import { branchSchema, repositorySchema } from '../../types';
 import { input } from '../../types/tools/index';
 import { requireSandbox } from '../../workspace';
-import { git, withCredential } from './git';
+import { clonePath, git, withCredential } from './git';
 
 export const pushTool = ({
   approval,
-  canFork,
   userId,
 }: {
   approval: boolean;
-  canFork: boolean;
   userId: string;
 }) =>
   createTool({
@@ -38,11 +35,7 @@ export const pushTool = ({
     }),
     execute: async ({ repository, branch, checkout }, context) => {
       const sandbox = await requireSandbox(context.requestContext);
-      // The branch lives in the checkout directory. For a normal push that is
-      // the target repo; for a fork PR it is the upstream repo that was cloned,
-      // not the fork we push to, so the two are tracked apart.
-      const source = checkout ?? repository;
-      const path = `${sandboxConfig.workdir}/${source.replace('/', '__')}`;
+      const path = clonePath(checkout ?? repository);
       const remote = `https://github.com/${repository}.git`;
       const push = () =>
         git({
@@ -56,9 +49,8 @@ export const pushTool = ({
             await push();
           } catch (error) {
             const message = error instanceof Error ? error.message : `${error}`;
-            // github_checkout clones shallow (--depth 50), and git refuses a
-            // push whose history bottoms out at that boundary. Deepen once and
-            // retry rather than handing back a git internals error.
+            // github_checkout clones with --depth 50, and git refuses a push
+            // whose history bottoms out at that boundary.
             if (/shallow/i.test(message)) {
               await git({
                 command: 'git fetch --unshallow',
@@ -68,9 +60,7 @@ export const pushTool = ({
               await push();
             } else if (/denied|permission|403|forbidden/i.test(message)) {
               throw new Error(
-                canFork
-                  ? `${message}\n\nThis account cannot push to ${repository}. Fork it with github_fork_repository, then call github_push_branch again with checkout set to "${source}" (the repo you cloned) and repository set to your fork, then open the pull request from the fork into ${repository}.`
-                  : `${message}\n\nThis GitHub App connection cannot push to ${repository} and cannot fork it, because an app only reaches repositories it is installed on. Say so, and offer a classic token from the Home tab or a pull request they open themselves.`,
+                `${message}\n\nThis GitHub App connection cannot push to ${repository} and cannot fork it, because an app only reaches repositories it is installed on. Say so, and offer to hand over the patch or have them install the app on that repository.`,
                 { cause: error }
               );
             } else {

@@ -4,19 +4,13 @@ import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
+import { formatBytes } from '../../lib/media';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { sh } from '../../lib/utils';
 import { input, output } from '../../types/tools/index';
 import { sandboxPath as p, requireSandbox } from '../../workspace';
 import { downloadEmoji } from './emoji';
-import { assertReadableResource } from './utils';
-
-function formatBytes(value: number): string {
-  if (value < 1024 * 1024) {
-    return `${Math.ceil(value / 1024)} KB`;
-  }
-  return `${Math.ceil(value / 1024 / 1024)} MB`;
-}
+import { assertReadableResource, assertSlackFileHost } from './utils';
 
 function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) {
@@ -172,6 +166,7 @@ export const getSlackFileTool = createTool({
         url,
       });
     };
+    assertSlackFileHost(url);
     const expectedSize =
       fileInfo?.size ??
       (await fetch(url, {

@@ -4,8 +4,10 @@ import { z } from 'zod';
 import { env } from '@/env';
 import { channelContext } from '../../lib/context';
 import { chatChannelId, rawId } from '../../lib/ids';
+import { assertWithinLimit } from '../../lib/limits';
 import { slackWebLogger } from '../../lib/logger/slack';
 import { spendSlackCall } from '../../lib/slack-budget';
+import { slackError } from '../../lib/slack-error';
 import { input, output } from '../../types/tools/index';
 
 const contextMessageSchema = z
@@ -72,19 +74,13 @@ const authTestSchema = z.looseObject({
     .optional(),
 });
 
-const slackErrorSchema = z.looseObject({
-  data: z.looseObject({ error: z.string().optional() }).optional(),
-});
-
 const rateLimitSchema = z.looseObject({
   retryAfter: z.number().optional(),
 });
 
-// On a 429 the shared client pauses its whole queue for Slack's retry-after and
-// retries, so one search stops every Slack call in the process for minutes. This
-// client rejects a 429 at once, and the model hears how long search is out.
-// rejectRateLimitedCalls aborts the retry loop, so only network errors and 5xx
-// responses are retried.
+// On a 429 the shared client pauses its whole queue for Slack's retry-after, so
+// one search stalls every Slack call in the process for minutes. This client
+// rejects a 429 at once and retries only network errors and 5xx responses.
 const searchClient = new WebClient(undefined, {
   logger: slackWebLogger,
   rejectRateLimitedCalls: true,
@@ -93,15 +89,14 @@ const searchClient = new WebClient(undefined, {
 });
 
 function searchFailure(error: unknown): Error {
-  const limited = rateLimitSchema.safeParse(error);
-  if (limited.data?.retryAfter !== undefined) {
+  const parsed = rateLimitSchema.safeParse(error);
+  if (parsed.data?.retryAfter !== undefined) {
     return new Error(
-      `Slack rate limited search for ${Math.ceil(limited.data.retryAfter / 60)} more minutes, so no search ran. Do not search again. Answer from what you already have, and tell the person search is unavailable for now.`,
+      `Slack rate limited search for ${Math.ceil(parsed.data.retryAfter / 60)} more minutes, so no search ran. Do not search again. Answer from what you already have, and tell the person search is unavailable for now.`,
       { cause: error }
     );
   }
-  const parsed = slackErrorSchema.safeParse(error);
-  const code = parsed.success ? parsed.data.data?.error : undefined;
+  const code = slackError(error);
   if (!code) {
     return new Error(
       'Slack search failed. No results were returned to the model. Do not treat this as an empty search or retry with another token.',
@@ -192,8 +187,6 @@ async function runSearch({
       })
     );
   } catch (error) {
-    // Throw the reason as the tool error the model receives. Never retry a
-    // denied search under a different identity or disguise it as zero hits.
     throw searchFailure(error);
   }
 }
@@ -205,7 +198,10 @@ async function toOutput({
   response: SearchResponse;
   threadId?: string;
 }) {
-  const messages = response.results?.messages ?? [];
+  const messages = (response.results?.messages ?? []).filter(
+    ({ channelId }) =>
+      !(channelId && env.BLOCKED_CHANNELS.includes(rawId(channelId)))
+  );
   const channelIds = new Set<string>();
   for (const message of messages) {
     if (message.channelId) {
@@ -237,26 +233,21 @@ async function toOutput({
       );
       return shared && rawId(channelId).startsWith('C') ? channelId : undefined;
     } catch (error) {
-      // A channel gorkie cannot look up is not readable. Anything else, a
-      // rate limit above all, has to fail the search instead of quietly
-      // shrinking it into a confident "nothing found".
-      const parsed = slackErrorSchema.safeParse(error);
-      if (parsed.success && parsed.data.data?.error === 'channel_not_found') {
+      // A rate limit has to fail the search, not shrink it into "nothing found".
+      if (slackError(error) === 'channel_not_found') {
         return;
       }
       throw searchFailure(error);
     }
   };
-  // Bounded in small batches: one unbounded Promise.all can fire enough
-  // parallel conversations.info calls to trip Slack rate limits. No caching, on
-  // purpose - visibility is the privacy gate for these results, and a stale
-  // "workspace" entry would leak a channel that later went private.
+  // Unbounded parallel conversations.info calls trip Slack rate limits. Not
+  // cached: a stale "workspace" entry would leak a channel that went private.
   const visibilityBatchSize = 4;
   const ids = [...channelIds];
   const resolved: Array<string | undefined> = [];
   for (let index = 0; index < ids.length; index += visibilityBatchSize) {
     resolved.push(
-      // biome-ignore lint/performance/noAwaitInLoops: batches are sequential on purpose - that is what bounds the concurrency.
+      // biome-ignore lint/performance/noAwaitInLoops: sequential batches are what bound the concurrency.
       ...(await Promise.all(
         ids.slice(index, index + visibilityBatchSize).map(lookupVisibility)
       ))
@@ -329,6 +320,10 @@ export const searchSlackTool = createTool({
   },
   execute: async ({ query, cursor }, context) => {
     spendSlackCall(context?.requestContext);
+    await assertWithinLimit({
+      kind: 'slackSearch',
+      requestContext: context?.requestContext,
+    });
     const { channelId, messageId, threadId } = channelContext(
       context?.requestContext
     );

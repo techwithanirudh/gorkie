@@ -2,6 +2,7 @@ import { agent as agentConfig } from '../../../config';
 import { chatChannelId } from '../../../lib/ids';
 import { isAgentSchedule } from '../../../tools/scheduled-tasks/queries';
 import { getMastra } from '../../mastra-instance';
+import { heading, note } from '../blocks';
 import type { HomeSection } from '../limit';
 import { ids } from './ids';
 
@@ -13,25 +14,15 @@ export async function scheduledTasksBlocks(
     resourceId: chatChannelId(userId),
   });
   const tasks = schedules.filter(isAgentSchedule);
-  const header = {
-    type: 'section',
-    text: { type: 'mrkdwn', text: '*Scheduled Tasks*' },
-  };
+  const header = heading('Scheduled Tasks');
 
   if (tasks.length === 0) {
     return {
       fixed: [
         header,
-        {
-          type: 'context',
-          elements: [
-            {
-              type: 'mrkdwn',
-              text: 'none yet. ask gorkie to schedule one for you in any conversation.',
-            },
-          ],
-        },
+        note('None yet. Ask Gorkie to schedule one in any conversation.'),
       ],
+      trailing: [{ type: 'divider' }],
     };
   }
 
@@ -49,24 +40,32 @@ export async function scheduledTasksBlocks(
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `*${title}*\n\`${task.cron}\`${task.timezone ? ` (${task.timezone})` : ''} \u00b7 next run <!date^${nextFire}^{date_short_pretty} at {time}|soon>`,
+            text: `*${title}*`,
           },
-          accessory: {
-            type: 'button',
-            text: { type: 'plain_text', text: 'Cancel' },
-            action_id: ids.cancel,
-            value: task.id,
-            style: 'danger',
-            confirm: {
-              title: { type: 'plain_text', text: 'Cancel this task?' },
-              text: {
-                type: 'mrkdwn',
-                text: `This permanently deletes "${title}".`,
+        },
+        note(
+          `\`${task.cron}\`${task.timezone ? ` (${task.timezone})` : ''} \u00b7 next run <!date^${nextFire}^{date_short_pretty} at {time}|soon>`
+        ),
+        {
+          type: 'actions',
+          elements: [
+            {
+              type: 'button',
+              text: { type: 'plain_text', text: 'Cancel' },
+              action_id: ids.cancel,
+              value: task.id,
+              style: 'danger',
+              confirm: {
+                title: { type: 'plain_text', text: 'Cancel this task?' },
+                text: {
+                  type: 'mrkdwn',
+                  text: `This permanently deletes "${title}".`,
+                },
+                confirm: { type: 'plain_text', text: 'Cancel task' },
+                deny: { type: 'plain_text', text: 'Keep it' },
               },
-              confirm: { type: 'plain_text', text: 'Cancel task' },
-              deny: { type: 'plain_text', text: 'Keep it' },
             },
-          },
+          ],
         },
       ];
     }),

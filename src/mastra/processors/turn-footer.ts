@@ -15,14 +15,19 @@ export const turnFooter = {
     'Closes a turn with how long it took and a thumbs rating for the response.',
   processOutputStream(args: ProcessOutputStreamArgs) {
     args.state.startTime ??= Date.now();
+    if (args.part.type === 'text-delta' && args.part.payload.text.trim()) {
+      args.state.replySent = true;
+    }
     return args.part;
   },
   async processOutputResult(args: ProcessOutputResultArgs) {
-    const { threadId } = channelContext(args.requestContext);
-    const { startTime } = args.state;
+    const { messageId, threadId } = channelContext(args.requestContext);
+    const startTime = messageId
+      ? Number(messageId) * 1000
+      : args.state.startTime;
 
     if (
-      !(threadId && args.result.text.trim()) ||
+      !(threadId && args.state.replySent === true) ||
       typeof startTime !== 'number'
     ) {
       return args.messages;
@@ -35,16 +40,18 @@ export const turnFooter = {
     const text = `done in ${elapsed || 'under a second'}`;
     const traceId = args.tracingContext?.currentSpan?.traceId;
     try {
-      await slack.postBlocks({
+      const { channel, threadTs } = slack.decodeThreadId(threadId);
+      await slack.webClient.chat.postMessage({
+        channel,
+        thread_ts: threadTs || undefined,
         blocks: [
           {
             type: 'context',
             elements: [{ type: 'mrkdwn', text: `_${text}_` }],
           },
           feedbackBlock(traceId),
-        ],
+        ] as never,
         text,
-        threadId,
       });
     } catch (error) {
       logger.warn('[turn-footer] failed to post', { threadId, error });

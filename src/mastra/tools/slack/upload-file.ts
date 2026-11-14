@@ -1,6 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
+import { neutralizeBroadcasts } from '../../chat/message';
 import { type Target, targetSchema } from '../../chat/target';
 import { upload } from '../../config';
 import { channelContext } from '../../lib/context';
@@ -116,9 +117,8 @@ export const uploadFileTool = createTool({
         },
       })
     );
-    // `duplex: 'half'` is mandatory for a stream body on Node's undici and is
-    // missing from the DOM `RequestInit` type. Bun tolerates its absence,
-    // which is why this only failed once it ran under `mastra dev`.
+    // Node's undici requires `duplex: 'half'` for a stream body, and the DOM
+    // `RequestInit` type does not declare it.
     const streamed: RequestInit & { duplex: 'half' } = {
       body,
       duplex: 'half',
@@ -129,10 +129,8 @@ export const uploadFileTool = createTool({
       throw new Error(`Upload to Slack failed with ${sent.status}.`);
     }
     // A stream E2B reclaims server-side ends cleanly rather than erroring, and
-    // Slack accepts a body shorter than the length it was promised, so a
-    // truncated file otherwise publishes looking intact. Check before
-    // completing: an unfinished upload id expires on its own, a published
-    // corrupt file does not.
+    // Slack accepts a body shorter than the promised length, so a truncated
+    // file would otherwise publish looking intact.
     if (uploaded !== stat.size) {
       throw new Error(
         `${path} was truncated in transit: sent ${uploaded} of ${stat.size} bytes. Nothing was posted to Slack, try the upload again.`
@@ -141,7 +139,7 @@ export const uploadFileTool = createTool({
     await slack.webClient.files.completeUploadExternal({
       channel_id: destination.channel,
       files: [{ id: created.file_id, title: name }],
-      initial_comment: comment,
+      initial_comment: comment && neutralizeBroadcasts(comment),
       thread_ts: destination.threadTs,
     });
     const fileId = created.file_id;

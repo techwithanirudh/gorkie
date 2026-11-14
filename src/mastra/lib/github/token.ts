@@ -8,10 +8,7 @@ import {
 } from '../../db/queries/github';
 import type { GitHubCredential } from '../../types';
 import { logger } from '../logger';
-import { githubUser } from './api';
 import { toAccount } from './device-flow';
-
-const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
 const refreshErrorSchema = z.object({
   status: z.number().optional(),
@@ -40,12 +37,7 @@ async function refreshAccount({
     });
     const refreshed = toAccount(authentication);
     await setGitHubCredential({
-      credential: {
-        ...refreshed,
-        kind: 'app',
-        login: account.login,
-        scopes: [],
-      },
+      credential: { ...refreshed, login: account.login },
       userId,
     });
     return refreshed.token;
@@ -81,12 +73,9 @@ export async function githubAccessToken(
   if (!account) {
     return;
   }
-  if (account.kind === 'pat') {
-    return account.token;
-  }
   const expiresSoon =
     account.expiresAt !== undefined &&
-    account.expiresAt.getTime() - Date.now() < REFRESH_MARGIN_MS;
+    account.expiresAt.getTime() - Date.now() < 5 * 60 * 1000;
   if (!(expiresSoon && account.refreshToken)) {
     return account.token;
   }
@@ -102,22 +91,4 @@ export async function githubAccessToken(
   }).finally(() => refreshes.delete(userId));
   refreshes.set(userId, started);
   return started;
-}
-
-export async function verifyGitHubPat(
-  token: string
-): Promise<
-  { login: string; scopes: string[]; token: string } | { error: string }
-> {
-  const user = await githubUser(token);
-  if ('error' in user) {
-    return { error: 'GitHub rejected that token.' };
-  }
-  if (user.scopes.length === 0) {
-    return {
-      error:
-        'That looks like a fine-grained token. Those only reach your own repositories, which the GitHub App already covers. Use a classic token with `public_repo`.',
-    };
-  }
-  return { login: user.login, scopes: user.scopes, token };
 }

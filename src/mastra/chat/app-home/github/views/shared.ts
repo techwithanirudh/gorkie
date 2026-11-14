@@ -2,8 +2,6 @@ import type { PlainTextOption } from '@slack/web-api';
 import { z } from 'zod';
 import { ids } from '../ids';
 
-export type ConnectMethod = 'app' | 'pat';
-
 export const option = ({
   description,
   label,
@@ -43,10 +41,7 @@ const viewAction = z.object({
   }),
 });
 
-export type ViewTarget = z.infer<typeof viewAction>['view'];
-
-export const viewOf = (raw: unknown): ViewTarget | undefined =>
-  viewAction.safeParse(raw).data?.view;
+export const viewOf = (raw: unknown) => viewAction.safeParse(raw).data?.view;
 
 export const selectedPermission = ({
   raw,

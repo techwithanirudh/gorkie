@@ -1,46 +1,101 @@
+import type { AgentSessionStoppedEvent } from 'chat';
 import { logger } from '../../lib/logger';
 import { memoryThread } from '../../lib/memory';
 import type { CommandHandler } from '../../types';
+import { killJobs } from '../../workspace/jobs';
+import { chat } from '../instance';
+import { getMastra } from '../mastra-instance';
+import { notify } from '../notify';
+import { setThreadState } from '../state';
 
-// 'aborted' means a live run was cancelled, and the agent's own onAbort posts
-// about it; anything else is this command's to report. (Background-task
-// cancellation lives on the background branch, where backgroundTasks is
-// actually configured; this branch has no background tasks to stop.)
-export async function stopThread(
+async function cancelBackgroundTasks(threadId: string): Promise<number> {
+  const manager = getMastra().backgroundTaskManager;
+  if (!manager) {
+    return 0;
+  }
+  const { tasks } = await manager.listTasks({
+    status: ['pending', 'running', 'suspended'],
+    threadId,
+  });
+  const cancelled = await Promise.allSettled(
+    tasks.map((task) => manager.cancel(task.id))
+  );
+  if (cancelled.some(({ status }) => status === 'rejected')) {
+    logger.warn('[commands] some background tasks failed to stop', {
+      threadId,
+    });
+  }
+  return tasks.length;
+}
+
+async function stopThread(
   threadId: string
-): Promise<'aborted' | 'idle'> {
+): Promise<'aborted' | 'cancelled' | 'idle'> {
   const { default: orchestrator } = await import('../../agents/orchestrator');
+  const killed = await killJobs(threadId);
   const threadMemory = await memoryThread({
     agent: orchestrator,
     externalThreadId: threadId,
-  }).catch(() => undefined);
-  const scope = threadMemory
-    ? { threadId: threadMemory.id, resourceId: threadMemory.resourceId }
-    : undefined;
-  const activeRunId = scope
-    ? orchestrator.getActiveThreadRunId(scope)
-    : undefined;
-  if (!(scope && activeRunId)) {
-    return 'idle';
+  });
+  if (!threadMemory) {
+    return killed > 0 ? 'cancelled' : 'idle';
   }
-  orchestrator.abortThreadStream(scope);
-  return 'aborted';
+  const scope = {
+    threadId: threadMemory.id,
+    resourceId: threadMemory.resourceId,
+  };
+  const cancelled = await cancelBackgroundTasks(threadMemory.id).catch(
+    (error: unknown) => {
+      logger.warn('[commands] failed to stop background tasks', {
+        error,
+        threadId,
+      });
+      return 0;
+    }
+  );
+  const active = Boolean(orchestrator.getActiveThreadRunId(scope));
+  // Also between turns: the open untilIdle stream starts a follow-up turn when a
+  // task ends, even a cancelled one, unless it is closed too.
+  orchestrator.abortThreadStream({ ...scope, clearPendingSignals: true });
+  if (active) {
+    return 'aborted';
+  }
+  return cancelled > 0 || killed > 0 ? 'cancelled' : 'idle';
+}
+
+// Slack's own stop button on an agent session. The adapter only aborts Chat
+// SDK's turn, which does not reach the Mastra run, its jobs or its subagents.
+export async function onAgentSessionStopped(
+  event: AgentSessionStoppedEvent
+): Promise<void> {
+  await setThreadState({
+    thread: chat().thread(event.threadId),
+    patch: { dropMessagesBefore: Date.now() },
+  });
+  await stopThread(event.threadId);
 }
 
 export const stop: CommandHandler = async ({ message, thread }) => {
+  await setThreadState({
+    thread,
+    patch: { dropMessagesBefore: message.metadata.dateSent.getTime() },
+  });
   const outcome = await stopThread(thread.id);
   if (outcome === 'aborted') {
     return;
   }
-  await thread
-    .postEphemeral(message.author, 'Nothing to stop right now.', {
-      fallbackToDM: false,
-    })
-    .catch((error: unknown) => {
-      logger.warn('[commands] Failed to post stop feedback', {
+  if (outcome === 'cancelled') {
+    await thread.post('_stopped._').catch((error: unknown) => {
+      logger.warn('[commands] Failed to post stop confirmation', {
         error,
         threadId: thread.id,
-        userId: message.author.userId,
       });
     });
+    return;
+  }
+  await notify({
+    text: 'Nothing to stop right now.',
+    thread,
+    user: message.author,
+  });
 };
