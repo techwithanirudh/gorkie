@@ -5,8 +5,10 @@ import { githubAccessToken } from '../../lib/github';
 import { logger } from '../../lib/logger';
 import { sandboxPath } from '../../workspace/path';
 
+// GitHub names are case-insensitive, so a checkout and a push that spell the
+// owner differently must still land in the same directory.
 export const clonePath = (repository: string): string =>
-  sandboxPath(repository.replace('/', '__'));
+  sandboxPath(repository.toLowerCase().replace('/', '__'));
 
 export const git = async ({
   command,
