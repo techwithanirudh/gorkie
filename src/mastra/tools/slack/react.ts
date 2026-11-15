@@ -36,8 +36,9 @@ export const reactTool = createTool({
   }),
   transform: {
     display: {
+      input: () => ({ summary: null }),
       output: ({ output }) => ({
-        summary: `${output?.action === 'remove' ? 'Removed' : 'Added'} :${output?.emoji ?? ''}:`,
+        summary: `${output?.action === 'remove' ? 'removed' : 'added'} :${output?.emoji ?? ''}:`,
       }),
     },
   },

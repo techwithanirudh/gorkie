@@ -197,10 +197,7 @@ async function toOutput({
   response: SearchResponse;
   threadId?: string;
 }) {
-  const messages = (response.results?.messages ?? []).filter(
-    ({ channelId }) =>
-      !(channelId && env.BLOCKED_CHANNELS.includes(rawId(channelId)))
-  );
+  const messages = response.results?.messages ?? [];
   const channelIds = new Set<string>();
   for (const message of messages) {
     if (message.channelId) {
@@ -312,8 +309,11 @@ export const searchSlackTool = createTool({
   }),
   transform: {
     display: {
+      input: ({ input }) => ({
+        summary: `searching Slack${input?.query ? `: ${input.query}` : ''}${input?.cursor ? ' (next page)' : ''}`,
+      }),
       output: ({ input: args, output: result }) => ({
-        summary: `Found ${result?.messages.length ?? 0} Slack messages for "${args?.query ?? ''}"`,
+        summary: `found ${result?.messages.length ?? 0} Slack messages for "${args?.query ?? ''}"`,
       }),
     },
   },

@@ -57,8 +57,9 @@ export const editCanvasTool = createTool({
   outputSchema: output({ canvasId: z.string() }),
   transform: {
     display: {
+      input: () => ({ summary: 'editing a canvas' }),
       output: ({ output }) => ({
-        summary: `Edited canvas ${output?.canvasId ?? ''}`,
+        summary: `edited canvas ${output?.canvasId ?? ''}`,
       }),
     },
   },

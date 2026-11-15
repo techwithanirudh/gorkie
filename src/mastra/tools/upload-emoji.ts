@@ -38,8 +38,9 @@ export const uploadEmojiTool = createTool({
   }),
   transform: {
     display: {
+      input: () => ({ summary: 'uploading an emoji' }),
       output: ({ output: out }) => ({
-        summary: `Added :${out?.name ?? ''}:`,
+        summary: `added :${out?.name ?? ''}:`,
       }),
     },
   },

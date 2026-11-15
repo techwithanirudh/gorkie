@@ -82,13 +82,12 @@ export const limits = {
 };
 
 export const send = {
-  pendingTtlMs: 10 * 60 * 1000,
   maxMemberPages: 20,
 };
 
 export const shutdown = {
-  // How long SIGTERM waits for Slack turns before aborting them. Mastra can
-  // spend this twice, so a process manager's stop timeout must exceed double it.
+  // Mastra can spend this twice on SIGTERM, so a process manager's stop
+  // timeout must exceed double it.
   drainTimeoutMs: env.NODE_ENV === 'production' ? 120_000 : 10_000,
   abortLeadMs: 10_000,
 };
@@ -125,8 +124,8 @@ export const emoji = {
 };
 
 export const activity = {
-  // Every plan and answer edit waits this long. Slack refuses the bot past about
-  // 50 chat.update calls a minute across every thread.
+  // Slack refuses the bot past about 50 chat.update calls a minute across
+  // every thread.
   editIntervalMs: 2000,
   maxPhases: 8,
   maxTools: 32,
@@ -136,7 +135,6 @@ export const activity = {
   answerSplitChars: 10_000,
   maxMessageChars: 11_500,
   maxTitleChars: 48,
-  maxTargetChars: 48,
   channelLookupMs: 1000,
 };
 

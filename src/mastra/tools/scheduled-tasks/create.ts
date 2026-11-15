@@ -35,10 +35,11 @@ function assertMinimumInterval({
 
 export const createScheduledTaskTool = createTool({
   id: 'create_scheduled_task',
+  transform: { display: { input: () => ({ summary: 'scheduling a task' }) } },
   description:
     minMinutes > 0
-      ? `Create a recurring schedule for the current Slack conversation. Use a valid cron expression and optional IANA timezone. Minimum interval is ${minMinutes} minutes between fires, each run costs model credits: never request a faster cadence, refuse and offer the nearest ${minMinutes}-minute-or-slower option instead.`
-      : 'Create a recurring schedule for the current Slack conversation. Use a valid cron expression and optional IANA timezone. No minimum interval in this environment; any cadence is allowed.',
+      ? `Create a schedule for the current Slack conversation. Use a valid cron expression and optional IANA timezone. For a single run at a set date and time, write that date as the cron and set once: true. Minimum interval is ${minMinutes} minutes between fires, each run costs model credits: never request a faster cadence, refuse and offer the nearest ${minMinutes}-minute-or-slower option instead.`
+      : 'Create a schedule for the current Slack conversation. Use a valid cron expression and optional IANA timezone. For a single run at a set date and time, write that date as the cron and set once: true. No minimum interval in this environment; any cadence is allowed.',
   inputSchema: input({
     task: z.string().min(1).describe('Prompt to run on the schedule.'),
     cron: z
@@ -60,9 +61,15 @@ export const createScheduledTaskTool = createTool({
       .min(1)
       .optional()
       .describe('IANA timezone, such as America/New_York.'),
+    once: z
+      .boolean()
+      .default(false)
+      .describe(
+        'Run a single time and then delete the schedule. A date cron such as "0 9 14 11 *" otherwise repeats every year.'
+      ),
   }),
   outputSchema: output({ schedule: z.unknown() }),
-  execute: async ({ task, cron, name, timezone }, context) => {
+  execute: async ({ task, cron, name, timezone, once }, context) => {
     const service = context.mastra?.schedules;
     const threadId = context.agent?.threadId;
     const resourceId = context.agent?.resourceId;
@@ -95,6 +102,7 @@ export const createScheduledTaskTool = createTool({
             },
           },
         },
+        ...(once ? { metadata: { kind: 'once' } } : {}),
         ...(name ? { name } : {}),
         ...(timezone ? { timezone } : {}),
       }),

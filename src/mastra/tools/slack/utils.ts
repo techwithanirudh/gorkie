@@ -1,8 +1,9 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import type { Message } from 'chat';
-import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import type { Target } from '../../chat/target';
+import { activity as activityConfig } from '../../config';
 import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
 import { logger } from '../../lib/logger';
 import { slackError } from '../../lib/slack-error';
@@ -19,11 +20,6 @@ export async function assertReadableChannel({
   currentThreadId?: string;
 }) {
   const id = chatChannelId(channelId);
-  if (env.BLOCKED_CHANNELS.includes(rawId(id))) {
-    throw new Error(
-      'This channel is blocked from reads by the operator. Every tool, id form and search is refused for it, so do not try another way. Tell the person you cannot read that channel.'
-    );
-  }
   const metadata = await chat().channel(id).fetchMetadata();
   if (currentThreadId && id === chatChannelId(currentThreadId)) {
     return metadata;
@@ -96,9 +92,10 @@ export function assertCanPostTo({
   }
 
   const destination =
-    target.type === 'thread'
-      ? (parseSlackId(target.id).channel ?? '')
-      : target.id;
+    target.type === 'thread' ? parseSlackId(target.id).channel : target.id;
+  if (!destination) {
+    throw new Error(`${target.id} is not a Slack thread id.`);
+  }
   if (rawId(destination) !== rawId(ctx.channelId)) {
     throw new Error(
       'gorkie can only post into the channel this conversation is already in, not another channel. Ask someone in that channel to post there instead.'
@@ -171,4 +168,42 @@ export function assertSlackFileHost(url: string): void {
   ) {
     throw new Error('That file is hosted outside Slack, so it cannot be read.');
   }
+}
+
+const channelNames = new Map<string, string>();
+
+// For a progress label. The plan is plain text anyone in the thread can read,
+// so a private channel's name stays out of it, and `<#id>` would print
+// literally because plan rows are text elements.
+export async function channelLabel(
+  reference: string | undefined
+): Promise<string | undefined> {
+  const id = reference?.match(/\b[CG][A-Z0-9]{8,}\b/)?.[0];
+  if (!id) {
+    return;
+  }
+  const cached = channelNames.get(id);
+  if (cached) {
+    return cached;
+  }
+  const lookup = chat()
+    .channel(`slack:${id}`)
+    .fetchMetadata()
+    .then((metadata) => {
+      const name =
+        metadata.channelVisibility === 'workspace'
+          ? metadata.name && `#${metadata.name}`
+          : 'a private channel';
+      if (name) {
+        channelNames.set(id, name);
+      }
+      return name;
+    })
+    .catch((error: unknown): undefined => {
+      logger.debug('[activity] could not name a channel', { error, id });
+    });
+  return await Promise.race([
+    lookup,
+    delay(activityConfig.channelLookupMs).then(() => undefined),
+  ]);
 }

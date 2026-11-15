@@ -1,13 +1,14 @@
 import { activeBans } from '../../db/queries/moderation';
 import {
   banDurationSchema,
+  type ModerationAction,
   type SharedCommand,
   slackUserIdSchema,
 } from '../../types';
 import { slack } from '../client';
 import { until } from './cards';
+import { isModerator } from './gate';
 import { decide } from './index';
-import { isModerator } from './moderators';
 
 // Slack adds the |name when the text was escaped, as it does with should_escape.
 const target = /^<@([^|>]+)(?:\|[^>]*)?>\s*(.*)$/s;
@@ -35,7 +36,7 @@ export const bans: SharedCommand = async ({ userId }) =>
     ? `*Active bans*\n${await listBans()}`
     : 'Only Gorkie moderators can do that.';
 
-function moderate(action: 'ban' | 'unban'): SharedCommand {
+function moderate(action: ModerationAction): SharedCommand {
   return async ({ args, prefix, userId: actorId }) => {
     if (!isModerator(actorId)) {
       return 'Only Gorkie moderators can do that.';
@@ -65,8 +66,6 @@ function moderate(action: 'ban' | 'unban'): SharedCommand {
     }
     const [first = '', ...words] = rest.trim().split(/\s+/);
     const parsed = banDurationSchema.safeParse(first);
-    // A word that starts like a length but does not parse is a typo, and
-    // falling through to a permanent ban would be the worst reading of it.
     if (!parsed.success && /^\d/.test(first)) {
       return `I couldn't read \`${first}\` as a ban length. Use a number and a unit (s, m, h, d or w), like \`90m\` or \`6.5d\`, or \`perm\`.`;
     }

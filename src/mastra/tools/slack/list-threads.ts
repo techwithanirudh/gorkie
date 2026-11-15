@@ -5,7 +5,12 @@ import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output, slackMessageSchema } from '../../types/tools/index';
-import { assertReadableChannel, formatMessage, joinChannel } from './utils';
+import {
+  assertReadableChannel,
+  channelLabel,
+  formatMessage,
+  joinChannel,
+} from './utils';
 
 export const listThreadsTool = createTool({
   id: 'list_threads',
@@ -35,8 +40,11 @@ export const listThreadsTool = createTool({
   }),
   transform: {
     display: {
+      input: async ({ input }) => ({
+        summary: `listing threads${await channelLabel(input?.channelId).then((c) => (c ? ` in ${c}` : ''))}${input?.cursor ? ' (next page)' : ''}`,
+      }),
       output: ({ input, output }) => ({
-        summary: `Found ${output?.threads.length ?? 0} threads in ${input?.channelId ?? output?.channelId ?? 'the current channel'}`,
+        summary: `found ${output?.threads.length ?? 0} threads in ${input?.channelId ?? output?.channelId ?? 'the current channel'}`,
       }),
     },
   },

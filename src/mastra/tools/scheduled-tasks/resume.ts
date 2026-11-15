@@ -5,6 +5,9 @@ import { input, output } from '../../types/tools/index';
 
 export const resumeScheduledTaskTool = createTool({
   id: 'resume_scheduled_task',
+  transform: {
+    display: { input: () => ({ summary: 'resuming a scheduled task' }) },
+  },
   description: 'Resume a paused schedule in the current Slack conversation.',
   inputSchema: input({ id: z.string().min(1).describe('Schedule ID.') }),
   outputSchema: output({ schedule: z.unknown() }),

@@ -14,6 +14,7 @@ export const pushTool = ({
 }) =>
   createTool({
     id: 'github_push_branch',
+    transform: { display: { input: () => ({ summary: 'pushing a branch' }) } },
     description:
       'Push a committed branch of a sandbox checkout to GitHub. The branch must already exist locally with the work committed; main and master are refused. Use this when a change spans more than a couple of files, then open the pull request with github_create_pull_request. To push to a fork, set `checkout` to the repo you cloned and `repository` to the fork.',
     requireApproval: approval,

@@ -34,12 +34,14 @@ export async function recordDecision({
   userId,
   actorId,
   reason,
+  createdAt,
   expiresAt,
 }: {
   action: ModerationEvent['action'];
   userId: string;
   actorId: string;
   reason?: string;
+  createdAt: Date;
   expiresAt?: Date;
 }): Promise<ModerationEvent> {
   const [event] = await db
@@ -49,6 +51,7 @@ export async function recordDecision({
       userId,
       actorId,
       reason: reason ?? null,
+      createdAt,
       expiresAt: expiresAt ?? null,
     })
     .returning();

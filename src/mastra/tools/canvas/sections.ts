@@ -27,8 +27,9 @@ export const lookupCanvasSectionsTool = createTool({
   }),
   transform: {
     display: {
+      input: () => ({ summary: 'finding canvas sections' }),
       output: ({ input, output }) => ({
-        summary: `Found ${output?.sections.length ?? 0} sections in canvas ${input?.canvasId ?? output?.canvasId ?? ''}`,
+        summary: `found ${output?.sections.length ?? 0} sections in canvas ${input?.canvasId ?? output?.canvasId ?? ''}`,
       }),
     },
   },

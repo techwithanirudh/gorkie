@@ -1,3 +1,4 @@
+import { posix } from 'node:path';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
@@ -56,8 +57,11 @@ export const uploadFileTool = createTool({
   }),
   transform: {
     display: {
+      input: ({ input }) => ({
+        summary: `uploading ${input?.path ? posix.basename(input.path) : 'a file'}`,
+      }),
       output: ({ output }) => ({
-        summary: `Uploaded ${output?.filename ?? 'file'}`,
+        summary: `uploaded ${output?.filename ?? 'file'}`,
       }),
     },
   },

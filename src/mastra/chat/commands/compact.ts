@@ -1,6 +1,7 @@
 import { Memory } from '@mastra/memory';
 import { agent as agentConfig } from '../../config';
 import { logger } from '../../lib/logger';
+import { memoryThread } from '../../lib/memory';
 import type { CommandHandler } from '../../types';
 import { getMastra } from '../mastra-instance';
 import { notify } from '../notify';
@@ -12,15 +13,8 @@ async function compactThread(slackThreadId: string): Promise<string> {
   if (!(memory && om)) {
     return 'nothing to compact in this thread yet.';
   }
-  // Channels falls back to a generated thread id on a collision, but always
-  // records the Slack thread id in metadata.
-  const {
-    threads: [thread],
-  } = await memory.listThreads({
-    filter: { metadata: { channel_externalThreadId: slackThreadId } },
-    perPage: 1,
-  });
-  if (!thread) {
+  const thread = await memoryThread({ agent, externalThreadId: slackThreadId });
+  if (!thread?.resourceId) {
     return 'nothing to compact in this thread yet.';
   }
   const { id: threadId, resourceId } = thread;

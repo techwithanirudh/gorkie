@@ -1,7 +1,12 @@
 import type { Author } from 'chat';
+import { env } from '@/env';
 import { activeBan } from '../../db/queries/moderation';
 import { logger } from '../../lib/logger';
 import type { BanStatus } from '../../types';
+
+export function isModerator(userId: string): boolean {
+  return env.MODERATORS.includes(userId);
+}
 
 export async function banStatus(userId: string): Promise<BanStatus> {
   try {
@@ -13,15 +18,11 @@ export async function banStatus(userId: string): Promise<BanStatus> {
   }
 }
 
-export async function isBanned(userId: string): Promise<boolean> {
-  return (await banStatus(userId)).status !== 'clear';
-}
-
 export function guarded<Event extends { user: Author }, Result>(
   handler: (event: Event) => Promise<Result> | Result
 ) {
   return async (event: Event): Promise<Result | undefined> => {
-    if (await isBanned(event.user.userId)) {
+    if ((await banStatus(event.user.userId)).status !== 'clear') {
       logger.info('[moderation] ignored a banned user', {
         userId: event.user.userId,
       });

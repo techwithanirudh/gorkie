@@ -13,25 +13,19 @@ const failedOutput = z.union([
 
 // Mastra rebuilds a step's results from the turn's response messages, and
 // Observational Memory can move the previous turn's last message into those, so
-// its `reply` would end this turn before the model answers. Only a call made in
-// this step counts.
-function latestResults(steps: Parameters<MastraStopCondition>[0]['steps']) {
-  const step = steps.at(-1);
-  const calls = new Set(step?.toolCalls?.map(({ toolCallId }) => toolCallId));
-  return (step?.toolResults ?? []).filter(({ toolCallId }) =>
-    calls.has(toolCallId)
-  );
-}
-
-function succeeded({ output }: { output?: unknown }): boolean {
-  return !failedOutput.safeParse(output).success;
-}
-
+// its `skip` or `wait` would end this turn before the model answers. Only a call
+// made in this step counts.
 export function toolCall(toolName: string): MastraStopCondition {
-  return ({ steps }) =>
-    latestResults(steps).some(
-      (result) => result.toolName === toolName && succeeded(result)
+  return ({ steps }) => {
+    const step = steps.at(-1);
+    const calls = new Set(step?.toolCalls?.map(({ toolCallId }) => toolCallId));
+    return (step?.toolResults ?? []).some(
+      (result) =>
+        calls.has(result.toolCallId) &&
+        result.toolName === toolName &&
+        !failedOutput.safeParse(result.output).success
     );
+  };
 }
 
 export function stepCountIs(stepCount: number): MastraStopCondition {

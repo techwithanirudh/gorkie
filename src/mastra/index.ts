@@ -46,6 +46,10 @@ export const mastra = new Mastra({
     cleanup: { cleanupIntervalMs: backgroundTaskConfig.cleanupIntervalMs },
   },
   schedules: { prepare: prepareScheduledFire },
+  // Polls every 10s. Left to sleep until the next known fire, a schedule
+  // created while the server runs is missed until a restart, because the
+  // wake that create() publishes never reaches the running scheduler.
+  scheduler: { enabled: true },
   storage: isProduction
     ? postgresStore
     : new MastraCompositeStore({

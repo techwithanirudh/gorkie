@@ -1,3 +1,4 @@
+import { posix } from 'node:path';
 import { detectMediaType } from '@ai-sdk/provider-utils';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
@@ -26,8 +27,11 @@ export const viewImageTool = createTool({
   }),
   transform: {
     display: {
+      input: ({ input }) => ({
+        summary: `looking at ${input?.path ? posix.basename(input.path) : 'an image'}`,
+      }),
       output: ({ output: out }) => ({
-        summary: `Viewed ${out?.path.split('/').at(-1) ?? 'image'}`,
+        summary: `viewed ${out?.path.split('/').at(-1) ?? 'image'}`,
       }),
     },
   },

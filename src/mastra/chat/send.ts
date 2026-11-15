@@ -1,30 +1,8 @@
-import { randomUUID } from 'node:crypto';
-import type { ImageElement, KnownBlock } from '@slack/web-api';
-import type { ActionEvent } from 'chat';
-import { z } from 'zod';
+import type { KnownBlock } from '@slack/web-api';
 import { send as config } from '../config';
-import { rawId } from '../lib/ids';
 import { logger } from '../lib/logger';
 import { slackError } from '../lib/slack-error';
 import { slack } from './client';
-import { chat } from './instance';
-
-export const sendIds = { confirm: 'send_confirm', cancel: 'send_cancel' };
-
-const pendingSendSchema = z.object({
-  channel: z.string().optional(),
-  threadTs: z.string().optional(),
-  userId: z.string().optional(),
-  label: z.string(),
-  message: z.string(),
-  requesterId: z.string(),
-  username: z.string(),
-  avatarUrl: z.string().optional(),
-});
-
-type PendingSend = z.infer<typeof pendingSendSchema>;
-
-const interactionSchema = z.looseObject({ response_url: z.url() });
 
 const refusals: Record<string, string> = {
   channel_not_found:
@@ -36,26 +14,11 @@ const refusals: Record<string, string> = {
   ekm_access_denied: "I'm not allowed to post in that channel.",
 };
 
-function pendingKey(id: string): string {
-  return `send:${id}`;
-}
-
-function messageBlocks({
-  message,
-  requesterId,
-}: {
-  message: string;
-  requesterId: string;
-}): KnownBlock[] {
-  return [
-    { type: 'markdown', text: message },
-    {
-      type: 'context',
-      elements: [
-        { type: 'mrkdwn', text: `Sent by <@${requesterId}> via gorkie` },
-      ],
-    },
-  ];
+function refusal(error: unknown): Error {
+  const text = refusals[slackError(error) ?? ''];
+  return new Error(text ?? 'Slack refused the message, so nothing was sent.', {
+    cause: error,
+  });
 }
 
 async function isChannelMember({
@@ -96,10 +59,7 @@ export async function assertCanSendTo({
   const info = await slack.webClient.conversations
     .info({ channel })
     .catch((error: unknown) => {
-      throw new Error(
-        refusals[slackError(error) ?? ''] ?? "I can't check that channel.",
-        { cause: error }
-      );
+      throw refusal(error);
     });
   const details = info.channel;
   if (details?.is_archived) {
@@ -130,121 +90,52 @@ export async function assertCanSendTo({
   }
 }
 
-export async function offerSend({
-  pending,
-  previewChannel,
-  previewThreadTs,
+export async function deliver({
+  avatarUrl,
+  channel,
+  message,
+  requesterId,
+  threadTs,
+  username,
 }: {
-  pending: PendingSend;
-  previewChannel: string;
-  previewThreadTs?: string;
-}): Promise<void> {
-  const id = randomUUID();
-  const { message } = pending;
-  await chat().getState().set(pendingKey(id), pending, config.pendingTtlMs);
-  await slack.webClient.chat.postEphemeral({
-    channel: previewChannel,
-    user: pending.requesterId,
-    ...(previewThreadTs ? { thread_ts: previewThreadTs } : {}),
-    text: `Send this on your behalf to ${pending.label}?`,
-    blocks: [
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: `*Send this on your behalf to ${pending.label}?* Only you can see this preview.`,
-        },
-      },
-      { type: 'divider' },
-      {
-        type: 'context',
-        elements: [
-          ...(pending.avatarUrl
-            ? [
-                {
-                  type: 'image',
-                  image_url: pending.avatarUrl,
-                  alt_text: pending.username,
-                } satisfies ImageElement,
-              ]
-            : []),
-          { type: 'mrkdwn', text: `*${pending.username}*` },
-        ],
-      },
-      ...messageBlocks({ message, requesterId: pending.requesterId }),
-      { type: 'divider' },
-      {
-        type: 'actions',
-        elements: [
-          {
-            type: 'button',
-            action_id: sendIds.confirm,
-            text: { type: 'plain_text', text: 'Send' },
-            style: 'primary',
-            value: id,
-          },
-          {
-            type: 'button',
-            action_id: sendIds.cancel,
-            text: { type: 'plain_text', text: 'Cancel' },
-            value: id,
-          },
-        ],
-      },
-    ],
-  });
-}
-
-async function respond({
-  event,
-  replace,
-  text,
-}: {
-  event: ActionEvent;
-  replace: boolean;
-  text: string;
-}): Promise<void> {
-  const interaction = interactionSchema.safeParse(event.raw);
-  if (!interaction.success) {
-    return;
-  }
-  await fetch(interaction.data.response_url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      replace_original: replace,
-      response_type: 'ephemeral',
-      text,
-    }),
-  });
-}
-
-export async function deliver(
-  pending: PendingSend
-): Promise<string | undefined> {
-  const channel = pending.userId
-    ? rawId((await chat().openDM(pending.userId)).channelId)
-    : pending.channel;
-  if (!channel) {
-    throw new Error('A pending send has no destination.');
-  }
+  avatarUrl?: string;
+  channel: string;
+  message: string;
+  requesterId: string;
+  threadTs?: string;
+  username: string;
+}): Promise<string | undefined> {
+  const blocks: KnownBlock[] = [
+    { type: 'markdown', text: message },
+    {
+      type: 'context',
+      elements: [
+        { type: 'mrkdwn', text: `Sent by <@${requesterId}> via gorkie` },
+      ],
+    },
+  ];
   const post = () =>
     slack.webClient.chat.postMessage({
       channel,
-      ...(pending.threadTs ? { thread_ts: pending.threadTs } : {}),
-      text: pending.message,
-      blocks: messageBlocks(pending),
-      username: pending.username,
+      ...(threadTs ? { thread_ts: threadTs } : {}),
+      text: message,
+      blocks,
+      username,
       unfurl_links: false,
-      ...(pending.avatarUrl ? { icon_url: pending.avatarUrl } : {}),
+      ...(avatarUrl ? { icon_url: avatarUrl } : {}),
     });
-  const sent = await post().catch(async (error: unknown) => {
-    if (slackError(error) !== 'not_in_channel') {
-      throw error;
-    }
-    await slack.webClient.conversations.join({ channel });
-    return post();
-  });
+  const sent = await post()
+    .catch(async (error: unknown) => {
+      if (slackError(error) !== 'not_in_channel') {
+        throw error;
+      }
+      await slack.webClient.conversations.join({ channel });
+      return post();
+    })
+    .catch((error: unknown) => {
+      logger.warn('[send] delivery failed', { error, channel });
+      throw refusal(error);
+    });
   if (!sent.ts) {
     return;
   }
@@ -252,63 +143,4 @@ export async function deliver(
     .getPermalink({ channel, message_ts: sent.ts })
     .catch(() => undefined);
   return link?.permalink;
-}
-
-async function loadPending(id: string | undefined) {
-  if (!id) {
-    return null;
-  }
-  const stored = await chat().getState().get(pendingKey(id));
-  return pendingSendSchema.safeParse(stored).data ?? null;
-}
-
-export async function onSendCancel(event: ActionEvent): Promise<void> {
-  const pending = await loadPending(event.value);
-  if (event.value && pending?.requesterId === event.user.userId) {
-    await chat().getState().delete(pendingKey(event.value));
-    await respond({ event, replace: true, text: 'Cancelled.' });
-    return;
-  }
-  await respond({ event, replace: !pending, text: 'This expired, ask again.' });
-}
-
-export async function onSendConfirm(event: ActionEvent): Promise<void> {
-  const pending = await loadPending(event.value);
-  if (!(event.value && pending)) {
-    await respond({ event, replace: true, text: 'This expired, ask again.' });
-    return;
-  }
-  if (pending.requesterId !== event.user.userId) {
-    return;
-  }
-  const state = chat().getState();
-  const claim = `${pendingKey(event.value)}:claim`;
-  if (!(await state.setIfNotExists(claim, true, config.pendingTtlMs))) {
-    return;
-  }
-  let link: string | undefined;
-  try {
-    link = await deliver(pending);
-  } catch (error) {
-    const refusal = refusals[slackError(error) ?? ''];
-    if (refusal) {
-      await state.delete(pendingKey(event.value));
-      await respond({ event, replace: true, text: `Not sent: ${refusal}` });
-      return;
-    }
-    logger.error('[send] delivery failed', { error, label: pending.label });
-    await state.delete(claim);
-    await respond({
-      event,
-      replace: false,
-      text: 'Something broke and nothing was sent. Click Send to try again.',
-    });
-    return;
-  }
-  await state.delete(pendingKey(event.value));
-  await respond({
-    event,
-    replace: true,
-    text: link ? `Sent. <${link}|View message>` : 'Sent.',
-  });
 }

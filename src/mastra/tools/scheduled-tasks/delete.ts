@@ -5,6 +5,9 @@ import { input, output } from '../../types/tools/index';
 
 export const deleteScheduledTaskTool = createTool({
   id: 'delete_scheduled_task',
+  transform: {
+    display: { input: () => ({ summary: 'deleting a scheduled task' }) },
+  },
   description: 'Permanently delete a recurring schedule.',
   inputSchema: input({ id: z.string().min(1).describe('Schedule ID.') }),
   outputSchema: output({ id: z.string() }),

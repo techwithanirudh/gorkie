@@ -7,7 +7,12 @@ import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
-import { assertReadableChannel, joinChannel, slackThreadId } from './utils';
+import {
+  assertReadableChannel,
+  channelLabel,
+  joinChannel,
+  slackThreadId,
+} from './utils';
 
 export const summarizeThreadTool = createTool({
   id: 'summarize_thread',
@@ -38,8 +43,11 @@ export const summarizeThreadTool = createTool({
   }),
   transform: {
     display: {
+      input: async ({ input }) => ({
+        summary: `summarizing a thread${await channelLabel(input?.threadId).then((c) => (c ? ` in ${c}` : ''))}`,
+      }),
       output: ({ output }) => ({
-        summary: `Summarized ${output?.messageCount ?? 0} messages`,
+        summary: `summarized ${output?.messageCount ?? 0} messages`,
       }),
     },
   },

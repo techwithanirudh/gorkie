@@ -1,10 +1,6 @@
 import type { Processor } from '@mastra/core/processors';
 import { z } from 'zod';
-import {
-  addAction,
-  toolActivity,
-  toolTitle,
-} from '../chat/status/tool-activity';
+import { addAction, chunkLabel } from '../chat/status';
 import { activity as config } from '../config';
 import { channelContext } from '../lib/context';
 import {
@@ -66,9 +62,9 @@ export const progress = {
   description:
     'Groups tool activity into temporary work steps in the reply stream.',
   processDataParts: true,
-  async processOutputStream({ part, requestContext, state }) {
+  processOutputStream({ part, requestContext, state }) {
     if (!channelContext(requestContext).threadId) {
-      return part;
+      return Promise.resolve(part);
     }
     const turn: Turn = turns.get(state) ?? {
       phases: [],
@@ -153,17 +149,19 @@ export const progress = {
           advance({ title: parsed.data.status, automatic: false });
         }
       } else {
-        const label = await toolActivity({
-          toolName,
+        const label = chunkLabel({
           args: part.payload.args,
+          metadata: part.metadata,
+          title: part.payload.title,
+          toolName,
         });
         if (label === null) {
-          return part;
+          return Promise.resolve(part);
         }
         const phase =
           delegatedPhase ??
           current() ??
-          advance({ title: toolTitle(toolName), automatic: true });
+          advance({ title: label, automatic: true });
         if (!turn.calls.has(toolCallId)) {
           turn.calls.set(toolCallId, phase);
           phase.actions = addAction({ actions: phase.actions, label });
@@ -237,7 +235,7 @@ export const progress = {
     if (['finish', 'error', 'abort'].includes(part.type)) {
       turns.delete(state);
     }
-    return {
+    return Promise.resolve({
       ...part,
       metadata: {
         ...part.metadata,
@@ -250,7 +248,7 @@ export const progress = {
           intervalMs: config.editIntervalMs,
         },
       },
-    };
+    });
   },
   processOutputResult({ messages, state }) {
     turns.delete(state);

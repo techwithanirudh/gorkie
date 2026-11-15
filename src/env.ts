@@ -34,7 +34,6 @@ export const env = createEnv({
       .string()
       .regex(/^[CG][A-Z0-9]+$/, 'must be a Slack channel id')
       .optional(),
-    BLOCKED_CHANNELS: idList,
     MODERATORS: idList.pipe(z.array(slackUserIdSchema)),
 
     HACKCLUB_API_KEY: z.string().min(1),

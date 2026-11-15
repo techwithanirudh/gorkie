@@ -13,8 +13,9 @@ export const joinThreadTool = createTool({
   outputSchema: output({ threadId: z.string() }),
   transform: {
     display: {
+      input: () => ({ summary: null }),
       output: ({ output }) => ({
-        summary: `Rejoined thread ${output?.threadId ?? ''}`,
+        summary: `rejoined thread ${output?.threadId ?? ''}`,
       }),
     },
   },

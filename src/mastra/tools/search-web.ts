@@ -28,8 +28,11 @@ export const searchWebTool = createTool({
   }),
   transform: {
     display: {
+      input: ({ input }) => ({
+        summary: `searching the web${input?.query ? `: ${input.query}` : ''}`,
+      }),
       output: ({ input, output }) => ({
-        summary: `Found ${output?.results.length ?? 0} web results for "${input?.query ?? ''}"`,
+        summary: `found ${output?.results.length ?? 0} web results for "${input?.query ?? ''}"`,
       }),
     },
   },

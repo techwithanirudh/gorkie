@@ -27,8 +27,11 @@ export const getUserTool = createTool({
   }),
   transform: {
     display: {
+      input: ({ input }) => ({
+        summary: `looking up a user${input?.userId ? ` ${input.userId}` : ''}`,
+      }),
       output: ({ output }) => ({
-        summary: output?.userName ?? output?.userId ?? 'User found',
+        summary: output?.userName ?? output?.userId ?? 'user found',
       }),
     },
   },

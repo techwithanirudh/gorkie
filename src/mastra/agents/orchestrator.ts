@@ -19,7 +19,6 @@ import { chat } from '../chat/instance';
 import { status } from '../chat/status';
 import {
   activity as activityConfig,
-  backgroundTasks,
   agent as config,
   summarizer as summarizerConfig,
 } from '../config';
@@ -31,7 +30,6 @@ import { stepCountIs, toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
 import { autoBackground } from '../processors/auto-background';
 import { delegatedTools } from '../processors/delegated-tools';
-import { firstStatus } from '../processors/first-status';
 import { lowQuota } from '../processors/low-quota';
 import { mcpStatus } from '../processors/mcp-status';
 import { progress } from '../processors/progress';
@@ -137,7 +135,13 @@ const orchestrator = new Agent({
   workspace,
   inputProcessors: [
     autoBackground,
-    firstStatus,
+    {
+      id: 'first-status',
+      processInputStep: ({ steps }) =>
+        steps.length > 0
+          ? undefined
+          : { toolChoice: { type: 'tool', toolName: 'status_update' } },
+    },
     lowQuota,
     mcpStatus,
     new ToolSearchProcessor({
@@ -187,8 +191,8 @@ const orchestrator = new Agent({
   },
   backgroundTasks: {
     tools: {
-      research: { enabled: true, timeoutMs: backgroundTasks.timeoutMs },
-      explore: { enabled: true, timeoutMs: backgroundTasks.timeoutMs },
+      research: true,
+      explore: true,
     },
   },
   memory: new Memory({

@@ -25,6 +25,12 @@ This extracts readable article content, so it fails on anything that isn't a pla
   }),
   transform: {
     display: {
+      input: ({ input }) => ({
+        summary:
+          input?.url && URL.canParse(input.url)
+            ? `reading ${new URL(input.url).hostname}`
+            : 'reading a page',
+      }),
       output: ({ output }) => ({
         summary: output?.title ?? output?.url ?? 'URL fetched',
       }),

@@ -31,20 +31,6 @@ export const workDescriptionSchema = z
     'A short action for the user, such as "comparing benchmark results" or "installing project dependencies". Describe the purpose, not the tool name. Do not include command contents, code, credentials or tokens.'
   );
 
-export const activityInputSchema = z.object({
-  query: z.string().optional(),
-  userId: z.string().optional(),
-  name: z.string().optional(),
-  skillName: z.string().optional(),
-  messageId: z.string().optional(),
-  channelId: z.string().optional(),
-  threadId: z.string().optional(),
-  cursor: z.string().optional(),
-  path: z.string().optional(),
-  url: z.url().optional(),
-  description: z.string().optional(),
-});
-
 export const activityTaskSchema = z.object({
   type: z.literal('task_update'),
   id: z.string(),

@@ -68,8 +68,9 @@ export const listCanvasesTool = createTool({
   }),
   transform: {
     display: {
+      input: () => ({ summary: 'listing canvases' }),
       output: ({ input, output }) => ({
-        summary: `Found ${output?.canvases.length ?? 0} canvases in ${input?.scope === 'workspace' ? 'the workspace' : (input?.channelId ?? output?.channelId ?? 'the current channel')}`,
+        summary: `found ${output?.canvases.length ?? 0} canvases in ${input?.scope === 'workspace' ? 'the workspace' : (input?.channelId ?? output?.channelId ?? 'the current channel')}`,
       }),
     },
   },

@@ -13,7 +13,7 @@ import { threadJobs } from '../workspace/jobs';
 import { approvalCard } from './approval-card';
 import { answerStream } from './card';
 import { getMastra } from './mastra-instance';
-import { addAction, toolActivity } from './status/tool-activity';
+import { addAction, chunkLabel } from './status';
 
 interface Step extends PlanModelTask {
   completedAt?: number;
@@ -42,8 +42,13 @@ const taskChunkSchema = z.looseObject({
           output: z
             .looseObject({
               type: z.string(),
+              metadata: z.record(z.string(), z.unknown()).optional(),
               payload: z
-                .looseObject({ args: z.unknown(), toolName: z.string() })
+                .looseObject({
+                  args: z.unknown(),
+                  title: z.string().optional(),
+                  toolName: z.string(),
+                })
                 .optional(),
             })
             .optional(),
@@ -88,9 +93,11 @@ async function followTask({
       const nested =
         taskChunkSchema.safeParse(value).data?.payload?.payload?.output;
       if (nested?.type === 'tool-call' && nested.payload) {
-        const action = await toolActivity({
-          toolName: nested.payload.toolName,
+        const action = chunkLabel({
           args: nested.payload.args,
+          metadata: nested.metadata,
+          title: nested.payload.title,
+          toolName: nested.payload.toolName,
         });
         if (action) {
           const details = typeof step.details === 'string' ? step.details : '';
@@ -144,9 +151,6 @@ async function showActivity({
   let lastSentAt = 0;
   let updateTimer: ReturnType<typeof setTimeout> | undefined;
   let writes = Promise.resolve();
-  // Channels hands the answer text to this display along with the plan, so it
-  // streams it into its own message, starting a new one at a line break before
-  // Slack's length limit.
   interface Segment {
     done: boolean;
     queue: string[];
@@ -294,10 +298,8 @@ async function showActivity({
       Math.max(0, lastSentAt + config.editIntervalMs - Date.now())
     );
   };
-  // Runs detached, because the turn that handed off has to end for the thread to
-  // take other messages. The child's result arrives in a later turn.
-  // A command that outlives its turn keeps a live row until it exits, the way a
-  // hand-off does, since nothing else shows it is still running.
+  // Runs detached, because the turn has to end before the thread takes other
+  // messages.
   const followJobs = (running: ReturnType<typeof threadJobs>) => {
     const outcomeTitle = title;
     title = 'Running in the background';
@@ -442,20 +444,6 @@ async function showActivity({
         step.status = unfinished;
       }
       step.completedAt ??= completedAt;
-    }
-    // A model can end a turn with only reasoning, which never reaches Slack, so
-    // a finished turn that posted nothing says so instead of going quiet.
-    if (title === 'Completed' && posts.length === 0) {
-      await thread
-        .post(
-          "_I finished that turn without writing an answer. Ask again and I'll pick it up from here._"
-        )
-        .catch((error: unknown) => {
-          logger.warn('[activity] could not post the missing-answer note', {
-            error,
-            threadId: thread.id,
-          });
-        });
     }
     const running =
       title === 'Stopped' || title === 'Failed' ? [] : threadJobs(thread.id);

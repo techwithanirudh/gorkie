@@ -3,7 +3,7 @@ import type { RequestContext } from '@mastra/core/request-context';
 import { createCodeMode, createCodeModeTool } from '@mastra/core/tools';
 import { E2BCodeModeTransport } from '@mastra/e2b';
 import { z } from 'zod';
-import { toolActivity } from '../../chat/status/tool-activity';
+import { toolLabel } from '../../chat/status';
 import { sandbox as sandboxConfig } from '../../config';
 import { mcpTools } from '../../mcp';
 import { codeModePrompt } from '../../prompts/features/code-mode';
@@ -92,28 +92,34 @@ async function createCodeModeInstance({
       throw new Error('No E2B sandbox available for Slack code mode.');
     }
 
-    let coveredAction = await toolActivity({
-      toolName: 'slack',
+    let coveredAction = await toolLabel({
       args: input,
+      tool: mode.tool,
+      toolName: 'slack',
     });
+    const runTools: ToolsInput = workspaceAccess
+      ? {
+          ...slackCodeTools,
+          ...(await getSandboxTools(context.requestContext)),
+        }
+      : slackCodeTools;
 
     const { execute } = createCodeModeTool(
       {
         ...modeConfig,
         sandbox,
-        tools: workspaceAccess
-          ? {
-              ...slackCodeTools,
-              ...(await getSandboxTools(context.requestContext)),
-            }
-          : slackCodeTools,
+        tools: runTools,
       },
       {
         run: (options) =>
           transport.run({
             ...options,
             dispatch: async (toolName, args) => {
-              const status = await toolActivity({ toolName, args });
+              const status = await toolLabel({
+                args,
+                tool: runTools[toolName],
+                toolName,
+              });
               if (status === coveredAction) {
                 coveredAction = null;
               } else if (status) {

@@ -1,6 +1,5 @@
 import { formatSlackUser } from '@chat-adapter/slack/format';
 import { add, type Duration } from 'date-fns';
-import { z } from 'zod';
 import { env } from '@/env';
 import {
   activeBan,
@@ -15,11 +14,8 @@ import { slack } from '../client';
 import { chat } from '../instance';
 import { notify } from '../notify';
 import { decisionCard } from './cards';
+import { isModerator } from './gate';
 import { moderationIds } from './ids';
-import { isModerator } from './moderators';
-
-const cardKey = (banId: string) => `moderation:card:${banId}`;
-const cardRef = z.object({ messageId: z.string(), threadId: z.string() });
 
 export async function decide({
   action,
@@ -34,14 +30,14 @@ export async function decide({
   duration?: Duration;
   reason?: string;
 }): Promise<ModerationEvent> {
-  const previous = await activeBan(userId);
+  const now = new Date();
   const event = await recordDecision({
     action,
     actorId,
     userId,
     reason,
-    expiresAt:
-      action === 'ban' && duration ? add(new Date(), duration) : undefined,
+    createdAt: now,
+    expiresAt: action === 'ban' && duration ? add(now, duration) : undefined,
   });
   logger.info(`[moderation] ${action}`, { actorId, duration, userId });
   publishHome(userId).catch((error: unknown) =>
@@ -51,49 +47,21 @@ export async function decide({
     logger.warn('[moderation] LOGS_CHANNEL is not set, card not posted');
     return event;
   }
-  const state = chat().getState();
-  try {
-    const sent = await chat()
-      .channel(chatChannelId(env.LOGS_CHANNEL))
-      .post(decisionCard({ event }));
-    if (event.action === 'ban') {
-      await state.set(cardKey(event.id), {
-        messageId: sent.id,
-        threadId: sent.threadId,
-      });
-    }
-  } catch (error) {
-    logger.error('[moderation] could not post to the logs channel', { error });
-  }
-  // The old ban's card would otherwise keep a live Unban button.
-  const card = previous
-    ? cardRef.safeParse(await state.get(cardKey(previous.id)))
-    : undefined;
-  if (previous && card?.success) {
-    await slack
-      .editMessage(
-        card.data.threadId,
-        card.data.messageId,
-        decisionCard({
-          closed:
-            action === 'unban'
-              ? `Lifted by ${formatSlackUser(actorId)}.`
-              : 'Replaced by a newer ban.',
-          event: previous,
-        })
-      )
-      .catch((error: unknown) =>
-        logger.warn('[moderation] could not update the ban card', { error })
-      );
-    await state.delete(cardKey(previous.id));
-  }
+  await chat()
+    .channel(chatChannelId(env.LOGS_CHANNEL))
+    .post(decisionCard({ event }))
+    .catch((error: unknown) =>
+      logger.error('[moderation] could not post to the logs channel', {
+        error,
+      })
+    );
   return event;
 }
 
 export function registerModeration(): void {
-  const bot = chat();
-
-  bot.onAction(moderationIds.unban, async (event) => {
+  // An older card keeps its Unban button, so a click checks the live ban
+  // first and only lifts the ban that card is about.
+  chat().onAction(moderationIds.unban, async (event) => {
     if (!isModerator(event.user.userId)) {
       await notify({
         text: 'Only Gorkie moderators can do that.',
@@ -106,8 +74,6 @@ export function registerModeration(): void {
     if (!ban) {
       return;
     }
-    // Only the newest ban is in force, so lifting an older card's ban would
-    // lift the newer one instead.
     const active = await activeBan(ban.userId);
     let closed = 'Already lifted or expired.';
     if (active?.id === ban.id) {
@@ -121,8 +87,6 @@ export function registerModeration(): void {
       closed =
         'Replaced by a newer ban, so nothing was lifted. Use the newest card.';
     }
-    // decide closes cards it posted; this also covers cards from before it
-    // kept their message ids.
     await slack
       .editMessage(
         event.threadId,
@@ -131,32 +95,6 @@ export function registerModeration(): void {
       )
       .catch((error: unknown) =>
         logger.warn('[moderation] could not update the ban card', { error })
-      );
-  });
-
-  bot.onAction(moderationIds.info, async (event) => {
-    // Raw, because Chat SDK's Slack adapter always adds a Submit button and
-    // this modal only explains.
-    await slack.webClient.views
-      .open({
-        trigger_id: event.triggerId ?? '',
-        view: {
-          type: 'modal',
-          title: { type: 'plain_text', text: 'Gorkie bans' },
-          close: { type: 'plain_text', text: 'Close' },
-          blocks: [
-            {
-              type: 'section',
-              text: {
-                type: 'mrkdwn',
-                text: "Moderators can ban people from Gorkie when they break Gorkie's terms or the community guidelines. A banned person cannot use Gorkie anywhere, and their scheduled tasks are skipped until the ban ends.\n\nBans can be temporary or permanent. If a ban looks like a mistake, talk to a moderator directly.",
-              },
-            },
-          ],
-        },
-      })
-      .catch((error: unknown) =>
-        logger.warn('[moderation] could not open the info modal', { error })
       );
   });
 }

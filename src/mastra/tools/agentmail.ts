@@ -143,7 +143,10 @@ async function readAttachments({
 const listThreadsTool = createTool({
   id: 'agentmail_list_threads',
   transform: {
-    display: { output: () => ({ summary: 'Listed email threads' }) },
+    display: {
+      input: () => ({ summary: 'checking email threads' }),
+      output: () => ({ summary: 'listed email threads' }),
+    },
   },
   description: `List the requester's email threads in gorkie's inbox, newest first: mail they had gorkie send and the replies to it. Previews only; read one with agentmail_get_thread. ${untrusted}`,
   inputSchema: z.strictObject({
@@ -166,7 +169,10 @@ const listThreadsTool = createTool({
 const getThreadTool = createTool({
   id: 'agentmail_get_thread',
   transform: {
-    display: { output: () => ({ summary: 'Read an email thread' }) },
+    display: {
+      input: () => ({ summary: 'reading an email thread' }),
+      output: () => ({ summary: 'read an email thread' }),
+    },
   },
   description: `Read one of the requester's email threads with its messages. The first page holds the newest messages; pass nextPageToken as pageToken for older ones. ${untrusted}`,
   inputSchema: z.strictObject({
@@ -180,7 +186,12 @@ const getThreadTool = createTool({
 
 const listMessagesTool = createTool({
   id: 'agentmail_list_messages',
-  transform: { display: { output: () => ({ summary: 'Listed sent emails' }) } },
+  transform: {
+    display: {
+      input: () => ({ summary: 'checking sent emails' }),
+      output: () => ({ summary: 'listed sent emails' }),
+    },
+  },
   description: `List messages gorkie sent for the requester. Replies from outside senders are not listed here; find those with agentmail_list_threads. ${untrusted}`,
   inputSchema: z.strictObject({
     limit: z.number().int().min(1).max(100).optional(),
@@ -200,7 +211,12 @@ const listMessagesTool = createTool({
 
 const getMessageTool = createTool({
   id: 'agentmail_get_message',
-  transform: { display: { output: () => ({ summary: 'Read an email' }) } },
+  transform: {
+    display: {
+      input: () => ({ summary: 'reading an email' }),
+      output: () => ({ summary: 'read an email' }),
+    },
+  },
   description: `Read one message in the requester's email threads with its full body. ${untrusted}`,
   inputSchema: z.strictObject({ messageId: z.string().min(1) }),
   execute: async ({ messageId }, context) =>
@@ -210,7 +226,10 @@ const getMessageTool = createTool({
 const getAttachmentTool = createTool({
   id: 'agentmail_get_attachment',
   transform: {
-    display: { output: () => ({ summary: 'Fetched an email attachment' }) },
+    display: {
+      input: () => ({ summary: 'getting an email attachment' }),
+      output: () => ({ summary: 'fetched an email attachment' }),
+    },
   },
   description: `Get an attachment from one of the requester's email threads: metadata, a short-lived download URL, and extracted text for PDF and DOCX. Download it in the sandbox with curl if you need the file. ${untrusted}`,
   inputSchema: z.strictObject({
@@ -235,8 +254,9 @@ const sendMessageTool = createTool({
   id: 'agentmail_send_message',
   transform: {
     display: {
+      input: () => ({ summary: 'sending an email' }),
       output: ({ input }) => ({
-        summary: `Emailed ${input?.to.join(', ') ?? 'someone'}`,
+        summary: `emailed ${input?.to.join(', ') ?? 'someone'}`,
       }),
     },
   },
@@ -270,7 +290,10 @@ const sendMessageTool = createTool({
 const replyToMessageTool = createTool({
   id: 'agentmail_reply_to_message',
   transform: {
-    display: { output: () => ({ summary: 'Replied to an email' }) },
+    display: {
+      input: () => ({ summary: 'replying to an email' }),
+      output: () => ({ summary: 'replied to an email' }),
+    },
   },
   description: `Reply to a message in one of the requester's email threads. Replies to the sender unless replyAll or to is set. Only when the requester asked for this reply in this turn. Attachments are sandbox file paths.`,
   inputSchema: z.strictObject({

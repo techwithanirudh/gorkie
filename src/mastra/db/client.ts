@@ -23,6 +23,4 @@ const saveMessages = memory.saveMessages.bind(memory);
 memory.saveMessages = (args) =>
   saveMessages({ ...args, messages: excludeImageData(args) });
 
-// drizzle's `schema` option only feeds the db.query.* relational API, which
-// nothing here uses.
 export const db = drizzle({ client: postgresStore.pool });

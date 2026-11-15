@@ -25,8 +25,11 @@ export const searchEmojisTool = createTool({
   }),
   transform: {
     display: {
+      input: ({ input }) => ({
+        summary: `looking for an emoji${input?.query ? `: ${input.query}` : ''}`,
+      }),
       output: ({ output }) => ({
-        summary: `Found ${output?.emojis.length ?? 0} emoji`,
+        summary: `found ${output?.emojis.length ?? 0} emoji`,
       }),
     },
   },

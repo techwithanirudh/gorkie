@@ -8,6 +8,7 @@ import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output, slackMessageSchema } from '../../types/tools/index';
 import {
   assertReadableChannel,
+  channelLabel,
   formatMessage,
   joinChannel,
   slackThreadId,
@@ -50,8 +51,20 @@ export const readConversationHistoryTool = createTool({
   }),
   transform: {
     display: {
+      input: async ({ input }) => {
+        const channel = await channelLabel(input?.threadId ?? input?.channelId);
+        const page = input?.cursor ? ' (next page)' : '';
+        if (input?.threadId) {
+          return {
+            summary: `reading a thread${channel ? ` in ${channel}` : ''}${page}`,
+          };
+        }
+        return {
+          summary: `${channel ? `reading ${channel}` : 'reading Slack history'}${page}`,
+        };
+      },
       output: ({ input, output }) => ({
-        summary: `Read ${output?.messages.length ?? 0} messages from ${input?.threadId ?? input?.channelId ?? output?.channelId ?? 'the current conversation'}`,
+        summary: `read ${output?.messages.length ?? 0} messages from ${input?.threadId ?? input?.channelId ?? output?.channelId ?? 'the current conversation'}`,
       }),
     },
   },

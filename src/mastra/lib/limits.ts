@@ -4,21 +4,6 @@ import { addUsage, readUsage } from '../db/queries/usage';
 import type { LimitKind } from '../types';
 import { channelContext } from './context';
 
-export function uncachedTokens({
-  cachedInputTokens,
-  inputTokens,
-  outputTokens,
-}: {
-  cachedInputTokens?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-}): number {
-  return (
-    Math.max(0, (inputTokens ?? 0) - (cachedInputTokens ?? 0)) +
-    (outputTokens ?? 0)
-  );
-}
-
 function resetsIn(windowStart: Date): string {
   const minutes = Math.max(
     1,

@@ -4,17 +4,22 @@ import type { moderationEvents } from '../db/schema';
 
 export type ModerationAction = 'ban' | 'unban';
 
-const secondsPer = { s: 1, m: 60, h: 3600, d: 86_400, w: 604_800 } as const;
+const units = ['s', 'm', 'h', 'd', 'w'] as const;
+const secondsPer: Record<(typeof units)[number], number> = {
+  s: 1,
+  m: 60,
+  h: 3600,
+  d: 86_400,
+  w: 604_800,
+};
 
-// `perm`, or a count and a unit such as `90m`, `6.7d` or `2w`. Parses to a
-// date-fns Duration in whole seconds, since `add` drops fractional days;
-// undefined means permanent.
+// Whole seconds, because date-fns `add` drops fractional days.
 export const banDurationSchema = z.union([
   z.literal('perm').transform(() => undefined),
   z
     .string()
     .toLowerCase()
-    .regex(/^\d+(\.\d+)?[smhdw]$/)
+    .regex(/^\d+(\.\d+)?[a-z]$/)
     .transform((text) => ({
       count: Number.parseFloat(text),
       unit: text.slice(-1),
@@ -22,7 +27,7 @@ export const banDurationSchema = z.union([
     .pipe(
       z.object({
         count: z.number().positive(),
-        unit: z.enum(['s', 'm', 'h', 'd', 'w']),
+        unit: z.enum(units),
       })
     )
     .transform(

@@ -4,7 +4,7 @@ import { channelContext } from '../../lib/context';
 import { chatChannelId } from '../../lib/ids';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output } from '../../types/tools/index';
-import { assertReadableChannel } from './utils';
+import { assertReadableChannel, channelLabel } from './utils';
 
 export const getChannelInfoTool = createTool({
   id: 'get_channel_info',
@@ -27,8 +27,13 @@ export const getChannelInfoTool = createTool({
   }),
   transform: {
     display: {
+      input: async ({ input }) => ({
+        summary: await channelLabel(input?.channelId).then((c) =>
+          c ? `looking up ${c}` : 'looking up a channel'
+        ),
+      }),
       output: ({ output }) => ({
-        summary: output?.name ?? output?.channelId ?? 'Channel found',
+        summary: output?.name ?? output?.channelId ?? 'channel found',
       }),
     },
   },

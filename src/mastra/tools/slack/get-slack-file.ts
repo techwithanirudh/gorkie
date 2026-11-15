@@ -39,8 +39,9 @@ export const getSlackFileTool = createTool({
   }),
   transform: {
     display: {
+      input: () => ({ summary: 'downloading a Slack file' }),
       output: ({ output }) => ({
-        summary: output?.filename ?? output?.path ?? 'File downloaded',
+        summary: output?.filename ?? output?.path ?? 'file downloaded',
       }),
     },
   },

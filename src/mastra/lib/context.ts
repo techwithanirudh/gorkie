@@ -1,4 +1,4 @@
-import type { RequestContext } from '@mastra/core/request-context';
+import { RequestContext } from '@mastra/core/request-context';
 import { z } from 'zod';
 import type { ChannelContext } from '../types';
 import { logger } from './logger';
@@ -13,10 +13,14 @@ const channelSchema = z.looseObject({
   userName: z.string().optional(),
 });
 
+// Tool approval predicates get a plain-object view of the request context.
 export function channelContext(
-  requestContext?: RequestContext
+  requestContext?: RequestContext | Record<string, unknown>
 ): ChannelContext {
-  const raw = requestContext?.get('channel');
+  const raw =
+    requestContext instanceof RequestContext
+      ? requestContext.get('channel')
+      : requestContext?.channel;
   if (!raw) {
     return {};
   }

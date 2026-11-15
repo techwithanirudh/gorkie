@@ -8,7 +8,7 @@ import { isAgentSchedule } from './scheduled-tasks/queries';
 export const waitTool = createTool({
   id: 'wait',
   description:
-    'Pause the conversation and automatically resume it later, without blocking. Use for one-time delays, spaced polling, or giving a background job or external event time to progress. The activity card retains your reason and delay as Waiting. Call this last and stop; do not call reply first, because reply ends the turn. Ordinary text is not delivered. For recurring work, use create_scheduled_task instead.',
+    'Pause the conversation and automatically resume it later, without blocking. Use for one-time delays, spaced polling, or giving a background job or external event time to progress. The activity card retains your reason and delay as Waiting. Call this last and stop; any text before it is posted as usual. For recurring work, use create_scheduled_task instead.',
   inputSchema: z.strictObject({
     seconds: z
       .number()
@@ -25,8 +25,9 @@ export const waitTool = createTool({
   outputSchema: output({ seconds: z.number() }),
   transform: {
     display: {
+      input: () => ({ summary: null }),
       output: ({ input, output }) => ({
-        summary: `Waiting ${output?.seconds ?? 0} seconds for ${input?.reason ?? 'the next check'}`,
+        summary: `waiting ${output?.seconds ?? 0} seconds for ${input?.reason ?? 'the next check'}`,
       }),
     },
   },

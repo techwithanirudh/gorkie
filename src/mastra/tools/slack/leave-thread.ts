@@ -13,8 +13,9 @@ export const leaveThreadTool = createTool({
   outputSchema: output({ threadId: z.string() }),
   transform: {
     display: {
+      input: () => ({ summary: null }),
       output: ({ output }) => ({
-        summary: `Left thread ${output?.threadId ?? ''}`,
+        summary: `left thread ${output?.threadId ?? ''}`,
       }),
     },
   },

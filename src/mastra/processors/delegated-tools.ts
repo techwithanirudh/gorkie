@@ -1,6 +1,5 @@
 import type { Processor } from '@mastra/core/processors';
 import { z } from 'zod';
-import { activitySchema } from '../types/progress';
 
 const delegatedToolChunk = z.looseObject({
   payload: z.looseObject({
@@ -21,13 +20,7 @@ export const delegatedTools = {
 
     const { output } = part.payload;
     const delegatedTool = delegatedToolChunk.safeParse(output);
-    const activity = z
-      .object({
-        type: z.literal('data-code-mode-activity'),
-        data: activitySchema,
-      })
-      .safeParse(output);
-    if (!(delegatedTool.success || activity.success)) {
+    if (!delegatedTool.success) {
       return Promise.resolve(part);
     }
 
@@ -40,15 +33,11 @@ export const delegatedTools = {
           toolName: part.payload.toolName ?? 'agent',
         },
       },
-      ...(delegatedTool.success
-        ? {
-            payload: {
-              ...output.payload,
-              toolCallId: `${part.payload.toolCallId}::${delegatedTool.data.payload.toolCallId}`,
-              toolName: `${part.payload.toolName ?? 'agent'}_${delegatedTool.data.payload.toolName}`,
-            },
-          }
-        : {}),
+      payload: {
+        ...output.payload,
+        toolCallId: `${part.payload.toolCallId}::${delegatedTool.data.payload.toolCallId}`,
+        toolName: `${part.payload.toolName ?? 'agent'}_${delegatedTool.data.payload.toolName}`,
+      },
     });
   },
 } satisfies Processor<'delegated-tools'>;

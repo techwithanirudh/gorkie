@@ -25,6 +25,11 @@ const patchLine = z
     })
   );
 
+const linkButton = z.looseObject({
+  type: z.literal('LinkButton'),
+  props: z.looseObject({ url: z.string() }),
+});
+
 // Strings reach Slack through props and through $state, so every string in a
 // patch is neutralized, whatever path it lands on.
 function neutralized(value: unknown): unknown {
@@ -69,10 +74,7 @@ function withFollowUp({ path, value }: { path: string; value: unknown }) {
   };
 }
 
-// The answer arrives as one text stream holding prose and, inside a ```spec
-// fence, JSONL patches. Prose goes to `onText` a line at a time, blank lines
-// kept, which json-render's own mixed parser drops; the patches stream into a
-// card message that renders as soon as its root exists.
+// Not json-render's createMixedStreamParser, which drops blank prose lines.
 export function answerStream({
   onText,
   thread,
@@ -85,9 +87,8 @@ export function answerStream({
   let wake: (() => void) | undefined;
   let card: Promise<unknown> | undefined;
   let inSpec = false;
-  // Blank lines wait for the next text line, so the ones left around a cut-out
-  // spec fence or at the end never reach Slack.
   let blankLines = '';
+  const linkCounts = new Map<string, number>();
   async function* patchLines() {
     while (!ended || patches.length > 0) {
       const next = patches.shift();
@@ -125,10 +126,27 @@ export function answerStream({
     if (!patch) {
       return;
     }
-    const value = withFollowUp({
+    let value = withFollowUp({
       path: patch.path,
       value: neutralized(patch.value),
     });
+    // json-render passes no id for a LinkButton, so Slack's action id is
+    // `link-<url>` and a repeated URL fails the whole card with invalid_blocks.
+    const link = linkButton.safeParse(value).data;
+    if (link) {
+      const { url } = link.props;
+      const count = linkCounts.get(url) ?? 0;
+      linkCounts.set(url, count + 1);
+      if (count > 0) {
+        value = {
+          ...link,
+          props: {
+            ...link.props,
+            url: `${url}${url.includes('#') ? '' : '#'}${'_'.repeat(count)}`,
+          },
+        };
+      }
+    }
     patches.push(`${JSON.stringify({ ...patch, value })}\n`);
     card ??= streamCard(thread, patchLines(), {
       updateIntervalMs: config.editIntervalMs,

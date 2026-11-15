@@ -34,8 +34,9 @@ export const createCanvasTool = createTool({
   }),
   transform: {
     display: {
+      input: () => ({ summary: 'writing a canvas' }),
       output: ({ output }) => ({
-        summary: `Created canvas ${output?.canvasId ?? ''}`,
+        summary: `created canvas ${output?.canvasId ?? ''}`,
       }),
     },
   },

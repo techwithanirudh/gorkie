@@ -3,6 +3,7 @@ import type {
   ProcessOutputStreamArgs,
 } from '@mastra/core/processors';
 import { formatDuration, intervalToDuration } from 'date-fns';
+import { z } from 'zod';
 import { slack } from '../chat/client';
 import { feedbackBlock } from '../chat/feedback';
 import { channelContext } from '../lib/context';
@@ -33,10 +34,37 @@ export const turnFooter = {
     }
     const startTime = starts.length > 0 ? Math.min(...starts) : undefined;
 
-    if (
-      !(threadId && args.state.replySent === true) ||
-      typeof startTime !== 'number'
-    ) {
+    if (!threadId) {
+      return args.messages;
+    }
+    if (args.state.replySent !== true) {
+      const { steps } = args.result;
+      const endedOnPurpose = steps.some(
+        (step) =>
+          (step.pendingToolCalls?.length ?? 0) > 0 ||
+          step.toolCalls.some(({ payload }) =>
+            ['skip', 'wait', 'react'].includes(payload.toolName)
+          )
+      );
+      if (!endedOnPurpose) {
+        logger.warn('[turn-footer] turn ended without a reply', {
+          threadId,
+          finishReason: args.result.finishReason,
+          steps: steps.length,
+        });
+        await slack
+          .postMessage(threadId, {
+            markdown:
+              'Something went wrong and I stopped before answering. Mention me again to retry.',
+          })
+          .catch((error: unknown) =>
+            logger.warn('[turn-footer] failed to post', { threadId, error })
+          );
+        await slack.startTyping(threadId, '');
+      }
+      return args.messages;
+    }
+    if (typeof startTime !== 'number') {
       return args.messages;
     }
 
@@ -56,8 +84,9 @@ export const turnFooter = {
             type: 'context',
             elements: [{ type: 'mrkdwn', text: `_${text}_` }],
           },
-          feedbackBlock(traceId),
-        ] as never,
+          // buildFeedbackButtonsBlock is typed as a plain record.
+          z.looseObject({ type: z.string() }).parse(feedbackBlock(traceId)),
+        ],
         text,
       });
     } catch (error) {

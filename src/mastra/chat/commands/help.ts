@@ -1,6 +1,6 @@
 import type { SharedCommand } from '../../types';
 import { moderationUsage } from '../moderation/commands';
-import { isModerator } from '../moderation/moderators';
+import { isModerator } from '../moderation/gate';
 
 const list = (items: [string, string][]) =>
   items.map(([command, text]) => `• \`${command}\` ${text}`);

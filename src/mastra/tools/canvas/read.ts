@@ -22,8 +22,9 @@ export const readCanvasTool = createTool({
   }),
   transform: {
     display: {
+      input: () => ({ summary: 'reading a canvas' }),
       output: ({ output }) => ({
-        summary: output?.title ?? output?.canvasId ?? 'Canvas read',
+        summary: output?.title ?? output?.canvasId ?? 'canvas read',
       }),
     },
   },

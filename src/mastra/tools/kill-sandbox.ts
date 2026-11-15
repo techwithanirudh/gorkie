@@ -17,7 +17,10 @@ export const killSandboxTool = createTool({
   }),
   outputSchema: z.strictObject({ killed: z.boolean() }),
   transform: {
-    display: { output: () => ({ summary: 'Sandbox reset' }) },
+    display: {
+      input: () => ({ summary: 'resetting the sandbox' }),
+      output: () => ({ summary: 'sandbox reset' }),
+    },
   },
   execute: async ({ reason }, { requestContext }) => {
     const { threadId } = channelContext(requestContext);

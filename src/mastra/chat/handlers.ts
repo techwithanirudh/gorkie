@@ -5,7 +5,6 @@ import type {
 import { type ActionEvent, Message, parseMarkdown, type Thread } from 'chat';
 import { limitWindowHours } from '../config';
 import { isUserAllowed } from '../lib/allowed-users';
-import { parseSlackId } from '../lib/ids';
 import { overLimit } from '../lib/limits';
 import { logger } from '../lib/logger';
 import { attachments } from './attachments';
@@ -286,13 +285,10 @@ async function sendFollowUp(event: ActionEvent): Promise<void> {
   const user = await chat()
     .getUser(event.user.userId)
     .catch(() => null);
-  const { channel, ts } = parseSlackId(event.threadId);
-  if (!channel) {
-    return;
-  }
+  const { channel, threadTs } = slack.decodeThreadId(event.threadId);
   const note = await slack.webClient.chat.postMessage({
     channel,
-    thread_ts: ts,
+    thread_ts: threadTs || undefined,
     text,
     username: `${user?.userName || event.user.userName} [gorkie]`.slice(0, 80),
     unfurl_links: false,

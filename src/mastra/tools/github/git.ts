@@ -95,42 +95,44 @@ export const withCredential = async <T>({
             },
           });
         } catch {
-          // The E2B error can carry the request body, which holds the token.
           // biome-ignore lint/style/useErrorCause: dropping the cause is the point; it can carry the token
           throw new Error('Could not open the GitHub credential window.');
         }
-        try {
-          return await operation();
-        } finally {
-          // A failed drop leaves the token injected for everything in the
-          // sandbox, which is keyed on the thread and outlives this turn.
-          let dropped = false;
-          for (let attempt = 1; attempt <= 3 && !dropped; attempt++) {
-            try {
-              // biome-ignore lint/performance/noAwaitInLoops: retries are sequential
-              await sandbox.e2b.updateNetwork({ rules: {} });
-              dropped = true;
-            } catch (error) {
-              logger.error('[github] failed to drop the credential', {
-                attempt,
-                error,
-              });
-            }
-          }
-          if (!dropped) {
-            // Killing is the only way left to close the window; the next turn
-            // gets a fresh sandbox under the same id.
-            await sandbox.e2b.kill().catch((error: unknown) => {
-              logger.error('[github] failed to kill a credentialed sandbox', {
-                error,
-              });
+        const outcome = await operation().then(
+          (value) => ({ ok: true as const, value }),
+          (error: unknown) => ({ ok: false as const, error })
+        );
+        // A failed drop leaves the token injected for everything in the
+        // sandbox, which is keyed on the thread and outlives this turn.
+        let dropped = false;
+        for (let attempt = 1; attempt <= 3 && !dropped; attempt++) {
+          try {
+            // biome-ignore lint/performance/noAwaitInLoops: retries are sequential
+            await sandbox.e2b.updateNetwork({ rules: {} });
+            dropped = true;
+          } catch (error) {
+            logger.error('[github] failed to drop the credential', {
+              attempt,
+              error,
             });
-            // biome-ignore lint/correctness/noUnsafeFinally: a leaked credential must override the operation's result
-            throw new Error(
-              'Could not close the GitHub credential window, so the sandbox was discarded. Files in it are gone; check out the repository again.'
-            );
           }
         }
+        if (!dropped) {
+          // Killing is the only way left to close the window; the next turn
+          // gets a fresh sandbox under the same id.
+          await sandbox.e2b.kill().catch((error: unknown) => {
+            logger.error('[github] failed to kill a credentialed sandbox', {
+              error,
+            });
+          });
+          throw new Error(
+            'Could not close the GitHub credential window, so the sandbox was discarded. Files in it are gone; check out the repository again.'
+          );
+        }
+        if (!outcome.ok) {
+          throw outcome.error;
+        }
+        return outcome.value;
       }),
   });
 };

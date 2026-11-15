@@ -5,6 +5,9 @@ import { input, output } from '../../types/tools/index';
 
 export const pauseScheduledTaskTool = createTool({
   id: 'pause_scheduled_task',
+  transform: {
+    display: { input: () => ({ summary: 'pausing a scheduled task' }) },
+  },
   description: 'Pause a recurring schedule without deleting it.',
   inputSchema: input({ id: z.string().min(1).describe('Schedule ID.') }),
   outputSchema: output({ schedule: z.unknown() }),

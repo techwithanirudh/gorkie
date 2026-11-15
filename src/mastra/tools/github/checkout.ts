@@ -16,6 +16,9 @@ export const checkoutTool = ({
 }) =>
   createTool({
     id: 'github_checkout',
+    transform: {
+      display: { input: () => ({ summary: 'checking out a repository' }) },
+    },
     description:
       'Clone a repository into the sandbox and check out a branch, so you can build, test, and edit across many files. Required before github_push_branch: pushing needs the repo present in the sandbox first. Safe to run again.',
     // Only a private clone opens the github.com credential window on the

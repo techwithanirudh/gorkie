@@ -33,8 +33,9 @@ export const listChannelsTool = createTool({
   }),
   transform: {
     display: {
+      input: () => ({ summary: 'listing channels' }),
       output: ({ input, output }) => ({
-        summary: `Found ${output?.channels.length ?? 0} channels${input?.query ? ` matching "${input.query}"` : ''}`,
+        summary: `found ${output?.channels.length ?? 0} channels${input?.query ? ` matching "${input.query}"` : ''}`,
       }),
     },
   },

@@ -18,7 +18,12 @@ export async function prepareScheduledFire({
   schedule,
 }: SchedulePrepareContext<Mastra>): Promise<null | undefined> {
   const current = await mastra.schedules.get(schedule.id);
-  if (current?.metadata?.kind === 'wait') {
+  // A cron has no year, so a single run is deleted as it fires or it repeats
+  // next year on the same date.
+  if (
+    current?.metadata?.kind === 'wait' ||
+    current?.metadata?.kind === 'once'
+  ) {
     await mastra.schedules.delete(schedule.id);
   }
   if (!current) {

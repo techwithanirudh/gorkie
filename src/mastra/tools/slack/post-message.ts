@@ -2,10 +2,11 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { chat } from '../../chat/instance';
 import { neutralizeBroadcasts } from '../../chat/message';
-import { assertCanSendTo, offerSend } from '../../chat/send';
+import { assertCanSendTo, deliver } from '../../chat/send';
 import { type Target, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
 import { parseSlackId, rawId } from '../../lib/ids';
+import type { ChannelContext } from '../../types';
 import { input, output } from '../../types/tools/index';
 
 function destinationOf(target: Target) {
@@ -24,13 +25,48 @@ function destinationOf(target: Target) {
   return { channel, threadTs: ts, label: `a thread in <#${channel}>` };
 }
 
+function isDmToRequester({
+  ctx,
+  target,
+}: {
+  ctx: ChannelContext;
+  target: Target;
+}): boolean {
+  return (
+    target.type === 'user' &&
+    Boolean(ctx.userId) &&
+    rawId(target.id) === rawId(ctx.userId ?? '')
+  );
+}
+
+async function checkDestination({
+  ctx,
+  target,
+}: {
+  ctx: ChannelContext;
+  target: Target;
+}) {
+  if (!(ctx.userId && ctx.channelId)) {
+    throw new Error('Sending on behalf needs a person here to approve it.');
+  }
+  const destination = destinationOf(target);
+  if (destination.channel) {
+    await assertCanSendTo({
+      channel: destination.channel,
+      currentChannelId: rawId(ctx.channelId),
+      requesterId: ctx.userId,
+    });
+  }
+  return { destination, requesterId: ctx.userId };
+}
+
 export const postMessageTool = createTool({
   id: 'post_message',
   description: `Send a markdown message to a different Slack thread, channel, or person, on behalf of the person asking.
 
-Never use this to answer the current conversation or to report progress: use reply and status_update.
+Never use this to answer the current conversation or to report progress: answer in your text and use status_update.
 
-A DM to the person asking goes out directly with status "sent". Anything else only prepares the message: the person sees a private preview with Send and Cancel buttons, nothing goes out until they click Send, and the status is "awaiting_confirmation". In that case don't say it was sent or describe the preview, and if nothing else needs an answer, call skip. You are not told the outcome; the preview itself shows it.
+A DM to the person asking goes out directly. Anything else waits for the person to approve it on a card in this thread, and you get the result once they decide.
 
 The message goes out with the person's avatar, named "Name [gorkie]", with a "Sent by" line, except a DM to the person asking, which comes from gorkie. Don't add attribution yourself. Find channel ids with list_channels.`,
   inputSchema: input({
@@ -38,58 +74,76 @@ The message goes out with the person's avatar, named "Name [gorkie]", with a "Se
     message: z.string().min(1).max(6000).describe('Markdown message body.'),
   }),
   outputSchema: output({
-    status: z.enum(['sent', 'awaiting_confirmation']),
+    status: z.enum(['sent', 'not_sent']),
     destination: z.string(),
+    link: z.string().optional(),
+    reason: z.string().optional(),
   }),
+  requireApproval: (input, ctx) =>
+    !isDmToRequester({
+      ctx: channelContext(ctx?.requestContext),
+      target: input.target,
+    }),
+  // Rejects a destination before a card is shown for it.
+  beforeApproval: async ({ target }, ctx) => {
+    try {
+      await checkDestination({
+        ctx: channelContext(ctx.requestContext),
+        target,
+      });
+    } catch (error) {
+      return {
+        proceed: false,
+        output: {
+          status: 'not_sent' as const,
+          destination: target.id,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+      };
+    }
+  },
   transform: {
     display: {
+      input: () => ({ summary: null }),
       output: ({ output }) => ({
-        summary:
-          output?.status === 'sent'
-            ? 'Message sent'
-            : 'Waiting for the person to confirm',
+        summary: output?.status === 'sent' ? 'message sent' : 'not sent',
       }),
     },
   },
   execute: async ({ target, message }, context) => {
     const ctx = channelContext(context?.requestContext);
-    if (!(ctx.userId && ctx.channelId)) {
-      throw new Error('Sending on behalf needs a person here to confirm it.');
+    const text = neutralizeBroadcasts(message);
+    if (isDmToRequester({ ctx, target })) {
+      const dm = await chat().openDM(ctx.userId ?? '');
+      await dm.post({ markdown: text });
+      return { status: 'sent' as const, destination: 'your DMs' };
     }
-    const destination = destinationOf(target);
-    const previewChannel = rawId(ctx.channelId);
-    if (destination.channel) {
-      await assertCanSendTo({
-        channel: destination.channel,
-        currentChannelId: previewChannel,
-        requesterId: ctx.userId,
-      });
-    }
-    const isDmToRequester = destination.userId === rawId(ctx.userId);
-    if (isDmToRequester) {
-      const dm = await chat().openDM(ctx.userId);
-      await dm.post({ markdown: neutralizeBroadcasts(message) });
-      return { status: 'sent' as const, destination: destination.label };
+    // The approval can sit for a while, so the checks run again here.
+    const { destination, requesterId } = await checkDestination({
+      ctx,
+      target,
+    });
+    const channel = destination.userId
+      ? rawId((await chat().openDM(destination.userId)).channelId)
+      : destination.channel;
+    if (!channel) {
+      throw new Error('That destination has no channel to post in.');
     }
     const requester = await chat()
-      .getUser(ctx.userId)
+      .getUser(requesterId)
       .catch(() => null);
-    const name = requester?.userName || ctx.userName;
-    const pending = {
-      ...destination,
-      message: neutralizeBroadcasts(message),
-      requesterId: ctx.userId,
-      username: `${name ?? 'someone'} [gorkie]`.slice(0, 80),
+    const link = await deliver({
       avatarUrl: requester?.avatarUrl,
-    };
-    await offerSend({
-      pending,
-      previewChannel,
-      previewThreadTs: ctx.threadId ? parseSlackId(ctx.threadId).ts : undefined,
+      channel,
+      message: text,
+      requesterId,
+      threadTs: destination.threadTs,
+      username:
+        `${requester?.userName || ctx.userName || 'someone'} [gorkie]`.slice(
+          0,
+          80
+        ),
     });
-    return {
-      status: 'awaiting_confirmation' as const,
-      destination: destination.label,
-    };
+    return { status: 'sent' as const, destination: destination.label, link };
   },
 });

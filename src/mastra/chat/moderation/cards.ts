@@ -15,7 +15,6 @@ export function until(expiresAt: Date | null): string {
     : 'permanent';
 }
 
-// `closed` is the line that replaces the Unban button once the card is acted on.
 export function decisionCard({
   closed,
   event,
@@ -38,14 +37,8 @@ export function decisionCard({
                   ? `${
                       formatDuration(
                         intervalToDuration({
-                          start: 0,
-                          // The row is written a moment after expiresAt is set.
-                          end:
-                            Math.round(
-                              (event.expiresAt.getTime() -
-                                event.createdAt.getTime()) /
-                                60_000
-                            ) * 60_000,
+                          start: event.createdAt,
+                          end: event.expiresAt,
                         })
                       ) || 'under a minute'
                     }, until ${until(event.expiresAt)}`
@@ -56,18 +49,17 @@ export function decisionCard({
       ]),
       CardText(`*Reason:* ${event.reason ?? 'none given'}`),
       ...(closed ? [CardText(`_${closed}_`)] : []),
-      Actions([
-        ...(banned && !closed
-          ? [
+      ...(banned && !closed
+        ? [
+            Actions([
               Button({
                 id: moderationIds.unban,
                 label: 'Unban',
                 value: event.id,
               }),
-            ]
-          : []),
-        Button({ id: moderationIds.info, label: 'More info' }),
-      ]),
+            ]),
+          ]
+        : []),
     ],
   });
 }
