@@ -16,11 +16,6 @@ export const option = ({
   value,
 });
 
-export const text = (body: string) => ({
-  type: 'section' as const,
-  text: { type: 'mrkdwn' as const, text: body },
-});
-
 const viewAction = z.object({
   view: z.object({
     hash: z.string().optional(),

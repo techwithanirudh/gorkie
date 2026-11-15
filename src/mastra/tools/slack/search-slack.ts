@@ -63,6 +63,30 @@ const searchResponseSchema = z.looseObject({
             }))
         )
         .optional(),
+      channels: z
+        .array(
+          z
+            .looseObject({
+              name: z.string().optional(),
+              permalink: z.string().optional(),
+              purpose: z.string().optional(),
+              topic: z.string().optional(),
+            })
+            .transform((channel) => {
+              // Slack sends no id field for a channel result, only the permalink.
+              const id = channel.permalink?.match(
+                /\/archives\/([CG][A-Z0-9]+)/
+              )?.[1];
+              return {
+                channelId: id ? chatChannelId(id) : undefined,
+                name: channel.name,
+                topic: channel.topic || undefined,
+                purpose: channel.purpose || undefined,
+                permalink: channel.permalink,
+              };
+            })
+        )
+        .optional(),
     })
     .optional(),
 });
@@ -160,11 +184,13 @@ async function assertPublicOnly(token: string): Promise<void> {
 
 async function runSearch({
   channelId,
+  content,
   cursor,
   query,
   token,
 }: {
   channelId: string;
+  content: 'messages' | 'channels';
   cursor?: string;
   query: string;
   token: string;
@@ -177,9 +203,9 @@ async function runSearch({
         context_channel_id: rawId(channelId),
         // Slack expects comma-separated strings, not JSON-encoded arrays.
         channel_types: 'public_channel',
-        content_types: 'messages',
+        content_types: content,
         cursor,
-        include_context_messages: true,
+        include_context_messages: content === 'messages',
         limit: 10,
         query,
         token,
@@ -198,7 +224,13 @@ async function toOutput({
   threadId?: string;
 }) {
   const messages = response.results?.messages ?? [];
+  const channels = response.results?.channels ?? [];
   const channelIds = new Set<string>();
+  for (const channel of channels) {
+    if (channel.channelId) {
+      channelIds.add(channel.channelId);
+    }
+  }
   for (const message of messages) {
     if (message.channelId) {
       channelIds.add(message.channelId);
@@ -271,6 +303,9 @@ async function toOutput({
         },
       ];
     }),
+    channels: channels.filter(
+      (channel) => channel.channelId && readable.has(channel.channelId)
+    ),
     nextCursor: response.response_metadata?.next_cursor,
   };
 }
@@ -278,7 +313,7 @@ async function toOutput({
 export const searchSlackTool = createTool({
   id: 'search_slack',
   description:
-    'Run one Slack message search for past conversations, decisions, links, people, or internal references. Use Slack search syntax to narrow by keywords, names, channels, senders, or dates. Public channels only: DMs, private channels, and Slack Connect conversations are never searched. This returns one result page with short surrounding context. Use Slack code mode when the task needs multiple queries, exhaustive pagination, filtering, aggregation, or full conversation reads. Search runs as the workspace-wide public identity, so it needs a live message in the thread and never runs on scheduled or unattended turns.',
+    'Run one Slack search for past conversations, decisions, links, people, or internal references, or with content "channels" to find a channel and its id by name or topic. Use Slack search syntax to narrow by keywords, names, channels, senders, or dates. Public channels only: DMs, private channels, and Slack Connect conversations are never searched. This returns one result page with short surrounding context. Use Slack code mode when the task needs multiple queries, exhaustive pagination, filtering, aggregation, or full conversation reads. Search runs as the workspace-wide public identity, so it needs a live message in the thread and never runs on scheduled or unattended turns.',
   inputSchema: input({
     query: z
       .string()
@@ -286,6 +321,12 @@ export const searchSlackTool = createTool({
       .max(500)
       .describe(
         'Slack search syntax (e.g. "deploy issue in:#eng", "from:alex budget"). For from:/to:, use the person\'s Slack username, NOT their raw user id (from:U0123ABCD will not match).'
+      ),
+    content: z
+      .enum(['messages', 'channels'])
+      .default('messages')
+      .describe(
+        'What to search. "channels" matches public channel names, topics and purposes and returns their ids.'
       ),
     cursor: z
       .string()
@@ -305,19 +346,31 @@ export const searchSlackTool = createTool({
         permalink: z.string().optional(),
       })
     ),
+    channels: z.array(
+      z.strictObject({
+        channelId: z.string().optional(),
+        name: z.string().optional(),
+        topic: z.string().optional(),
+        purpose: z.string().optional(),
+        permalink: z.string().optional(),
+      })
+    ),
     nextCursor: z.string().optional(),
   }),
   transform: {
     display: {
       input: ({ input }) => ({
-        summary: `searching Slack${input?.query ? `: ${input.query}` : ''}${input?.cursor ? ' (next page)' : ''}`,
+        summary: `searching Slack${input?.content === 'channels' ? ' channels' : ''}${input?.query ? `: ${input.query}` : ''}${input?.cursor ? ' (next page)' : ''}`,
       }),
       output: ({ input: args, output: result }) => ({
-        summary: `found ${result?.messages.length ?? 0} Slack messages for "${args?.query ?? ''}"`,
+        summary:
+          args?.content === 'channels'
+            ? `found ${result?.channels.length ?? 0} channels for "${args.query}"`
+            : `found ${result?.messages.length ?? 0} Slack messages for "${args?.query ?? ''}"`,
       }),
     },
   },
-  execute: async ({ query, cursor }, context) => {
+  execute: async ({ query, content, cursor }, context) => {
     spendSlackCall(context?.requestContext);
     const { channelId, messageId, threadId } = channelContext(
       context?.requestContext
@@ -333,6 +386,7 @@ export const searchSlackTool = createTool({
     return toOutput({
       response: await runSearch({
         channelId: searchChannelId,
+        content,
         cursor,
         query,
         token,

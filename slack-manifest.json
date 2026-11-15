@@ -38,6 +38,7 @@
         "channels:history",
         "channels:join",
         "channels:read",
+        "channels:write.invites",
         "chat:write",
         "chat:write.customize",
         "commands",

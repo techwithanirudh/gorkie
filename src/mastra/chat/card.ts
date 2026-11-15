@@ -25,6 +25,11 @@ const patchLine = z
     })
   );
 
+const button = z.looseObject({
+  type: z.literal('Button'),
+  props: z.looseObject({ label: z.string() }),
+});
+
 const linkButton = z.looseObject({
   type: z.literal('LinkButton'),
   props: z.looseObject({ url: z.string() }),
@@ -47,33 +52,6 @@ function neutralized(value: unknown): unknown {
   );
 }
 
-// A click sends the label back as the person's next message, and Slack needs
-// each action id in a block to differ, so the element id provides it.
-function withFollowUp({ path, value }: { path: string; value: unknown }) {
-  const elementId = /^\/elements\/([^/]+)$/.exec(path)?.[1];
-  if (
-    !elementId ||
-    typeof value !== 'object' ||
-    value === null ||
-    !('type' in value) ||
-    value.type !== 'Button' ||
-    !('props' in value) ||
-    typeof value.props !== 'object' ||
-    value.props === null ||
-    !('label' in value.props)
-  ) {
-    return value;
-  }
-  return {
-    ...value,
-    props: {
-      ...value.props,
-      value: value.props.label,
-      id: `${followUpActionPrefix}${elementId}`,
-    },
-  };
-}
-
 // Not json-render's createMixedStreamParser, which drops blank prose lines.
 export function answerStream({
   onText,
@@ -82,35 +60,53 @@ export function answerStream({
   onText: (text: string) => void;
   thread: Thread;
 }) {
-  const patches: string[] = [];
-  let ended = false;
-  let wake: (() => void) | undefined;
+  let patches: ReadableStreamDefaultController<string> | undefined;
+  const lines = new ReadableStream<string>({
+    start(controller) {
+      patches = controller;
+    },
+  });
   let card: Promise<unknown> | undefined;
   let inSpec = false;
   let blankLines = '';
-  const linkCounts = new Map<string, number>();
-  async function* patchLines() {
-    while (!ended || patches.length > 0) {
-      const next = patches.shift();
-      if (next !== undefined) {
-        yield next;
-        continue;
-      }
-      // biome-ignore lint/performance/noAwaitInLoops: patches arrive in order and are yielded as they come
-      await new Promise<void>((resolve) => {
-        wake = resolve;
-      });
-    }
-  }
   let buffer = '';
+  const linkCounts = new Map<string, number>();
+
+  const element = ({ path, value }: { path: string; value: unknown }) => {
+    // A click sends the label back as the person's next message, and Slack
+    // needs each action id in a block to differ, so the element id provides it.
+    const elementId = /^\/elements\/([^/]+)$/.exec(path)?.[1];
+    const clickable = button.safeParse(value).data;
+    if (elementId && clickable) {
+      return {
+        ...clickable,
+        props: {
+          ...clickable.props,
+          value: clickable.props.label,
+          id: `${followUpActionPrefix}${elementId}`,
+        },
+      };
+    }
+    // json-render passes no id for a LinkButton, so Slack's action id is
+    // `link-<url>` and a repeated URL fails the whole card with invalid_blocks.
+    const link = linkButton.safeParse(value).data;
+    if (!link) {
+      return value;
+    }
+    const { url } = link.props;
+    const seen = linkCounts.get(url) ?? 0;
+    linkCounts.set(url, seen + 1);
+    if (seen === 0) {
+      return value;
+    }
+    const suffix = `${url.includes('#') ? '' : '#'}${'_'.repeat(seen)}`;
+    return { ...link, props: { ...link.props, url: `${url}${suffix}` } };
+  };
+
   const line = (text: string) => {
     const trimmed = text.trim();
-    if (!inSpec && trimmed.startsWith('```spec')) {
-      inSpec = true;
-      return;
-    }
-    if (inSpec && trimmed === '```') {
-      inSpec = false;
+    if (inSpec ? trimmed === '```' : trimmed.startsWith('```spec')) {
+      inSpec = !inSpec;
       return;
     }
     if (!inSpec) {
@@ -126,40 +122,22 @@ export function answerStream({
     if (!patch) {
       return;
     }
-    let value = withFollowUp({
+    const value = element({
       path: patch.path,
       value: neutralized(patch.value),
     });
-    // json-render passes no id for a LinkButton, so Slack's action id is
-    // `link-<url>` and a repeated URL fails the whole card with invalid_blocks.
-    const link = linkButton.safeParse(value).data;
-    if (link) {
-      const { url } = link.props;
-      const count = linkCounts.get(url) ?? 0;
-      linkCounts.set(url, count + 1);
-      if (count > 0) {
-        value = {
-          ...link,
-          props: {
-            ...link.props,
-            url: `${url}${url.includes('#') ? '' : '#'}${'_'.repeat(count)}`,
-          },
-        };
-      }
-    }
-    patches.push(`${JSON.stringify({ ...patch, value })}\n`);
-    card ??= streamCard(thread, patchLines(), {
+    patches?.enqueue(`${JSON.stringify({ ...patch, value })}\n`);
+    card ??= streamCard(thread, lines, {
       updateIntervalMs: config.editIntervalMs,
       limits: { charts: 2, tables: 1 },
     });
-    wake?.();
-    wake = undefined;
   };
+
   return {
     push(chunk: string) {
-      const lines = (buffer + chunk).split('\n');
-      buffer = lines.pop() ?? '';
-      for (const text of lines) {
+      const complete = (buffer + chunk).split('\n');
+      buffer = complete.pop() ?? '';
+      for (const text of complete) {
         line(text);
       }
     },
@@ -167,8 +145,7 @@ export function answerStream({
       if (buffer) {
         line(buffer);
       }
-      ended = true;
-      wake?.();
+      patches?.close();
       await card?.catch((error: unknown) => {
         logger.warn('[card] the card did not render', {
           error,

@@ -9,21 +9,17 @@ import {
 import { logger } from '../../../lib/logger';
 import { findMCPUrlError } from '../../../mcp/security';
 import { findMCPConnectionError } from '../../../mcp/user-servers';
-import { mcpServerSchema } from '../../../types';
+import { mcpServerSchema, toolPermissionSchema } from '../../../types';
 import { chat } from '../../instance';
 import { guarded } from '../../moderation/gate';
+import { publishHome } from '../view';
 import { ids, MAX_SERVERS } from './ids';
-import { decodePreset } from './presets';
 import { configureModal } from './views';
 
-type PublishHome = (userId: string) => Promise<void>;
-
 async function addServer({
-  publishHome,
   userId,
   values,
 }: {
-  publishHome: PublishHome;
   userId: string;
   values: Record<string, string | undefined>;
 }): Promise<{ action: 'errors'; errors: Record<string, string> } | undefined> {
@@ -40,7 +36,7 @@ async function addServer({
         errors[field] = issue.message;
       }
     }
-    return { action: 'errors' as const, errors };
+    return { action: 'errors', errors };
   }
 
   const isGitHub = new URL(parsed.data.url).host === 'api.githubcopilot.com';
@@ -48,13 +44,13 @@ async function addServer({
     const message =
       'GitHub has its own section above. Use Sign in with GitHub instead.';
     return {
-      action: 'errors' as const,
+      action: 'errors',
       errors: isGitHub ? { url: message } : { name: message },
     };
   }
   const urlError = await findMCPUrlError(parsed.data.url);
   if (urlError) {
-    return { action: 'errors' as const, errors: { url: urlError } };
+    return { action: 'errors', errors: { url: urlError } };
   }
   const result = await upsertMCPServer({
     userId,
@@ -63,7 +59,7 @@ async function addServer({
   });
   if (result === 'limit-reached') {
     return {
-      action: 'errors' as const,
+      action: 'errors',
       errors: { name: `You can connect at most ${MAX_SERVERS} servers.` },
     };
   }
@@ -90,11 +86,7 @@ async function addServer({
     });
 }
 
-export function registerMCPServers({
-  publishHome,
-}: {
-  publishHome: PublishHome;
-}): void {
+export function registerMCPServers(): void {
   const bot = chat();
 
   bot.onAction(
@@ -167,11 +159,13 @@ export function registerMCPServers({
   bot.onModalSubmit(
     ids.configureModal,
     guarded(async (event) => {
-      const { permission, scope } = decodePreset(event.values.permission);
-      if (scope) {
+      const permission = toolPermissionSchema.safeParse(
+        event.values.permission
+      );
+      if (event.privateMetadata && permission.success) {
         await setMCPServerPermission({
-          name: scope,
-          permission,
+          name: event.privateMetadata,
+          permission: permission.data,
           userId: event.user.userId,
         });
       }
@@ -183,7 +177,6 @@ export function registerMCPServers({
     ids.modal,
     guarded((event) =>
       addServer({
-        publishHome,
         userId: event.user.userId,
         values: event.values,
       })

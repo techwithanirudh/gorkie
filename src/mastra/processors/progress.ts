@@ -1,8 +1,15 @@
 import type { Processor } from '@mastra/core/processors';
 import { z } from 'zod';
-import { addAction, chunkLabel } from '../chat/status';
+import {
+  addAction,
+  liveStatus,
+  runContexts,
+  statusText,
+  toolLabel,
+} from '../chat/status';
 import { activity as config } from '../config';
 import { channelContext } from '../lib/context';
+import { deferredTools } from '../tools/toolsets';
 import {
   type ActivityOutcome,
   type ActivityTask,
@@ -28,6 +35,7 @@ interface Turn {
   phases: Phase[];
   replied: boolean;
   startedAt: number;
+  tools?: Promise<Record<string, unknown>>;
 }
 
 const turns = new WeakMap<object, Turn>();
@@ -62,7 +70,7 @@ export const progress = {
   description:
     'Groups tool activity into temporary work steps in the reply stream.',
   processDataParts: true,
-  processOutputStream({ part, requestContext, state }) {
+  async processOutputStream({ agent, part, requestContext, state }) {
     if (!channelContext(requestContext).threadId) {
       return Promise.resolve(part);
     }
@@ -149,10 +157,13 @@ export const progress = {
           advance({ title: parsed.data.status, automatic: false });
         }
       } else {
-        const label = chunkLabel({
+        turn.tools ??= Promise.resolve(agent?.listTools({ requestContext }))
+          .catch(() => undefined)
+          .then((tools) => ({ ...deferredTools, ...tools }));
+        const label = await toolLabel({
           args: part.payload.args,
-          metadata: part.metadata,
           title: part.payload.title,
+          tool: (await turn.tools)[toolName],
           toolName,
         });
         if (label === null) {
@@ -193,7 +204,7 @@ export const progress = {
           !part.payload.isError &&
           part.payload.toolName === 'skip'
         ) {
-          turn.outcome = turn.delegations.size > 0 ? 'Handed off' : 'Stopped';
+          turn.outcome = turn.delegations.size > 0 ? 'Handed off' : 'Skipped';
         }
       }
       const phase = turn.calls.get(part.payload.toolCallId);
@@ -232,8 +243,17 @@ export const progress = {
         chunks.push(task({ phase, calls: turn.calls }));
       }
     }
+    const { threadId } = channelContext(requestContext);
+    const status = current()?.title || 'working';
     if (['finish', 'error', 'abort'].includes(part.type)) {
       turns.delete(state);
+      liveStatus.delete(threadId ?? '');
+      runContexts.delete(threadId ?? '');
+    } else if (threadId) {
+      liveStatus.set(threadId, statusText(status));
+      if (requestContext) {
+        runContexts.set(threadId, requestContext);
+      }
     }
     return Promise.resolve({
       ...part,
@@ -244,14 +264,17 @@ export const progress = {
           replied: turn.replied,
           outcome: turn.outcome,
           startedAt: turn.startedAt,
-          status: current()?.title || 'working',
+          status,
           intervalMs: config.editIntervalMs,
         },
       },
     });
   },
-  processOutputResult({ messages, state }) {
+  processOutputResult({ messages, requestContext, state }) {
     turns.delete(state);
+    const { threadId } = channelContext(requestContext);
+    liveStatus.delete(threadId ?? '');
+    runContexts.delete(threadId ?? '');
     return Promise.resolve(messages);
   },
 } satisfies Processor<'progress'>;

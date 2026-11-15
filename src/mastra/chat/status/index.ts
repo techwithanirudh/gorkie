@@ -1,9 +1,7 @@
 import { posix } from 'node:path';
 import type { TypingStatusFn } from '@mastra/core/channels';
-import {
-  getTransformedToolPayload,
-  type ToolPayloadTransformFunction,
-} from '@mastra/core/tools';
+import type { RequestContext } from '@mastra/core/request-context';
+import type { ToolPayloadTransformFunction } from '@mastra/core/tools';
 import { z } from 'zod';
 import { activity as config } from '../../config';
 import { activitySchema } from '../../types/progress';
@@ -24,6 +22,38 @@ const transformSchema = z.looseObject({
     .optional(),
 });
 
+// Slack clears an assistant status whenever a message lands in the thread, so
+// the handlers re-apply the latest one while a turn is still running.
+export const liveStatus = new Map<string, string>();
+
+// The running turn's request context per Slack thread, so a stop can close its
+// plan. A stop that lands in an input processor sends the channel's plan
+// driver no abort chunk and skips both onAbort and processOutputResult, which
+// left the plan spinning.
+export const runContexts = new Map<string, RequestContext>();
+
+const renderContext = z.looseObject({
+  abortActivity: z
+    .custom<() => Promise<void>>((value) => typeof value === 'function')
+    .optional(),
+});
+
+export async function closeActivity(
+  requestContext: RequestContext | undefined
+): Promise<void> {
+  await renderContext
+    .safeParse(requestContext?.get('__mastra_chat_channel_render'))
+    .data?.abortActivity?.();
+}
+
+// Slack caps an assistant status at 50 characters.
+export function statusText(text: string): string {
+  return `is ${text
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 50 - 'is …'.length)}…`;
+}
+
 export const status: TypingStatusFn = (chunk) => {
   const activity = activitySchema.safeParse(chunk.metadata?.gorkieActivity);
   if (
@@ -32,11 +62,7 @@ export const status: TypingStatusFn = (chunk) => {
     chunk.type !== 'error' &&
     chunk.type !== 'abort'
   ) {
-    // Slack caps an assistant status at 50 characters.
-    return `is ${activity.data.status
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 50 - 'is …'.length)}…`;
+    return statusText(activity.data.status);
   }
   return false;
 };
@@ -44,7 +70,10 @@ export const status: TypingStatusFn = (chunk) => {
 const labelSchema = z.object({ summary: z.string().nullable() });
 const fallbackArgs = z.looseObject({
   description: z.string().optional(),
+  name: z.string().optional(),
   path: z.string().optional(),
+  query: z.string().optional(),
+  skillName: z.string().optional(),
 });
 const repeatedAction = /^(.*) ×(\d+)$/;
 
@@ -75,6 +104,18 @@ function fallbackLabel({
   if (parsed?.description) {
     return clean(parsed.description);
   }
+  // Mastra's workspace skill tools carry no display transform of their own.
+  if (name === 'skill' && parsed?.name) {
+    return clean(`using the ${parsed.name} skill`);
+  }
+  if (name === 'skill_read' && parsed?.skillName) {
+    return clean(
+      `reading the ${parsed.skillName} skill${parsed.path ? `: ${posix.basename(parsed.path)}` : ''}`
+    );
+  }
+  if (name === 'skill_search') {
+    return clean(`searching skills${parsed?.query ? `: ${parsed.query}` : ''}`);
+  }
   const readable = (title ?? name.replace(/^mastra_workspace_/, ''))
     .replace(/[_-]+/g, ' ')
     .trim();
@@ -90,33 +131,17 @@ function labelOf(transformed: unknown): string | null | undefined {
   return parsed.data.summary === null ? null : clean(parsed.data.summary);
 }
 
-// Mastra runs each tool's `transform.display.input` before emitting a call and
-// keeps the result on the chunk.
-export function chunkLabel({
-  args,
-  metadata,
-  title,
-  toolName,
-}: {
-  args: unknown;
-  metadata?: Record<string, unknown>;
-  title?: string;
-  toolName: string;
-}): string | null {
-  const label = labelOf(
-    getTransformedToolPayload(metadata, 'display', 'input-available')
-      ?.transformed
-  );
-  return label === undefined ? fallbackLabel({ args, title, toolName }) : label;
-}
-
-// Code mode calls tools itself, so nothing has run their transform.
+// Mastra attaches a tool's display transform to a later copy of the call
+// chunk than output processors and background-task streams receive (their
+// `metadata` is null), so the label is computed here from the tool itself.
 export async function toolLabel({
   args,
+  title,
   tool,
   toolName,
 }: {
   args: unknown;
+  title?: string;
   tool: unknown;
   toolName: string;
 }): Promise<string | null> {
@@ -132,7 +157,7 @@ export async function toolLabel({
         })
       )
     : undefined;
-  return label === undefined ? fallbackLabel({ args, toolName }) : label;
+  return label === undefined ? fallbackLabel({ args, title, toolName }) : label;
 }
 
 export function addAction({

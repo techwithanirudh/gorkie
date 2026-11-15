@@ -11,7 +11,7 @@ import { canvasIdSchema } from './utils';
 export const readCanvasTool = createTool({
   id: 'read_canvas',
   description:
-    'Read one Slack canvas as HTML by its canvas id, such as F0123ABCD. Get the id from get_channel_info, list_canvases, or create_canvas. Use lookup_canvas_sections before a targeted edit.',
+    'Read one Slack canvas as HTML by its canvas id, such as F0123ABCD. Get the id from list_canvases or create_canvas. Use lookup_canvas_sections before a targeted edit.',
   inputSchema: input({
     canvasId: canvasIdSchema,
   }),
@@ -29,7 +29,7 @@ export const readCanvasTool = createTool({
     },
   },
   execute: async ({ canvasId }, context) => {
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
     const info = await slack.webClient.files.info({ file: canvasId });
     const ctx = channelContext(context.requestContext);

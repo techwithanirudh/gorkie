@@ -24,7 +24,7 @@ export const killSandboxTool = createTool({
   },
   execute: async ({ reason }, { requestContext }) => {
     const { threadId } = channelContext(requestContext);
-    if (!(requestContext && threadId)) {
+    if (!threadId) {
       throw new Error(
         'No Slack thread bound for this run, so there is no sandbox to kill.'
       );

@@ -44,7 +44,6 @@ export async function orchestratorTools() {
 export const deferredTools = {
   ...scheduledTaskTools,
   get_channel_info: slackTools.get_channel_info,
-  list_channels: slackTools.list_channels,
   list_threads: slackTools.list_threads,
   generate_image: generateImageTool,
   upload_emoji: uploadEmojiTool,

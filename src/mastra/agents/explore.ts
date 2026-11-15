@@ -5,9 +5,8 @@ import {
 } from '@mastra/core/processors';
 import { InMemoryStore } from '@mastra/core/storage';
 import { Memory } from '@mastra/memory';
-import { backgroundTasks, agent as config, subagent } from '../config';
+import { agent as config, subagent } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
-import { stepCountIs } from '../lib/tools';
 import { lowQuota } from '../processors/low-quota';
 import { sandbox } from '../processors/sandbox';
 import { tokenUsage } from '../processors/token-usage';
@@ -15,7 +14,7 @@ import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
 import { wrapUp } from '../processors/wrap-up';
 import * as explore from '../prompts/agents/explore';
-import { explorer } from '../providers';
+import { agentModel } from '../providers';
 import { fetchUrlTool } from '../tools/fetch-url';
 import { searchWebTool } from '../tools/search-web';
 import { workspace } from '../workspace';
@@ -25,9 +24,9 @@ export const exploreAgent = new Agent({
   name: 'Explore',
   description: explore.description,
   instructions: explore.prompt,
-  model: explorer,
+  model: agentModel,
   errorProcessors: defaultErrorProcessors(),
-  maxProcessorRetries: 2,
+  maxProcessorRetries: config.maxProcessorRetries,
   memory: new Memory({ storage: new InMemoryStore() }),
   workspace,
   tools: {
@@ -35,7 +34,7 @@ export const exploreAgent = new Agent({
     fetch_url: fetchUrlTool,
   },
   inputProcessors: [
-    wrapUp({ id: 'wrap-up', timeoutMs: backgroundTasks.timeoutMs }),
+    wrapUp,
     lowQuota,
     new TokenLimiterProcessor({
       limit: config.maxTokens.input,
@@ -57,12 +56,11 @@ export const exploreAgent = new Agent({
     ],
     modelSettings: {
       maxOutputTokens: 16_384,
-      maxRetries: 5,
       reasoning: 'medium',
       topP: 0.95,
       timeout: config.modelTimeout,
     },
-    stopWhen: stepCountIs(subagent.maxSteps),
+    maxSteps: subagent.maxSteps,
     autoResumeSuspendedTools: true,
   },
   outputProcessors: [tokenUsage, sandbox, workingModel('explore')],

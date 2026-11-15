@@ -6,6 +6,7 @@ import { formatDuration, intervalToDuration } from 'date-fns';
 import { z } from 'zod';
 import { slack } from '../chat/client';
 import { feedbackBlock } from '../chat/feedback';
+import { closeActivity } from '../chat/status';
 import { channelContext } from '../lib/context';
 import { logger } from '../lib/logger';
 
@@ -37,15 +38,21 @@ export const turnFooter = {
     if (!threadId) {
       return args.messages;
     }
+    if (args.result.finishReason === 'aborted') {
+      await closeActivity(args.requestContext);
+    }
     if (args.state.replySent !== true) {
       const { steps } = args.result;
-      const endedOnPurpose = steps.some(
-        (step) =>
-          (step.pendingToolCalls?.length ?? 0) > 0 ||
-          step.toolCalls.some(({ payload }) =>
-            ['skip', 'wait', 'react'].includes(payload.toolName)
-          )
-      );
+      // An aborted turn already got the orchestrator's onAbort notice.
+      const endedOnPurpose =
+        args.result.finishReason === 'aborted' ||
+        steps.some(
+          (step) =>
+            (step.pendingToolCalls?.length ?? 0) > 0 ||
+            step.toolCalls.some(({ payload }) =>
+              ['skip', 'wait', 'react'].includes(payload.toolName)
+            )
+        );
       if (!endedOnPurpose) {
         logger.warn('[turn-footer] turn ended without a reply', {
           threadId,

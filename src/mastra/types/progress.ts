@@ -7,6 +7,7 @@ const activityOutcomeSchema = z.enum([
   'Waiting',
   'Failed',
   'Stopped',
+  'Skipped',
   'Handed off',
 ]);
 

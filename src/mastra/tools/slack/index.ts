@@ -4,7 +4,6 @@ import { getSlackFileTool } from './get-slack-file';
 import { getUserTool } from './get-user';
 import { joinThreadTool } from './join-thread';
 import { leaveThreadTool } from './leave-thread';
-import { listChannelsTool } from './list-channels';
 import { listThreadsTool } from './list-threads';
 import { postMessageTool } from './post-message';
 import { reactTool } from './react';
@@ -21,7 +20,6 @@ export const slackTools = {
   get_user: getUserTool,
   get_channel_info: getChannelInfoTool,
   get_permalink: getPermalinkTool,
-  list_channels: listChannelsTool,
   get_slack_file: getSlackFileTool,
   upload_file: uploadFileTool,
   post_message: postMessageTool,

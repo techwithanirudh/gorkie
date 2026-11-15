@@ -1,9 +1,10 @@
 import type { ModalView } from '@slack/web-api';
 import { levelsFor } from '../../../../lib/github';
 import type { GitHubPermission } from '../../../../types';
+import { section } from '../../blocks';
 import { PRESETS } from '../../presets';
 import { ids } from '../ids';
-import { option, text } from './shared';
+import { option } from './shared';
 
 export const configureView = ({
   permission,
@@ -64,7 +65,7 @@ export const configureView = ({
           initial_option: selected,
         },
       },
-      text(
+      section(
         'Gorkie reaches only the repositories you chose. <https://github.com/settings/installations|Change which ones> on GitHub.'
       ),
     ],

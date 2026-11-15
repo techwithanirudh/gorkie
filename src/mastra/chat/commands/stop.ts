@@ -1,12 +1,24 @@
 import type { AgentSessionStoppedEvent } from 'chat';
+import { agent as agentConfig } from '../../config';
 import { logger } from '../../lib/logger';
 import { memoryThread } from '../../lib/memory';
 import type { CommandHandler } from '../../types';
 import { killJobs } from '../../workspace/jobs';
-import { chat } from '../instance';
 import { getMastra } from '../mastra-instance';
 import { notify } from '../notify';
 import { setThreadState } from '../state';
+import { closeActivity, runContexts } from '../status';
+
+// A stop someone asked for is confirmed by the command or by Slack itself, so
+// the orchestrator's abort notice skips it. Kept briefly, because an abort
+// that lands in an input processor never reaches onAbort to clear it.
+const stoppedAt = new Map<string, number>();
+
+export function stoppedByUser(threadId: string): boolean {
+  const at = stoppedAt.get(threadId);
+  stoppedAt.delete(threadId);
+  return at !== undefined && Date.now() - at < 60_000;
+}
 
 async function cancelBackgroundTasks(threadId: string): Promise<number> {
   const manager = getMastra().backgroundTaskManager;
@@ -31,7 +43,7 @@ async function cancelBackgroundTasks(threadId: string): Promise<number> {
 async function stopThread(
   threadId: string
 ): Promise<'aborted' | 'cancelled' | 'idle'> {
-  const { default: orchestrator } = await import('../../agents/orchestrator');
+  const orchestrator = getMastra().getAgentById(agentConfig.id);
   const killed = await killJobs(threadId);
   const threadMemory = await memoryThread({
     agent: orchestrator,
@@ -54,10 +66,18 @@ async function stopThread(
     }
   );
   const active = Boolean(orchestrator.getActiveThreadRunId(scope));
+  if (active) {
+    stoppedAt.set(threadId, Date.now());
+  }
   // Also between turns: the open untilIdle stream starts a follow-up turn when a
   // task ends, even a cancelled one, unless it is closed too.
   orchestrator.abortThreadStream({ ...scope, clearPendingSignals: true });
   if (active) {
+    const context = runContexts.get(threadId);
+    runContexts.delete(threadId);
+    await closeActivity(context).catch((error: unknown) => {
+      logger.warn('[commands] could not close the plan', { error, threadId });
+    });
     return 'aborted';
   }
   return cancelled > 0 || killed > 0 ? 'cancelled' : 'idle';
@@ -69,7 +89,7 @@ export async function onAgentSessionStopped(
   event: AgentSessionStoppedEvent
 ): Promise<void> {
   await setThreadState({
-    thread: chat().thread(event.threadId),
+    thread: { id: event.threadId },
     patch: { dropMessagesBefore: Date.now() },
   });
   await stopThread(event.threadId);
@@ -81,10 +101,7 @@ export const stop: CommandHandler = async ({ message, thread }) => {
     patch: { dropMessagesBefore: message.metadata.dateSent.getTime() },
   });
   const outcome = await stopThread(thread.id);
-  if (outcome === 'aborted') {
-    return;
-  }
-  if (outcome === 'cancelled') {
+  if (outcome !== 'idle') {
     await thread.post('_stopped._').catch((error: unknown) => {
       logger.warn('[commands] Failed to post stop confirmation', {
         error,

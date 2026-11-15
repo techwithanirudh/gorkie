@@ -13,7 +13,7 @@ import { threadJobs } from '../workspace/jobs';
 import { approvalCard } from './approval-card';
 import { answerStream } from './card';
 import { getMastra } from './mastra-instance';
-import { addAction, chunkLabel } from './status';
+import { addAction, toolLabel } from './status';
 
 interface Step extends PlanModelTask {
   completedAt?: number;
@@ -84,6 +84,7 @@ async function followTask({
     controller.signal,
     AbortSignal.timeout(backgroundTasks.untilIdleMaxIdleMs),
   ]);
+  let subagentTools: Promise<Record<string, unknown> | undefined> | undefined;
   const watchActions = async () => {
     for await (const value of manager.stream({
       abortSignal: signal,
@@ -93,10 +94,15 @@ async function followTask({
       const nested =
         taskChunkSchema.safeParse(value).data?.payload?.payload?.output;
       if (nested?.type === 'tool-call' && nested.payload) {
-        const action = chunkLabel({
+        subagentTools ??= Promise.resolve(
+          getMastra()
+            .getAgentById(task.toolName.replace(/^agent-/, ''))
+            ?.listTools()
+        ).catch(() => undefined);
+        const action = await toolLabel({
           args: nested.payload.args,
-          metadata: nested.metadata,
           title: nested.payload.title,
+          tool: (await subagentTools)?.[nested.payload.toolName],
           toolName: nested.payload.toolName,
         });
         if (action) {
@@ -141,6 +147,8 @@ async function showActivity({
   if (!(adapter.postObject && adapter.editObject)) {
     throw new Error('Activity display requires editable Plan support.');
   }
+  const postObject = adapter.postObject.bind(adapter);
+  const editObject = adapter.editObject.bind(adapter);
   const steps = new Map<string, Step>();
   let title = 'Working';
   let startedAt = Date.now();
@@ -269,10 +277,10 @@ async function showActivity({
       return;
     }
     if (messageId) {
-      await adapter.editObject?.(thread.id, messageId, 'plan', model);
+      await editObject(thread.id, messageId, 'plan', model);
     } else if (hasDetails()) {
-      const posted = await adapter.postObject?.(thread.id, 'plan', model);
-      messageId = posted?.id;
+      const posted = await postObject(thread.id, 'plan', model);
+      messageId = posted.id;
     }
     lastSent = signature;
     lastSentAt = Date.now();
@@ -297,6 +305,12 @@ async function showActivity({
       },
       Math.max(0, lastSentAt + config.editIntervalMs - Date.now())
     );
+  };
+  const finish = () => {
+    clearTimeout(updateTimer);
+    updateTimer = undefined;
+    completedAt = Date.now();
+    return enqueue();
   };
   // Runs detached, because the turn has to end before the thread takes other
   // messages.
@@ -328,13 +342,10 @@ async function showActivity({
         schedule();
       })
     ).finally(() => {
-      clearTimeout(updateTimer);
-      updateTimer = undefined;
       // Slack shows a warning icon on the whole plan when any row failed, so
       // the title says so instead of reading as a clean finish.
       title = failed ? 'Background job failed' : outcomeTitle;
-      completedAt = Date.now();
-      return enqueue();
+      return finish();
     });
   };
   const followDelegations = () => {
@@ -365,12 +376,7 @@ async function showActivity({
           threadId: thread.id,
         });
       })
-      .finally(() => {
-        clearTimeout(updateTimer);
-        updateTimer = undefined;
-        completedAt = Date.now();
-        return enqueue();
-      });
+      .finally(finish);
   };
   try {
     for await (const piece of stream) {
@@ -434,8 +440,9 @@ async function showActivity({
     updateTimer = undefined;
     completedAt ??= Date.now();
     title = outcome ?? 'Stopped';
+    // Slack draws a pending step with a spinner, which reads as still running.
     const endStatus: Record<string, PlanModelTask['status']> = {
-      Stopped: 'pending',
+      Stopped: 'error',
       Failed: 'error',
     };
     const unfinished = endStatus[title] ?? 'complete';
@@ -454,7 +461,8 @@ async function showActivity({
     } else {
       await enqueue();
     }
-    if (messageId && !hasDetails()) {
+    // A turn that decided not to answer leaves nothing behind.
+    if (messageId && (title === 'Skipped' || !hasDetails())) {
       await adapter
         .deleteMessage(thread.id, messageId)
         .catch((error: unknown) => {

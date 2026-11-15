@@ -1,0 +1,46 @@
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -22133,18 +22133,8 @@
+ 				reject(e);
+ 			}
+ 		});
+-		if (!this.exitHookUnsubscribe) this.exitHookUnsubscribe = asyncExitHook(async () => {
+-			this.log("debug", `Disconnecting MCP server during exit`);
+-			await this.disconnect();
+-		}, { wait: 5e3 });
+-		if (!this.sigTermHandler) {
+-			this.sigTermHandler = () => gracefulExit();
+-			process.on("SIGTERM", this.sigTermHandler);
+-		}
+-		if (!this.sigHupHandler) {
+-			this.sigHupHandler = () => gracefulExit();
+-			process.on("SIGHUP", this.sigHupHandler);
+-		}
++		// gorkie: Mastra's server owns SIGTERM and drains running turns. exit-hook
++		// exited the process 1ms after the signal, so nothing drained.
+ 		this.log("debug", `Successfully connected to MCP server`);
+ 		return this.isConnected;
+ 	}
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -22154,18 +22154,8 @@
+ 				reject(e);
+ 			}
+ 		});
+-		if (!this.exitHookUnsubscribe) this.exitHookUnsubscribe = (0, exit_hook.asyncExitHook)(async () => {
+-			this.log("debug", `Disconnecting MCP server during exit`);
+-			await this.disconnect();
+-		}, { wait: 5e3 });
+-		if (!this.sigTermHandler) {
+-			this.sigTermHandler = () => (0, exit_hook.gracefulExit)();
+-			process.on("SIGTERM", this.sigTermHandler);
+-		}
+-		if (!this.sigHupHandler) {
+-			this.sigHupHandler = () => (0, exit_hook.gracefulExit)();
+-			process.on("SIGHUP", this.sigHupHandler);
+-		}
++		// gorkie: Mastra's server owns SIGTERM and drains running turns. exit-hook
++		// exited the process 1ms after the signal, so nothing drained.
+ 		this.log("debug", `Successfully connected to MCP server`);
+ 		return this.isConnected;
+ 	}

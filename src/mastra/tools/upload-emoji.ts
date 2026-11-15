@@ -47,7 +47,7 @@ export const uploadEmojiTool = createTool({
   execute: async ({ name, path, aliasFor }, context) => {
     await assertWithinLimit({
       kind: 'emojiUpload',
-      requestContext: context?.requestContext,
+      requestContext: context.requestContext,
     });
     if (!env.EMOJI_PROXY_TOKEN) {
       throw new Error(
@@ -66,9 +66,6 @@ export const uploadEmojiTool = createTool({
     } else {
       if (!path) {
         throw new Error('Pass path to upload a new emoji.');
-      }
-      if (!context?.requestContext) {
-        throw new Error('No workspace context.');
       }
       const sandbox = await requireSandbox(context.requestContext);
       const bytes = await sandbox.retryOnDead(() =>

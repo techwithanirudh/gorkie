@@ -66,9 +66,6 @@ export const uploadFileTool = createTool({
     },
   },
   execute: async ({ path, filename, comment, target }, context) => {
-    if (!context?.requestContext) {
-      throw new Error('No workspace context.');
-    }
     const sandbox = await requireSandbox(context.requestContext);
 
     const stat = await sandbox.retryOnDead(() =>

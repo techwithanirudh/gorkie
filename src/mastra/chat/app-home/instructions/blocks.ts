@@ -1,4 +1,4 @@
-import { heading, note } from '../blocks';
+import { heading, note, section } from '../blocks';
 import type { HomeSection } from '../limit';
 import { ids } from './ids';
 
@@ -14,13 +14,7 @@ export function customInstructionsBlocks(
     fixed: [
       heading('Custom Instructions'),
       preview
-        ? {
-            type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: `>${preview.replaceAll('\n', '\n>')}`,
-            },
-          }
+        ? section(`>${preview.replaceAll('\n', '\n>')}`)
         : note(
             'None yet. Gorkie uses its default personality. Add instructions to shape how it replies to you.'
           ),

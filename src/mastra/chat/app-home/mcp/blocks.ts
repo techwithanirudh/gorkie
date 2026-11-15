@@ -1,5 +1,5 @@
 import type { MCPServerConfig } from '../../../types';
-import { heading, note } from '../blocks';
+import { heading, note, section } from '../blocks';
 import type { HomeSection } from '../limit';
 import { PRESETS } from '../presets';
 import { ids } from './ids';
@@ -31,10 +31,7 @@ export function mcpServersBlocks(
   return {
     fixed: [header],
     rows: servers.map((server) => [
-      {
-        type: 'section',
-        text: { type: 'mrkdwn', text: `*${server.name}*` },
-      },
+      section(`*${server.name}*`),
       note(`${PRESETS[server.permission].status}  ·  \`${server.url}\``),
       ...(server.lastError ? [note(`:warning: ${server.lastError}`)] : []),
       {
@@ -65,13 +62,10 @@ export function mcpServersBlocks(
         ],
       },
     ]),
-    overflow: (dropped) => ({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `_\u2026and ${dropped} more server${dropped === 1 ? '' : 's'}, hidden because the Home tab is full._`,
-      },
-    }),
+    overflow: (dropped) =>
+      section(
+        `_\u2026and ${dropped} more server${dropped === 1 ? '' : 's'}, hidden because the Home tab is full._`
+      ),
     trailing: [{ type: 'divider' }],
   };
 }

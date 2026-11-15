@@ -9,15 +9,13 @@ import { githubPermissionSchema } from '../../../types';
 import { slack } from '../../client';
 import { chat } from '../../instance';
 import { guarded } from '../../moderation/gate';
+import { publishHome } from '../view';
 import { polling } from './connect';
 import { ids } from './ids';
-import { configureView, selectedPermission, viewOf } from './views';
+import { configureView } from './views/configure';
+import { selectedPermission, viewOf } from './views/shared';
 
-export function registerSettings({
-  publishHome,
-}: {
-  publishHome: (userId: string) => Promise<void>;
-}): void {
+export function registerSettings(): void {
   const bot = chat();
 
   bot.onAction(

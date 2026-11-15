@@ -29,7 +29,7 @@ export function registerEvents(): void {
   registerAppHome();
   registerModeration();
 
-  bot.onAction('opt_in_accept', acceptOptIn);
+  bot.onAction('opt_in_accept', guarded(acceptOptIn));
 
   bot.onAction(feedbackIds.action, guarded(onFeedbackClick));
   bot.onModalSubmit(

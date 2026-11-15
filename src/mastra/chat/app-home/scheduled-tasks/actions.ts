@@ -4,13 +4,10 @@ import { isAgentSchedule } from '../../../tools/scheduled-tasks/queries';
 import { chat } from '../../instance';
 import { getMastra } from '../../mastra-instance';
 import { guarded } from '../../moderation/gate';
+import { publishHome } from '../view';
 import { ids } from './ids';
 
-export function registerScheduledTasks({
-  publishHome,
-}: {
-  publishHome: (userId: string) => Promise<void>;
-}): void {
+export function registerScheduledTasks(): void {
   chat().onAction(
     ids.cancel,
     guarded(async (event) => {

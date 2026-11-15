@@ -68,7 +68,7 @@ Never use this to answer the current conversation or to report progress: answer 
 
 A DM to the person asking goes out directly. Anything else waits for the person to approve it on a card in this thread, and you get the result once they decide.
 
-The message goes out with the person's avatar, named "Name [gorkie]", with a "Sent by" line, except a DM to the person asking, which comes from gorkie. Don't add attribution yourself. Find channel ids with list_channels.`,
+The message goes out with the person's avatar, named "Name [gorkie]", with a "Sent by" line, except a DM to the person asking, which comes from gorkie. Don't add attribution yourself. Find a channel id with search_slack, content "channels".`,
   inputSchema: input({
     target: targetSchema.describe('Destination outside this conversation.'),
     message: z.string().min(1).max(6000).describe('Markdown message body.'),

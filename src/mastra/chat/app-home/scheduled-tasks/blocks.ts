@@ -1,8 +1,9 @@
+import { formatSlackDate } from '@chat-adapter/slack/format';
 import { agent as agentConfig } from '../../../config';
 import { chatChannelId } from '../../../lib/ids';
 import { isAgentSchedule } from '../../../tools/scheduled-tasks/queries';
 import { getMastra } from '../../mastra-instance';
-import { heading, note } from '../blocks';
+import { heading, note, section } from '../blocks';
 import type { HomeSection } from '../limit';
 import { ids } from './ids';
 
@@ -34,17 +35,10 @@ export async function scheduledTasksBlocks(
         (task.prompt.length > 60
           ? `${task.prompt.slice(0, 60)}\u2026`
           : task.prompt);
-      const nextFire = Math.floor(task.nextFireAt / 1000);
       return [
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: `*${title}*`,
-          },
-        },
+        section(`*${title}*`),
         note(
-          `\`${task.cron}\`${task.timezone ? ` (${task.timezone})` : ''} \u00b7 next run <!date^${nextFire}^{date_short_pretty} at {time}|soon>`
+          `\`${task.cron}\`${task.timezone ? ` (${task.timezone})` : ''} \u00b7 next run ${formatSlackDate(new Date(task.nextFireAt), '{date_short_pretty} at {time}', 'soon')}`
         ),
         {
           type: 'actions',
@@ -69,13 +63,8 @@ export async function scheduledTasksBlocks(
         },
       ];
     }),
-    overflow: (dropped) => ({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `_\u2026and ${dropped} more. Cancel one above to see the rest._`,
-      },
-    }),
+    overflow: (dropped) =>
+      section(`_\u2026and ${dropped} more. Cancel one above to see the rest._`),
     trailing: [{ type: 'divider' }],
   };
 }

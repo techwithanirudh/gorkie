@@ -12,13 +12,10 @@ import { logger } from '../../../lib/logger';
 import { slack } from '../../client';
 import { chat } from '../../instance';
 import { guarded } from '../../moderation/gate';
+import { publishHome } from '../view';
 import { ids } from './ids';
-import {
-  connectedModal,
-  connectView,
-  failedModal,
-  pendingModal,
-} from './views';
+import { connectView } from './views/connect';
+import { connectedModal, failedModal, pendingModal } from './views/result';
 
 export const polling = new Map<
   string,
@@ -64,17 +61,13 @@ async function completeLogin({
   return resolved.login;
 }
 
-type PublishHome = (userId: string) => Promise<void>;
-
 async function settleLogin({
   controller,
   login,
-  publishHome,
   userId,
 }: {
   controller: AbortController;
   login: Awaited<ReturnType<typeof awaitDeviceLogin>>;
-  publishHome: PublishHome;
   userId: string;
 }): Promise<void> {
   const current = polling.get(userId);
@@ -105,11 +98,9 @@ async function settleLogin({
 }
 
 async function openConnect({
-  publishHome,
   triggerId,
   userId,
 }: {
-  publishHome: PublishHome;
   triggerId: string;
   userId: string;
 }): Promise<void> {
@@ -146,7 +137,7 @@ async function openConnect({
   }
 
   awaitDeviceLogin({ ...device, signal: controller.signal })
-    .then((login) => settleLogin({ controller, login, publishHome, userId }))
+    .then((login) => settleLogin({ controller, login, userId }))
     .catch((error: unknown) =>
       logger.error('[github] device login failed', { error, userId })
     );
@@ -163,18 +154,13 @@ async function finishDeviceLogin(userId: string) {
   return { action: 'update' as const, modal: failedModal('interrupted') };
 }
 
-export function registerConnect({
-  publishHome,
-}: {
-  publishHome: PublishHome;
-}): void {
+export function registerConnect(): void {
   const bot = chat();
 
   bot.onAction(
     ids.connect,
     guarded((event) =>
       openConnect({
-        publishHome,
         triggerId: event.triggerId ?? '',
         userId: event.user.userId,
       })

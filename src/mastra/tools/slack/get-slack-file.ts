@@ -46,9 +46,6 @@ export const getSlackFileTool = createTool({
     },
   },
   execute: async ({ file, filename }, context) => {
-    if (!context?.requestContext) {
-      throw new Error('No workspace context.');
-    }
     const sandbox = await requireSandbox(context.requestContext);
 
     if (/^:[^:]+:(?::skin-tone-[2-6]:)?$/.test(file.trim())) {
@@ -68,7 +65,7 @@ export const getSlackFileTool = createTool({
       );
     }
 
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
     const fileInfo = (await slack.webClient.files.info({ file: fileId })).file;
     await assertReadableResource({

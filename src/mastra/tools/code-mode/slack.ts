@@ -8,7 +8,7 @@ import { sandbox as sandboxConfig } from '../../config';
 import { mcpTools } from '../../mcp';
 import { codeModePrompt } from '../../prompts/features/code-mode';
 import { workDescriptionSchema } from '../../types/progress';
-import { codeModeToolNames, getSandbox } from '../../workspace';
+import { codeModeToolNames, requireSandbox } from '../../workspace';
 import { workspaceTools } from '../../workspace/tools';
 import { canvasTools } from '../canvas';
 import { slackTools } from '../slack';
@@ -23,7 +23,6 @@ function codeTools(mcp: Awaited<ReturnType<typeof mcpTools>>) {
     list_threads: slackTools.list_threads,
     get_user: slackTools.get_user,
     get_channel_info: slackTools.get_channel_info,
-    list_channels: slackTools.list_channels,
     get_permalink: slackTools.get_permalink,
     get_slack_file: slackTools.get_slack_file,
     summarize_thread: slackTools.summarize_thread,
@@ -37,11 +36,9 @@ async function getSandboxTools(
   requestContext?: RequestContext
 ): Promise<ToolsInput> {
   const tools = await workspaceTools(requestContext);
-  return {
-    ...Object.fromEntries(
-      Object.entries(tools).filter(([name]) => codeModeToolNames.has(name))
-    ),
-  };
+  return Object.fromEntries(
+    Object.entries(tools).filter(([name]) => codeModeToolNames.has(name))
+  );
 }
 
 const RESULT_LIMIT = 60_000;
@@ -87,10 +84,7 @@ async function createCodeModeInstance({
     if (!context.requestContext) {
       throw new Error('No request context available for Slack code mode.');
     }
-    const sandbox = await getSandbox(context.requestContext);
-    if (!sandbox) {
-      throw new Error('No E2B sandbox available for Slack code mode.');
-    }
+    const sandbox = await requireSandbox(context.requestContext);
 
     let coveredAction = await toolLabel({
       args: input,

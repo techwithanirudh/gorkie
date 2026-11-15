@@ -9,6 +9,7 @@ import { skillResultRedactor } from '@mastra/memory/hooks';
 import { toolDisplay } from '../chat/activity';
 import { slack } from '../chat/client';
 import { onSlashCommand } from '../chat/commands/slash';
+import { stoppedByUser } from '../chat/commands/stop';
 import {
   onAction,
   onDirectMessage,
@@ -26,7 +27,7 @@ import { getInstructions } from '../db/queries/settings';
 import { channelContext } from '../lib/context';
 import { defaultErrorProcessors } from '../lib/error-handling';
 import { logger } from '../lib/logger';
-import { stepCountIs, toolCall } from '../lib/tools';
+import { toolCall } from '../lib/tools';
 import { userMCPTools } from '../mcp/user-servers';
 import { autoBackground } from '../processors/auto-background';
 import { delegatedTools } from '../processors/delegated-tools';
@@ -41,10 +42,7 @@ import { workingModel } from '../processors/working-model';
 import { instructions } from '../prompts';
 import { contextPrompt } from '../prompts/context';
 import { githubPrompt } from '../prompts/github';
-import {
-  orchestrator as orchestratorModel,
-  summarizer as summarizerModel,
-} from '../providers';
+import { agentModel, summarizer as summarizerModel } from '../providers';
 import { workspaceCodeModePrompt } from '../tools/code-mode/slack';
 import { githubTools } from '../tools/github';
 import { deferredTools, orchestratorTools } from '../tools/toolsets';
@@ -90,14 +88,13 @@ const orchestrator = new Agent({
     }
     return messages;
   },
-  model: orchestratorModel,
+  model: agentModel,
   errorProcessors: defaultErrorProcessors(),
   maxProcessorRetries: config.maxProcessorRetries,
   defaultOptions: ({ requestContext }) => ({
     toolChoice: 'auto',
     modelSettings: {
       maxOutputTokens: config.maxTokens.output,
-      maxRetries: 5,
       topP: 0.95,
       reasoning: 'medium',
       timeout: config.modelTimeout,
@@ -106,27 +103,26 @@ const orchestrator = new Agent({
       messageFilter: ({ messages }) =>
         messages.filter(({ role }) => role === 'user').slice(-1),
     },
-    stopWhen: [
-      toolCall('skip'),
-      toolCall('wait'),
-      stepCountIs(config.maxSteps),
-    ],
+    maxSteps: config.maxSteps,
+    stopWhen: [toolCall('skip'), toolCall('wait')],
     autoResumeSuspendedTools: true,
+    // The notice goes first: on a restart the drain deadline can pass while a
+    // busy sandbox is still pausing, and then the person hears nothing.
     onAbort: async () => {
-      await pauseSandbox(requestContext);
       const { threadId } = channelContext(requestContext);
-      if (!threadId) {
-        return;
-      }
-      try {
+      if (threadId && !stoppedByUser(threadId)) {
         await chat()
           .thread(threadId)
           .post(
             '_that turn stopped before I finished. ask again to pick it back up._'
+          )
+          .catch((error: unknown) =>
+            logger.debug('[orchestrator] failed to post abort notice', {
+              error,
+            })
           );
-      } catch (error) {
-        logger.debug('[orchestrator] failed to post abort notice', { error });
       }
+      await pauseSandbox(requestContext);
     },
     onError: async () => {
       await pauseSandbox(requestContext);

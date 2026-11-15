@@ -14,8 +14,8 @@ export const lookupCanvasSectionsTool = createTool({
   inputSchema: input({
     canvasId: canvasIdSchema,
     sectionTypes: z
-      .array(z.enum(['any_header', 'h1', 'h2', 'h3']))
-      .min(1)
+      .tuple([z.enum(['any_header', 'h1', 'h2', 'h3'])])
+      .rest(z.enum(['any_header', 'h1', 'h2', 'h3']))
       .optional(),
     containsText: z.string().min(1).optional(),
   }).refine(({ sectionTypes, containsText }) => sectionTypes || containsText, {
@@ -34,7 +34,7 @@ export const lookupCanvasSectionsTool = createTool({
     },
   },
   execute: async ({ canvasId, sectionTypes, containsText }, context) => {
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
     const info = await slack.webClient.files.info({ file: canvasId });
     const ctx = channelContext(context.requestContext);
@@ -46,25 +46,20 @@ export const lookupCanvasSectionsTool = createTool({
       currentThreadId: ctx.threadId,
     });
 
-    if (sectionTypes?.length) {
-      const response = await slack.webClient.canvases.sections.lookup({
-        canvas_id: canvasId,
-        criteria: {
-          section_types: [sectionTypes[0], ...sectionTypes.slice(1)],
+    // The refine guarantees one of the two, but Slack's Criteria type needs it
+    // narrowed, which the refine does not do.
+    const criteria = sectionTypes
+      ? {
+          section_types: sectionTypes,
           ...(containsText ? { contains_text: containsText } : {}),
-        },
-      });
-      return {
-        canvasId,
-        sections: response.sections ?? [],
-      };
-    }
-    if (!containsText) {
+        }
+      : containsText && { contains_text: containsText };
+    if (!criteria) {
       throw new Error('Provide sectionTypes, containsText, or both.');
     }
     const response = await slack.webClient.canvases.sections.lookup({
       canvas_id: canvasId,
-      criteria: { contains_text: containsText },
+      criteria,
     });
     return {
       canvasId,

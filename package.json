@@ -46,6 +46,7 @@
     "@slack/web-api": "^8.1.1",
     "@t3-oss/env-core": "^0.13.11",
     "@vercel/connect": "^2.0.4",
+    "agentmail": "^0.5.53",
     "ai": "^7.0.99",
     "chat": "^4.44.0",
     "date-fns": "^4.4.0",
@@ -78,6 +79,7 @@
   },
   "patchedDependencies": {
     "@mastra/core@1.82.0": "patches/@mastra+core@1.82.0.patch",
-    "@mastra/deployer@1.82.0": "patches/@mastra+deployer@1.82.0.patch"
+    "@mastra/deployer@1.82.0": "patches/@mastra+deployer@1.82.0.patch",
+    "@mastra/mcp@1.18.0": "patches/@mastra+mcp@1.18.0.patch"
   }
 }

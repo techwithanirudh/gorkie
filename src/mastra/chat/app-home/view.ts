@@ -1,3 +1,5 @@
+import { cardToBlockKit } from '@chat-adapter/slack';
+import { Card, Section } from 'chat';
 import { getGitHubCredential } from '../../db/queries/github';
 import { listMCPServers } from '../../db/queries/mcps';
 import { getGitHubSettings, getInstructions } from '../../db/queries/settings';
@@ -7,7 +9,6 @@ import { usage } from '../../lib/limits';
 import { logger } from '../../lib/logger';
 import type { GitHubCredential } from '../../types';
 import { slack } from '../client';
-import { content } from '../content';
 import { banNotice } from '../moderation/cards';
 import { banStatus } from '../moderation/gate';
 import { heading, note } from './blocks';
@@ -92,7 +93,25 @@ async function buildHomeView(userId: string): Promise<Record<string, unknown>> {
   const installations = token ? await countInstallations(token) : undefined;
 
   const sections: HomeSection[] = [
-    { fixed: [...content.home.blocks, { type: 'divider' }] },
+    {
+      fixed: [
+        ...cardToBlockKit(
+          Card({
+            title: "I'm Gorkie",
+            children: [
+              Section([
+                {
+                  type: 'text',
+                  content:
+                    'I can search Slack and the web, read pages, write and run code, keep scheduled tasks, and work with canvases and files.',
+                },
+              ]),
+            ],
+          })
+        ),
+        { type: 'divider' },
+      ],
+    },
     ...(usageRows ? [usageBlocks(usageRows)] : []),
     customInstructionsBlocks(instructions),
     githubBlocks({

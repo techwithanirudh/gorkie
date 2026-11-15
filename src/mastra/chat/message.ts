@@ -17,7 +17,8 @@ export function isComment(message: Message): boolean {
     .split('\n')
     .filter((line) => line.trim());
   const start = first ? withoutLeadingMentions(first).trimStart() : '';
-  return start.startsWith('##') || start.startsWith('--');
+  // Slack autocorrects `--` to an em dash as people type it.
+  return ['##', '--', '\u2014'].some((marker) => start.startsWith(marker));
 }
 
 export function neutralizeBroadcasts(text: string): string {

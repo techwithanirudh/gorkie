@@ -20,15 +20,23 @@ import { banStatus } from './moderation/gate';
 import { notify } from './notify';
 import { offerOptIn } from './onboarding';
 import { setThreadState, threadState } from './state';
+import { liveStatus } from './status';
 
 type DefaultHandler = (thread: Thread, message: Message) => Promise<void>;
 
 function isFromBot(message: Message): boolean {
-  return (
-    message.author.isBot === true ||
-    message.author.userId === 'USLACKBOT' ||
-    message.author.isMe === true
-  );
+  return message.author.isBot === true || message.author.userId === 'USLACKBOT';
+}
+
+const runningTurns = new Map<string, number>();
+
+function keepStatus(thread: Thread): void {
+  const text = liveStatus.get(thread.id);
+  if (text) {
+    thread.startTyping(text).catch((error: unknown) => {
+      logger.debug('[chat] could not restore the status', { error });
+    });
+  }
 }
 
 async function runTurn({
@@ -55,13 +63,27 @@ async function runTurn({
   });
 
   // Channels spends seconds on memory and setup before it sets a status itself.
-  thread.startTyping('is thinking…').catch((error: unknown) => {
-    logger.debug('[chat] could not set the first status', { error });
-  });
-  await defaultHandler(
-    thread,
-    await withHistory({ message: attachments(message), skipped, thread })
-  );
+  // A message that joins a running turn would replace that turn's live status.
+  const running = runningTurns.get(thread.id) ?? 0;
+  runningTurns.set(thread.id, running + 1);
+  if (running === 0) {
+    thread.startTyping('is thinking…').catch((error: unknown) => {
+      logger.debug('[chat] could not set the first status', { error });
+    });
+  }
+  try {
+    await defaultHandler(
+      thread,
+      await withHistory({ message: attachments(message), skipped, thread })
+    );
+  } finally {
+    const left = (runningTurns.get(thread.id) ?? 1) - 1;
+    if (left > 0) {
+      runningTurns.set(thread.id, left);
+    } else {
+      runningTurns.delete(thread.id);
+    }
+  }
   // Only a turn that finished has seen the backfill; a failed one retries it.
   if (!thread.isDM) {
     await setThreadState({ thread, patch: { lastSeenMessage: message.id } });
@@ -177,6 +199,7 @@ export async function onMention(
   defaultHandler: DefaultHandler,
   { skipped }: ChannelHandlerContext
 ): Promise<void> {
+  keepStatus(thread);
   if (isFromBot(message)) {
     return;
   }
@@ -207,6 +230,7 @@ export async function onSubscribedMessage(
   defaultHandler: DefaultHandler,
   { skipped }: ChannelHandlerContext
 ): Promise<void> {
+  keepStatus(thread);
   if (isFromBot(message) || isComment(message)) {
     return;
   }
@@ -246,6 +270,7 @@ export async function onDirectMessage(
   defaultHandler: DefaultHandler,
   { skipped }: ChannelHandlerContext
 ): Promise<void> {
+  keepStatus(thread);
   if (isFromBot(message)) {
     return;
   }

@@ -12,8 +12,6 @@ import { addAllowedUser } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
 import { slackError } from '../lib/slack-error';
 import { slack } from './client';
-import { banRefusal } from './moderation/cards';
-import { banStatus } from './moderation/gate';
 import { notify } from './notify';
 
 export async function offerOptIn({
@@ -62,18 +60,17 @@ export async function acceptOptIn(event: ActionEvent): Promise<void> {
     user: { userId },
     thread,
   } = event;
-  const ban = await banStatus(userId);
-  if (ban.status !== 'clear') {
-    await notify({
-      text: banRefusal(ban),
-      thread,
-      user,
-    });
-    return;
-  }
   try {
     await addAllowedUser(userId);
-    await inviteToOptInChannel(userId);
+    if (env.OPT_IN_CHANNEL) {
+      await slack.webClient.conversations
+        .invite({ channel: env.OPT_IN_CHANNEL, users: userId })
+        .catch((error: unknown) => {
+          if (slackError(error) !== 'already_in_channel') {
+            throw error;
+          }
+        });
+    }
   } catch (error) {
     logger.warn('[onboarding] failed to opt in', { error, userId });
     await notify({
@@ -97,19 +94,4 @@ export async function acceptOptIn(event: ActionEvent): Promise<void> {
     .catch((error: unknown) => {
       logger.warn('[onboarding] failed to confirm opt-in', { error, userId });
     });
-}
-
-async function inviteToOptInChannel(userId: string): Promise<void> {
-  const channel = env.OPT_IN_CHANNEL;
-  if (!channel) {
-    return;
-  }
-  try {
-    await slack.webClient.conversations.invite({ channel, users: userId });
-  } catch (error) {
-    if (slackError(error) === 'already_in_channel') {
-      return;
-    }
-    throw error;
-  }
 }

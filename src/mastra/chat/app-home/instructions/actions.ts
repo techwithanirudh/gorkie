@@ -2,13 +2,10 @@ import { Modal, TextInput } from 'chat';
 import { getInstructions, setInstructions } from '../../../db/queries/settings';
 import { chat } from '../../instance';
 import { guarded } from '../../moderation/gate';
+import { publishHome } from '../view';
 import { ids } from './ids';
 
-export function registerCustomInstructions({
-  publishHome,
-}: {
-  publishHome: (userId: string) => Promise<void>;
-}): void {
+export function registerCustomInstructions(): void {
   const bot = chat();
 
   bot.onAction(

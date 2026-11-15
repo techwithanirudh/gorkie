@@ -17,7 +17,7 @@ import {
 export const readConversationHistoryTool = createTool({
   id: 'read_conversation_history',
   description:
-    'Read one chronological page of raw messages from a Slack channel or thread when exact wording matters. Messages starting with ## are side comments and are left out unless includeComments is true; nothing else is filtered. Use search_slack for one keyword query, Slack code mode for query-driven or exhaustive conversation analysis, and summarize_thread when a long thread only needs a summary. The current conversation is always readable; other channels must be public, and public channels are joined automatically.',
+    'Read one chronological page of raw messages from a Slack channel or thread when exact wording matters. Use search_slack for one keyword query, Slack code mode for query-driven or exhaustive conversation analysis, and summarize_thread when a long thread only needs a summary. The current conversation is always readable; other channels must be public, and public channels are joined automatically.',
   inputSchema: input({
     channelId: z
       .string()
@@ -72,7 +72,7 @@ export const readConversationHistoryTool = createTool({
     { channelId, threadId, limit, cursor, includeComments },
     context
   ) => {
-    const ctx = channelContext(context?.requestContext);
+    const ctx = channelContext(context.requestContext);
     const suppliedThreadId = threadId ?? (channelId ? undefined : ctx.threadId);
     const tid = suppliedThreadId
       ? slackThreadId({ channelId, threadId: suppliedThreadId })
@@ -91,7 +91,7 @@ export const readConversationHistoryTool = createTool({
     });
     await joinChannel(chId);
 
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
     const result = tid
       ? await slack.fetchMessages(tid, { limit, cursor })

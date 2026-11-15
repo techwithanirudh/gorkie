@@ -7,6 +7,23 @@ import { input } from '../../types/tools/index';
 import { requireSandbox } from '../../workspace';
 import { clonePath, git, withCredential } from './git';
 
+// Anything not positively confirmed public, including a missing token or a
+// failed lookup, is treated as private so it stays gated and credentialed.
+async function checkoutAccess({
+  repository,
+  userId,
+}: {
+  repository: string;
+  userId: string;
+}): Promise<{ private: boolean; push: boolean }> {
+  const token = await githubAccessToken(userId);
+  const access = token ? await repoAccess({ repository, token }) : undefined;
+  if (!access || 'error' in access) {
+    return { private: true, push: false };
+  }
+  return access;
+}
+
 export const checkoutTool = ({
   approval,
   userId,
@@ -24,14 +41,8 @@ export const checkoutTool = ({
     // Only a private clone opens the github.com credential window on the
     // sandbox; a public repo clones anonymously.
     requireApproval: approval
-      ? async ({ repository }) => {
-          const token = await githubAccessToken(userId);
-          if (!token) {
-            return true;
-          }
-          const access = await repoAccess({ repository, token });
-          return 'error' in access ? true : access.private;
-        }
+      ? async ({ repository }) =>
+          (await checkoutAccess({ repository, userId })).private
       : false,
     inputSchema: input({
       repository: repositorySchema.describe(
@@ -48,11 +59,7 @@ export const checkoutTool = ({
       const path = clonePath(repository);
       const remote = `https://github.com/${repository}.git`;
 
-      const token = await githubAccessToken(userId);
-      const access = token
-        ? await repoAccess({ repository, token })
-        : { error: 'no token' as const };
-      const isPrivate = 'error' in access ? true : access.private;
+      const access = await checkoutAccess({ repository, userId });
 
       const clone = async () => {
         await git({
@@ -74,23 +81,18 @@ export const checkoutTool = ({
         return await git({ command: 'git rev-parse HEAD', cwd: path, sandbox });
       };
 
-      const sha = isPrivate
+      const sha = access.private
         ? await withCredential({ operation: clone, sandbox, userId })
         : await clone();
-
-      const edit = `Edit files in the sandbox under ${path}.`;
-      if ('push' in access && access.push) {
-        return {
-          path,
-          sha,
-          note: `${edit} You can push to this repo: github_push_branch to push a new branch, then github_create_pull_request. No API tool writes files or branches, and you cannot touch a default branch.`,
-        };
-      }
 
       return {
         path,
         sha,
-        note: `${edit} You do not have push access to this repo and this GitHub connection cannot fork (an app only pushes where it is installed). You can read and open issues here, but not push changes. Say so rather than attempting a push that will fail.`,
+        note: `Edit files in the sandbox under ${path}. ${
+          access.push
+            ? 'You can push to this repo: github_push_branch to push a new branch, then github_create_pull_request. No API tool writes files or branches, and you cannot touch a default branch.'
+            : 'You do not have push access to this repo and this GitHub connection cannot fork (an app only pushes where it is installed). You can read and open issues here, but not push changes. Say so rather than attempting a push that will fail.'
+        }`,
       };
     },
   });

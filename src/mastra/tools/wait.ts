@@ -1,4 +1,5 @@
 import { createTool } from '@mastra/core/tools';
+import { formatDuration, intervalToDuration } from 'date-fns';
 import { z } from 'zod';
 import { agent as agentConfig } from '../config';
 import { channelContext } from '../lib/context';
@@ -25,7 +26,9 @@ export const waitTool = createTool({
   outputSchema: output({ seconds: z.number() }),
   transform: {
     display: {
-      input: () => ({ summary: null }),
+      input: ({ input }) => ({
+        summary: `waiting ${formatDuration(intervalToDuration({ start: 0, end: (input?.seconds ?? 0) * 1000 })) || 'a moment'}`,
+      }),
       output: ({ input, output }) => ({
         summary: `waiting ${output?.seconds ?? 0} seconds for ${input?.reason ?? 'the next check'}`,
       }),
