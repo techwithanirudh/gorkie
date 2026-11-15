@@ -1,16 +1,15 @@
 import type { ModalView } from '@slack/web-api';
 import { levelsFor } from '../../../../lib/github';
 import type { GitHubPermission } from '../../../../types';
+import { section } from '../../blocks';
 import { PRESETS } from '../../presets';
 import { ids } from '../ids';
-import { option, text } from './shared';
+import { option } from './shared';
 
 export const configureView = ({
-  pat,
   permission,
   threads,
 }: {
-  pat: boolean;
   permission: GitHubPermission;
   threads: boolean;
 }): ModalView => {
@@ -66,10 +65,8 @@ export const configureView = ({
           initial_option: selected,
         },
       },
-      text(
-        pat
-          ? 'Your token reaches everything its scopes allow, not a list of repositories. Disconnect to go back to the app.'
-          : 'Gorkie reaches only the repositories you chose. <https://github.com/settings/installations|Change which ones> on GitHub.'
+      section(
+        'Gorkie reaches only the repositories you chose. <https://github.com/settings/installations|Change which ones> on GitHub.'
       ),
     ],
   };

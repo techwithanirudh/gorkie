@@ -4,19 +4,13 @@ import { z } from 'zod';
 import { env } from '@/env';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
+import { formatBytes } from '../../lib/media';
 import { spendSlackCall } from '../../lib/slack-budget';
 import { sh } from '../../lib/utils';
 import { input, output } from '../../types/tools/index';
 import { sandboxPath as p, requireSandbox } from '../../workspace';
 import { downloadEmoji } from './emoji';
-import { assertReadableResource } from './utils';
-
-function formatBytes(value: number): string {
-  if (value < 1024 * 1024) {
-    return `${Math.ceil(value / 1024)} KB`;
-  }
-  return `${Math.ceil(value / 1024 / 1024)} MB`;
-}
+import { assertReadableResource, assertSlackFileHost } from './utils';
 
 function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) {
@@ -45,15 +39,13 @@ export const getSlackFileTool = createTool({
   }),
   transform: {
     display: {
+      input: () => ({ summary: 'downloading a Slack file' }),
       output: ({ output }) => ({
-        summary: output?.filename ?? output?.path ?? 'File downloaded',
+        summary: output?.filename ?? output?.path ?? 'file downloaded',
       }),
     },
   },
   execute: async ({ file, filename }, context) => {
-    if (!context?.requestContext) {
-      throw new Error('No workspace context.');
-    }
     const sandbox = await requireSandbox(context.requestContext);
 
     if (/^:[^:]+:(?::skin-tone-[2-6]:)?$/.test(file.trim())) {
@@ -73,7 +65,7 @@ export const getSlackFileTool = createTool({
       );
     }
 
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
     const fileInfo = (await slack.webClient.files.info({ file: fileId })).file;
     await assertReadableResource({
@@ -172,6 +164,7 @@ export const getSlackFileTool = createTool({
         url,
       });
     };
+    assertSlackFileHost(url);
     const expectedSize =
       fileInfo?.size ??
       (await fetch(url, {

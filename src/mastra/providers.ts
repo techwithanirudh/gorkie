@@ -48,16 +48,14 @@ const agentModels: ModelWithRetries[] = [
   { model: hackclub('deepseek/deepseek-v4.1-flash'), maxRetries: 3 },
 ];
 
-export const orchestrator = () => preferLastWorking(agentModels);
+export const agentModel = () => preferLastWorking(agentModels);
+
+export const gate = hackclub('google/gemini-3.5-flash-lite');
 
 export const summarizer: ModelWithRetries[] = [
   { model: 'vercel/vmc/gorkie', maxRetries: 3 },
   { model: hackclub('google/gemini-3.5-flash-lite'), maxRetries: 3 },
 ];
-
-export const scout = () => preferLastWorking(agentModels);
-
-export const explorer = () => preferLastWorking(agentModels);
 
 export const images = {
   model: hackclub('google/gemini-3.1-flash-image', {

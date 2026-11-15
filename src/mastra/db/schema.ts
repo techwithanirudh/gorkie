@@ -1,20 +1,26 @@
 import {
   boolean,
+  index,
+  integer,
   pgTable,
   primaryKey,
   text,
   timestamp,
+  uuid,
 } from 'drizzle-orm/pg-core';
-import type { GitHubPermission, ToolPermission } from '../types';
+import type {
+  GitHubPermission,
+  LimitKind,
+  ModerationAction,
+  ToolPermission,
+} from '../types';
 
 export const githubCredentials = pgTable('github_credentials', {
   userId: text('user_id').primaryKey(),
-  kind: text('kind').$type<'app' | 'pat'>().notNull(),
   login: text('login').notNull(),
   token: text('token').notNull(),
   refreshToken: text('refresh_token'),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
-  scopes: text('scopes'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -47,3 +53,36 @@ export const userSettings = pgTable('user_settings', {
     .notNull()
     .defaultNow(),
 });
+
+export const usage = pgTable(
+  'usage',
+  {
+    userId: text('user_id').notNull(),
+    kind: text('kind').$type<LimitKind>().notNull(),
+    windowStart: timestamp('window_start', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    used: integer('used').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.kind], name: 'usage_pk' }),
+  ]
+);
+
+export const moderationEvents = pgTable(
+  'moderation_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    action: text('action').$type<ModerationAction>().notNull(),
+    userId: text('user_id').notNull(),
+    actorId: text('actor_id').notNull(),
+    reason: text('reason'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('moderation_events_user_idx').on(table.userId, table.createdAt),
+  ]
+);

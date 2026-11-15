@@ -9,20 +9,17 @@ import {
 import { logger } from '../../../lib/logger';
 import { findMCPUrlError } from '../../../mcp/security';
 import { findMCPConnectionError } from '../../../mcp/user-servers';
-import { mcpServerSchema } from '../../../types';
+import { mcpServerSchema, toolPermissionSchema } from '../../../types';
 import { chat } from '../../instance';
+import { guarded } from '../../moderation/gate';
+import { publishHome } from '../view';
 import { ids, MAX_SERVERS } from './ids';
-import { decodePreset } from './presets';
 import { configureModal } from './views';
 
-type PublishHome = (userId: string) => Promise<void>;
-
 async function addServer({
-  publishHome,
   userId,
   values,
 }: {
-  publishHome: PublishHome;
   userId: string;
   values: Record<string, string | undefined>;
 }): Promise<{ action: 'errors'; errors: Record<string, string> } | undefined> {
@@ -39,7 +36,7 @@ async function addServer({
         errors[field] = issue.message;
       }
     }
-    return { action: 'errors' as const, errors };
+    return { action: 'errors', errors };
   }
 
   const isGitHub = new URL(parsed.data.url).host === 'api.githubcopilot.com';
@@ -47,13 +44,13 @@ async function addServer({
     const message =
       'GitHub has its own section above. Use Sign in with GitHub instead.';
     return {
-      action: 'errors' as const,
+      action: 'errors',
       errors: isGitHub ? { url: message } : { name: message },
     };
   }
   const urlError = await findMCPUrlError(parsed.data.url);
   if (urlError) {
-    return { action: 'errors' as const, errors: { url: urlError } };
+    return { action: 'errors', errors: { url: urlError } };
   }
   const result = await upsertMCPServer({
     userId,
@@ -62,17 +59,14 @@ async function addServer({
   });
   if (result === 'limit-reached') {
     return {
-      action: 'errors' as const,
+      action: 'errors',
       errors: { name: `You can connect at most ${MAX_SERVERS} servers.` },
     };
   }
   await publishHome(userId);
 
-  // Probe after storing, not before: the connection check can take longer than
-  // Slack's modal-submit ack window, which made a slow or unauthenticated
-  // server show a generic failure while the add actually went through. Now the
-  // add always succeeds fast and a failed probe lands as the row's lastError,
-  // rendered on the next Home publish, matching how reconnects report status.
+  // Probe after storing: the connection check can outlast Slack's modal-submit
+  // ack window. A failed probe lands as the row's lastError on the next publish.
   const server = parsed.data;
   findMCPConnectionError({ userId, server })
     .then(async (connectionError) => {
@@ -92,88 +86,100 @@ async function addServer({
     });
 }
 
-export function registerMCPServers({
-  publishHome,
-}: {
-  publishHome: PublishHome;
-}): void {
+export function registerMCPServers(): void {
   const bot = chat();
 
-  bot.onAction(ids.add, async (event) => {
-    const servers = await listMCPServers(event.user.userId);
-    if (servers.length >= MAX_SERVERS) {
-      return;
-    }
-    await event.openModal(
-      Modal({
-        callbackId: ids.modal,
-        title: 'Add MCP Server',
-        submitLabel: 'Add',
-        children: [
-          TextInput({
-            id: 'name',
-            label: 'Name',
-            placeholder: 'notion',
-            maxLength: 60,
-          }),
-          TextInput({
-            id: 'url',
-            label: 'Server URL',
-            placeholder: 'https://mcp.example.com/mcp',
-            maxLength: 500,
-          }),
-          TextInput({
-            id: 'token',
-            label: 'Access token',
-            optional: true,
-            maxLength: 2000,
-          }),
-        ],
-      })
-    );
-  });
-
-  bot.onAction(ids.remove, async (event) => {
-    const name = event.value;
-    if (!name) {
-      return;
-    }
-    await removeMCPServer({ name, userId: event.user.userId });
-    await publishHome(event.user.userId);
-  });
-
-  bot.onAction(ids.configure, async (event) => {
-    const name = event.value;
-    if (!name) {
-      return;
-    }
-    const server = (await listMCPServers(event.user.userId)).find(
-      (entry) => entry.name === name
-    );
-    if (server) {
+  bot.onAction(
+    ids.add,
+    guarded(async (event) => {
+      const servers = await listMCPServers(event.user.userId);
+      if (servers.length >= MAX_SERVERS) {
+        return;
+      }
       await event.openModal(
-        configureModal({ server, userId: event.user.userId })
+        Modal({
+          callbackId: ids.modal,
+          title: 'Add MCP Server',
+          submitLabel: 'Add',
+          children: [
+            TextInput({
+              id: 'name',
+              label: 'Name',
+              placeholder: 'notion',
+              maxLength: 60,
+            }),
+            TextInput({
+              id: 'url',
+              label: 'Server URL',
+              placeholder: 'https://mcp.example.com/mcp',
+              maxLength: 500,
+            }),
+            TextInput({
+              id: 'token',
+              label: 'Access token',
+              optional: true,
+              maxLength: 2000,
+            }),
+          ],
+        })
       );
-    }
-  });
-
-  bot.onModalSubmit(ids.configureModal, async (event) => {
-    const { permission, scope } = decodePreset(event.values.permission);
-    if (scope) {
-      await setMCPServerPermission({
-        name: scope,
-        permission,
-        userId: event.user.userId,
-      });
-    }
-    await publishHome(event.user.userId);
-  });
-
-  bot.onModalSubmit(ids.modal, (event) =>
-    addServer({
-      publishHome,
-      userId: event.user.userId,
-      values: event.values,
     })
+  );
+
+  bot.onAction(
+    ids.remove,
+    guarded(async (event) => {
+      const name = event.value;
+      if (!name) {
+        return;
+      }
+      await removeMCPServer({ name, userId: event.user.userId });
+      await publishHome(event.user.userId);
+    })
+  );
+
+  bot.onAction(
+    ids.configure,
+    guarded(async (event) => {
+      const name = event.value;
+      if (!name) {
+        return;
+      }
+      const server = (await listMCPServers(event.user.userId)).find(
+        (entry) => entry.name === name
+      );
+      if (server) {
+        await event.openModal(
+          configureModal({ server, userId: event.user.userId })
+        );
+      }
+    })
+  );
+
+  bot.onModalSubmit(
+    ids.configureModal,
+    guarded(async (event) => {
+      const permission = toolPermissionSchema.safeParse(
+        event.values.permission
+      );
+      if (event.privateMetadata && permission.success) {
+        await setMCPServerPermission({
+          name: event.privateMetadata,
+          permission: permission.data,
+          userId: event.user.userId,
+        });
+      }
+      await publishHome(event.user.userId);
+    })
+  );
+
+  bot.onModalSubmit(
+    ids.modal,
+    guarded((event) =>
+      addServer({
+        userId: event.user.userId,
+        values: event.values,
+      })
+    )
   );
 }

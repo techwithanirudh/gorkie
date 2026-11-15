@@ -2,6 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
+import { slackError } from '../../lib/slack-error';
 import { input, output } from '../../types/tools/index';
 import { assertReadableResource } from '../slack/utils';
 import { canvasIdSchema } from './utils';
@@ -57,8 +58,9 @@ export const editCanvasTool = createTool({
   outputSchema: output({ canvasId: z.string() }),
   transform: {
     display: {
+      input: () => ({ summary: 'editing a canvas' }),
       output: ({ output }) => ({
-        summary: `Edited canvas ${output?.canvasId ?? ''}`,
+        summary: `edited canvas ${output?.canvasId ?? ''}`,
       }),
     },
   },
@@ -78,8 +80,7 @@ export const editCanvasTool = createTool({
         changes,
       });
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      if (reason.includes('restricted_action')) {
+      if (slackError(error) === 'restricted_action') {
         throw new Error(
           `Can't edit canvas ${canvasId}: only read access, not write. This canvas's sharing settings need to grant the bot write access (its owner can do this from the canvas's "Manage access" menu in Slack), the canvases:write scope alone isn't enough.`,
           { cause: error }

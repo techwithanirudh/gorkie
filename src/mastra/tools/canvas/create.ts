@@ -2,7 +2,8 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { channelContext } from '../../lib/context';
-import { rawId } from '../../lib/ids';
+import { chatChannelId, rawId } from '../../lib/ids';
+import { slackError } from '../../lib/slack-error';
 import { input, output } from '../../types/tools/index';
 import { assertCanManageChannel } from './utils';
 
@@ -34,13 +35,14 @@ export const createCanvasTool = createTool({
   }),
   transform: {
     display: {
+      input: () => ({ summary: 'writing a canvas' }),
       output: ({ output }) => ({
-        summary: `Created canvas ${output?.canvasId ?? ''}`,
+        summary: `created canvas ${output?.canvasId ?? ''}`,
       }),
     },
   },
   execute: async ({ mode, title, channelId, markdown }, context) => {
-    const ctx = channelContext(context?.requestContext);
+    const ctx = channelContext(context.requestContext);
     if (mode === 'standalone') {
       if (channelId) {
         assertCanManageChannel({ channelId, ctx });
@@ -58,7 +60,7 @@ export const createCanvasTool = createTool({
       return {
         mode,
         canvasId: response.canvas_id,
-        ...(channelId ? { channelId: `slack:${rawId(channelId)}` } : {}),
+        ...(channelId ? { channelId: chatChannelId(channelId) } : {}),
       };
     }
 
@@ -82,12 +84,11 @@ export const createCanvasTool = createTool({
       }
       return {
         mode,
-        channelId: `slack:${rawId(targetChannelId)}`,
+        channelId: chatChannelId(targetChannelId),
         canvasId: response.canvas_id,
       };
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      if (reason.includes('channel_canvas_already_exists')) {
+      if (slackError(error) === 'channel_canvas_already_exists') {
         throw new Error(
           `${targetChannelId} already has a canvas. Use edit_canvas to change it instead.`,
           { cause: error }

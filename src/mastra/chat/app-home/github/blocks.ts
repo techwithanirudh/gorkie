@@ -1,5 +1,6 @@
 import { env } from '@/env';
 import type { GitHubCredential, GitHubPermission } from '../../../types';
+import { heading, note } from '../blocks';
 import type { HomeSection } from '../limit';
 import { PRESETS } from '../presets';
 import { ids } from './ids';
@@ -17,46 +18,30 @@ export function githubBlocks({
   threads: boolean;
   unreadable: boolean;
 }): HomeSection {
-  const pat = credential?.kind === 'pat' ? credential : undefined;
-
   const scope = threads ? '  ·  `runs in shared threads`' : '';
   let status = 'Not connected';
-  let detail =
-    'Sign in with the app for access scoped to the repositories you pick. A classic token also reaches repositories somebody else owns.';
+  let detail = '';
   if (unreadable) {
-    status = '*Unavailable*';
+    status = 'Unavailable';
     detail =
       'Gorkie could not read your stored connection, so GitHub tools will not run. Disconnect and sign in again to replace it.';
-  } else if (credential?.kind === 'pat') {
-    status = `*${credential.login}*`;
-    detail = `${PRESETS[permission].status}${scope}  ·  using your personal token`;
   } else if (credential && installations === undefined) {
-    status = `*${credential.login}*`;
+    status = `Connected as *${credential.login}*`;
     detail = `${PRESETS[permission].status}${scope}  ·  Gorkie could not check which repositories it can reach just now`;
   } else if (credential && installations) {
-    status = `*${credential.login}*`;
+    status = `Connected as *${credential.login}*`;
     detail = `${PRESETS[permission].status}${scope}  ·  Gorkie uses your GitHub account`;
   } else if (credential) {
-    status = `*${credential.login}*`;
+    status = `Connected as *${credential.login}*`;
     detail = `Not installed on any repositories, so Gorkie cannot reach code${scope}  ·  <${`https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`}|choose repositories>`;
   }
 
   const connected = Boolean(credential) || unreadable;
-  const forgets = pat ? 'your token' : 'your sign-in';
-  const afterwards = pat
-    ? 'The token itself keeps working until you delete it on GitHub.'
-    : "The app stays installed on your repositories until you remove it in GitHub's settings.";
 
   return {
     fixed: [
-      {
-        type: 'section',
-        text: { type: 'mrkdwn', text: `*GitHub*\n${status}` },
-      },
-      {
-        type: 'context',
-        elements: [{ type: 'mrkdwn', text: detail }],
-      },
+      heading('GitHub'),
+      note(`${status}. ${detail}`.trim()),
       {
         type: 'actions',
         elements: connected
@@ -80,7 +65,7 @@ export function githubBlocks({
                   title: { type: 'plain_text', text: 'Disconnect GitHub?' },
                   text: {
                     type: 'mrkdwn',
-                    text: `Gorkie forgets ${forgets} and stops using GitHub. ${afterwards}`,
+                    text: "Gorkie forgets your sign-in and stops using GitHub. The app stays installed on your repositories until you remove it in GitHub's settings.",
                   },
                   confirm: { type: 'plain_text', text: 'Disconnect' },
                   deny: { type: 'plain_text', text: 'Cancel' },
@@ -90,9 +75,8 @@ export function githubBlocks({
           : [
               {
                 type: 'button',
-                text: { type: 'plain_text', text: 'Connect GitHub' },
+                text: { type: 'plain_text', text: 'Connect' },
                 action_id: ids.connect,
-                style: 'primary',
               },
             ],
       },

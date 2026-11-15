@@ -8,6 +8,7 @@ import { spendSlackCall } from '../../lib/slack-budget';
 import { input, output, slackMessageSchema } from '../../types/tools/index';
 import {
   assertReadableChannel,
+  channelLabel,
   formatMessage,
   joinChannel,
   slackThreadId,
@@ -16,7 +17,7 @@ import {
 export const readConversationHistoryTool = createTool({
   id: 'read_conversation_history',
   description:
-    'Read one chronological page of raw messages from a Slack channel or thread when exact wording matters. Messages starting with ## are side comments and are left out unless includeComments is true; nothing else is filtered. Use search_slack for one keyword query, Slack code mode for query-driven or exhaustive conversation analysis, and summarize_thread when a long thread only needs a summary. The current conversation is always readable; other channels must be public, and public channels are joined automatically.',
+    'Read one chronological page of raw messages from a Slack channel or thread when exact wording matters. Use search_slack for one keyword query, Slack code mode for query-driven or exhaustive conversation analysis, and summarize_thread when a long thread only needs a summary. The current conversation is always readable; other channels must be public, and public channels are joined automatically.',
   inputSchema: input({
     channelId: z
       .string()
@@ -30,7 +31,7 @@ export const readConversationHistoryTool = createTool({
       .describe(
         'Thread id (slack:<conversation-id>:ts), Slack message permalink, or message timestamp paired with channelId. Omit for the current conversation.'
       ),
-    limit: z.coerce.number().int().min(1).max(200).default(40),
+    limit: z.coerce.number().int().min(1).max(1000).default(40),
     cursor: z
       .string()
       .optional()
@@ -50,8 +51,20 @@ export const readConversationHistoryTool = createTool({
   }),
   transform: {
     display: {
+      input: async ({ input }) => {
+        const channel = await channelLabel(input?.threadId ?? input?.channelId);
+        const page = input?.cursor ? ' (next page)' : '';
+        if (input?.threadId) {
+          return {
+            summary: `reading a thread${channel ? ` in ${channel}` : ''}${page}`,
+          };
+        }
+        return {
+          summary: `${channel ? `reading ${channel}` : 'reading Slack history'}${page}`,
+        };
+      },
       output: ({ input, output }) => ({
-        summary: `Read ${output?.messages.length ?? 0} messages from ${input?.threadId ?? input?.channelId ?? output?.channelId ?? 'the current conversation'}`,
+        summary: `read ${output?.messages.length ?? 0} messages from ${input?.threadId ?? input?.channelId ?? output?.channelId ?? 'the current conversation'}`,
       }),
     },
   },
@@ -59,7 +72,7 @@ export const readConversationHistoryTool = createTool({
     { channelId, threadId, limit, cursor, includeComments },
     context
   ) => {
-    const ctx = channelContext(context?.requestContext);
+    const ctx = channelContext(context.requestContext);
     const suppliedThreadId = threadId ?? (channelId ? undefined : ctx.threadId);
     const tid = suppliedThreadId
       ? slackThreadId({ channelId, threadId: suppliedThreadId })
@@ -78,7 +91,7 @@ export const readConversationHistoryTool = createTool({
     });
     await joinChannel(chId);
 
-    spendSlackCall(context?.requestContext);
+    spendSlackCall(context.requestContext);
 
     const result = tid
       ? await slack.fetchMessages(tid, { limit, cursor })

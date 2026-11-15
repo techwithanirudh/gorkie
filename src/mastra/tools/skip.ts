@@ -13,7 +13,12 @@ export const skipTool = createTool({
       .describe('Why this message does not need a reply.'),
   }),
   outputSchema: z.strictObject({ skipped: z.boolean() }),
-  transform: { display: { output: () => ({ summary: 'Turn skipped' }) } },
+  transform: {
+    display: {
+      input: () => ({ summary: null }),
+      output: () => ({ summary: 'turn skipped' }),
+    },
+  },
   execute: ({ reason }, context) => {
     logger.info('[orchestrator] skipped turn', {
       reason,

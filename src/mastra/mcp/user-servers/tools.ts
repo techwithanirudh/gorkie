@@ -1,6 +1,6 @@
 import { listMCPServers, setMCPServerError } from '../../db/queries/mcps';
 import { logger } from '../../lib/logger';
-import { cleanMCPErrorMessage } from '../errors';
+import { describeMCPError } from '../errors';
 import { annotatedTool, coverageKey, unlabelledServers } from './approval';
 import { dropClient, resolveClient } from './client';
 
@@ -16,7 +16,7 @@ export async function userMCPTools({
       return {};
     }
     const client = await resolveClient({ servers, userId });
-    const { tools, errors } = await client.listToolsWithErrors();
+    const { tools, errorDetails } = await client.listToolsWithErrors();
 
     for (const server of servers) {
       const own = Object.keys(tools).filter((id) =>
@@ -36,14 +36,12 @@ export async function userMCPTools({
     }
 
     await Promise.all(
-      servers.map((server) => {
-        const rawError = errors[server.name];
-        return setMCPServerError({
+      servers.map(async (server) => {
+        const details = errorDetails[server.name];
+        await setMCPServerError({
           userId,
           name: server.name,
-          error: rawError
-            ? cleanMCPErrorMessage({ serverName: server.name, raw: rawError })
-            : null,
+          error: details ? await describeMCPError({ server, details }) : null,
         });
       })
     );

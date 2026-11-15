@@ -7,25 +7,18 @@ import {
   Card,
   CardText,
 } from 'chat';
-import { z } from 'zod';
 import { env } from '@/env';
 import { addAllowedUser } from '../lib/allowed-users';
 import { logger } from '../lib/logger';
+import { slackError } from '../lib/slack-error';
 import { slack } from './client';
-
-const slackErrorSchema = z.looseObject({
-  data: z
-    .looseObject({
-      error: z.string().optional(),
-    })
-    .optional(),
-});
+import { notify } from './notify';
 
 export async function offerOptIn({
   thread,
   user,
 }: {
-  thread: Thread;
+  thread: Thread<unknown>;
   user: Author;
 }): Promise<void> {
   if (!env.OPT_IN_CHANNEL) {
@@ -67,8 +60,26 @@ export async function acceptOptIn(event: ActionEvent): Promise<void> {
     user: { userId },
     thread,
   } = event;
-  await addAllowedUser(userId);
-  await inviteToOptInChannel(userId);
+  try {
+    await addAllowedUser(userId);
+    if (env.OPT_IN_CHANNEL) {
+      await slack.webClient.conversations
+        .invite({ channel: env.OPT_IN_CHANNEL, users: userId })
+        .catch((error: unknown) => {
+          if (slackError(error) !== 'already_in_channel') {
+            throw error;
+          }
+        });
+    }
+  } catch (error) {
+    logger.warn('[onboarding] failed to opt in', { error, userId });
+    await notify({
+      text: "I couldn't opt you in just now. Try the button again in a minute.",
+      thread,
+      user,
+    });
+    return;
+  }
   if (!thread) {
     return;
   }
@@ -83,24 +94,4 @@ export async function acceptOptIn(event: ActionEvent): Promise<void> {
     .catch((error: unknown) => {
       logger.warn('[onboarding] failed to confirm opt-in', { error, userId });
     });
-}
-
-async function inviteToOptInChannel(userId: string): Promise<void> {
-  const channel = env.OPT_IN_CHANNEL;
-  if (!channel) {
-    return;
-  }
-  try {
-    await slack.webClient.conversations.invite({ channel, users: userId });
-  } catch (error) {
-    const slackError = slackErrorSchema.safeParse(error).data?.data?.error;
-    if (slackError === 'already_in_channel') {
-      return;
-    }
-    logger.warn('[onboarding] failed to invite to opt-in channel', {
-      channel,
-      error,
-      userId,
-    });
-  }
 }

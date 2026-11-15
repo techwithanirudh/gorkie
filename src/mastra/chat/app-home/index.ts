@@ -1,6 +1,6 @@
 import { logger } from '../../lib/logger';
 import { chat } from '../instance';
-import { registerGitHub } from './github';
+import { registerConnect, registerSettings } from './github';
 import { registerCustomInstructions } from './instructions';
 import { registerMCPServers } from './mcp';
 import { registerScheduledTasks } from './scheduled-tasks';
@@ -12,8 +12,9 @@ export function registerAppHome(): void {
       logger.error('[app-home] publishHome failed', { error })
     )
   );
-  registerCustomInstructions({ publishHome });
-  registerGitHub({ publishHome });
-  registerMCPServers({ publishHome });
-  registerScheduledTasks({ publishHome });
+  registerCustomInstructions();
+  registerConnect();
+  registerSettings();
+  registerMCPServers();
+  registerScheduledTasks();
 }

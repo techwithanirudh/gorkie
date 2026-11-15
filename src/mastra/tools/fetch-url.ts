@@ -1,6 +1,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { exa } from '../lib/exa';
+import { exa as exaConfig } from '../config';
+import { exa, withExaTimeout } from '../lib/exa';
+import { assertWithinLimit } from '../lib/limits';
 import { input, output } from '../types/tools/index';
 
 export const fetchUrlTool = createTool({
@@ -23,16 +25,27 @@ This extracts readable article content, so it fails on anything that isn't a pla
   }),
   transform: {
     display: {
+      input: ({ input }) => ({
+        summary:
+          input?.url && URL.canParse(input.url)
+            ? `reading ${new URL(input.url).hostname}`
+            : 'reading a page',
+      }),
       output: ({ output }) => ({
         summary: output?.title ?? output?.url ?? 'URL fetched',
       }),
     },
   },
-  execute: async ({ url }) => {
+  execute: async ({ url }, { abortSignal, requestContext }) => {
+    await assertWithinLimit({ kind: 'web', requestContext });
     const [result] = (
-      await exa.getContents([url], {
-        text: { maxCharacters: 8000 },
-        livecrawl: 'preferred',
+      await withExaTimeout({
+        request: exa.getContents([url], {
+          text: { maxCharacters: 8000 },
+          livecrawl: 'preferred',
+          livecrawlTimeout: exaConfig.livecrawlTimeoutMs,
+        }),
+        signal: abortSignal,
       })
     ).results;
     if (!result?.text) {

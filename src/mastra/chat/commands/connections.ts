@@ -1,17 +1,16 @@
 import { listMCPServers } from '../../db/queries/mcps';
 import { githubAccess } from '../../lib/github';
 import { logger } from '../../lib/logger';
-import type { CommandHandler } from '../../types';
+import type { SharedCommand } from '../../types';
 
-export const connections: CommandHandler = async ({ message, thread }) => {
-  const { userId } = message.author;
+export const connections: SharedCommand = async ({ isDM, userId }) => {
   const items = ['• context7 (built in)'];
 
   try {
-    const github = await githubAccess({ isDM: thread.isDM, userId });
+    const github = await githubAccess({ isDM, userId });
     let status = 'could not read it right now';
     if (github.state === 'connected') {
-      status = `connected via ${github.credential.kind}`;
+      status = `connected as ${github.credential.login}`;
     } else if (github.state === 'disconnected') {
       status = 'not connected';
     }
@@ -32,18 +31,10 @@ export const connections: CommandHandler = async ({ message, thread }) => {
     items.push('• mcp servers: could not read them right now');
   }
 
-  const text = [
+  return [
     '*your connections*',
     ...items,
     '',
     'manage these from the *home* tab.',
   ].join('\n');
-  await thread
-    .postEphemeral(message.author, text, { fallbackToDM: false })
-    .catch((error: unknown) => {
-      logger.warn('[commands] failed to post connections', {
-        error,
-        threadId: thread.id,
-      });
-    });
 };

@@ -26,8 +26,9 @@ export const submitFeedbackTool = createTool({
   outputSchema: output({ kind: z.string() }),
   transform: {
     display: {
+      input: () => ({ summary: 'saving feedback' }),
       output: ({ output: result }) => ({
-        summary: `Logged ${result?.kind ?? ''} feedback`,
+        summary: `logged ${result?.kind ?? ''} feedback`,
       }),
     },
   },

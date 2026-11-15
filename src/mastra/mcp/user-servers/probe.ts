@@ -1,7 +1,7 @@
 import { MCPClient } from '@mastra/mcp';
 import { logger } from '../../lib/logger';
 import type { MCPServerConfig } from '../../types';
-import { cleanMCPErrorMessage } from '../errors';
+import { describeMCPError } from '../errors';
 import { serverConnection } from './client';
 
 export async function findMCPConnectionError({
@@ -23,15 +23,15 @@ export async function findMCPConnectionError({
   });
   probe.__setLogger(logger);
   try {
-    const { errors } = await probe.listToolsWithErrors();
-    const error = errors[server.name];
-    if (error) {
+    const { errorDetails } = await probe.listToolsWithErrors();
+    const details = errorDetails[server.name];
+    if (details) {
       logger.debug('[mcp] connection check failed', {
-        error,
+        error: details,
         name: server.name,
         userId,
       });
-      return cleanMCPErrorMessage({ serverName: server.name, raw: error });
+      return await describeMCPError({ server, details });
     }
   } catch (error) {
     logger.debug('[mcp] connection check failed', {
@@ -39,9 +39,11 @@ export async function findMCPConnectionError({
       name: server.name,
       userId,
     });
-    return cleanMCPErrorMessage({
-      serverName: server.name,
-      raw: error instanceof Error ? error.message : String(error),
+    return await describeMCPError({
+      server,
+      details: {
+        message: error instanceof Error ? error.message : String(error),
+      },
     });
   } finally {
     await probe

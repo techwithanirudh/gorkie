@@ -1,6 +1,3 @@
-import { cardToSlackBlocks } from '@chat-adapter/slack/blocks';
-import { Card, Section } from 'chat';
-
 export const content = {
   starters: [
     {
@@ -24,21 +21,4 @@ export const content = {
         'Ask me for my timezone, then schedule a weekday 9 AM reminder to review my priorities.',
     },
   ],
-  home: {
-    type: 'home',
-    blocks: cardToSlackBlocks(
-      Card({
-        title: "I'm Gorkie",
-        children: [
-          Section([
-            {
-              type: 'text',
-              content:
-                'I can search Slack and the web, read pages, write and run code, keep scheduled tasks, and work with canvases and files.',
-            },
-          ]),
-        ],
-      })
-    ),
-  },
 };

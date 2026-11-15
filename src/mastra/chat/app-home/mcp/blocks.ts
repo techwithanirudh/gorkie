@@ -1,4 +1,5 @@
 import type { MCPServerConfig } from '../../../types';
+import { heading, note, section } from '../blocks';
 import type { HomeSection } from '../limit';
 import { PRESETS } from '../presets';
 import { ids } from './ids';
@@ -7,11 +8,7 @@ export function mcpServersBlocks(
   servers: (MCPServerConfig & { lastError?: string })[]
 ): HomeSection {
   const header = {
-    type: 'section',
-    text: {
-      type: 'mrkdwn',
-      text: `*MCP Servers*${servers.length > 0 ? ` (${servers.length})` : ''}`,
-    },
+    ...heading('MCP Servers'),
     accessory: {
       type: 'button',
       text: { type: 'plain_text', text: 'Add' },
@@ -23,15 +20,9 @@ export function mcpServersBlocks(
     return {
       fixed: [
         header,
-        {
-          type: 'context',
-          elements: [
-            {
-              type: 'mrkdwn',
-              text: 'none yet. add one to give gorkie extra tools, just for you.',
-            },
-          ],
-        },
+        note(
+          'None yet. Add a server to give Gorkie extra tools, just for you.'
+        ),
       ],
       trailing: [{ type: 'divider' }],
     };
@@ -39,32 +30,10 @@ export function mcpServersBlocks(
 
   return {
     fixed: [header],
-    rows: servers.map((server, index) => [
-      ...(index > 0 ? [{ type: 'divider' }] : []),
-      {
-        type: 'section',
-        text: { type: 'mrkdwn', text: `*${server.name}*` },
-      },
-      {
-        type: 'context',
-        elements: [
-          {
-            type: 'mrkdwn',
-            text: `${PRESETS[server.permission].status}  \u00b7  \`${server.url}\``,
-          },
-        ],
-      },
-      ...(server.lastError
-        ? [
-            {
-              type: 'section',
-              text: {
-                type: 'mrkdwn',
-                text: `*Error*\n\`\`\`${server.lastError}\`\`\``,
-              },
-            },
-          ]
-        : []),
+    rows: servers.map((server) => [
+      section(`*${server.name}*`),
+      note(`${PRESETS[server.permission].status}  ·  \`${server.url}\``),
+      ...(server.lastError ? [note(`:warning: ${server.lastError}`)] : []),
       {
         type: 'actions',
         elements: [
@@ -93,13 +62,10 @@ export function mcpServersBlocks(
         ],
       },
     ]),
-    overflow: (dropped) => ({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `_\u2026and ${dropped} more server${dropped === 1 ? '' : 's'}, hidden because the Home tab is full._`,
-      },
-    }),
+    overflow: (dropped) =>
+      section(
+        `_\u2026and ${dropped} more server${dropped === 1 ? '' : 's'}, hidden because the Home tab is full._`
+      ),
     trailing: [{ type: 'divider' }],
   };
 }

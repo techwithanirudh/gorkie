@@ -5,6 +5,9 @@ import { input, output } from '../../types/tools/index';
 
 export const listScheduledTasksTool = createTool({
   id: 'list_scheduled_tasks',
+  transform: {
+    display: { input: () => ({ summary: 'checking scheduled tasks' }) },
+  },
   description:
     'List recurring schedules belonging to the current Slack conversation resource.',
   inputSchema: input({}),

@@ -2,10 +2,13 @@ import type { ToolsInput } from '@mastra/core/agent';
 import type { RequestContext } from '@mastra/core/request-context';
 import { createCodeMode, createCodeModeTool } from '@mastra/core/tools';
 import { E2BCodeModeTransport } from '@mastra/e2b';
+import { z } from 'zod';
+import { toolLabel } from '../../chat/status';
 import { sandbox as sandboxConfig } from '../../config';
 import { mcpTools } from '../../mcp';
 import { codeModePrompt } from '../../prompts/features/code-mode';
-import { codeModeToolNames, getSandbox } from '../../workspace';
+import { workDescriptionSchema } from '../../types/progress';
+import { codeModeToolNames, requireSandbox } from '../../workspace';
 import { workspaceTools } from '../../workspace/tools';
 import { canvasTools } from '../canvas';
 import { slackTools } from '../slack';
@@ -20,7 +23,6 @@ function codeTools(mcp: Awaited<ReturnType<typeof mcpTools>>) {
     list_threads: slackTools.list_threads,
     get_user: slackTools.get_user,
     get_channel_info: slackTools.get_channel_info,
-    list_channels: slackTools.list_channels,
     get_permalink: slackTools.get_permalink,
     get_slack_file: slackTools.get_slack_file,
     summarize_thread: slackTools.summarize_thread,
@@ -34,11 +36,9 @@ async function getSandboxTools(
   requestContext?: RequestContext
 ): Promise<ToolsInput> {
   const tools = await workspaceTools(requestContext);
-  return {
-    ...Object.fromEntries(
-      Object.entries(tools).filter(([name]) => codeModeToolNames.has(name))
-    ),
-  };
+  return Object.fromEntries(
+    Object.entries(tools).filter(([name]) => codeModeToolNames.has(name))
+  );
 }
 
 const RESULT_LIMIT = 60_000;
@@ -73,27 +73,59 @@ async function createCodeModeInstance({
   };
   const mode = createCodeMode(modeConfig, transport);
 
+  if (!(mode.tool.inputSchema instanceof z.ZodObject)) {
+    throw new Error('Described work tools must expose an object input schema.');
+  }
+  mode.tool.inputSchema = mode.tool.inputSchema.extend({
+    description: workDescriptionSchema,
+  });
+
   mode.tool.execute = async (input, context) => {
     if (!context.requestContext) {
       throw new Error('No request context available for Slack code mode.');
     }
-    const sandbox = await getSandbox(context.requestContext);
-    if (!sandbox) {
-      throw new Error('No E2B sandbox available for Slack code mode.');
-    }
+    const sandbox = await requireSandbox(context.requestContext);
+
+    let coveredAction = await toolLabel({
+      args: input,
+      tool: mode.tool,
+      toolName: 'slack',
+    });
+    const runTools: ToolsInput = workspaceAccess
+      ? {
+          ...slackCodeTools,
+          ...(await getSandboxTools(context.requestContext)),
+        }
+      : slackCodeTools;
 
     const { execute } = createCodeModeTool(
       {
         ...modeConfig,
         sandbox,
-        tools: workspaceAccess
-          ? {
-              ...slackCodeTools,
-              ...(await getSandboxTools(context.requestContext)),
-            }
-          : slackCodeTools,
+        tools: runTools,
       },
-      transport
+      {
+        run: (options) =>
+          transport.run({
+            ...options,
+            dispatch: async (toolName, args) => {
+              const status = await toolLabel({
+                args,
+                tool: runTools[toolName],
+                toolName,
+              });
+              if (status === coveredAction) {
+                coveredAction = null;
+              } else if (status) {
+                await context.writer?.custom({
+                  type: 'data-code-mode-activity',
+                  data: { status },
+                });
+              }
+              return options.dispatch(toolName, args);
+            },
+          }),
+      }
     );
     if (!execute) {
       throw new Error('Slack code mode is not executable.');

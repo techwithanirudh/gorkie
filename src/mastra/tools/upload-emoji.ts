@@ -1,6 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { env } from '@/env';
+import { assertWithinLimit } from '../lib/limits';
 import { input, output } from '../types/tools/index';
 import { requireSandbox } from '../workspace';
 
@@ -37,12 +38,17 @@ export const uploadEmojiTool = createTool({
   }),
   transform: {
     display: {
+      input: () => ({ summary: 'uploading an emoji' }),
       output: ({ output: out }) => ({
-        summary: `Added :${out?.name ?? ''}:`,
+        summary: `added :${out?.name ?? ''}:`,
       }),
     },
   },
   execute: async ({ name, path, aliasFor }, context) => {
+    await assertWithinLimit({
+      kind: 'emojiUpload',
+      requestContext: context.requestContext,
+    });
     if (!env.EMOJI_PROXY_TOKEN) {
       throw new Error(
         'Emoji upload is not configured. Set EMOJI_PROXY_TOKEN to enable it.'
@@ -60,9 +66,6 @@ export const uploadEmojiTool = createTool({
     } else {
       if (!path) {
         throw new Error('Pass path to upload a new emoji.');
-      }
-      if (!context?.requestContext) {
-        throw new Error('No workspace context.');
       }
       const sandbox = await requireSandbox(context.requestContext);
       const bytes = await sandbox.retryOnDead(() =>

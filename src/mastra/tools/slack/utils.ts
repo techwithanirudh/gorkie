@@ -1,15 +1,14 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import type { Message } from 'chat';
-import { z } from 'zod';
 import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
 import type { Target } from '../../chat/target';
+import { activity as activityConfig } from '../../config';
 import { chatChannelId, parseSlackId, rawId, threadIdOf } from '../../lib/ids';
 import { logger } from '../../lib/logger';
+import { slackError } from '../../lib/slack-error';
 import type { ChannelContext } from '../../types';
 
-const slackErrorSchema = z.looseObject({
-  data: z.looseObject({ error: z.string().optional() }).optional(),
-});
 const notReadable =
   'Reading DMs, private channels, or external conversations is not allowed.';
 
@@ -53,14 +52,12 @@ export async function assertReadableResource({
     return;
   }
 
-  // Still refused either way. A rate limit or timeout just must not read as
-  // "this conversation is private".
+  // A rate limit or timeout must not read as "this conversation is private".
   const failed = checks.find(
     (check) =>
       check.status === 'rejected' &&
       check.reason?.message !== notReadable &&
-      slackErrorSchema.safeParse(check.reason).data?.data?.error !==
-        'channel_not_found'
+      slackError(check.reason) !== 'channel_not_found'
   );
   if (failed?.status === 'rejected') {
     throw new Error(
@@ -95,9 +92,10 @@ export function assertCanPostTo({
   }
 
   const destination =
-    target.type === 'thread'
-      ? slack.decodeThreadId(target.id).channel
-      : target.id;
+    target.type === 'thread' ? parseSlackId(target.id).channel : target.id;
+  if (!destination) {
+    throw new Error(`${target.id} is not a Slack thread id.`);
+  }
   if (rawId(destination) !== rawId(ctx.channelId)) {
     throw new Error(
       'gorkie can only post into the channel this conversation is already in, not another channel. Ask someone in that channel to post there instead.'
@@ -119,10 +117,7 @@ export async function joinChannel(channelId: string): Promise<void> {
     // already_in_channel means the bot is already a member, the state we want,
     // so remember it and stop re-calling join. Other failures may be transient,
     // so do not cache and let a later call retry.
-    if (
-      slackErrorSchema.safeParse(error).data?.data?.error ===
-      'already_in_channel'
-    ) {
+    if (slackError(error) === 'already_in_channel') {
       joinedChannels.add(id);
       return;
     }
@@ -162,4 +157,53 @@ export function formatMessage(message: Message) {
       url: a.url,
     })),
   };
+}
+
+// A remote file's url_private can be any host, and must never get a Slack token.
+export function assertSlackFileHost(url: string): void {
+  const { hostname, protocol } = new URL(url);
+  if (
+    protocol !== 'https:' ||
+    !(hostname === 'slack.com' || hostname.endsWith('.slack.com'))
+  ) {
+    throw new Error('That file is hosted outside Slack, so it cannot be read.');
+  }
+}
+
+const channelNames = new Map<string, string>();
+
+// For a progress label. The plan is plain text anyone in the thread can read,
+// so a private channel's name stays out of it, and `<#id>` would print
+// literally because plan rows are text elements.
+export async function channelLabel(
+  reference: string | undefined
+): Promise<string | undefined> {
+  const id = reference?.match(/\b[CG][A-Z0-9]{8,}\b/)?.[0];
+  if (!id) {
+    return;
+  }
+  const cached = channelNames.get(id);
+  if (cached) {
+    return cached;
+  }
+  const lookup = chat()
+    .channel(`slack:${id}`)
+    .fetchMetadata()
+    .then((metadata) => {
+      const name =
+        metadata.channelVisibility === 'workspace'
+          ? metadata.name && `#${metadata.name}`
+          : 'a private channel';
+      if (name) {
+        channelNames.set(id, name);
+      }
+      return name;
+    })
+    .catch((error: unknown): undefined => {
+      logger.debug('[activity] could not name a channel', { error, id });
+    });
+  return await Promise.race([
+    lookup,
+    delay(activityConfig.channelLookupMs).then(() => undefined),
+  ]);
 }

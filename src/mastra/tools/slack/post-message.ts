@@ -1,131 +1,149 @@
-import { SlackFormatConverter } from '@chat-adapter/slack';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { slack } from '../../chat/client';
 import { chat } from '../../chat/instance';
-import { resolveTarget, targetSchema } from '../../chat/target';
+import { neutralizeBroadcasts } from '../../chat/message';
+import { assertCanSendTo, deliver } from '../../chat/send';
+import { type Target, targetSchema } from '../../chat/target';
 import { channelContext } from '../../lib/context';
-import { parseSlackId, rawId, threadIdOf } from '../../lib/ids';
+import { parseSlackId, rawId } from '../../lib/ids';
+import type { ChannelContext } from '../../types';
 import { input, output } from '../../types/tools/index';
-import { assertCanPostTo, joinChannel } from './utils';
 
-const markdownConverter = new SlackFormatConverter();
-
-let cachedBotName: string | undefined;
-
-async function botDisplayName(botUserId: string | undefined): Promise<string> {
-  if (cachedBotName) {
-    return cachedBotName;
+function destinationOf(target: Target) {
+  if (target.type === 'user') {
+    const userId = rawId(target.id);
+    return { userId, label: `a DM to <@${userId}>` };
   }
-  if (!botUserId) {
-    return 'gorkie';
+  if (target.type === 'channel') {
+    const channel = rawId(target.id);
+    return { channel, label: `<#${channel}>` };
   }
-  const info = await slack.webClient.users
-    .info({ user: botUserId })
-    .catch(() => null);
-  const profile = info?.user?.profile;
-  const name = profile?.display_name || profile?.real_name || info?.user?.name;
-  if (!name) {
-    return 'gorkie';
+  const { channel, ts } = parseSlackId(target.id);
+  if (!(channel && ts)) {
+    throw new Error(`${target.id} is not a Slack thread id.`);
   }
-  cachedBotName = name;
-  return name;
+  return { channel, threadTs: ts, label: `a thread in <#${channel}>` };
 }
 
-async function resolveChannelAndThread(resolved: {
-  type: 'thread' | 'channel' | 'user';
-  id: string;
-}): Promise<{ channel: string; threadTs?: string }> {
-  if (resolved.type === 'thread') {
-    const { channel, ts } = parseSlackId(resolved.id);
-    if (!channel) {
-      throw new Error(`${resolved.id} is not a Slack thread id.`);
-    }
-    return { channel, threadTs: ts };
+function isDmToRequester({
+  ctx,
+  target,
+}: {
+  ctx: ChannelContext;
+  target: Target;
+}): boolean {
+  return (
+    target.type === 'user' &&
+    Boolean(ctx.userId) &&
+    rawId(target.id) === rawId(ctx.userId ?? '')
+  );
+}
+
+async function checkDestination({
+  ctx,
+  target,
+}: {
+  ctx: ChannelContext;
+  target: Target;
+}) {
+  if (!(ctx.userId && ctx.channelId)) {
+    throw new Error('Sending on behalf needs a person here to approve it.');
   }
-  if (resolved.type === 'channel') {
-    return { channel: rawId(resolved.id) };
+  const destination = destinationOf(target);
+  if (destination.channel) {
+    await assertCanSendTo({
+      channel: destination.channel,
+      currentChannelId: rawId(ctx.channelId),
+      requesterId: ctx.userId,
+    });
   }
-  const dm = await resolveTarget(resolved);
-  return { channel: rawId(dm.id) };
+  return { destination, requesterId: ctx.userId };
 }
 
 export const postMessageTool = createTool({
   id: 'post_message',
-  description: `Send a markdown message to a different Slack thread, channel, or user.
+  description: `Send a markdown message to a different Slack thread, channel, or person, on behalf of the person asking.
 
-Never use this to answer the current conversation, and never for status or progress updates in this thread: your normal assistant response, progress notes included, is already streamed here. Use this tool only when the user explicitly asks you to send something to a different thread, channel, or person (for example posting an update into another channel on their behalf).
+Never use this to answer the current conversation or to report progress: answer in your text and use status_update.
 
-Channel and thread targets must be in the channel this conversation is already in; user targets must be the requester themselves. No exceptions to either, even if asked directly.
+A DM to the person asking goes out directly. Anything else waits for the person to approve it on a card in this thread, and you get the result once they decide.
 
-Every post automatically uses the requester's Slack avatar and labels the sender as "Name [gorkie]". Do not add that attribution yourself in the message text; there is no way to override or customize it.
-
-Errors: channel_not_found usually means the bot isn't a member of that private channel; not_in_channel means it hasn't joined yet. Either way, tell the user to invite the bot there.`,
+The message goes out with the person's avatar, named "Name [gorkie]", with a "Sent by" line, except a DM to the person asking, which comes from gorkie. Don't add attribution yourself. Find a channel id with search_slack, content "channels".`,
   inputSchema: input({
-    target: targetSchema.describe(
-      'Required destination outside the current conversation.'
-    ),
-    message: z.string().min(1).describe('Markdown message body.'),
+    target: targetSchema.describe('Destination outside this conversation.'),
+    message: z.string().min(1).max(6000).describe('Markdown message body.'),
   }),
   outputSchema: output({
-    messageId: z.string(),
-    threadId: z.string().optional(),
+    status: z.enum(['sent', 'not_sent']),
+    destination: z.string(),
+    link: z.string().optional(),
+    reason: z.string().optional(),
   }),
+  requireApproval: (input, ctx) =>
+    !isDmToRequester({
+      ctx: channelContext(ctx?.requestContext),
+      target: input.target,
+    }),
+  // Rejects a destination before a card is shown for it.
+  beforeApproval: async ({ target }, ctx) => {
+    try {
+      await checkDestination({
+        ctx: channelContext(ctx.requestContext),
+        target,
+      });
+    } catch (error) {
+      return {
+        proceed: false,
+        output: {
+          status: 'not_sent' as const,
+          destination: target.id,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+      };
+    }
+  },
   transform: {
     display: {
+      input: () => ({ summary: null }),
       output: ({ output }) => ({
-        summary: `Posted message ${output?.messageId ?? ''}`,
+        summary: output?.status === 'sent' ? 'message sent' : 'not sent',
       }),
     },
   },
   execute: async ({ target, message }, context) => {
     const ctx = channelContext(context?.requestContext);
-    assertCanPostTo({ target, ctx });
-    try {
-      if (target.type !== 'user') {
-        await joinChannel(target.id);
-      }
-      const { channel, threadTs } = await resolveChannelAndThread(target);
-      const requesterUser = ctx.userId
-        ? await chat()
-            .getUser(ctx.userId)
-            .catch(() => null)
-        : null;
-      const requester = requesterUser?.userName ?? ctx.userName;
-      const bot = await botDisplayName(ctx.botUserId);
-      const credited = Boolean(requester) && target.type !== 'user';
-      const username = credited ? `${requester} [${bot}]` : bot;
-      const sent = await slack.webClient.chat.postMessage({
-        channel,
-        ...(threadTs ? { thread_ts: threadTs } : {}),
-        ...markdownConverter.toSlackPayload({ markdown: message }),
-        ...(credited && requesterUser?.avatarUrl
-          ? { icon_url: requesterUser.avatarUrl }
-          : {}),
-        username,
-      });
-      if (!sent.ts) {
-        throw new Error('Slack posted the message without returning its id.');
-      }
-      return {
-        messageId: sent.ts,
-        threadId: threadTs ? threadIdOf({ channel, ts: threadTs }) : undefined,
-      };
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      if (reason.includes('channel_not_found')) {
-        throw new Error(
-          'Slack rejected the post with channel_not_found. For private channels this usually means the bot is not a member. Ask a member to invite the bot in that channel, then retry. If the channel is public, double-check the channel id.',
-          { cause: error }
-        );
-      }
-      if (reason.includes('not_in_channel')) {
-        throw new Error(
-          'Slack rejected the post with not_in_channel. Invite the bot to that channel, then retry.',
-          { cause: error }
-        );
-      }
-      throw error;
+    const text = neutralizeBroadcasts(message);
+    if (isDmToRequester({ ctx, target })) {
+      const dm = await chat().openDM(ctx.userId ?? '');
+      await dm.post({ markdown: text });
+      return { status: 'sent' as const, destination: 'your DMs' };
     }
+    // The approval can sit for a while, so the checks run again here.
+    const { destination, requesterId } = await checkDestination({
+      ctx,
+      target,
+    });
+    const channel = destination.userId
+      ? rawId((await chat().openDM(destination.userId)).channelId)
+      : destination.channel;
+    if (!channel) {
+      throw new Error('That destination has no channel to post in.');
+    }
+    const requester = await chat()
+      .getUser(requesterId)
+      .catch(() => null);
+    const link = await deliver({
+      avatarUrl: requester?.avatarUrl,
+      channel,
+      message: text,
+      requesterId,
+      threadTs: destination.threadTs,
+      username:
+        `${requester?.userName || ctx.userName || 'someone'} [gorkie]`.slice(
+          0,
+          80
+        ),
+    });
+    return { status: 'sent' as const, destination: destination.label, link };
   },
 });

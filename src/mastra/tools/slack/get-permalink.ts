@@ -22,8 +22,9 @@ export const getPermalinkTool = createTool({
   }),
   transform: {
     display: {
+      input: () => ({ summary: 'getting a message link' }),
       output: ({ output }) => ({
-        summary: output?.permalink ?? 'Permalink resolved',
+        summary: output?.permalink ?? 'permalink resolved',
       }),
     },
   },

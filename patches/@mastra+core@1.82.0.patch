@@ -1,0 +1,1028 @@
+--- a/dist/agent-BP9OWM6D.js
++++ b/dist/agent-BP9OWM6D.js
+@@ -4502,6 +4502,7 @@
+ }
+ const NOT_CANCELED_STATUSES = WORKFLOW_RUN_STATUSES.filter((status) => status !== "canceled");
+ async function isWorkflowRunCanceled(engine, workflowId, runId) {
++	if (/-(input|output)-processor$/.test(workflowId) || !Object.values(engine.mastra?.listWorkflows?.() ?? {}).some((workflow) => workflow.id === workflowId)) return false;
+ 	try {
+ 		return await (await engine.mastra?.getStorage()?.getStore("workflows"))?.loadWorkflowRunStatus({
+ 			workflowName: workflowId,
+@@ -17153,6 +17154,16 @@
+ 						apiError: void 0,
+ 						deferredErrorChunk: void 0
+ 					});
++				} else if (activeFallbackModelIndex + 1 < models.length) {
++					// Stock only advances the fallback index when the model call throws.
++					// An error delivered as an in-band stream chunk returns normally, so
++					// without this the remaining models are never tried.
++					apiErrorRetryResult = { retry: true, advanceFallbackModel: true };
++					runState.setState({
++						hasErrored: false,
++						apiError: void 0,
++						deferredErrorChunk: void 0
++					});
+ 				}
+ 			}
+ 			let skipUnavailableAttachments = inputData.skipUnavailableAttachments;
+@@ -17205,7 +17216,11 @@
+ 				}
+ 				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
+ 				const steps = inputData.output?.steps || [];
+-				const nextProcessorRetryCount = currentProcessorRetryCount + 1;
++				const advancingFallbackModel = apiErrorRetryResult.advanceFallbackModel === true;
++				const nextFallbackModelIndex = advancingFallbackModel ? activeFallbackModelIndex + 1 : activeFallbackModelIndex;
++				// A model switch gets its own retry budget instead of inheriting the
++				// exhausted count from the model it is replacing.
++				const nextProcessorRetryCount = advancingFallbackModel ? 0 : currentProcessorRetryCount + 1;
+ 				const messages = {
+ 					all: messageList.get.all.aiV5.model(),
+ 					user: messageList.get.input.aiV5.model(),
+@@ -17233,7 +17248,7 @@
+ 					},
+ 					messages,
+ 					processorRetryCount: nextProcessorRetryCount,
+-					...activeFallbackModelIndex > 0 ? { fallbackModelIndex: activeFallbackModelIndex } : {},
++					...nextFallbackModelIndex > 0 ? { fallbackModelIndex: nextFallbackModelIndex } : {},
+ 					...skipUnavailableAttachments ? { skipUnavailableAttachments } : {}
+ 				};
+ 			}
+@@ -59157,16 +59172,38 @@
+ */
+ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, toolDisplayFn, streamingOptions, channelToolNames, logger, onApprovalPosted, getPendingApproval, takePendingApproval, typingGate, formatError, textFormat }) {
+ 	const platform = adapter.name;
+-	const groupTasks = toolDisplay === "timeline" ? "timeline" : toolDisplay === "grouped" ? "plan" : void 0;
+-	const rendersToolsInPlan = toolDisplay === "timeline" || toolDisplay === "grouped";
++	let groupTasks = toolDisplay === "timeline" ? "timeline" : toolDisplay === "grouped" ? "plan" : void 0;
++	let rendersToolsInPlan = toolDisplay === "timeline" || toolDisplay === "grouped";
++	let transientActivity = false;
++	let activityTimer;
++	let activityIntervalMs = 0;
++	let lastActivitySentAt = 0;
++	let activityTitle;
++	let activityStartedAt;
++	let sentActivityTitle;
++	const pendingActivity = new Map();
++	const activityTasks = new Map();
++	let activityReplied = false;
++	let activityOutcome;
+ 	const tracker = new ToolTracker();
+ 	const sessionRef = { current: null };
+ 	const pendingInitialText = [];
+ 	const pendingOmTasks = /* @__PURE__ */ new Map();
+ 	const aggregatedRecallRef = { current: null };
+ 	const planTitleRef = { current: false };
++	// Slack caps a plan block at 50 tasks and an over-cap append kills the
++	// stream, so a full plan rolls over into a new message instead.
++	const sessionTaskIds = /* @__PURE__ */ new Set();
++	const openTaskPieces = /* @__PURE__ */ new Map();
++	const retiredSessions = [];
++	let currentPlanTitle;
++	// A plan that rolls over hands its title to the next one, so every split
++	// opens titled; a later status update can still replace it.
++	let carriedPlanTitle;
+ 	const toolTasksRef = { current: false };
+ 	const openSession = () => {
++		let activityShown = false;
++		let finalText = "";
+ 		let buffer = [];
+ 		let closed = false;
+ 		let resolveNext;
+@@ -59189,6 +59226,8 @@
+ 		return {
+ 			push: (piece) => {
+ 				if (closed) return;
++				if (typeof piece === "string") finalText += piece;
++				else if (piece.type === "task_update") activityShown = true;
+ 				buffer.push(piece);
+ 				if (resolveNext) {
+ 					const r = resolveNext;
+@@ -59207,12 +59246,30 @@
+ 			},
+ 			done: (async () => {
+ 				try {
+-					await chatThread.post(postable);
++					if (transientActivity && toolDisplayFn?.activity) {
++						await toolDisplayFn.activity({ stream: iterable, thread: chatThread, adapter });
++						return;
++					}
++					const posted = await chatThread.post(postable);
++					if (transientActivity && activityShown && posted) {
++						const segments = posted.raw?.gorkieStreamSegments;
++						const targets = Array.isArray(segments) ? segments : [{ id: posted.id, text: finalText }];
++						for (const target of targets) {
++							if (!target || typeof target.id !== "string" || typeof target.text !== "string") continue;
++							try {
++								if (target.text.trim()) await adapter.editMessage(chatThread.id, target.id, textFormat === "plain" ? target.text : { markdown: target.text, gorkieTransientActivity: true });
++								else await adapter.deleteMessage(chatThread.id, target.id);
++							} catch (error) {
++								logger?.warn("[CHANNEL] transient activity cleanup failed", { error, messageId: target.id });
++							}
++						}
++					}
+ 				} catch (e) {
+ 					logger?.warn("[CHANNEL] streaming post failed, falling back to buffered text", { error: e });
+-					let fallback = "";
++					let fallback = transientActivity ? finalText : "";
+ 					while (true) {
+-						fallback += buffer.filter((p) => typeof p === "string").join("");
++						if (transientActivity) fallback = finalText;
++						else fallback += buffer.filter((p) => typeof p === "string").join("");
+ 						buffer = [];
+ 						if (closed) break;
+ 						await waitForNext();
+@@ -59225,11 +59282,19 @@
+ 					}
+ 				} finally {
+ 					typingGate.active = false;
++					if (transientActivity) await chatThread.startTyping("").catch((error) => logger?.debug("[CHANNEL] activity status cleanup failed", { error }));
+ 				}
+ 			})()
+ 		};
+ 	};
+-	const closeSession = async () => {
++	const closeSession = async ({ completed = false, outcome } = {}) => {
++		if (completed) completeActivity();
++		flushActivity();
++		if (transientActivity && sessionRef.current) sessionRef.current.push({ type: "activity_end", outcome: outcome ?? activityOutcome ?? (completed ? "Completed" : "Waiting") });
++		activityOutcome = void 0;
++		activityTasks.clear();
++		activityReplied = false;
++		await Promise.all(retiredSessions.splice(0));
+ 		const s = sessionRef.current;
+ 		if (!s) {
+ 			pendingInitialText.length = 0;
+@@ -59244,6 +59309,9 @@
+ 		pendingOmTasks.clear();
+ 		aggregatedRecallRef.current = null;
+ 		planTitleRef.current = false;
++		sessionTaskIds.clear();
++		openTaskPieces.clear();
++		currentPlanTitle = void 0;
+ 		toolTasksRef.current = false;
+ 		sessionRef.current = null;
+ 		s.close();
+@@ -59257,15 +59325,92 @@
+ 	* `if (!session) session = openSession(); session.push(...)` pattern out
+ 	* of the handlers.
+ 	*/
++	// Tasks still running when a plan fills move into the next plan, so their
++	// updates land somewhere visible; the old plan shows them finished. The old
++	// stream finishes posting in the background and is awaited on close.
++	const rolloverPlan = () => {
++		const s = sessionRef.current;
++		if (!s) return;
++		for (const piece of openTaskPieces.values()) s.push({
++			...piece,
++			status: "complete"
++		});
++		s.push({
++			type: "task_update",
++			id: "continued",
++			title: "Continued in the next message",
++			status: "complete"
++		});
++		s.close();
++		retiredSessions.push(s.done);
++		sessionTaskIds.clear();
++		sessionRef.current = openSession();
++		sessionRef.current.push({
++			type: "plan_update",
++			title: currentPlanTitle ?? "Continued"
++		});
++		for (const piece of openTaskPieces.values()) {
++			sessionTaskIds.add(piece.id);
++			sessionRef.current.push(piece);
++		}
++	};
+ 	const pushToSession = (piece) => {
+-		if (!sessionRef.current) sessionRef.current = openSession();
++		if (rendersToolsInPlan && piece.type === "task_update") {
++			if (!sessionTaskIds.has(piece.id) && sessionTaskIds.size >= 49) rolloverPlan();
++			sessionTaskIds.add(piece.id);
++			if (piece.status === "in_progress") openTaskPieces.set(piece.id, piece);
++			else openTaskPieces.delete(piece.id);
++		}
++		if (rendersToolsInPlan && piece.type === "plan_update") currentPlanTitle = piece.title;
++		if (!sessionRef.current) {
++			sessionRef.current = openSession();
++			if (carriedPlanTitle) {
++				sessionRef.current.push({
++					type: "plan_update",
++					title: carriedPlanTitle
++				});
++				currentPlanTitle = carriedPlanTitle;
++				planTitleRef.current = true;
++				carriedPlanTitle = void 0;
++			}
++		}
+ 		for (const pendingPiece of pendingInitialText) sessionRef.current.push(pendingPiece);
+ 		pendingInitialText.length = 0;
+ 		sessionRef.current.push(piece);
+ 	};
++	const flushActivity = () => {
++		if (activityTimer) clearTimeout(activityTimer);
++		activityTimer = void 0;
++		if (!pendingActivity.size) return;
++		for (const piece of pendingActivity.values()) pushToSession(piece);
++		pendingActivity.clear();
++		if (activityTitle !== sentActivityTitle) {
++			pushToSession({ type: "plan_update", title: activityTitle, startedAt: activityStartedAt });
++			sentActivityTitle = activityTitle;
++		}
++		lastActivitySentAt = Date.now();
++	};
++	const completeActivity = () => {
++		if (!(activityReplied && sessionRef.current)) return;
++		flushActivity();
++		for (const piece of activityTasks.values()) if (piece.status !== "complete" && piece.status !== "error") {
++			pushToSession({ type: "task_update", id: piece.id, title: piece.title, status: "complete" });
++		}
++		activityTasks.clear();
++	};
+ 	const pushToolDisplayResult = (result) => {
+ 		if (result.openIfEmpty === false && !sessionRef.current) return;
+ 		pushToSession(result.chunk);
++		// A grouped plan takes its header from the latest task, as the built-in
++		// grouped renderer does, so a function-form display can render grouped.
++		// A plan_update the function returns itself (a status) keeps the header
++		// until the session closes.
++		if (result.chunk.type === "plan_update") planTitleRef.current = true;
++		const groupedTask = toolDisplay === "grouped" && result.chunk.type === "task_update";
++		if (groupedTask && !planTitleRef.current) pushToSession({
++			type: "plan_update",
++			title: result.chunk.title
++		});
+ 	};
+ 	const lookupTaskTitle = (toolCallId, fallback) => {
+ 		const stash = getPendingApproval(toolCallId);
+@@ -59356,6 +59501,29 @@
+ 		});
+ 	};
+ 	for await (const chunk of stream) {
++		const activity = chunk.metadata?.gorkieActivity;
++		if (activity) {
++			transientActivity = true;
++			groupTasks = "plan";
++			toolDisplay = "grouped";
++			rendersToolsInPlan = true;
++			typingGate.transientActivity = true;
++			activityIntervalMs = activity.intervalMs ?? activityIntervalMs;
++			activityTitle = activity.status;
++			activityStartedAt = activity.startedAt;
++			activityReplied = activity.replied;
++			activityOutcome = activity.outcome;
++			for (const piece of activity.chunks) {
++				activityTasks.set(piece.id, piece);
++				pendingActivity.set(piece.id, piece);
++			}
++			if (chunk.type === "finish" && !sessionRef.current) pendingActivity.clear();
++			if (pendingActivity.size) {
++				const delay = Math.max(0, lastActivitySentAt + activityIntervalMs - Date.now());
++				if (!sessionRef.current || delay === 0 || ["text-delta", "error", "abort", "finish", "tool-call-approval", "data-user-message"].includes(chunk.type)) flushActivity();
++				else if (!activityTimer) activityTimer = setTimeout(flushActivity, delay);
++			}
++		}
+ 		if (aggregatedRecallRef.current) {
+ 			const probe = asOmChunk(chunk);
+ 			if (!(probe?.type === "data-om-activation" && probe.data.operationType === "observation")) aggregatedRecallRef.current = null;
+@@ -59368,7 +59536,8 @@
+ 			}
+ 			const om = asOmChunk(chunk);
+ 			if (om) {
+-				if (!rendersToolsInPlan) continue;
++				// Memory work would title the plan "Updating memory"; detailed shows tools only.
++				if (!rendersToolsInPlan || toolDisplayFn) continue;
+ 				if (om.data.cycleId) {
+ 					if (!planTitleRef.current) {
+ 						pushToSession({
+@@ -59420,7 +59589,24 @@
+ 			continue;
+ 		}
+ 		if (chunk.type === "step-finish") {
+-			if (toolDisplay !== "grouped") await closeSession();
++			// A continued step (retry, in-place or fallback-model escalation) means the
++			// run is still alive: closing here would finalize the message early.
++			const stepIsContinued = chunk.payload?.stepResult?.isContinued === true;
++			// A grouped plan stays open across steps, so it rolls over only after a
++			// tool-call step that filled it, before Slack's 50-task cap.
++			if (toolDisplay === "grouped") {
++				if (chunk.payload?.stepResult?.reason === "tool-calls" && sessionTaskIds.size >= 45 && sessionRef.current) {
++					sessionRef.current.push({
++						type: "task_update",
++						id: "continued",
++						title: "Continued in the next message",
++						status: "complete"
++					});
++					const title = currentPlanTitle ?? "Continued";
++					await closeSession();
++					carriedPlanTitle = title;
++				}
++			} else if (!stepIsContinued) await closeSession();
+ 			continue;
+ 		}
+ 		if (chunk.type === "file") {
+@@ -59433,11 +59619,12 @@
+ 			continue;
+ 		}
+ 		if (chunk.type === "finish") {
++			completeActivity();
+ 			tracker.reset();
+ 			continue;
+ 		}
+ 		if (chunk.type === "error") {
+-			await closeSession();
++			await closeSession({ outcome: "Failed" });
+ 			await postStreamError({
+ 				chunk,
+ 				chatThread,
+@@ -59449,7 +59636,7 @@
+ 			continue;
+ 		}
+ 		if (chunk.type === "abort") {
+-			await closeSession();
++			await closeSession({ outcome: "Stopped" });
+ 			tracker.reset();
+ 			continue;
+ 		}
+@@ -59680,7 +59867,7 @@
+ 		}
+ 		if (chunk.type === "tripwire") {
+ 			if (chunk.payload.retry) continue;
+-			await closeSession();
++			await closeSession({ outcome: "Failed" });
+ 			await postTripwire({
+ 				chunk,
+ 				chatThread,
+@@ -59689,7 +59876,12 @@
+ 			continue;
+ 		}
+ 	}
+-	await closeSession();
++	// The turn finished, so the last plan stops showing the latest status.
++	if (toolDisplay === "grouped" && sessionRef.current && sessionTaskIds.size > 0) sessionRef.current.push({
++		type: "plan_update",
++		title: "Completed"
++	});
++	await closeSession({ completed: true });
+ }
+ // src/channels/output-processor.ts
+ /** Chunks that carry reply text, kept out of the channel by `textDisplay: 'hidden'`. */
+@@ -59809,8 +60001,13 @@
+ 			session = this.#openSession(render, requestContext);
+ 			state.session = session;
+ 		}
++		render.abortActivity = async () => {
++			session.queue.push({ type: "abort", payload: {} });
++			session.queue.close();
++			await session.driverPromise;
++		};
+ 		if (part.type !== "tool-call-approval" || !this.#agentChannels || await this.#agentChannels.shouldRenderToolApproval(requestContext, part.payload?.toolName)) session.queue.push(part);
+-		if (part.type === "step-finish" && part.payload?.stepResult?.isContinued !== true || part.type === "error" || part.type === "abort") {
++		if (part.type === "step-finish" && part.payload?.stepResult?.isContinued !== true || part.type === "finish" || part.type === "error" || part.type === "abort") {
+ 			session.queue.close();
+ 			try {
+ 				await session.driverPromise;
+@@ -59840,7 +60037,7 @@
+ 		}
+ 		const threadId = parseMemoryRequestContext(requestContext)?.thread?.id;
+ 		if (this.#agentChannels && threadId) {
+-			const rebuilt = await this.#agentChannels.buildRenderContextForThread(threadId);
++			const rebuilt = await this.#agentChannels.buildRenderContextForThread(threadId, requestContext?.get("channel")?.userId);
+ 			state.render = rebuilt ?? null;
+ 			return rebuilt ?? void 0;
+ 		}
+@@ -60983,7 +61180,7 @@
+ 							return;
+ 						}
+ 						const actorId = event.user?.userId;
+-						if (adapterConfig?.toolApprovers !== "anyone" && requesterId && actorId && requesterId !== actorId) {
++						if (adapterConfig?.toolApprovers !== "anyone" && (!requesterId || requesterId !== actorId)) {
+ 							this.log("info", `Ignoring tool approval action from ${actorId}: only ${requesterId} may answer`, {
+ 								...actionEventContext,
+ 								requesterId
+@@ -62021,8 +62218,8 @@
+ 	* `Thread` handle, which the Chat SDK materializes from the stored external id
+ 	* via `chat.thread(externalThreadId)`.
+ 	*/
+-	async buildRenderContextForThread(threadId) {
+-		return (await this.loadChannelThread(threadId))?.render ?? null;
++	async buildRenderContextForThread(threadId, requesterId) {
++		return (await this.loadChannelThread(threadId, requesterId))?.render ?? null;
+ 	}
+ 	/**
+ 	* The channel context and render context for a run on a channel-backed
+@@ -62047,7 +62244,7 @@
+ 			render
+ 		};
+ 	}
+-	async loadChannelThread(threadId) {
++	async loadChannelThread(threadId, requesterId) {
+ 		const storage = this.getMastra()?.getStorage();
+ 		if (!storage) return null;
+ 		const memoryStore = await storage.getStore("memory");
+@@ -62066,7 +62263,7 @@
+ 		const storedIsDM = thread.metadata?.[IS_DM_KEY];
+ 		const isDM = typeof storedIsDM === "boolean" ? storedIsDM : chatThread.isDM;
+ 		if (!sender && isDM === chatThread.isDM) return {
+-			render: this._buildRenderContext(chatThread, platform),
++			render: this._buildRenderContext(chatThread, platform, { requesterId: requesterId ?? sender?.author?.userId }),
+ 			sender
+ 		};
+ 		const { Message: ChatMessage, ThreadImpl } = await getChatModule();
+@@ -62096,7 +62293,7 @@
+ 			stateAdapter: this.stateAdapter
+ 		});
+ 		return {
+-			render: this._buildRenderContext(rebuilt, platform),
++			render: this._buildRenderContext(rebuilt, platform, { requesterId: requesterId ?? sender?.author?.userId }),
+ 			sender
+ 		};
+ 	}
+@@ -62162,7 +62359,7 @@
+ 		let statusSent = false;
+ 		try {
+ 			for await (const chunk of stream) {
+-				if (typingStatusFn && !typingGate.active) {
++				if (typingStatusFn && (!typingGate.active || typingGate.transientActivity)) {
+ 					let result;
+ 					try {
+ 						result = typingStatusFn(chunk, {
+@@ -62195,7 +62392,7 @@
+ 				yield chunk;
+ 			}
+ 		} finally {
+-			if (statusSent && !typingGate.active) chatThread.startTyping("").catch((e) => {
++			if (statusSent && (!typingGate.active || typingGate.transientActivity)) chatThread.startTyping("").catch((e) => {
+ 				this.log("debug", "Typing clear failed (best-effort)", {
+ 					platform,
+ 					threadId: chatThread.id,
+@@ -78722,7 +78919,13 @@
+ 					});
+ 					await options.onError?.({ error });
+ 				},
+-				onAbort: options.onAbort,
++				onAbort: async (event) => {
++					try {
++						await requestContext?.get(CHAT_CHANNEL_RENDER_CONTEXT_KEY)?.abortActivity?.();
++					} finally {
++						await options.onAbort?.(event);
++					}
++				},
+ 				abortSignal: options.abortSignal
+ 			},
+ 			activeTools: options.activeTools,
+@@ -83130,7 +83333,7 @@
+ 							let delegatedPause = {};
+ 							for await (const chunk of streamResult.fullStream) {
+ 								if (context?.writer) {
+-									if (chunk.type.startsWith("data-")) await context.writer.custom(chunk);
++									if (chunk.type.startsWith("data-")) await context.writer.custom({ ...chunk, metadata: { ...chunk.metadata, gorkieDelegation: { toolCallId, toolName: `agent-${agentName}` } } });
+ 									else await context.writer.write(chunk);
+ 								}
+ 								if (chunk.type === "data-tool-call-approval") {
+@@ -83222,7 +83425,7 @@
+ 							let fullText = "";
+ 							for await (const chunk of streamResult.fullStream) {
+ 								if (context?.writer) {
+-									if (chunk.type.startsWith("data-")) await context.writer.custom(chunk);
++									if (chunk.type.startsWith("data-")) await context.writer.custom({ ...chunk, metadata: { ...chunk.metadata, gorkieDelegation: { toolCallId, toolName: `agent-${agentName}` } } });
+ 									else await context.writer.write(chunk);
+ 								}
+ 								if (chunk.type === "text-delta") fullText += chunk.textDelta;
+--- a/dist/agent-3djrMSaa.cjs
++++ b/dist/agent-3djrMSaa.cjs
+@@ -4505,6 +4505,7 @@
+ }
+ const NOT_CANCELED_STATUSES = WORKFLOW_RUN_STATUSES.filter((status) => status !== "canceled");
+ async function isWorkflowRunCanceled(engine, workflowId, runId) {
++	if (/-(input|output)-processor$/.test(workflowId) || !Object.values(engine.mastra?.listWorkflows?.() ?? {}).some((workflow) => workflow.id === workflowId)) return false;
+ 	try {
+ 		return await (await engine.mastra?.getStorage()?.getStore("workflows"))?.loadWorkflowRunStatus({
+ 			workflowName: workflowId,
+@@ -17156,6 +17157,16 @@
+ 						apiError: void 0,
+ 						deferredErrorChunk: void 0
+ 					});
++				} else if (activeFallbackModelIndex + 1 < models.length) {
++					// Stock only advances the fallback index when the model call throws.
++					// An error delivered as an in-band stream chunk returns normally, so
++					// without this the remaining models are never tried.
++					apiErrorRetryResult = { retry: true, advanceFallbackModel: true };
++					runState.setState({
++						hasErrored: false,
++						apiError: void 0,
++						deferredErrorChunk: void 0
++					});
+ 				}
+ 			}
+ 			let skipUnavailableAttachments = inputData.skipUnavailableAttachments;
+@@ -17208,7 +17219,11 @@
+ 				}
+ 				const currentProcessorRetryCount = inputData.processorRetryCount || 0;
+ 				const steps = inputData.output?.steps || [];
+-				const nextProcessorRetryCount = currentProcessorRetryCount + 1;
++				const advancingFallbackModel = apiErrorRetryResult.advanceFallbackModel === true;
++				const nextFallbackModelIndex = advancingFallbackModel ? activeFallbackModelIndex + 1 : activeFallbackModelIndex;
++				// A model switch gets its own retry budget instead of inheriting the
++				// exhausted count from the model it is replacing.
++				const nextProcessorRetryCount = advancingFallbackModel ? 0 : currentProcessorRetryCount + 1;
+ 				const messages = {
+ 					all: messageList.get.all.aiV5.model(),
+ 					user: messageList.get.input.aiV5.model(),
+@@ -17236,7 +17251,7 @@
+ 					},
+ 					messages,
+ 					processorRetryCount: nextProcessorRetryCount,
+-					...activeFallbackModelIndex > 0 ? { fallbackModelIndex: activeFallbackModelIndex } : {},
++					...nextFallbackModelIndex > 0 ? { fallbackModelIndex: nextFallbackModelIndex } : {},
+ 					...skipUnavailableAttachments ? { skipUnavailableAttachments } : {}
+ 				};
+ 			}
+@@ -59162,16 +59177,38 @@
+ */
+ async function runStreamingDriver({ stream, chatThread, adapter, toolDisplay, toolDisplayFn, streamingOptions, channelToolNames, logger, onApprovalPosted, getPendingApproval, takePendingApproval, typingGate, formatError, textFormat }) {
+ 	const platform = adapter.name;
+-	const groupTasks = toolDisplay === "timeline" ? "timeline" : toolDisplay === "grouped" ? "plan" : void 0;
+-	const rendersToolsInPlan = toolDisplay === "timeline" || toolDisplay === "grouped";
++	let groupTasks = toolDisplay === "timeline" ? "timeline" : toolDisplay === "grouped" ? "plan" : void 0;
++	let rendersToolsInPlan = toolDisplay === "timeline" || toolDisplay === "grouped";
++	let transientActivity = false;
++	let activityTimer;
++	let activityIntervalMs = 0;
++	let lastActivitySentAt = 0;
++	let activityTitle;
++	let activityStartedAt;
++	let sentActivityTitle;
++	const pendingActivity = new Map();
++	const activityTasks = new Map();
++	let activityReplied = false;
++	let activityOutcome;
+ 	const tracker = new ToolTracker();
+ 	const sessionRef = { current: null };
+ 	const pendingInitialText = [];
+ 	const pendingOmTasks = /* @__PURE__ */ new Map();
+ 	const aggregatedRecallRef = { current: null };
+ 	const planTitleRef = { current: false };
++	// Slack caps a plan block at 50 tasks and an over-cap append kills the
++	// stream, so a full plan rolls over into a new message instead.
++	const sessionTaskIds = /* @__PURE__ */ new Set();
++	const openTaskPieces = /* @__PURE__ */ new Map();
++	const retiredSessions = [];
++	let currentPlanTitle;
++	// A plan that rolls over hands its title to the next one, so every split
++	// opens titled; a later status update can still replace it.
++	let carriedPlanTitle;
+ 	const toolTasksRef = { current: false };
+ 	const openSession = () => {
++		let activityShown = false;
++		let finalText = "";
+ 		let buffer = [];
+ 		let closed = false;
+ 		let resolveNext;
+@@ -59194,6 +59231,8 @@
+ 		return {
+ 			push: (piece) => {
+ 				if (closed) return;
++				if (typeof piece === "string") finalText += piece;
++				else if (piece.type === "task_update") activityShown = true;
+ 				buffer.push(piece);
+ 				if (resolveNext) {
+ 					const r = resolveNext;
+@@ -59212,12 +59251,30 @@
+ 			},
+ 			done: (async () => {
+ 				try {
+-					await chatThread.post(postable);
++					if (transientActivity && toolDisplayFn?.activity) {
++						await toolDisplayFn.activity({ stream: iterable, thread: chatThread, adapter });
++						return;
++					}
++					const posted = await chatThread.post(postable);
++					if (transientActivity && activityShown && posted) {
++						const segments = posted.raw?.gorkieStreamSegments;
++						const targets = Array.isArray(segments) ? segments : [{ id: posted.id, text: finalText }];
++						for (const target of targets) {
++							if (!target || typeof target.id !== "string" || typeof target.text !== "string") continue;
++							try {
++								if (target.text.trim()) await adapter.editMessage(chatThread.id, target.id, textFormat === "plain" ? target.text : { markdown: target.text, gorkieTransientActivity: true });
++								else await adapter.deleteMessage(chatThread.id, target.id);
++							} catch (error) {
++								logger?.warn("[CHANNEL] transient activity cleanup failed", { error, messageId: target.id });
++							}
++						}
++					}
+ 				} catch (e) {
+ 					logger?.warn("[CHANNEL] streaming post failed, falling back to buffered text", { error: e });
+-					let fallback = "";
++					let fallback = transientActivity ? finalText : "";
+ 					while (true) {
+-						fallback += buffer.filter((p) => typeof p === "string").join("");
++						if (transientActivity) fallback = finalText;
++						else fallback += buffer.filter((p) => typeof p === "string").join("");
+ 						buffer = [];
+ 						if (closed) break;
+ 						await waitForNext();
+@@ -59230,11 +59287,19 @@
+ 					}
+ 				} finally {
+ 					typingGate.active = false;
++					if (transientActivity) await chatThread.startTyping("").catch((error) => logger?.debug("[CHANNEL] activity status cleanup failed", { error }));
+ 				}
+ 			})()
+ 		};
+ 	};
+-	const closeSession = async () => {
++	const closeSession = async ({ completed = false, outcome } = {}) => {
++		if (completed) completeActivity();
++		flushActivity();
++		if (transientActivity && sessionRef.current) sessionRef.current.push({ type: "activity_end", outcome: outcome ?? activityOutcome ?? (completed ? "Completed" : "Waiting") });
++		activityOutcome = void 0;
++		activityTasks.clear();
++		activityReplied = false;
++		await Promise.all(retiredSessions.splice(0));
+ 		const s = sessionRef.current;
+ 		if (!s) {
+ 			pendingInitialText.length = 0;
+@@ -59249,6 +59314,9 @@
+ 		pendingOmTasks.clear();
+ 		aggregatedRecallRef.current = null;
+ 		planTitleRef.current = false;
++		sessionTaskIds.clear();
++		openTaskPieces.clear();
++		currentPlanTitle = void 0;
+ 		toolTasksRef.current = false;
+ 		sessionRef.current = null;
+ 		s.close();
+@@ -59262,15 +59330,92 @@
+ 	* `if (!session) session = openSession(); session.push(...)` pattern out
+ 	* of the handlers.
+ 	*/
++	// Tasks still running when a plan fills move into the next plan, so their
++	// updates land somewhere visible; the old plan shows them finished. The old
++	// stream finishes posting in the background and is awaited on close.
++	const rolloverPlan = () => {
++		const s = sessionRef.current;
++		if (!s) return;
++		for (const piece of openTaskPieces.values()) s.push({
++			...piece,
++			status: "complete"
++		});
++		s.push({
++			type: "task_update",
++			id: "continued",
++			title: "Continued in the next message",
++			status: "complete"
++		});
++		s.close();
++		retiredSessions.push(s.done);
++		sessionTaskIds.clear();
++		sessionRef.current = openSession();
++		sessionRef.current.push({
++			type: "plan_update",
++			title: currentPlanTitle ?? "Continued"
++		});
++		for (const piece of openTaskPieces.values()) {
++			sessionTaskIds.add(piece.id);
++			sessionRef.current.push(piece);
++		}
++	};
+ 	const pushToSession = (piece) => {
+-		if (!sessionRef.current) sessionRef.current = openSession();
++		if (rendersToolsInPlan && piece.type === "task_update") {
++			if (!sessionTaskIds.has(piece.id) && sessionTaskIds.size >= 49) rolloverPlan();
++			sessionTaskIds.add(piece.id);
++			if (piece.status === "in_progress") openTaskPieces.set(piece.id, piece);
++			else openTaskPieces.delete(piece.id);
++		}
++		if (rendersToolsInPlan && piece.type === "plan_update") currentPlanTitle = piece.title;
++		if (!sessionRef.current) {
++			sessionRef.current = openSession();
++			if (carriedPlanTitle) {
++				sessionRef.current.push({
++					type: "plan_update",
++					title: carriedPlanTitle
++				});
++				currentPlanTitle = carriedPlanTitle;
++				planTitleRef.current = true;
++				carriedPlanTitle = void 0;
++			}
++		}
+ 		for (const pendingPiece of pendingInitialText) sessionRef.current.push(pendingPiece);
+ 		pendingInitialText.length = 0;
+ 		sessionRef.current.push(piece);
+ 	};
++	const flushActivity = () => {
++		if (activityTimer) clearTimeout(activityTimer);
++		activityTimer = void 0;
++		if (!pendingActivity.size) return;
++		for (const piece of pendingActivity.values()) pushToSession(piece);
++		pendingActivity.clear();
++		if (activityTitle !== sentActivityTitle) {
++			pushToSession({ type: "plan_update", title: activityTitle, startedAt: activityStartedAt });
++			sentActivityTitle = activityTitle;
++		}
++		lastActivitySentAt = Date.now();
++	};
++	const completeActivity = () => {
++		if (!(activityReplied && sessionRef.current)) return;
++		flushActivity();
++		for (const piece of activityTasks.values()) if (piece.status !== "complete" && piece.status !== "error") {
++			pushToSession({ type: "task_update", id: piece.id, title: piece.title, status: "complete" });
++		}
++		activityTasks.clear();
++	};
+ 	const pushToolDisplayResult = (result) => {
+ 		if (result.openIfEmpty === false && !sessionRef.current) return;
+ 		pushToSession(result.chunk);
++		// A grouped plan takes its header from the latest task, as the built-in
++		// grouped renderer does, so a function-form display can render grouped.
++		// A plan_update the function returns itself (a status) keeps the header
++		// until the session closes.
++		if (result.chunk.type === "plan_update") planTitleRef.current = true;
++		const groupedTask = toolDisplay === "grouped" && result.chunk.type === "task_update";
++		if (groupedTask && !planTitleRef.current) pushToSession({
++			type: "plan_update",
++			title: result.chunk.title
++		});
+ 	};
+ 	const lookupTaskTitle = (toolCallId, fallback) => {
+ 		const stash = getPendingApproval(toolCallId);
+@@ -59361,6 +59506,29 @@
+ 		});
+ 	};
+ 	for await (const chunk of stream) {
++		const activity = chunk.metadata?.gorkieActivity;
++		if (activity) {
++			transientActivity = true;
++			groupTasks = "plan";
++			toolDisplay = "grouped";
++			rendersToolsInPlan = true;
++			typingGate.transientActivity = true;
++			activityIntervalMs = activity.intervalMs ?? activityIntervalMs;
++			activityTitle = activity.status;
++			activityStartedAt = activity.startedAt;
++			activityReplied = activity.replied;
++			activityOutcome = activity.outcome;
++			for (const piece of activity.chunks) {
++				activityTasks.set(piece.id, piece);
++				pendingActivity.set(piece.id, piece);
++			}
++			if (chunk.type === "finish" && !sessionRef.current) pendingActivity.clear();
++			if (pendingActivity.size) {
++				const delay = Math.max(0, lastActivitySentAt + activityIntervalMs - Date.now());
++				if (!sessionRef.current || delay === 0 || ["text-delta", "error", "abort", "finish", "tool-call-approval", "data-user-message"].includes(chunk.type)) flushActivity();
++				else if (!activityTimer) activityTimer = setTimeout(flushActivity, delay);
++			}
++		}
+ 		if (aggregatedRecallRef.current) {
+ 			const probe = asOmChunk(chunk);
+ 			if (!(probe?.type === "data-om-activation" && probe.data.operationType === "observation")) aggregatedRecallRef.current = null;
+@@ -59373,7 +59541,8 @@
+ 			}
+ 			const om = asOmChunk(chunk);
+ 			if (om) {
+-				if (!rendersToolsInPlan) continue;
++				// Memory work would title the plan "Updating memory"; detailed shows tools only.
++				if (!rendersToolsInPlan || toolDisplayFn) continue;
+ 				if (om.data.cycleId) {
+ 					if (!planTitleRef.current) {
+ 						pushToSession({
+@@ -59425,7 +59594,24 @@
+ 			continue;
+ 		}
+ 		if (chunk.type === "step-finish") {
+-			if (toolDisplay !== "grouped") await closeSession();
++			// A continued step (retry, in-place or fallback-model escalation) means the
++			// run is still alive: closing here would finalize the message early.
++			const stepIsContinued = chunk.payload?.stepResult?.isContinued === true;
++			// A grouped plan stays open across steps, so it rolls over only after a
++			// tool-call step that filled it, before Slack's 50-task cap.
++			if (toolDisplay === "grouped") {
++				if (chunk.payload?.stepResult?.reason === "tool-calls" && sessionTaskIds.size >= 45 && sessionRef.current) {
++					sessionRef.current.push({
++						type: "task_update",
++						id: "continued",
++						title: "Continued in the next message",
++						status: "complete"
++					});
++					const title = currentPlanTitle ?? "Continued";
++					await closeSession();
++					carriedPlanTitle = title;
++				}
++			} else if (!stepIsContinued) await closeSession();
+ 			continue;
+ 		}
+ 		if (chunk.type === "file") {
+@@ -59438,11 +59624,12 @@
+ 			continue;
+ 		}
+ 		if (chunk.type === "finish") {
++			completeActivity();
+ 			tracker.reset();
+ 			continue;
+ 		}
+ 		if (chunk.type === "error") {
+-			await closeSession();
++			await closeSession({ outcome: "Failed" });
+ 			await postStreamError({
+ 				chunk,
+ 				chatThread,
+@@ -59454,7 +59641,7 @@
+ 			continue;
+ 		}
+ 		if (chunk.type === "abort") {
+-			await closeSession();
++			await closeSession({ outcome: "Stopped" });
+ 			tracker.reset();
+ 			continue;
+ 		}
+@@ -59685,7 +59872,7 @@
+ 		}
+ 		if (chunk.type === "tripwire") {
+ 			if (chunk.payload.retry) continue;
+-			await closeSession();
++			await closeSession({ outcome: "Failed" });
+ 			await postTripwire({
+ 				chunk,
+ 				chatThread,
+@@ -59694,7 +59881,12 @@
+ 			continue;
+ 		}
+ 	}
+-	await closeSession();
++	// The turn finished, so the last plan stops showing the latest status.
++	if (toolDisplay === "grouped" && sessionRef.current && sessionTaskIds.size > 0) sessionRef.current.push({
++		type: "plan_update",
++		title: "Completed"
++	});
++	await closeSession({ completed: true });
+ }
+ // src/channels/output-processor.ts
+ /** Chunks that carry reply text, kept out of the channel by `textDisplay: 'hidden'`. */
+@@ -59814,8 +60006,13 @@
+ 			session = this.#openSession(render, requestContext);
+ 			state.session = session;
+ 		}
++		render.abortActivity = async () => {
++			session.queue.push({ type: "abort", payload: {} });
++			session.queue.close();
++			await session.driverPromise;
++		};
+ 		if (part.type !== "tool-call-approval" || !this.#agentChannels || await this.#agentChannels.shouldRenderToolApproval(requestContext, part.payload?.toolName)) session.queue.push(part);
+-		if (part.type === "step-finish" && part.payload?.stepResult?.isContinued !== true || part.type === "error" || part.type === "abort") {
++		if (part.type === "step-finish" && part.payload?.stepResult?.isContinued !== true || part.type === "finish" || part.type === "error" || part.type === "abort") {
+ 			session.queue.close();
+ 			try {
+ 				await session.driverPromise;
+@@ -59845,7 +60042,7 @@
+ 		}
+ 		const threadId = require_stream.parseMemoryRequestContext(requestContext)?.thread?.id;
+ 		if (this.#agentChannels && threadId) {
+-			const rebuilt = await this.#agentChannels.buildRenderContextForThread(threadId);
++			const rebuilt = await this.#agentChannels.buildRenderContextForThread(threadId, requestContext?.get("channel")?.userId);
+ 			state.render = rebuilt ?? null;
+ 			return rebuilt ?? void 0;
+ 		}
+@@ -60988,7 +61185,7 @@
+ 							return;
+ 						}
+ 						const actorId = event.user?.userId;
+-						if (adapterConfig?.toolApprovers !== "anyone" && requesterId && actorId && requesterId !== actorId) {
++						if (adapterConfig?.toolApprovers !== "anyone" && (!requesterId || requesterId !== actorId)) {
+ 							this.log("info", `Ignoring tool approval action from ${actorId}: only ${requesterId} may answer`, {
+ 								...actionEventContext,
+ 								requesterId
+@@ -62026,8 +62223,8 @@
+ 	* `Thread` handle, which the Chat SDK materializes from the stored external id
+ 	* via `chat.thread(externalThreadId)`.
+ 	*/
+-	async buildRenderContextForThread(threadId) {
+-		return (await this.loadChannelThread(threadId))?.render ?? null;
++	async buildRenderContextForThread(threadId, requesterId) {
++		return (await this.loadChannelThread(threadId, requesterId))?.render ?? null;
+ 	}
+ 	/**
+ 	* The channel context and render context for a run on a channel-backed
+@@ -62052,7 +62249,7 @@
+ 			render
+ 		};
+ 	}
+-	async loadChannelThread(threadId) {
++	async loadChannelThread(threadId, requesterId) {
+ 		const storage = this.getMastra()?.getStorage();
+ 		if (!storage) return null;
+ 		const memoryStore = await storage.getStore("memory");
+@@ -62071,7 +62268,7 @@
+ 		const storedIsDM = thread.metadata?.[IS_DM_KEY];
+ 		const isDM = typeof storedIsDM === "boolean" ? storedIsDM : chatThread.isDM;
+ 		if (!sender && isDM === chatThread.isDM) return {
+-			render: this._buildRenderContext(chatThread, platform),
++			render: this._buildRenderContext(chatThread, platform, { requesterId: requesterId ?? sender?.author?.userId }),
+ 			sender
+ 		};
+ 		const { Message: ChatMessage, ThreadImpl } = await getChatModule();
+@@ -62101,7 +62298,7 @@
+ 			stateAdapter: this.stateAdapter
+ 		});
+ 		return {
+-			render: this._buildRenderContext(rebuilt, platform),
++			render: this._buildRenderContext(rebuilt, platform, { requesterId: requesterId ?? sender?.author?.userId }),
+ 			sender
+ 		};
+ 	}
+@@ -62167,7 +62364,7 @@
+ 		let statusSent = false;
+ 		try {
+ 			for await (const chunk of stream) {
+-				if (typingStatusFn && !typingGate.active) {
++				if (typingStatusFn && (!typingGate.active || typingGate.transientActivity)) {
+ 					let result;
+ 					try {
+ 						result = typingStatusFn(chunk, {
+@@ -62200,7 +62397,7 @@
+ 				yield chunk;
+ 			}
+ 		} finally {
+-			if (statusSent && !typingGate.active) chatThread.startTyping("").catch((e) => {
++			if (statusSent && (!typingGate.active || typingGate.transientActivity)) chatThread.startTyping("").catch((e) => {
+ 				this.log("debug", "Typing clear failed (best-effort)", {
+ 					platform,
+ 					threadId: chatThread.id,
+@@ -78727,7 +78924,13 @@
+ 					});
+ 					await options.onError?.({ error });
+ 				},
+-				onAbort: options.onAbort,
++				onAbort: async (event) => {
++					try {
++						await requestContext?.get(CHAT_CHANNEL_RENDER_CONTEXT_KEY)?.abortActivity?.();
++					} finally {
++						await options.onAbort?.(event);
++					}
++				},
+ 				abortSignal: options.abortSignal
+ 			},
+ 			activeTools: options.activeTools,
+@@ -83135,7 +83338,7 @@
+ 							let delegatedPause = {};
+ 							for await (const chunk of streamResult.fullStream) {
+ 								if (context?.writer) {
+-									if (chunk.type.startsWith("data-")) await context.writer.custom(chunk);
++									if (chunk.type.startsWith("data-")) await context.writer.custom({ ...chunk, metadata: { ...chunk.metadata, gorkieDelegation: { toolCallId, toolName: `agent-${agentName}` } } });
+ 									else await context.writer.write(chunk);
+ 								}
+ 								if (chunk.type === "data-tool-call-approval") {
+@@ -83227,7 +83430,7 @@
+ 							let fullText = "";
+ 							for await (const chunk of streamResult.fullStream) {
+ 								if (context?.writer) {
+-									if (chunk.type.startsWith("data-")) await context.writer.custom(chunk);
++									if (chunk.type.startsWith("data-")) await context.writer.custom({ ...chunk, metadata: { ...chunk.metadata, gorkieDelegation: { toolCallId, toolName: `agent-${agentName}` } } });
+ 									else await context.writer.write(chunk);
+ 								}
+ 								if (chunk.type === "text-delta") fullText += chunk.textDelta;
+--- a/dist/stream-D9JOykz7.js
++++ b/dist/stream-D9JOykz7.js
+@@ -7,13 +7,14 @@
+ 	runId;
+ 	writeFn;
+ 	constructor({ prefix, callId, name, runId }, writeFn) {
++		// Hold the instance weakly. Bun never collects a WritableStream whose
++		// underlying sink strongly references the stream itself, so the original
++		// `const self = this` closure leaked one ToolStream per step/tool call.
++		let ref;
+ 		super({ async write(chunk) {
+-			await getInstance()._write(chunk);
++			await ref.deref()?._write(chunk);
+ 		} });
+-		const self = this;
+-		function getInstance() {
+-			return self;
+-		}
++		ref = new WeakRef(this);
+ 		this.prefix = prefix;
+ 		this.callId = callId;
+ 		this.name = name;
+--- a/dist/stream-BGbj9jAU.cjs
++++ b/dist/stream-BGbj9jAU.cjs
+@@ -7,13 +7,14 @@
+ 	runId;
+ 	writeFn;
+ 	constructor({ prefix, callId, name, runId }, writeFn) {
++		// Hold the instance weakly. Bun never collects a WritableStream whose
++		// underlying sink strongly references the stream itself, so the original
++		// `const self = this` closure leaked one ToolStream per step/tool call.
++		let ref;
+ 		super({ async write(chunk) {
+-			await getInstance()._write(chunk);
++			await ref.deref()?._write(chunk);
+ 		} });
+-		const self = this;
+-		function getInstance() {
+-			return self;
+-		}
++		ref = new WeakRef(this);
+ 		this.prefix = prefix;
+ 		this.callId = callId;
+ 		this.name = name;

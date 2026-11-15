@@ -16,8 +16,21 @@ export function isComment(message: Message): boolean {
   const [first] = rawText(message)
     .split('\n')
     .filter((line) => line.trim());
+  const start = first ? withoutLeadingMentions(first).trimStart() : '';
+  // Slack autocorrects `--` to an em dash as people type it.
+  return ['##', '--', '\u2014'].some((marker) => start.startsWith(marker));
+}
+
+export function neutralizeBroadcasts(text: string): string {
   return (
-    first !== undefined &&
-    withoutLeadingMentions(first).trimStart().startsWith('##')
+    text
+      .replace(/<!(here|channel|everyone)(?:\|[^>]*)?>/gi, '@\u200B$1')
+      .replace(
+        /<!subteam\^[A-Z0-9]+(?:\|([^>]*))?>/gi,
+        (_match, label?: string) =>
+          `@\u200B${(label ?? 'group').replace(/^@/, '')}`
+      )
+      // A `/` before it is a URL path such as medium.com/@channel, not a ping.
+      .replace(/(^|[^\w\u200B/])@(here|channel|everyone)\b/gi, '$1@\u200B$2')
   );
 }

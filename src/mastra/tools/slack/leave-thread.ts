@@ -1,6 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { chat } from '../../chat/instance';
+import { setThreadState } from '../../chat/state';
 import { channelContext } from '../../lib/context';
 import { input, output } from '../../types/tools/index';
 
@@ -12,8 +13,9 @@ export const leaveThreadTool = createTool({
   outputSchema: output({ threadId: z.string() }),
   transform: {
     display: {
+      input: () => ({ summary: null }),
       output: ({ output }) => ({
-        summary: `Left thread ${output?.threadId ?? ''}`,
+        summary: `left thread ${output?.threadId ?? ''}`,
       }),
     },
   },
@@ -23,7 +25,13 @@ export const leaveThreadTool = createTool({
       throw new Error('No current thread.');
     }
     const thread = chat().thread(threadId);
-    await thread.setState({ respondOnThreadMessages: false });
+    await setThreadState({
+      thread,
+      patch: {
+        dropMessagesBefore: Date.now(),
+        respondOnThreadMessages: false,
+      },
+    });
     await thread.unsubscribe();
     return { threadId };
   },

@@ -20,7 +20,9 @@ export const reactTool = createTool({
     messageId: z
       .string()
       .optional()
-      .describe('Slack message timestamp. Required unless url is given.'),
+      .describe(
+        'Slack message timestamp. Defaults to the current message if omitted.'
+      ),
     url: z
       .url()
       .optional()
@@ -36,8 +38,9 @@ export const reactTool = createTool({
   }),
   transform: {
     display: {
+      input: () => ({ summary: null }),
       output: ({ output }) => ({
-        summary: `${output?.action === 'remove' ? 'Removed' : 'Added'} :${output?.emoji ?? ''}:`,
+        summary: `${output?.action === 'remove' ? 'removed' : 'added'} :${output?.emoji ?? ''}:`,
       }),
     },
   },
@@ -45,7 +48,7 @@ export const reactTool = createTool({
     { channelId, messageId, url, action, emoji: emojiInput },
     context
   ) => {
-    const ctx = channelContext(context?.requestContext);
+    const ctx = channelContext(context.requestContext);
     const target = parseSlackId(url ?? messageId ?? ctx.messageId, {
       channel: channelId ?? ctx.channelId,
     });
@@ -61,22 +64,11 @@ export const reactTool = createTool({
     });
 
     const emoji = emojiInput.replaceAll(':', '');
-    const request = {
+    await slack.webClient.reactions[action]({
       channel: target.channel,
       name: emoji,
       timestamp: target.ts,
-    };
-    if (action === 'remove') {
-      await slack.webClient.reactions.remove(request);
-      return {
-        action,
-        channelId: chatChannelId(target.channel),
-        messageId: target.ts,
-        emoji,
-      };
-    }
-
-    await slack.webClient.reactions.add(request);
+    });
     return {
       action,
       channelId: chatChannelId(target.channel),

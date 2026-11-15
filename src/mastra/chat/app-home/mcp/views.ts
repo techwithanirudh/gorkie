@@ -18,12 +18,9 @@ export function configureModal({
     callbackId: ids.configureModal,
     title: `Configure ${server.name}`.slice(0, 24),
     submitLabel: 'Save',
+    privateMetadata: server.name,
     children: [
-      presetRadio({
-        id: 'permission',
-        permission: server.permission,
-        scope: server.name,
-      }),
+      presetRadio({ id: 'permission', permission: server.permission }),
       ...(unlabelled
         ? [
             CardText(

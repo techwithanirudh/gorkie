@@ -1,3 +1,4 @@
+import { heading, note, section } from '../blocks';
 import type { HomeSection } from '../limit';
 import { ids } from './ids';
 
@@ -11,27 +12,12 @@ export function customInstructionsBlocks(
 
   return {
     fixed: [
-      {
-        type: 'section',
-        text: { type: 'mrkdwn', text: '*Custom Instructions*' },
-      },
+      heading('Custom Instructions'),
       preview
-        ? {
-            type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: `>${preview.replaceAll('\n', '\n>')}`,
-            },
-          }
-        : {
-            type: 'context',
-            elements: [
-              {
-                type: 'mrkdwn',
-                text: 'none yet. gorkie uses its default personality. add one to shape how it replies to you.',
-              },
-            ],
-          },
+        ? section(`>${preview.replaceAll('\n', '\n>')}`)
+        : note(
+            'None yet. Gorkie uses its default personality. Add instructions to shape how it replies to you.'
+          ),
       {
         type: 'actions',
         elements: [

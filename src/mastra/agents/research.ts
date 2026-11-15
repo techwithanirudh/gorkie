@@ -5,15 +5,17 @@ import {
 } from '@mastra/core/processors';
 import { InMemoryStore } from '@mastra/core/storage';
 import { Memory } from '@mastra/memory';
-import { agent as config } from '../config';
+import { agent as config, subagent } from '../config';
 import { defaultErrorProcessors } from '../lib/error-handling';
-import { stepCountIs } from '../lib/tools';
+import { lowQuota } from '../processors/low-quota';
 import { sandbox } from '../processors/sandbox';
+import { tokenUsage } from '../processors/token-usage';
 import { moveToolImages } from '../processors/tool-media';
 import { workingModel } from '../processors/working-model';
+import { wrapUp } from '../processors/wrap-up';
 import * as research from '../prompts/agents/research';
 import { slackToolPrompt } from '../prompts/slack';
-import { scout } from '../providers';
+import { agentModel } from '../providers';
 import { slackCodeMode, slackCodeModePrompt } from '../tools/code-mode/slack';
 import { fetchUrlTool } from '../tools/fetch-url';
 import { searchWebTool } from '../tools/search-web';
@@ -28,9 +30,9 @@ export const researchAgent = new Agent({
     slackToolPrompt,
     await slackCodeModePrompt(),
   ],
-  model: scout,
+  model: agentModel,
   errorProcessors: defaultErrorProcessors(),
-  maxProcessorRetries: 2,
+  maxProcessorRetries: config.maxProcessorRetries,
   memory: new Memory({ storage: new InMemoryStore() }),
   tools: async () => ({
     slack: (await slackCodeMode()).tool,
@@ -44,6 +46,8 @@ export const researchAgent = new Agent({
     summarize_thread: slackTools.summarize_thread,
   }),
   inputProcessors: [
+    wrapUp,
+    lowQuota,
     new TokenLimiterProcessor({
       limit: config.maxTokens.input,
       trimMode: 'contiguous',
@@ -53,12 +57,11 @@ export const researchAgent = new Agent({
   defaultOptions: {
     modelSettings: {
       maxOutputTokens: 16_384,
-      maxRetries: 5,
       reasoning: 'medium',
       timeout: config.modelTimeout,
     },
-    stopWhen: stepCountIs(config.maxSteps),
+    maxSteps: subagent.maxSteps,
     autoResumeSuspendedTools: true,
   },
-  outputProcessors: [sandbox, workingModel('research')],
+  outputProcessors: [tokenUsage, sandbox, workingModel('research')],
 });

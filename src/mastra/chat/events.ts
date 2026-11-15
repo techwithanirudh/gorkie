@@ -1,6 +1,7 @@
 import { logger } from '../lib/logger';
 import { registerAppHome } from './app-home';
 import { slack } from './client';
+import { onAgentSessionStopped } from './commands/stop';
 import { content } from './content';
 import {
   feedbackIds,
@@ -8,6 +9,8 @@ import {
   recordFeedbackDetails,
 } from './feedback';
 import { chat } from './instance';
+import { registerModeration } from './moderation';
+import { guarded } from './moderation/gate';
 import { acceptOptIn } from './onboarding';
 
 export function registerEvents(): void {
@@ -21,15 +24,22 @@ export function registerEvents(): void {
       )
   );
 
+  bot.onAgentSessionStopped(onAgentSessionStopped);
+
   registerAppHome();
+  registerModeration();
 
-  bot.onAction('opt_in_accept', acceptOptIn);
+  bot.onAction('opt_in_accept', guarded(acceptOptIn));
 
-  bot.onAction(feedbackIds.action, onFeedbackClick);
-  bot.onModalSubmit(feedbackIds.modal, (event) =>
-    recordFeedbackDetails({ comment: event.values.details, event })
+  bot.onAction(feedbackIds.action, guarded(onFeedbackClick));
+  bot.onModalSubmit(
+    feedbackIds.modal,
+    guarded((event) =>
+      recordFeedbackDetails({ comment: event.values.details, event })
+    )
   );
-  bot.onModalClose(feedbackIds.modal, (event) =>
-    recordFeedbackDetails({ event })
+  bot.onModalClose(
+    feedbackIds.modal,
+    guarded((event) => recordFeedbackDetails({ event }))
   );
 }

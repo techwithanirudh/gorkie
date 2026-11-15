@@ -25,14 +25,6 @@ Their access is the narrowest of three things: the repos they picked, what the a
 
 Picking "All repositories" at step 3 hands over every repo on the account, which is almost never what someone means.
 
-## Personal tokens
-
-Someone may paste a classic personal access token instead, under **Classic token** in the connect modal. It exists because an App only reaches repositories it was installed on, so it cannot fork, and it cannot open a pull request against a repository somebody else owns. A token is not installation-bounded, so it can.
-
-The modal offers two scopes. `public_repo` covers public repositories, other people's included. `repo` adds their own private ones, and is the only way Gorkie reaches private code while a token is set. Fine-grained tokens are refused, because they only reach the person's own repositories, which the App already covers.
-
-A token replaces the App for every repository while it is set, and the Home tab says so.
-
 ## Settings in the Home tab
 
 **Configure** holds two settings per connection, GitHub's own and one for each MCP server they have added.

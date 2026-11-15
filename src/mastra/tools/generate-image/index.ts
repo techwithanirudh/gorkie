@@ -37,8 +37,9 @@ export const generateImageTool = createTool({
   }),
   transform: {
     display: {
+      input: () => ({ summary: 'creating an image' }),
       output: ({ output: out }) => ({
-        summary: `Generated ${out?.paths.length ?? 0} image${out?.paths.length === 1 ? '' : 's'}`,
+        summary: `generated ${out?.paths.length ?? 0} image${out?.paths.length === 1 ? '' : 's'}`,
       }),
     },
   },

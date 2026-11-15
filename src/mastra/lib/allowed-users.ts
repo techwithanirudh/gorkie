@@ -1,6 +1,7 @@
 import { env } from '@/env';
 import { slack } from '../chat/client';
 import { chat } from '../chat/instance';
+import { optIn } from '../config';
 import { rawId } from './ids';
 import { logger } from './logger';
 
@@ -29,23 +30,36 @@ export async function addAllowedUser(userId: string): Promise<void> {
     return;
   }
   const state = chat().getState();
-  try {
-    const allowedUsers = new Set(
-      (await state.get<string[]>(allowlistKey(channel))) ?? []
-    );
-    const wasAllowed = allowedUsers.has(userId);
-    allowedUsers.add(userId);
-    await state.set(allowlistKey(channel), [...allowedUsers]);
-    if (!wasAllowed) {
-      logger.info('[allowlist] user opted in', { channel, userId });
-    }
-  } catch (error) {
-    logger.warn('[allowlist] failed to add user to opt-in cache', {
-      channel,
-      error,
-      userId,
-    });
+  const allowedUsers = new Set(
+    (await state.get<string[]>(allowlistKey(channel))) ?? []
+  );
+  const wasAllowed = allowedUsers.has(userId);
+  allowedUsers.add(userId);
+  await state.set(allowlistKey(channel), [...allowedUsers]);
+  if (!wasAllowed) {
+    logger.info('[allowlist] user opted in', { channel, userId });
   }
+}
+
+async function refreshAllowlist(channel: string): Promise<void> {
+  const allowedUsers = new Set<string>();
+  let cursor: string | undefined;
+  do {
+    // biome-ignore lint/performance/noAwaitInLoops: each page's cursor comes from the previous response, so this can't be parallelized.
+    const response = await slack.webClient.conversations.members({
+      channel,
+      cursor,
+      limit: 200,
+    });
+    for (const member of response.members ?? []) {
+      allowedUsers.add(member);
+    }
+    cursor = response.response_metadata?.next_cursor || undefined;
+  } while (cursor);
+  await chat()
+    .getState()
+    .set(allowlistKey(channel), [...allowedUsers]);
+  logger.info('[allowlist] opt-in cache built', { count: allowedUsers.size });
 }
 
 export async function buildAllowlist(): Promise<void> {
@@ -53,38 +67,32 @@ export async function buildAllowlist(): Promise<void> {
   if (!channel) {
     return;
   }
-  const state = chat().getState();
 
   chat().onMemberJoinedChannel(async (event) => {
     if (rawId(event.channelId) === channel) {
-      await addAllowedUser(event.userId);
+      await addAllowedUser(event.userId).catch((error: unknown) => {
+        logger.warn('[allowlist] failed to add a member who joined', {
+          channel,
+          error,
+          userId: event.userId,
+        });
+      });
     }
   });
 
   try {
-    const allowedUsers = new Set<string>();
-    let cursor: string | undefined;
-    do {
-      // biome-ignore lint/performance/noAwaitInLoops: each page's cursor comes from the previous response, so this can't be parallelized.
-      const response = await slack.webClient.conversations.members({
-        channel,
-        cursor,
-        limit: 200,
-      });
-      for (const member of response.members ?? []) {
-        allowedUsers.add(member);
-      }
-      cursor = response.response_metadata?.next_cursor || undefined;
-    } while (cursor);
-    await state.set(allowlistKey(channel), [...allowedUsers]);
-    logger.info('[allowlist] opt-in cache built', {
-      count: allowedUsers.size,
-    });
+    await refreshAllowlist(channel);
   } catch (error) {
-    logger.error('[allowlist] failed to build opt-in cache', {
-      channel,
-      error,
-    });
     throw new Error('Failed to build opt-in allowlist', { cause: error });
   }
+  // Chat SDK has no leave event, so a rebuild is what drops people who left or
+  // were removed from the channel.
+  setInterval(() => {
+    refreshAllowlist(channel).catch((error: unknown) => {
+      logger.warn('[allowlist] failed to refresh the opt-in cache', {
+        channel,
+        error,
+      });
+    });
+  }, optIn.refreshMs).unref();
 }

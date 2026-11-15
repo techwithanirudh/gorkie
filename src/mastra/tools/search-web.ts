@@ -1,6 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { exa } from '../lib/exa';
+import { exa, withExaTimeout } from '../lib/exa';
+import { assertWithinLimit } from '../lib/limits';
 import { input, output } from '../types/tools/index';
 
 export const searchWebTool = createTool({
@@ -15,7 +16,6 @@ export const searchWebTool = createTool({
       .describe("A specific, clear web search query for what you're after."),
   }),
   outputSchema: output({
-    links: z.array(z.url()),
     results: z.array(
       z.strictObject({
         title: z.string(),
@@ -27,20 +27,25 @@ export const searchWebTool = createTool({
   }),
   transform: {
     display: {
+      input: ({ input }) => ({
+        summary: `searching the web${input?.query ? `: ${input.query}` : ''}`,
+      }),
       output: ({ input, output }) => ({
-        summary: `Found ${output?.results.length ?? 0} web results for "${input?.query ?? ''}"`,
+        summary: `found ${output?.results.length ?? 0} web results for "${input?.query ?? ''}"`,
       }),
     },
   },
-  execute: async ({ query }) => {
-    const { results } = await exa.search(query, {
-      type: 'auto',
-      numResults: 8,
-      contents: { text: { maxCharacters: 1200 } },
+  execute: async ({ query }, { abortSignal, requestContext }) => {
+    await assertWithinLimit({ kind: 'web', requestContext });
+    const { results } = await withExaTimeout({
+      request: exa.search(query, {
+        type: 'auto',
+        numResults: 8,
+        contents: { text: { maxCharacters: 1200 } },
+      }),
+      signal: abortSignal,
     });
-    const links = results.slice(0, 5).map((r) => r.url);
     return {
-      links,
       results: results.map((r) => ({
         title: r.title ?? r.url,
         url: r.url,
