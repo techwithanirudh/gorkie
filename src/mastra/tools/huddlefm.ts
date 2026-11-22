@@ -12,6 +12,26 @@ import {
 } from '../types/tools/huddlefm';
 import { spendSlackCall } from './slack/budget';
 
+// Slack entity-escapes &, < and > and wraps links as <url> or <url|text> in
+// message text. Left alone, a search reference comes back as `<https://...>`.
+// A link's text is what HuddleFM wrote, so it wins over the URL Slack built.
+function parseSlackJson(text: string | undefined): unknown {
+  try {
+    return JSON.parse(
+      (text ?? 'null')
+        .replace(
+          /<((?:https?|mailto):[^|>]+)(?:\|([^>]*))?>/g,
+          (_link, url: string, label?: string) => label ?? url
+        )
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&amp;', '&')
+    );
+  } catch {
+    return null;
+  }
+}
+
 export const huddleDjTool = createTool({
   id: 'huddle_dj',
   description:
@@ -134,7 +154,7 @@ export const huddleDjReplyTool = createTool({
     const original = page.messages?.find((message) => message.ts === commandTs);
     const sent = z
       .looseObject({ v: z.literal(1), channel: z.literal(channel) })
-      .safeParse(JSON.parse(original?.text ?? 'null'));
+      .safeParse(parseSlackJson(original?.text));
     if (original?.user !== ctx.botUserId || !sent.success) {
       throw new Error('That command does not belong to this Slack channel.');
     }
@@ -142,7 +162,7 @@ export const huddleDjReplyTool = createTool({
       .filter((message) => message.user === env.HUDDLEFM_USER_ID)
       .map((message) => {
         const result = huddleMessageSchema.safeParse(
-          JSON.parse(message.text ?? 'null')
+          parseSlackJson(message.text)
         );
         return result.success && result.data.replyTo === commandTs
           ? result.data
