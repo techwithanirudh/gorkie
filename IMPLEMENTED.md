@@ -7,6 +7,12 @@ value here, not the fact that something got done.
 
 Newest first. The bracketed label is the `TODO.md` section the item came from.
 
+## 2026-11-22
+
+[TODO.md: Session context]
+
+- [x] Fixed two gaps in the 2026-10-08 HuddleFM tools (`src/mastra/tools/huddlefm.ts`). First, HuddleFM's Slack account reports `is_bot=false`, so its threaded JSON replies in gorkie's DM reached `onDirectMessage` like a person's message: each one either started a turn on raw JSON or, with `OPT_IN_CHANNEL` set, sent HuddleFM an opt-in prompt. `isFromBot` in `src/mastra/chat/handlers.ts` now also matches `env.HUDDLEFM_USER_ID`, so those replies are declined with reason `from a bot` and only `huddle_dj_reply` reads them. Second, `huddle_dj_reply` ran a bare `JSON.parse` on Slack message text. Slack entity-escapes `&`, `<` and `>` and wraps URLs as `<url>` or `<url|label>`, and those land inside JSON string values. The old parse succeeded but returned them verbatim: a `search` reference came back as `<https://...>` with `&amp;` in its query string, and a title as `A &amp; B`. Separately, any non-JSON or empty message in the thread made `JSON.parse` throw, so the tool failed instead of skipping it. Added `parseSlackJson`, which undoes link wrapping and entity escapes like Gork's `server/lib/huddlefm/client.ts` `decode` and returns `null` on invalid JSON. Unlike Gork's, it keeps a link's text over its URL for `<url|text>`, because the text is what HuddleFM wrote (Slack turns a bare `foo.com` in a title into `<http://foo.com|foo.com>`). A URL containing a literal `|` would still be cut at it, same as Gork's. Checked against sample escaped replies, a `<url|text>` link, gorkie's own `<`/`\/`-escaped command text, non-JSON text and missing text. Not exercised against live HuddleFM. Deliberately not done: waiting for replies inside `huddle_dj`, playback events, auto-DJ.
+
 ## 2026-10-18
 
 [TODO.md: Moderation]

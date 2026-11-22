@@ -4,6 +4,7 @@ import type {
 } from '@mastra/core/channels';
 import type { Message, Thread } from 'chat';
 import { z } from 'zod';
+import { env } from '@/env';
 import { logger } from '../lib/logger';
 import type { ThreadState } from '../types';
 import { optInStatus, rebuildAllowlist } from './allowed-users';
@@ -25,7 +26,13 @@ const messageActionToken = z.looseObject({
 });
 
 function isFromBot(message: Message): boolean {
-  return message.author.isBot === true || message.author.userId === 'USLACKBOT';
+  return (
+    message.author.isBot === true ||
+    message.author.userId === 'USLACKBOT' ||
+    // HuddleFM is a Slack user, not a bot user, and answers huddle_dj commands
+    // in gorkie's DM. Those replies are read by huddle_dj_reply, never answered.
+    message.author.userId === env.HUDDLEFM_USER_ID
+  );
 }
 
 async function admit({
